@@ -1,0 +1,11 @@
+services:
+  web:
+    image: pr0-accounts-24
+  mail:
+    image: pr0-accounts-24
+  accounts:
+    image: pr0-accounts-24
+  smtp:
+    image: axllent/mailpit@sha256:030f06031ce5c60913ac9363da1ab0d4be6fd2a78147dd0e1ca0fcac665d6b34
+    ports:
+      - "127.0.0.1:18425:8025"

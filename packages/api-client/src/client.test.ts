@@ -6,6 +6,54 @@ import { ZodError } from "zod";
 import { ApiError, createApiClient } from "./client";
 import { healthQueryOptions } from "./query-options";
 
+test("account client rejects malformed library data and preserves typed retry guidance", async () => {
+  const client = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ prompts: [] })),
+  });
+  await expect(client.getLibrary()).rejects.toBeInstanceOf(ZodError);
+  const limited = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({ code: "rate_limited", retryAfter: 60 }, { status: 429 })
+      ),
+  });
+  await expect(
+    limited.signIn({
+      email: "owner@example.test",
+      password: "a-long-test-password",
+    })
+  ).rejects.toMatchObject({
+    status: 429,
+    code: "rate_limited",
+    retryAfter: 60,
+  });
+});
+
+test("account requests preserve cancellation and typed non-JSON failures", async () => {
+  const controller = new AbortController();
+  const reason = new DOMException("Account changed", "AbortError");
+  controller.abort(reason);
+  const fetcher = mock((_url: string, init: RequestInit) =>
+    Promise.reject(init.signal?.reason)
+  );
+  const client = createApiClient({ fetcher });
+  await expect(client.getLibrary(controller.signal)).rejects.toBe(reason);
+  await expect(
+    client.register(
+      { email: "owner@example.test", password: "a-long-test-password" },
+      controller.signal
+    )
+  ).rejects.toBe(reason);
+  const failed = createApiClient({
+    fetcher: () =>
+      Promise.resolve(new Response("<h1>Unavailable</h1>", { status: 503 })),
+  });
+  await expect(failed.getLibrary()).rejects.toMatchObject({
+    name: "ApiError",
+    status: 503,
+  });
+});
+
 test("uses the same-origin API and validates its response", async () => {
   const fetcher = mock(() => Promise.resolve(Response.json({ status: "ok" })));
   const client = createApiClient({ fetcher });

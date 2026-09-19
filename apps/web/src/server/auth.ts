@@ -1,0 +1,76 @@
+import "server-only";
+import { drizzleAdapter } from "@better-auth/drizzle-adapter";
+import { betterAuth } from "better-auth";
+import { drizzle } from "drizzle-orm/bun-sql";
+
+import { account, session, user, verification } from "./auth-schema";
+import { configuration } from "./config";
+import { database } from "./database";
+import { enqueueVerification } from "./mail";
+
+const createAuth = () => {
+  const config = configuration();
+  const schema = { account, session, user, verification };
+  return betterAuth({
+    baseURL: config.origin,
+    secret: config.authSecret,
+    trustedOrigins: [config.origin],
+    database: drizzleAdapter(drizzle({ client: database(), schema }), {
+      provider: "pg",
+      schema,
+      transaction: true,
+    }),
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: true,
+      autoSignIn: false,
+      minPasswordLength: 12,
+      maxPasswordLength: 128,
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: false,
+      autoSignInAfterVerification: false,
+      expiresIn: 3600,
+      sendVerificationEmail: async (
+        { user: recipient, url, token },
+        request
+      ) => {
+        const reservation = request?.headers.get("x-pr0-mail-reservation");
+        if (!reservation) {
+          throw new Error("Missing email admission");
+        }
+        await enqueueVerification(recipient.email, url, token, reservation);
+      },
+    },
+    account: { accountLinking: { enabled: false } },
+    session: {
+      expiresIn: 30 * 24 * 60 * 60,
+      updateAge: 0,
+      cookieCache: { enabled: false },
+      additionalFields: {
+        provenance: { type: "string", defaultValue: "browser", input: false },
+      },
+    },
+    advanced: {
+      useSecureCookies: config.secure,
+      database: { generateId: () => crypto.randomUUID() },
+      ipAddress: { disableIpTracking: true },
+      defaultCookieAttributes: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: config.secure,
+      },
+    },
+    // Admission is enforced durably on every exposed route, shared across processes.
+    rateLimit: { enabled: false },
+    logger: { disabled: true },
+    telemetry: { enabled: false },
+  });
+};
+
+let auth: ReturnType<typeof createAuth> | undefined;
+export const authentication = () => {
+  auth ??= createAuth();
+  return auth;
+};

@@ -12,6 +12,7 @@ COPY apps/desktop/package.json apps/desktop/package.json
 COPY packages/api-client/package.json packages/api-client/package.json
 COPY packages/api-contract/package.json packages/api-contract/package.json
 COPY packages/ui/package.json packages/ui/package.json
+COPY packages/prototype-library/package.json packages/prototype-library/package.json
 COPY packages/typescript-config/package.json packages/typescript-config/package.json
 RUN bun install --frozen-lockfile
 
@@ -30,6 +31,8 @@ ENV NODE_ENV=production \
 COPY --from=build --chown=bun:bun /app/apps/web/.next/standalone ./
 COPY --from=build --chown=bun:bun /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build --chown=bun:bun /app/apps/web/public ./apps/web/public
+COPY --from=build --chown=bun:bun /app/apps/web/.operations ./apps/web/.operations
+COPY --from=build --chown=bun:bun /app/apps/web/migrations ./apps/web/migrations
 
 USER bun
 EXPOSE 3000

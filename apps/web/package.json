@@ -5,27 +5,39 @@
   "type": "module",
   "scripts": {
     "dev": "bun run docs:prepare && bun --bun next dev --port 3000",
-    "build": "bun run docs:prepare && bun --bun next build",
+    "build": "bun run docs:prepare && bun run ops:build && bun --bun next build",
+    "ops:build": "bun build scripts/accounts.ts scripts/mail-worker.ts --target=bun --conditions=react-server --outdir=.operations",
+    "accounts": "bun --conditions=react-server scripts/accounts.ts",
+    "mail:worker": "bun --conditions=react-server scripts/mail-worker.ts",
     "docs:prepare": "bun scripts/prepare-docs.ts",
     "start": "bun --bun next start",
     "typecheck": "bun --bun next typegen && bun --bun tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test src",
+    "test:accounts": "bun --env-file=tests/compose.env test tests/deployment-integration.test.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.5",
     "@pr0/api-client": "workspace:*",
     "@pr0/api-contract": "workspace:*",
     "@pr0/prototype-library": "workspace:*",
     "@pr0/ui": "workspace:*",
+    "@tanstack/react-query": "^5.103.1",
+    "better-auth": "1.7.5",
+    "drizzle-orm": "0.45.2",
     "next": "16.3.5",
+    "nodemailer": "7.0.11",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "swagger-ui-dist": "^5.33.0"
+    "server-only": "0.0.1",
+    "swagger-ui-dist": "^5.33.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@pr0/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/bun": "^1.4.2",
     "@types/node": "^20",
+    "@types/nodemailer": "7.0.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",

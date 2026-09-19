@@ -26,7 +26,7 @@ bun install
 bun run dev
 ```
 
-This starts the web/API at `http://localhost:3000` and the desktop frontend at `http://localhost:1420`. The latter is useful for browser development without Rust. Both show a minimal shared starter screen with an API connection check.
+This starts the web/API at `http://localhost:3000` and the desktop frontend at `http://localhost:1420`. The latter is useful for browser development without Rust. The web app presents verified account access; configure its PostgreSQL and SMTP services using the account deployment guide below. The desktop remains a separate prototype.
 
 For a native desktop window, keep the web/API running and start Tauri in another terminal:
 
@@ -42,7 +42,7 @@ Tauri starts its Vite server automatically. Stop the browser-only `bun run dev` 
 
 Bun is the only supported JavaScript runtime for development, production servers, scripts and tests. JavaScript CLI scripts explicitly use `bun --bun`; `bunfig.toml` also makes Bun the default for scripts with Node shebangs. Next.js configuration rejects a non-Bun process. A separate Node.js installation is not required. Node-compatible imports and `@types/node` remain valid for framework/tool compatibility under Bun.
 
-Use Bun-native APIs where they fit: `Bun.file`/`Bun.write` for file I/O, Bun's test runner, and built-in SQL/Redis clients for future backend work. PostgreSQL will use [`SQL`/`sql` from `bun`](https://bun.com/docs/runtime/sql), parameterized tagged templates, pooled connections and transactions. If Redis is needed, use [`RedisClient`/`redis` from `bun`](https://bun.com/docs/runtime/redis). Database/cache services, credentials and drivers are not added until a feature requires them.
+Use Bun-native APIs where they fit: `Bun.file`/`Bun.write` for file I/O, Bun's test runner, and built-in SQL/Redis clients for future backend work. PostgreSQL uses [`SQL`/`sql` from `bun`](https://bun.com/docs/runtime/sql), parameterized tagged templates, pooled connections and transactions. If Redis is needed, use [`RedisClient`/`redis` from `bun`](https://bun.com/docs/runtime/redis). Database/cache services, credentials and drivers are not added until a feature requires them.
 
 Keep these APIs and connection credentials in server-only modules; shared UI and desktop/browser code use REST. Production hosting must execute the web server with Bun using `bun run start`; a Node-only or Edge runtime is not a supported deployment target. `PORT` controls the production port (3000 by default). Tauri's shipped runtime remains Rust plus the system WebView, with Bun handling its JavaScript tooling.
 
@@ -60,7 +60,7 @@ The web client uses same-origin requests. Desktop development defaults to `http:
 
 Use REST for data shared by both applications. Keep Server Actions for a future genuinely web-only need. TanStack Query owns server state. Add TanStack Store only when shared client-only state warrants it.
 
-Tauri origins are explicitly allowed by the API's CORS helper. Local Vite origins are allowed in development. Set `API_ALLOWED_ORIGINS` in `apps/web/.env.local` for additional comma-separated browser origins. CORS is a browser policy, not authentication. Protected endpoints, credentials and authorization are deferred until their requirements exist. Extend the CORS method list when adding write endpoints.
+Tauri origins are explicitly allowed by the API's CORS helper. Local Vite origins are allowed in development. Set `API_ALLOWED_ORIGINS` in `apps/web/.env.local` for additional comma-separated browser origins. CORS is a browser policy, not authentication. Account endpoints use exact same-origin checks and verified cookie sessions; they do not accept additional CORS origins. Extend the CORS method list when adding write endpoints.
 
 ## Building
 
@@ -84,24 +84,17 @@ The Tauri application identifier is currently `com.umami-creative.pr0`; confirm 
 
 ## Docker Compose
 
-On a machine with Docker running Linux containers and Docker Compose, run from the repository root:
+The web account slice runs under Bun with PostgreSQL and a durable SMTP worker. Follow [account deployment and local initialization](docs/operations/accounts.md) to configure secrets and email, migrate, and admit the first account. Self-hosted registration defaults to closed.
 
 ```sh
-docker compose up --build -d
+docker compose build
+docker compose up -d database
+docker compose run --rm accounts migrate
+docker compose run --rm accounts admit-first you@example.com
+docker compose up -d web mail
 ```
 
-Open `http://localhost:3000` (or your server's address). The image builds the web/API with Bun and includes its runtime; the host needs neither Bun nor Node.js. No hosting provider, domain, reverse proxy, or external account is required to start the current app. Docker selects the base image for the build architecture; no host platform is hard-coded in Compose.
-
-Optionally copy the root `.env.example` to `.env` to change `PR0_PORT`, `PR0_BIND_ADDRESS`, or `API_ALLOWED_ORIGINS`. For a reverse proxy running on the same host, set `PR0_BIND_ADDRESS=127.0.0.1`. A containerized proxy can instead join the Compose network and reach `web:3000`. Use your preferred proxy and HTTPS setup for internet-facing operation; the Compose file does not manage DNS or certificates.
-
-```sh
-docker compose ps             # Includes the web/API health check
-docker compose logs -f web
-docker compose up --build -d  # Rebuild after updating the source checkout
-docker compose down          # Stop and remove the containers
-```
-
-This runs the current starter UI, health API, OpenAPI endpoint, and Swagger docs. Accounts, prompt persistence, synchronization, and their PostgreSQL/search services are still future application work, so this setup has no application data volumes yet. Desktop installers are built separately. The [deployment specification](docs/specs/deployment-self-hosting.md) describes how Compose must grow as those features are implemented, with hosting choices left to each operator.
+The named PostgreSQL volume retains accounts, sessions, and immutable instance identity across container recreation. `/api/v1/ready` checks schema and worker readiness; `/api/v1/health` remains liveness. The [deployment specification](docs/specs/deployment-self-hosting.md) retains the broader requirements for later MVP slices.
 
 ## Shared UI
 

@@ -6,34 +6,9 @@ The account, persistence, recovery, and compatibility guarantees still come from
 
 ## Run the current application
 
-From a source checkout on any host able to run the required Linux container images, with Docker and Docker Compose installed:
+The account slice in issue #24 now consumes PostgreSQL and a durable verification-mail worker. Follow [the account deployment guide](../operations/accounts.md) for runtime secrets, SMTP, explicit Bun migrations, local first-account admission, readiness, and repeatable container tests. Self-hosted registration defaults to closed and verification remains mandatory. The named PostgreSQL volume preserves account/session data and immutable instance identity across restart and recreation.
 
-```sh
-docker compose up --build -d
-```
-
-Open `http://localhost:3000`, or the server's address. No domain, vendor account, proxy, SMTP configuration, or application secret is needed for the current starter application. Docker supplies Bun and the application dependencies. Neither Bun nor Node.js needs to be installed on the host. Native Linux Docker and Docker Desktop configured for Linux containers can use the same Compose file.
-
-The root `Dockerfile` builds the Next.js web/API with Bun and packages standalone output, including the shared workspace dependencies, public assets, and generated Swagger UI. Its runtime uses a non-root user and explicit Bun execution. The Bun 1.4.2 Debian base image is pinned by multi-platform digest, with Linux AMD64 and ARM64 manifests. Compose does not force an architecture. This means portability to compatible container hosts, not a promise that every CPU/OS or arbitrarily small machine can run the app. Release evidence must identify the architectures actually tested.
-
-| Optional setting | Default | Purpose |
-| --- | --- | --- |
-| `PR0_PORT` | `3000` | Published host port; the container listens on port 3000 |
-| `PR0_BIND_ADDRESS` | `0.0.0.0` | Published host interface; use `127.0.0.1` with a proxy on the same host |
-| `API_ALLOWED_ORIGINS` | Empty | Additional browser origins; same-origin web and built-in Tauri origins need no override |
-
-Copy the root `.env.example` to `.env` only to override these settings. Configuration is supplied at runtime; changing a host port or allowed origin does not require rebuilding the image. Local environment files, dependencies, generated build output, and common secret-file formats are excluded from the Docker build context. Only the web app, shared packages, and workspace manifests are copied into build stages; the final image contains the traced runtime output and assets.
-
-```sh
-docker compose ps
-docker compose logs -f web
-docker compose up --build -d  # Rebuild after updating the checkout
-docker compose down
-```
-
-Compose includes automatic restart, a 30-second shutdown grace period, bounded container logs, and an HTTP health check against `/api/v1/health`. The health check currently verifies the web process; it does not claim database, email, or recovery readiness.
-
-The runnable service currently provides the starter UI, health API, OpenAPI document, and Swagger docs. Accounts, prompt storage, synchronization, and server search have not been implemented. Accordingly, Compose does not start unused PostgreSQL/Redis services or create pretend application-data volumes. Desktop binaries are built separately. The following sections specify how the deployment grows when those application features are implemented.
+The earlier starter-container evidence below is historical. It does not replace the account slice's validation report or establish the remaining full-MVP release guarantees. The normative deployment requirements in the following sections remain in effect as their consuming features arrive.
 
 ## Portable deployment boundary
 

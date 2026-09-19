@@ -1,6 +1,7 @@
 import type { OpenAPIV3_1 } from "openapi-types";
 import { z } from "zod";
 
+import { accountPaths, accountSchemas } from "./accounts-openapi";
 import { healthPath, healthResponseSchema } from "./health";
 
 export const openApiDocument = {
@@ -12,8 +13,12 @@ export const openApiDocument = {
       "The public REST interface used by the web and desktop applications.",
   },
   servers: [{ url: "/", description: "Current API host" }],
-  tags: [{ name: "System", description: "Service availability" }],
+  tags: [
+    { name: "System", description: "Service availability" },
+    { name: "Accounts", description: "Verified account access" },
+  ],
   paths: {
+    ...accountPaths,
     [healthPath]: {
       get: {
         operationId: "getHealth",
@@ -34,7 +39,17 @@ export const openApiDocument = {
     },
   },
   components: {
+    securitySchemes: {
+      BrowserSession: {
+        type: "apiKey",
+        in: "cookie",
+        name: "__Secure-better-auth.session_token",
+        description:
+          "Secure HttpOnly cookie. Local HTTP evaluation uses better-auth.session_token.",
+      },
+    },
     schemas: {
+      ...accountSchemas,
       // SAFETY: Zod emits valid JSON Schema 2020-12, supported by OpenAPI 3.1 but typed more narrowly by openapi-types.
       HealthResponse: z.toJSONSchema(
         healthResponseSchema

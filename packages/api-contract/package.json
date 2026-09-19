@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./accounts": "./src/accounts.ts",
     "./health": "./src/health.ts",
     "./openapi": "./src/openapi.ts"
   },

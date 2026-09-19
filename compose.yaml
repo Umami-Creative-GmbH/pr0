@@ -1,11 +1,72 @@
+x-account-environment: &account-environment
+  PR0_ORIGIN: "${PR0_ORIGIN:-http://localhost:3000}"
+  DATABASE_URL: "${DATABASE_URL:-}"
+  DATABASE_URL_FILE: "${DATABASE_URL_FILE:-}"
+  BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:-}"
+  BETTER_AUTH_SECRET_FILE: "${BETTER_AUTH_SECRET_FILE:-}"
+  PR0_MAIL_SECRET: "${PR0_MAIL_SECRET:-}"
+  PR0_MAIL_SECRET_FILE: "${PR0_MAIL_SECRET_FILE:-}"
+  PR0_REGISTRATION: "${PR0_REGISTRATION:-closed}"
+  PR0_INGRESS_SECRET: "${PR0_INGRESS_SECRET:-}"
+  PR0_INGRESS_SECRET_FILE: "${PR0_INGRESS_SECRET_FILE:-}"
+  SMTP_HOST: "${SMTP_HOST:-}"
+  SMTP_PORT: "${SMTP_PORT:-587}"
+  SMTP_TLS: "${SMTP_TLS:-starttls}"
+  SMTP_USER: "${SMTP_USER:-}"
+  SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+  SMTP_PASSWORD_FILE: "${SMTP_PASSWORD_FILE:-}"
+  SMTP_FROM: "${SMTP_FROM:-}"
+
 services:
+  database:
+    image: postgres@sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: pr0
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-}"
+      POSTGRES_PASSWORD_FILE: "${POSTGRES_PASSWORD_FILE:-}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pr0 -d pr0"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  accounts:
+    image: pr0-local
+    build:
+      context: .
+    profiles: ["operations"]
+    environment: *account-environment
+    entrypoint: ["bun", "--bun", "apps/web/.operations/accounts.js"]
+    command: ["migrate"]
+    depends_on:
+      database:
+        condition: service_healthy
+  mail:
+    image: pr0-local
+    build:
+      context: .
+    environment: *account-environment
+    command: ["bun", "--bun", "apps/web/.operations/mail-worker.js"]
+    restart: unless-stopped
+    init: true
+    depends_on:
+      database:
+        condition: service_healthy
   web:
+    image: pr0-local
     build:
       context: .
     ports:
       - "${PR0_BIND_ADDRESS:-0.0.0.0}:${PR0_PORT:-3000}:3000"
     environment:
+      <<: *account-environment
       API_ALLOWED_ORIGINS: "${API_ALLOWED_ORIGINS:-}"
+    depends_on:
+      database:
+        condition: service_healthy
     restart: unless-stopped
     init: true
     stop_grace_period: 30s
@@ -15,7 +76,7 @@ services:
         - bun
         - --bun
         - -e
-        - "const response = await fetch('http://127.0.0.1:3000/api/v1/health'); process.exit(response.ok ? 0 : 1);"
+        - "const response = await fetch('http://127.0.0.1:3000/api/v1/ready'); process.exit(response.ok ? 0 : 1);"
       interval: 30s
       timeout: 5s
       start_period: 20s
@@ -25,3 +86,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  postgres-data:

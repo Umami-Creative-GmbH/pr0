@@ -22,3 +22,5 @@ next-env.d.ts
 .DS_Store
 *.pem
 *.log
+# Bundled Bun operational entry points
+**/.operations/
