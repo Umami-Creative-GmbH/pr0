@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type { NextConfig } from "next";
 
 if (!process.versions.bun) {
@@ -6,6 +8,9 @@ if (!process.versions.bun) {
   );
 }
 
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingRoot: path.resolve(import.meta.dirname, "../.."),
+};
 
 export default nextConfig;

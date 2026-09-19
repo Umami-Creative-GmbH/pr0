@@ -80,6 +80,27 @@ For only the web app: `bun x --bun turbo run build --filter=@pr0/web`.
 
 The Tauri application identifier is currently `com.umami-creative.pr0`; confirm it before the first distributed release. The native capability set is empty until a feature needs native commands. Installer signing, auto-updates and release publishing are outside this foundation.
 
+## Docker Compose
+
+On a machine with Docker running Linux containers and Docker Compose, run from the repository root:
+
+```sh
+docker compose up --build -d
+```
+
+Open `http://localhost:3000` (or your server's address). The image builds the web/API with Bun and includes its runtime; the host needs neither Bun nor Node.js. No hosting provider, domain, reverse proxy, or external account is required to start the current app. Docker selects the base image for the build architecture; no host platform is hard-coded in Compose.
+
+Optionally copy the root `.env.example` to `.env` to change `PR0_PORT`, `PR0_BIND_ADDRESS`, or `API_ALLOWED_ORIGINS`. For a reverse proxy running on the same host, set `PR0_BIND_ADDRESS=127.0.0.1`. A containerized proxy can instead join the Compose network and reach `web:3000`. Use your preferred proxy and HTTPS setup for internet-facing operation; the Compose file does not manage DNS or certificates.
+
+```sh
+docker compose ps             # Includes the web/API health check
+docker compose logs -f web
+docker compose up --build -d  # Rebuild after updating the source checkout
+docker compose down          # Stop and remove the containers
+```
+
+This runs the current starter UI, health API, OpenAPI endpoint, and Swagger docs. Accounts, prompt persistence, synchronization, and their PostgreSQL/search services are still future application work, so this setup has no application data volumes yet. Desktop installers are built separately. The [deployment specification](docs/specs/deployment-self-hosting.md) describes how Compose must grow as those features are implemented, with hosting choices left to each operator.
+
 ## Shared UI
 
 Run shadcn from the web workspace:
