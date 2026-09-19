@@ -38,5 +38,9 @@ _Avoid_: Version (a copy is independent of its original).
 **Tag merge**:
 The combination of one tag and its prompt assignments into an existing tag in the same library.
 
+**Conflict copy**:
+A separate prompt preserving a competing edit that could not be reconciled with another edit or with deletion of the original prompt.
+_Avoid_: Version (a conflict copy is an independent prompt, not an entry in visible version history).
+
 **Quick launcher**:
 The desktop entry point dedicated to finding a prompt and copying it to the clipboard.
