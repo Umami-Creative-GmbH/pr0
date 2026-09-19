@@ -1,0 +1,3 @@
+[run]
+# Run JavaScript CLIs with Bun even when they have a Node.js shebang.
+bun = true
