@@ -90,6 +90,7 @@
   "launcher.placeholder": "Prompt suchen und mit ↵ kopieren…",
   "launcher.empty": "Kein Treffer für „{query}“.",
   "launcher.emptyLibrary": "Keine aktiven Prompts vorhanden.",
+  "launcher.emptyFiltered": "Keine Treffer mit diesen Filtern.",
   "launcher.hint.navigate": "↑↓ Navigieren",
   "launcher.hint.copy": "↵ Kopieren",
   "launcher.hint.open": "⌘↵ Öffnen",

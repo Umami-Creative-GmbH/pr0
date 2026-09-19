@@ -8,7 +8,7 @@
  */
 
 import { useTranslate } from "@tolgee/react";
-import { Inbox, Plus, Search, SearchX, Star, X } from "lucide-react";
+import { Inbox, Plus, RotateCcw, Search, SearchX, Star, X } from "lucide-react";
 import type { RefObject } from "react";
 
 import type {
@@ -55,6 +55,9 @@ export interface LibrarySidebarProps {
   onClearQuery: () => void;
   onClearFilters: () => void;
   onSortChange: (sort: Sort) => void;
+  onResetSort: () => void;
+  /** True when the sort is this view's default, so reset is hidden. */
+  sortIsDefault: boolean;
   onCollectionFilter: (collectionId: string | null) => void;
   onTagFilter: (tagId: string) => void;
   onFavoriteFilter: () => void;
@@ -171,6 +174,8 @@ export const LibrarySidebar = (props: LibrarySidebarProps) => {
     onQueryChange,
     onClearQuery,
     onSortChange,
+    onResetSort,
+    sortIsDefault,
     onCollectionFilter,
     onTagFilter,
     onFavoriteFilter,
@@ -315,6 +320,12 @@ export const LibrarySidebar = (props: LibrarySidebarProps) => {
             )
           )}
         </select>
+        {sortIsDefault ? null : (
+          <button className="pr0-chip" onClick={onResetSort} type="button">
+            <RotateCcw aria-hidden="true" size={12} />
+            {t("sort.reset")}
+          </button>
+        )}
         <button className="pr0-pill" onClick={onNew} type="button">
           <Plus aria-hidden="true" size={13} />
           {t("list.new")}

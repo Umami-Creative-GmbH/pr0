@@ -36,7 +36,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data: https://fonts.gstatic.com",
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https:; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:",
       "devCsp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https: http://localhost:3000 http://localhost:1420 ws://localhost:1420; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data: https://fonts.gstatic.com"
     }
   },

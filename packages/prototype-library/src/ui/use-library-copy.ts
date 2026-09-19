@@ -11,6 +11,7 @@ import type { ClipboardWriter } from "../domain/copy";
 import { copyPrompt } from "../domain/copy";
 import type { Library, Prompt, PromptId } from "../domain/types";
 import { extractVariables } from "../domain/variables";
+import type { LauncherCopyOutcome } from "./launcher-panel";
 import type { Toast } from "./prototype-toast";
 
 const TOAST_MS = 2600;
@@ -33,7 +34,7 @@ export interface LibraryCopy {
     variableValues?: Record<string, string>
   ) => Promise<void>;
   /** Rejects on failure so the launcher can stay open and offer a retry. */
-  copyFromLauncher: (promptId: PromptId) => Promise<void>;
+  copyFromLauncher: (promptId: PromptId) => Promise<LauncherCopyOutcome>;
   variablesFor: Prompt | null;
   setVariablesFor: (prompt: Prompt | null) => void;
 }
@@ -144,7 +145,7 @@ export const useLibraryCopy = ({
    * launcher so the rule holds literally.
    */
   const copyFromLauncher = useCallback(
-    async (promptId: PromptId) => {
+    async (promptId: PromptId): Promise<LauncherCopyOutcome> => {
       const prompt = library.prompts.find(
         (candidate) => candidate.id === promptId
       );
@@ -153,10 +154,11 @@ export const useLibraryCopy = ({
       }
       if (extractVariables(prompt.content).length > 0) {
         setVariablesFor(prompt);
-        return;
+        return "handed-off";
       }
       await runCopy(promptId);
       showToast({ tone: "success", label: copiedLabel, detail: prompt.title });
+      return "copied";
     },
     [library, runCopy, showToast, copiedLabel]
   );

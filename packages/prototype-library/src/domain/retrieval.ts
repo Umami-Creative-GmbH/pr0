@@ -138,10 +138,24 @@ const byOptionalDescending = (
   return right - left;
 };
 
-const byTitleThenIdentity = (left: Prompt, right: Prompt): number => {
-  const titles = normalize(left.title).localeCompare(normalize(right.title));
-  return titles === 0 ? left.id.localeCompare(right.id) : titles;
+/**
+ * Plain code-unit comparison of the normalized title, then identity.
+ *
+ * Deliberately not `localeCompare`: issue #7 requires "the same deterministic
+ * normalized-title and identity comparison across surfaces" rather than
+ * inheriting platform collation. The concrete shared comparator is #10's to
+ * define; this is the prototype's stand-in.
+ */
+const compareStrings = (left: string, right: string): number => {
+  if (left === right) {
+    return 0;
+  }
+  return left < right ? -1 : 1;
 };
+
+const byTitleThenIdentity = (left: Prompt, right: Prompt): number =>
+  compareStrings(normalize(left.title), normalize(right.title)) ||
+  compareStrings(left.id, right.id);
 
 /** Shared relevance tie-break: use, modification, title, identity. */
 const byUseThenModification = (left: Prompt, right: Prompt): number =>
@@ -149,13 +163,24 @@ const byUseThenModification = (left: Prompt, right: Prompt): number =>
   right.modifiedAt - left.modifiedAt ||
   byTitleThenIdentity(left, right);
 
+/**
+ * Issue #7: "Recently used puts never-used prompts last and orders that unused
+ * group by modification date descending before title and identity." Modification
+ * date is therefore a tie-break for the never-used group only; equally-used
+ * prompts fall straight through to title and identity.
+ */
 const byRecentlyUsed = (left: Prompt, right: Prompt): number => {
   const used = byOptionalDescending(left.lastUsedAt, right.lastUsedAt);
   if (used !== 0) {
     return used;
   }
-  // Both used at the same moment, or both never used: modification, then title.
-  return right.modifiedAt - left.modifiedAt || byTitleThenIdentity(left, right);
+  const neverUsed = left.lastUsedAt === null && right.lastUsedAt === null;
+  if (neverUsed) {
+    return (
+      right.modifiedAt - left.modifiedAt || byTitleThenIdentity(left, right)
+    );
+  }
+  return byTitleThenIdentity(left, right);
 };
 
 const explicitComparators: Record<
