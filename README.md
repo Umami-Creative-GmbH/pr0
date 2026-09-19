@@ -2,6 +2,8 @@
 
 Bun + Turborepo foundation for a Next.js web app and a Tauri desktop app. Both render the same shared UI and call the same REST API through TanStack Query.
 
+For the agreed product behavior, canonical decisions and outstanding readiness confirmation, see the [MVP specification handoff](docs/specs/mvp-readiness.md).
+
 ## Workspaces
 
 | Workspace | Responsibility |
