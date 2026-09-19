@@ -1,0 +1,32 @@
+{
+  "name": "@pr0/prototype-library",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PROTOTYPE — throwaway interaction prototype for issue #9. Not production code.",
+  "type": "module",
+  "exports": {
+    "./domain/*": "./src/domain/*.ts",
+    "./store/*": "./src/store/*.ts",
+    "./i18n/*": "./src/i18n/*.ts",
+    "./ui/*": "./src/ui/*.tsx",
+    "./prototype.css": "./src/ui/prototype.css"
+  },
+  "scripts": {
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tolgee/format-icu": "^7.2.1",
+    "@tolgee/react": "^7.2.1",
+    "lucide-react": "^1.47.0"
+  },
+  "devDependencies": {
+    "@pr0/typescript-config": "workspace:*",
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19",
+    "typescript": "^5"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8"
+  }
+}

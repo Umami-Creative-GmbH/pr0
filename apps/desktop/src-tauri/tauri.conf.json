@@ -12,16 +12,32 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "pr0",
         "width": 1100,
         "height": 760,
         "minWidth": 640,
         "minHeight": 480
+      },
+      {
+        "label": "launcher",
+        "title": "pr0 Schnellzugriff",
+        "url": "launcher.html",
+        "width": 660,
+        "height": 460,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": true,
+        "focus": false,
+        "visible": false
       }
     ],
     "security": {
       "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https:; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:",
-      "devCsp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https: http://localhost:3000 http://localhost:1420 ws://localhost:1420; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:"
+      "devCsp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https: http://localhost:3000 http://localhost:1420 ws://localhost:1420; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data: https://fonts.gstatic.com"
     }
   },
   "bundle": {
