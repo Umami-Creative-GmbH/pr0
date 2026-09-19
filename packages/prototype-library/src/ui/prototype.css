@@ -52,8 +52,9 @@
 .pr0-window {
   background: transparent;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  /* stretch, not flex-start: any slack here becomes a see-through strip. */
+  align-items: stretch;
+  justify-content: stretch;
 }
 
 .pr0[data-theme="light"] {
@@ -1016,10 +1017,13 @@
   width: 100%;
   height: auto;
   max-height: 100vh;
-  border-radius: 16px;
+  /* Square, so the panel meets the window edge exactly. A rounded panel in a
+     square window leaves four transparent corners showing whatever is behind. */
+  border-radius: 0;
   animation: none;
   /* The window is sized to this element, so a CSS shadow would be clipped. */
   box-shadow: none;
+  overflow: hidden;
 }
 
 .pr0-launcher-head {
@@ -1070,7 +1074,7 @@
   width: 100%;
   max-height: none;
   border: none;
-  border-radius: 16px;
+  border-radius: 0;
   box-shadow: none;
 }
 

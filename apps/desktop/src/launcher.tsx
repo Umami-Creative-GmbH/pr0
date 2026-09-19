@@ -41,22 +41,43 @@ const LauncherWindow = () => {
 
   // The window is borderless and transparent, so any height beyond the panel
   // shows straight through to whatever is behind it. Keep them the same size.
+  //
+  // Measured off the panel itself rather than its host: the host is stretched
+  // to the window, so measuring it would only read back the size we just set.
+  const lastHeight = useRef(0);
   useEffect(() => {
-    const element = panelRef.current;
-    if (!element) {
+    const host = panelRef.current;
+    if (!host) {
       return;
     }
-    const observer = new ResizeObserver(([entry]) => {
-      const height = Math.ceil(entry?.contentRect.height ?? 0);
-      if (height > 0) {
+
+    const apply = () => {
+      const panel = host.firstElementChild;
+      if (!panel) {
+        return;
+      }
+      const height = Math.ceil(panel.getBoundingClientRect().height);
+      if (height > 0 && height !== lastHeight.current) {
+        lastHeight.current = height;
         void getCurrentWindow().setSize(
           new LogicalSize(LAUNCHER_WIDTH, height)
         );
       }
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+    };
+
+    const observer = new ResizeObserver(apply);
+    observer.observe(host);
+    if (host.firstElementChild) {
+      observer.observe(host.firstElementChild);
+    }
+    // Fonts and the initial layout settle a frame late.
+    const frame = requestAnimationFrame(apply);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  });
 
   useEffect(() => {
     const unlisteners = [
