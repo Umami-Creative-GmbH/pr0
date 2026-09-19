@@ -1,0 +1,9 @@
+[package]
+name = "pr0-native-persistence-research"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rusqlite = { version = "=0.40.2", features = ["bundled"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
