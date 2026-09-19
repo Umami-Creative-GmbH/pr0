@@ -29,17 +29,6 @@ export interface CopyResult {
   library: Library;
 }
 
-export interface LauncherState {
-  open: boolean;
-  query: string;
-  selectedId: PromptId | null;
-  error: string | null;
-}
-
-/**
- * Preserves the selected prompt by identity while it remains eligible; falls
- * back to the first remaining result, or to nothing when results are empty.
- */
 export const resolveSelection = (
   currentId: PromptId | null,
   results: Prompt[]
@@ -82,12 +71,3 @@ export const copyPrompt = async (request: CopyRequest): Promise<CopyResult> => {
     library: recordUse(library, promptId, now),
   };
 };
-
-/** Close-on-success; retain query, selection and an error on failure. */
-export const applyCopyToLauncher = (
-  state: LauncherState,
-  outcome: CopyOutcome
-): LauncherState =>
-  outcome.status === "copied"
-    ? { ...state, open: false, error: null }
-    : { ...state, open: true, error: outcome.message };

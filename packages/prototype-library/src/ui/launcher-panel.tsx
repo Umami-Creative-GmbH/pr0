@@ -9,6 +9,11 @@
  * - archived prompts never appear;
  * - it closes only after a *successful* clipboard write; on failure it keeps
  *   the query and selection, shows an error and offers a retry.
+ *
+ * A prompt with `{{variables}}` cannot be written to the clipboard until it
+ * has values, so the launcher asks for them *in place* rather than handing
+ * off to another surface. That keeps close-on-success literally true on both
+ * surfaces — the answer agreed with the developer on issue #9.
  */
 
 import { useTranslate } from "@tolgee/react";
@@ -25,25 +30,22 @@ import type {
   TagId,
 } from "../domain/types";
 import { emptyFilters } from "../domain/types";
+import { extractVariables } from "../domain/variables";
+import { VariablesDialog } from "./dialogs";
 import { LauncherFilters } from "./launcher-filters";
-
-/**
- * What a copy attempt did, which decides whether the launcher closes.
- *
- * - `copied`     the clipboard write succeeded; close (issue #7's rule).
- * - `stay-open`  something in the launcher took over (asking for variable
- *                values); no write happened yet, so it must not close.
- * - `handed-off` another surface took over and owns the rest of the flow.
- *
- * A rejected promise is a failure: stay open, keep query and selection, show
- * the error and offer a retry.
- */
-export type LauncherCopyOutcome = "copied" | "stay-open" | "handed-off";
+import { LauncherResults } from "./launcher-results";
 
 export interface LauncherPanelProps {
   library: Library;
-  /** Rejects to drive the failure state. */
-  onCopy: (promptId: PromptId) => Promise<LauncherCopyOutcome>;
+  /**
+   * Writes the prompt to the clipboard and records the use. Rejects to drive
+   * the failure state: the launcher then stays open with its query and
+   * selection, shows the error and offers a retry.
+   */
+  onCopy: (
+    promptId: PromptId,
+    variableValues?: Record<string, string>
+  ) => Promise<void>;
   onOpenPrompt?: (promptId: PromptId) => void;
   onClose: () => void;
   /** True when this is the standalone Tauri launcher window. */
@@ -73,6 +75,8 @@ export const LauncherPanel = ({
   const [selectedId, setSelectedId] = useState<PromptId | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set while the launcher is asking for this prompt's variable values.
+  const [variablesFor, setVariablesFor] = useState<Prompt | null>(null);
 
   const results: Prompt[] = useMemo(
     () =>
@@ -106,23 +110,34 @@ export const LauncherPanel = ({
     setSelectedId(results[next]?.id ?? null);
   };
 
-  const copySelected = async () => {
-    if (activeId === null || busy) {
-      return;
-    }
+  const write = async (
+    promptId: PromptId,
+    variableValues?: Record<string, string>
+  ) => {
     setBusy(true);
     try {
-      const outcome = await onCopy(activeId);
+      await onCopy(promptId, variableValues);
       setCopyError(null);
       setBusy(false);
-      if (outcome !== "stay-open") {
-        onClose();
-      }
+      onClose();
     } catch (error) {
       // Stays open, keeps query and selection, records no usage.
       setCopyError(error instanceof Error ? error.message : "clipboard-failed");
       setBusy(false);
     }
+  };
+
+  const copySelected = async () => {
+    if (activeId === null || busy) {
+      return;
+    }
+    const prompt = results.find((candidate) => candidate.id === activeId);
+    if (prompt && extractVariables(prompt.content).length > 0) {
+      // Ask here; the write happens once the values are in.
+      setVariablesFor(prompt);
+      return;
+    }
+    await write(activeId);
   };
 
   // Bound to the window, not to the panel: clicking a non-focusable part of
@@ -131,7 +146,16 @@ export const LauncherPanel = ({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        if (variablesFor === null) {
+          onClose();
+        } else {
+          // Back to the results rather than losing the query entirely.
+          setVariablesFor(null);
+        }
+        return;
+      }
+      if (variablesFor !== null) {
+        // The value form owns the keyboard while it is up.
         return;
       }
       if (event.key === "ArrowDown") {
@@ -158,11 +182,6 @@ export const LauncherPanel = ({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
-
-  const collectionOf = (prompt: Prompt) =>
-    library.collections.find(
-      (candidate) => candidate.id === prompt.collectionId
-    );
 
   const activeCount = library.prompts.filter(
     (prompt) => !prompt.archived
@@ -193,6 +212,26 @@ export const LauncherPanel = ({
     }
     return t("launcher.empty", { query });
   })();
+
+  if (variablesFor !== null) {
+    return (
+      <div className="pr0-launcher" data-standalone={standalone}>
+        <VariablesDialog
+          onCancel={() => setVariablesFor(null)}
+          onCopy={(values) => {
+            void write(variablesFor.id, values);
+          }}
+          prompt={variablesFor}
+        />
+        {copyError === null ? null : (
+          <div className="pr0-launcher-error" role="alert">
+            <TriangleAlert aria-hidden="true" size={16} />
+            <span>{t("launcher.error", { message: copyError })}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="pr0-launcher" data-standalone={standalone}>
@@ -227,84 +266,26 @@ export const LauncherPanel = ({
         tags={launcherTags}
       />
 
-      <ul
-        aria-label={t("launcher.placeholder")}
-        className="pr0-launcher-list"
-        role="listbox"
-      >
-        {results.map((prompt) => {
-          const collection = collectionOf(prompt);
-          return (
-            <li key={prompt.id} role="presentation">
-              <button
-                aria-selected={prompt.id === activeId}
-                className="pr0-launcher-row"
-                onClick={() => {
-                  setSelectedId(prompt.id);
-                  void copySelected();
-                }}
-                onMouseEnter={() => setSelectedId(prompt.id)}
-                role="option"
-                type="button"
-              >
-                <span
-                  className="pr0-dot"
-                  style={{
-                    background: collection?.accent ?? "var(--app-line-strong)",
-                  }}
-                />
-                <span className="pr0-title">{prompt.title}</span>
-                <span className="pr0-collection">
-                  {collection?.name ?? t("detail.unassigned")}
-                </span>
-                <span
-                  className="pr0-mono"
-                  style={{
-                    color:
-                      prompt.id === activeId
-                        ? "var(--pink-500)"
-                        : "transparent",
-                  }}
-                >
-                  &#8629;
-                </span>
-              </button>
-            </li>
-          );
-        })}
-
-        {results.length === 0 ? (
-          <li className="pr0-empty">
-            <p>{emptyMessage}</p>
-            {hasRestrictions ? (
-              <span className="pr0-empty-actions">
-                {query.trim() === "" ? null : (
-                  <button
-                    className="pr0-chip"
-                    onClick={() => setQuery("")}
-                    type="button"
-                  >
-                    {t("search.clear")}
-                  </button>
-                )}
-                {filtersActive ? (
-                  <button
-                    className="pr0-chip"
-                    onClick={() => {
-                      setCollectionId(null);
-                      setTagIds([]);
-                      setFavoriteOnly(false);
-                    }}
-                    type="button"
-                  >
-                    {t("filters.clear")}
-                  </button>
-                ) : null}
-              </span>
-            ) : null}
-          </li>
-        ) : null}
-      </ul>
+      <LauncherResults
+        activeId={activeId}
+        emptyMessage={emptyMessage}
+        filtersActive={filtersActive}
+        hasRestrictions={hasRestrictions}
+        library={library}
+        onClearFilters={() => {
+          setCollectionId(null);
+          setTagIds([]);
+          setFavoriteOnly(false);
+        }}
+        onClearQuery={() => setQuery("")}
+        onHover={setSelectedId}
+        onRun={(promptId) => {
+          setSelectedId(promptId);
+          void copySelected();
+        }}
+        queryActive={query.trim() !== ""}
+        results={results}
+      />
 
       {copyError === null ? null : (
         <div className="pr0-launcher-error" role="alert">

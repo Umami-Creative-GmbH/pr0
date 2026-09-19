@@ -49,7 +49,10 @@ export default defineConfig({
       // PROTOTYPE (issue #9): the quick launcher is an ARIA combobox/listbox.
       // There is no native HTML tag for a command palette, so the roles are
       // the correct markup here rather than `select`/`option`.
-      files: ["packages/prototype-library/src/ui/launcher-panel.tsx"],
+      files: [
+        "packages/prototype-library/src/ui/launcher-panel.tsx",
+        "packages/prototype-library/src/ui/launcher-results.tsx",
+      ],
       rules: {
         "jsx-a11y/prefer-tag-over-role": "off",
         "jsx-a11y/no-noninteractive-element-to-interactive-role": "off",

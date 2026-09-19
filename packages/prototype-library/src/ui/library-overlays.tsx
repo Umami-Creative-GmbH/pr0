@@ -4,7 +4,6 @@ import { useTranslate } from "@tolgee/react";
 
 import type { Library, Prompt, PromptId } from "../domain/types";
 import { ConfirmDelete, VariablesDialog } from "./dialogs";
-import type { LauncherCopyOutcome } from "./launcher-panel";
 import { LauncherPanel } from "./launcher-panel";
 import { Overlay } from "./overlay";
 import type { EditorDraft } from "./prompt-editor";
@@ -20,7 +19,10 @@ export interface LibraryOverlaysProps {
   /** Only drawn when the launcher is an in-page overlay. */
   launcherOpen: boolean;
   onLauncherClose: () => void;
-  onLauncherCopy: (promptId: PromptId) => Promise<LauncherCopyOutcome>;
+  onLauncherCopy: (
+    promptId: PromptId,
+    variableValues?: Record<string, string>
+  ) => Promise<void>;
   onLauncherOpenPrompt: (promptId: PromptId) => void;
 
   editor: EditorTarget | null;

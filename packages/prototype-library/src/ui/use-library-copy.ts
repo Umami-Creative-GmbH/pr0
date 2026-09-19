@@ -11,7 +11,6 @@ import type { ClipboardWriter } from "../domain/copy";
 import { copyPrompt } from "../domain/copy";
 import type { Library, Prompt, PromptId } from "../domain/types";
 import { extractVariables } from "../domain/variables";
-import type { LauncherCopyOutcome } from "./launcher-panel";
 import type { Toast } from "./prototype-toast";
 
 const TOAST_MS = 2600;
@@ -34,7 +33,10 @@ export interface LibraryCopy {
     variableValues?: Record<string, string>
   ) => Promise<void>;
   /** Rejects on failure so the launcher can stay open and offer a retry. */
-  copyFromLauncher: (promptId: PromptId) => Promise<LauncherCopyOutcome>;
+  copyFromLauncher: (
+    promptId: PromptId,
+    variableValues?: Record<string, string>
+  ) => Promise<void>;
   variablesFor: Prompt | null;
   setVariablesFor: (prompt: Prompt | null) => void;
 }
@@ -137,28 +139,20 @@ export const useLibraryCopy = ({
   );
 
   /**
-   * OPEN QUESTION for issue #9: a prompt with variables cannot be copied
-   * without asking for values, so the launcher hands off to the value dialog
-   * and closes before any clipboard write. That follows the design but bends
-   * issue #7's "closes only after a successful clipboard write". Confirm with
-   * the human whether the value dialog should instead live inside the
-   * launcher so the rule holds literally.
+   * Launcher copy. The launcher asks for any variable values itself and only
+   * calls this once it can actually write, so close-on-success holds
+   * literally — the answer agreed with the developer on issue #9.
    */
   const copyFromLauncher = useCallback(
-    async (promptId: PromptId): Promise<LauncherCopyOutcome> => {
+    async (promptId: PromptId, variableValues?: Record<string, string>) => {
       const prompt = library.prompts.find(
         (candidate) => candidate.id === promptId
       );
       if (!prompt) {
         throw new Error("missing-prompt");
       }
-      if (extractVariables(prompt.content).length > 0) {
-        setVariablesFor(prompt);
-        return "handed-off";
-      }
-      await runCopy(promptId);
+      await runCopy(promptId, variableValues);
       showToast({ tone: "success", label: copiedLabel, detail: prompt.title });
-      return "copied";
     },
     [library, runCopy, showToast, copiedLabel]
   );

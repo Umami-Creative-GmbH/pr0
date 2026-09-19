@@ -145,10 +145,12 @@ export const LibraryApp = ({
       }
 
       if (event.key === "Escape") {
+        // The launcher handles its own Escape: while it is asking for
+        // variable values, Escape steps back to the results rather than
+        // discarding the query. Closing it from here would override that.
         setEditor(null);
         context.setVariablesFor(null);
         setDeleteFor(null);
-        context.onLauncherOpenChange(false);
         return;
       }
 

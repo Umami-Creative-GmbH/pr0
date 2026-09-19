@@ -60,12 +60,12 @@ The desktop window's header shows which global shortcut actually registered.
 - **Selection under changing results.** Select a row, then type in the search box. Selection follows the prompt's identity while it still qualifies, then falls to the first result.
 - **Archive isolation.** `Alter Newsletter-Aufbau` is an archived favourite. It appears only in _Archiv_ — never in the launcher, favourites or recents.
 - **Variables.** Most seeded prompts contain `{{platzhalter}}`. `Rechtschreibung und Grammatik prüfen` and `Daily-Standup-Fragen` do not, so they exercise the plain copy path.
+- **Variables in the launcher.** Copying a prompt with variables asks for the values _inside_ the launcher, and only then writes and closes — settled on issue #9. Escape steps back to the results without losing the query; a second Escape closes the launcher.
 
 ## Known gaps, on purpose
 
-- **The two surfaces answer the close-on-success question differently, on purpose.** For a prompt _with_ variables, the web launcher hands off to the value dialog and closes before any clipboard write (what the design does); the native launcher asks for values _inside_ its own window and closes only after a successful write (what issue #7's rule literally requires). Drive both and pick one. **Open question.**
 - `launcher.count` caps results at 7, carried from the design. A match ranked 8th is unreachable without narrowing the query.
-- Variable substitution is out of MVP scope per issue #1. It is prototyped because the design explores it; whether to pull it into scope is a decision for the human.
+- Variable substitution has been pulled **into** MVP scope (issue #9 session). Issue #1's "Out of scope" list still says otherwise and needs updating.
 - Windows may refuse to give the launcher foreground focus when another app is active. See the note in `apps/desktop/src-tauri/src/lib.rs`.
 - Collection and tag management (rename, merge, delete) is not built. Only assignment through the editor is.
 - **Save/sync/conflict states are not built.** The "Synchronisiert" badge is decoration. Issue #9 asks for visible conflict states; that part of the ticket is not covered here and still needs a decision.
