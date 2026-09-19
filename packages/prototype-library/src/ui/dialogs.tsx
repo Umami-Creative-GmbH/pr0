@@ -1,7 +1,7 @@
 /** PROTOTYPE (issue #9) — variable prompt and destructive confirmation. */
 
 import { useTranslate } from "@tolgee/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Prompt } from "../domain/types";
 import { extractVariables } from "../domain/variables";
@@ -20,16 +20,32 @@ export const VariablesDialog = ({
   const { t } = useTranslate();
   const names = extractVariables(prompt.content);
   const [values, setValues] = useState<Record<string, string>>({});
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+
+  // The launcher flow is keyboard-only up to this point; landing here with
+  // nothing focused forces a reach for the mouse. Reported while driving the
+  // desktop build for issue #9.
+  useEffect(() => {
+    firstFieldRef.current?.focus();
+  }, []);
 
   return (
-    <div className="pr0-dialog" style={{ width: "min(540px, 94vw)" }}>
+    <form
+      className="pr0-dialog"
+      onSubmit={(event) => {
+        // Enter submits from any field, so the whole flow stays on the keyboard.
+        event.preventDefault();
+        onCopy(values);
+      }}
+      style={{ width: "min(540px, 94vw)" }}
+    >
       <div className="pr0-dialog-head" style={{ display: "grid", gap: 6 }}>
         <span className="pr0-dialog-eyebrow">{t("vars.eyebrow")}</span>
         <h2 className="pr0-dialog-title">{prompt.title}</h2>
       </div>
 
       <div className="pr0-dialog-body">
-        {names.map((name) => (
+        {names.map((name, index) => (
           <label className="pr0-field" key={name}>
             <span
               className="pr0-mono"
@@ -51,6 +67,7 @@ export const VariablesDialog = ({
                 }))
               }
               placeholder={t("vars.placeholder", { name })}
+              ref={index === 0 ? firstFieldRef : undefined}
               value={values[name] ?? ""}
             />
           </label>
@@ -64,15 +81,11 @@ export const VariablesDialog = ({
         <button className="pr0-pill" onClick={onCancel} type="button">
           {t("confirm.cancel")}
         </button>
-        <button
-          className="pr0-accent"
-          onClick={() => onCopy(values)}
-          type="button"
-        >
+        <button className="pr0-accent" type="submit">
           {t("vars.copy")}
         </button>
       </div>
-    </div>
+    </form>
   );
 };
 
