@@ -1,0 +1,14 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running `target\debug\pr0-native-persistence-research.exe`
+SQLite 3.53.2; foreign_keys=ON, WAL, synchronous=FULL
+PASS transaction failure rollback and successful reopen
+PASS separate connections: committed read, busy writer, retry
+PASS failed migration rollback, successful migration, reopen retains pending work
+PASS SQLITE_FULL via max_page_count at pending insert: neither half retained
+PASS process termination after-prompt: (0, 0); integrity ok
+PASS process termination before-commit: (0, 0); integrity ok
+PASS process termination after-commit: (1, 1); integrity ok
+PASS process termination migration-before-commit: (1, 1); integrity ok
+PASS process termination migration-after-commit: (1, 1); integrity ok
+PASS generated credentials: missing, write/read, instance partition, new-process read, replace, delete
+Evidence databases retained at X:\.codex\worktrees\pr0-native-persistence-research\pr0\research\native-persistence\run-data\1789830286101091500
