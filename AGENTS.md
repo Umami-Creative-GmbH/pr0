@@ -19,6 +19,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 Before using engineering skills or exploring the codebase, read and follow the [Agent skills section in CLAUDE.md](CLAUDE.md#agent-skills) for issue tracking, triage labels, and domain documentation. These conventions apply to Codex and all other agents. Read each instruction file once per session; the `@AGENTS.md` import in `CLAUDE.md` refers to this file.
 
+When using the `implement` skill, claim the ticket before starting implementation by assigning it to the currently authenticated GitHub user (`gh issue edit <number> --add-assignee "@me"`). Verify that the user appears in the ticket's assignees.
+
 # Runtime and data access decisions
 
 - Bun is the required JavaScript/TypeScript runtime for development, production servers, scripts and tests. Use `bun run` and `bun x --bun`; keep explicit `bun --bun` on JavaScript CLI entry points. Do not introduce a Node.js runtime requirement or fallback.
