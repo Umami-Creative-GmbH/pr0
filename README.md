@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# pr0
 
-## Getting Started
+Bun + Turborepo foundation for a Next.js web app and a Tauri desktop app. Both render the same shared UI and call the same REST API through TanStack Query.
 
-First, run the development server:
+## Workspaces
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| Workspace | Responsibility |
+| --- | --- |
+| `apps/web` | Next.js 16 App Router, REST Route Handlers, Swagger UI |
+| `apps/desktop` | Vite + React frontend and Tauri 2 native shell |
+| `packages/ui` | shadcn components, shared screens, utilities and Tailwind theme |
+| `packages/api-contract` | Zod schemas, inferred types and OpenAPI 3.1 document |
+| `packages/api-client` | Validated fetch client, TanStack Query options and provider |
+| `packages/typescript-config` | Shared strict TypeScript configuration |
+
+Shared packages export source files through explicit package subpaths. Next.js and Vite compile those sources; no separate package build step is needed. Shared UI must stay independent of Next.js, Tauri and server modules.
+
+## Development
+
+Install [Bun 1.4.2](https://bun.sh/), then run from the repository root:
+
+```sh
+bun install
+bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This starts the web/API at `http://localhost:3000` and the desktop frontend at `http://localhost:1420`. The latter is useful for browser development without Rust. Both show a minimal shared starter screen with an API connection check.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+For a native desktop window, keep the web/API running and start Tauri in another terminal:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```sh
+bun run dev:web
+# In another terminal:
+bun run dev:desktop
+```
 
-## Learn More
+Tauri starts its Vite server automatically. Stop the browser-only `bun run dev` session first to free port 1420. Native builds require Rust 1.94+ and the [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/) (on Windows: Microsoft C++ Build Tools and WebView2).
 
-To learn more about Next.js, take a look at the following resources:
+## Runtime and native Bun APIs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Bun is the only supported JavaScript runtime for development, production servers, scripts and tests. JavaScript CLI scripts explicitly use `bun --bun`; `bunfig.toml` also makes Bun the default for scripts with Node shebangs. Next.js configuration rejects a non-Bun process. A separate Node.js installation is not required. Node-compatible imports and `@types/node` remain valid for framework/tool compatibility under Bun.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Use Bun-native APIs where they fit: `Bun.file`/`Bun.write` for file I/O, Bun's test runner, and built-in SQL/Redis clients for future backend work. PostgreSQL will use [`SQL`/`sql` from `bun`](https://bun.com/docs/runtime/sql), parameterized tagged templates, pooled connections and transactions. If Redis is needed, use [`RedisClient`/`redis` from `bun`](https://bun.com/docs/runtime/redis). Database/cache services, credentials and drivers are not added until a feature requires them.
 
-## Deploy on Vercel
+Keep these APIs and connection credentials in server-only modules; shared UI and desktop/browser code use REST. Production hosting must execute the web server with Bun using `bun run start`; a Node-only or Edge runtime is not a supported deployment target. `PORT` controls the production port (3000 by default). Tauri's shipped runtime remains Rust plus the system WebView, with Bun handling its JavaScript tooling.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API and data fetching
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `GET /api/v1/health`: minimal availability check; no downstream service checks.
+- `GET /api/openapi.json`: public OpenAPI 3.1 JSON, generated from shared schemas.
+- `/docs`: public interactive Swagger UI, with a working Try it out flow.
+
+Swagger assets are served locally from the official prebuilt distribution. The web development/build scripts prepare them automatically, avoiding a Swagger OpenAPI 3.1 resolver incompatibility with Turbopack. The generated files are cached as web build outputs and are not committed.
+
+Add request/response schemas to `packages/api-contract`, register the route in its OpenAPI document, implement the corresponding Next.js Route Handler, then add a validated client method and Query options to `packages/api-client`. Keep database access and secrets inside the server application. Update the API contract and implementation together.
+
+The web client uses same-origin requests. Desktop development defaults to `http://localhost:3000`; set `VITE_API_BASE_URL` to change that origin. Query cache keys include the origin, cancellation is forwarded to fetch, and HTTP errors remain typed. Each provider owns its QueryClient; remount the provider to change API origins.
+
+Use REST for data shared by both applications. Keep Server Actions for a future genuinely web-only need. TanStack Query owns server state. Add TanStack Store only when shared client-only state warrants it.
+
+Tauri origins are explicitly allowed by the API's CORS helper. Local Vite origins are allowed in development. Set `API_ALLOWED_ORIGINS` in `apps/web/.env.local` for additional comma-separated browser origins. CORS is a browser policy, not authentication. Protected endpoints, credentials and authorization are deferred until their requirements exist. Extend the CORS method list when adding write endpoints.
+
+## Building
+
+Desktop production builds require an explicit HTTPS API origin so a shipped application never silently points at localhost. Copy `apps/desktop/.env.example` to `.env.local` and set:
+
+```dotenv
+VITE_API_BASE_URL=https://your-api.example.com
+```
+
+Vite embeds this public URL at build time. It must point to the deployed Next.js host; it is not a secret. Tauri CSP permits HTTPS API connections. Development CSP also permits the local API and Vite servers; update `devCsp` in `tauri.conf.json` if using a custom HTTP development origin.
+
+```sh
+bun run build           # Next.js production build and desktop frontend assets
+bun run build:desktop   # Native application and OS-specific installers
+bun run start           # Serve the built Next.js app
+```
+
+For only the web app: `bun x --bun turbo run build --filter=@pr0/web`.
+
+The Tauri application identifier is currently `com.umami-creative.pr0`; confirm it before the first distributed release. The native capability set is empty until a feature needs native commands. Installer signing, auto-updates and release publishing are outside this foundation.
+
+## Shared UI
+
+Run shadcn from the web workspace:
+
+```sh
+cd apps/web
+bun x --bun shadcn add input
+```
+
+The workspace aliases route primitives to `packages/ui`. Import them as `@pr0/ui/components/button` and utilities as `@pr0/ui/lib/utils`. Both apps import `@pr0/ui/globals.css`; its explicit Tailwind source registration includes the shared components. Theme tokens are defined once in the UI package.
+
+Keep platform routing and native integrations in each app. Shared screens receive data and callbacks through props. The initial screen demonstrates this without adding domain logic.
+
+## Checks
+
+```sh
+bun run check
+bun run fix
+bun run typecheck
+bun run test
+bun run build
+cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+```
+
+Ultracite/Oxlint/Oxfmt configuration stays at the root. Tests use Bun's built-in runner. The narrow lint exceptions for the generated shadcn button preserve its standard component/variant exports and theme calculations. Native binaries, frontend output, caches, local environments and generated Tauri schemas are ignored. Commit both `bun.lock` and the desktop `Cargo.lock`.
