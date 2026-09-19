@@ -1,0 +1,21 @@
+{
+  "name": "@pr0/api-contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./health": "./src/health.ts",
+    "./openapi": "./src/openapi.ts"
+  },
+  "scripts": {
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@pr0/typescript-config": "workspace:*",
+    "openapi-types": "^12",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@pr0/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./client": "./src/client.ts",
+    "./health": "./src/health.ts",
+    "./provider": "./src/provider.tsx",
+    "./query-options": "./src/query-options.ts"
+  },
+  "scripts": {
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@pr0/api-contract": "workspace:*",
+    "@tanstack/react-query": "^5.103.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@pr0/typescript-config": "workspace:*",
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19",
+    "typescript": "^5"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8"
+  }
+}

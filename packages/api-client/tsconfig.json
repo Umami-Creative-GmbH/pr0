@@ -1,0 +1,4 @@
+{
+  "extends": "@pr0/typescript-config/react.json",
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}
