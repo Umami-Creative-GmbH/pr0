@@ -10,5 +10,4 @@ Map canonical roles to these GitHub label names:
 | ready-for-human | ready-for-human | Requires human implementation |
 | wontfix | wontfix | Will not be actioned |
 
-When a skill names a role, use its corresponding label.
-Edit the Label column to customize the vocabulary.
+When a skill names a role, use its corresponding label. Edit the Label column to customize the vocabulary.
