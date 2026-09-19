@@ -7,9 +7,7 @@
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
-use tauri_plugin_global_shortcut::{
-    Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
-};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 const LAUNCHER_LABEL: &str = "launcher";
 const MAIN_LABEL: &str = "main";
