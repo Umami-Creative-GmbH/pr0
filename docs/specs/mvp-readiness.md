@@ -1,6 +1,6 @@
 # MVP implementation-readiness handoff
 
-Status: audit prepared for [issue #12](https://github.com/Umami-Creative-GmbH/pr0/issues/12) on 2026-09-19. The audit recommends accepting the specification as ready for implementation. Human confirmation is pending; this document does not close the readiness decision or certify a production release.
+Status: approved implementation-readiness decision for [issue #12](https://github.com/Umami-Creative-GmbH/pr0/issues/12). On 2026-09-19, the user replied **“approved”** to the reviewed handoff and the request to publish the resolution and close the issue. The specification is ready for implementation; this does not certify a production release.
 
 ## Scope and authority
 
@@ -77,8 +77,8 @@ Implementation must still produce and pass the canonical acceptance cases. In pa
 
 Known data loss, isolation failures, broken core keyboard paths, failed restore/update tests or failed accepted performance workloads block release. Specification approval does not waive any of these gates. Current repository typechecks/tests verify the existing foundation and prototype only; they do not validate these future production behaviors.
 
-## Readiness decision awaiting the human
+## Approved readiness decision
 
-Recommendation: accept this linked specification set as implementation-ready for the full agreed Windows-first MVP, with production implementation and release validation following separately.
+The user accepted this linked specification set as implementation-ready for the full agreed Windows-first MVP. Production implementation and release validation follow separately.
 
-The remaining decision is the explicit human confirmation required by #12. Once confirmed, record the answer and a committed handoff link in the issue resolution, close #12 and add its named context link to the parent map. Until then, keep #12 open and do not present readiness as approved.
+The explicit human confirmation required by #12 is recorded above. Its resolution links this committed handoff, and the parent map points to that resolution. No implementation-blocking decision remains from the audited scope; implementation must preserve the canonical acceptance criteria and release gates.
