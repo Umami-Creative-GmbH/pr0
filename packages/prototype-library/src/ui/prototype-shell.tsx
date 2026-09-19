@@ -22,6 +22,18 @@ import { LibraryApp } from "./library-app";
 
 export type Surface = "desktop" | "web" | "auth";
 
+/**
+ * Why this is a union rather than `string | null`: a blank header used to mean
+ * "still checking", "nothing registered" and "the lookup threw" all at once,
+ * which made a failed run impossible to tell from a slow one during the issue
+ * #9 session. Every state now says what it is.
+ */
+export type ShortcutStatus =
+  | { state: "checking" }
+  | { state: "registered"; shortcut: string }
+  | { state: "none" }
+  | { state: "error"; message: string };
+
 export interface PrototypeShellProps {
   library: Library;
   onLibraryChange: (next: Library) => void;
@@ -35,10 +47,10 @@ export interface PrototypeShellProps {
   launcherIsNative?: boolean;
   onOpenNativeLauncher?: () => void;
   /**
-   * Which global shortcut registered. `null` means none could be claimed;
-   * omit it entirely on surfaces that have no global shortcut (the browser).
+   * Global shortcut registration. Omit entirely on surfaces that have no
+   * global shortcut (the browser); it then reports itself as simulated.
    */
-  shortcutLabel?: string | null;
+  shortcutStatus?: ShortcutStatus;
   /** Lets the host force clipboard failures without editing code. */
   onClipboardFailureChange?: (fail: boolean) => void;
   clipboardFails?: boolean;
@@ -177,7 +189,7 @@ const ShellInner = ({
   fixedSurface = false,
   launcherIsNative = false,
   onOpenNativeLauncher,
-  shortcutLabel,
+  shortcutStatus,
   onClipboardFailureChange,
   clipboardFails = false,
 }: Omit<PrototypeShellProps, "tolgeeOptions">) => {
@@ -190,12 +202,19 @@ const ShellInner = ({
   const [launcherOpen, setLauncherOpen] = useState(false);
 
   const statusNote = (() => {
-    if (shortcutLabel === undefined) {
+    if (shortcutStatus === undefined) {
       return surface === "web" ? t("shortcut.simulated") : undefined;
     }
-    return shortcutLabel === null
-      ? t("shortcut.none")
-      : t("shortcut.registered", { shortcut: shortcutLabel });
+    if (shortcutStatus.state === "checking") {
+      return t("shortcut.checking");
+    }
+    if (shortcutStatus.state === "registered") {
+      return t("shortcut.registered", { shortcut: shortcutStatus.shortcut });
+    }
+    if (shortcutStatus.state === "error") {
+      return t("shortcut.failed", { message: shortcutStatus.message });
+    }
+    return t("shortcut.none");
   })();
 
   const openLauncher = (open: boolean) => {

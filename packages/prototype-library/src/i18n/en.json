@@ -140,6 +140,8 @@
   "shortcut.registered": "Global shortcut: {shortcut}",
   "shortcut.fallback": "Preferred shortcut taken — using fallback: {shortcut}",
   "shortcut.none": "No global shortcut available",
+  "shortcut.checking": "Registering global shortcut\u2026",
+  "shortcut.failed": "Could not read shortcut status: {message}",
   "shortcut.simulated": "Simulated in the browser — no global shortcut",
 
   "debug.heading": "Prototype tools",

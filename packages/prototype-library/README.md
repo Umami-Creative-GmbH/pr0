@@ -41,7 +41,17 @@ Desktop — the same library plus a **real** Windows global shortcut and a separ
 bun run dev:desktop
 ```
 
-The desktop window's header shows which global shortcut actually registered.
+**Where to look for the shortcut:** not the OS title bar (that just says `pr0`). It is the strip _inside_ the app, at the top of the window, immediately left of `SYNCHRONISIERT`. It always says something — registering, the binding it got, that none was available, or that the lookup failed.
+
+The terminal running `dev:desktop` is the second source of truth. Every attempt is logged, so a collision is visible rather than inferred:
+
+```text
+[pr0] global shortcut unavailable: Ctrl+Shift+P (...)
+[pr0] global shortcut registered: Alt+Space
+[pr0] global shortcut pressed
+```
+
+If you press the binding and no `global shortcut pressed` line appears, the keystroke never reached the app — something else owns it.
 
 ## What is real and what is faked
 

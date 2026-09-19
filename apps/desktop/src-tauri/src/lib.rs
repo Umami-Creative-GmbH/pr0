@@ -98,6 +98,7 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
                     if event.state == ShortcutState::Pressed {
+                        println!("[pr0] global shortcut pressed");
                         show_launcher(app);
                     }
                 })
@@ -113,12 +114,24 @@ pub fn run() {
             let handle = app.handle();
             let global_shortcut = handle.global_shortcut();
 
+            // Printed so a run can be diagnosed from the terminal even if the
+            // window never reports it. Each attempt is logged, so a collision
+            // is visible rather than inferred from the winner.
             let mut registered = None;
             for (label, shortcut) in shortcut_candidates() {
-                if global_shortcut.register(shortcut).is_ok() {
-                    registered = Some(label.to_string());
-                    break;
+                match global_shortcut.register(shortcut) {
+                    Ok(()) => {
+                        println!("[pr0] global shortcut registered: {label}");
+                        registered = Some(label.to_string());
+                        break;
+                    }
+                    Err(error) => {
+                        println!("[pr0] global shortcut unavailable: {label} ({error})");
+                    }
                 }
+            }
+            if registered.is_none() {
+                println!("[pr0] no global shortcut could be registered");
             }
             app.manage(RegisteredShortcut(Mutex::new(registered)));
 

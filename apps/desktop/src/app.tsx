@@ -9,6 +9,7 @@ import type { ClipboardWriter } from "@pr0/prototype-library/domain/copy";
 import { recordUse } from "@pr0/prototype-library/domain/lifecycle";
 import { createSeedLibrary } from "@pr0/prototype-library/domain/seed";
 import type { Library } from "@pr0/prototype-library/domain/types";
+import type { ShortcutStatus } from "@pr0/prototype-library/ui/prototype-shell";
 import { PrototypeShell } from "@pr0/prototype-library/ui/prototype-shell";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -28,10 +29,9 @@ export const App = () => {
     createSeedLibrary(SESSION_NOW)
   );
   const [clipboardFails, setClipboardFails] = useState(false);
-  // undefined until the setup command answers; null means none registered.
-  const [shortcutLabel, setShortcutLabel] = useState<
-    string | null | undefined
-  >();
+  const [shortcutStatus, setShortcutStatus] = useState<ShortcutStatus>({
+    state: "checking",
+  });
 
   // The relay handlers need the current library without re-subscribing.
   const libraryRef = useRef(library);
@@ -46,8 +46,19 @@ export const App = () => {
 
   useEffect(() => {
     const loadShortcut = async () => {
-      const label = await invoke<string | null>("registered_shortcut");
-      setShortcutLabel(label ?? null);
+      try {
+        const label = await invoke<string | null>("registered_shortcut");
+        // An unhandled rejection here used to leave the header blank forever,
+        // which read as "no shortcut" during the issue #9 session.
+        setShortcutStatus(
+          label ? { state: "registered", shortcut: label } : { state: "none" }
+        );
+      } catch (error) {
+        setShortcutStatus({
+          state: "error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     };
     void loadShortcut();
 
@@ -101,7 +112,7 @@ export const App = () => {
       onOpenNativeLauncher={() => {
         void invoke("open_launcher");
       }}
-      shortcutLabel={shortcutLabel}
+      shortcutStatus={shortcutStatus}
     />
   );
 };
