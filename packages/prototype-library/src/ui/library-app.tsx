@@ -22,6 +22,7 @@ import {
 import type { Library, Prompt } from "../domain/types";
 import {
   createLibraryState,
+  defaultBrowsingSort,
   effectiveSort,
   libraryReducer,
   selectResults,
@@ -237,6 +238,7 @@ export const LibraryApp = ({
           onNew={() => setEditor({ prompt: null, initialTitle: "" })}
           onQueryChange={(query) => dispatch({ type: "setQuery", query })}
           onSelect={(id) => dispatch({ type: "select", id })}
+          onResetSort={() => dispatch({ type: "resetSort" })}
           onSortChange={(sort) => dispatch({ type: "setSort", sort })}
           onTagFilter={(tagId) => dispatch({ type: "toggleTagFilter", tagId })}
           onToggleFavorite={(id) =>
@@ -248,6 +250,11 @@ export const LibraryApp = ({
           searchRef={searchRef}
           selectedId={state.selectedId}
           sort={effectiveSort(state)}
+          sortIsDefault={
+            state.query.trim() === ""
+              ? effectiveSort(state) === defaultBrowsingSort(state.view)
+              : state.searchSort === null
+          }
           view={state.view}
         />
 

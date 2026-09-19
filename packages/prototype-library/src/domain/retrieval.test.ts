@@ -334,3 +334,33 @@ test("a blank query imposes no text restriction", () => {
   ]);
   expect(run(lib, { query: "   ", sort: "title" })).toEqual(["a", "b"]);
 });
+
+test("Recently used falls back to title for equally-used prompts", () => {
+  // Issue #7 example 11: equal accepted use times fall back to normalized
+  // title and identity. Modification date orders only the never-used group.
+  const lib = library([
+    prompt({
+      id: "zebra",
+      title: "Zebra",
+      lastUsedAt: 5 * DAY,
+      modifiedAt: 9 * DAY,
+    }),
+    prompt({
+      id: "alpha",
+      title: "Alpha",
+      lastUsedAt: 5 * DAY,
+      modifiedAt: 1 * DAY,
+    }),
+  ]);
+  expect(run(lib, { sort: "recently-used" })).toEqual(["alpha", "zebra"]);
+});
+
+test("compares titles deterministically, not by platform collation", () => {
+  const lib = library([
+    prompt({ id: "b", title: "\u00E4pfel" }),
+    prompt({ id: "a", title: "Zebra" }),
+  ]);
+  // Accent folding makes this "apfel" vs "zebra": a plain code-unit compare
+  // orders them the same way on every platform.
+  expect(run(lib, { sort: "title" })).toEqual(["b", "a"]);
+});

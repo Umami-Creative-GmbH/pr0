@@ -12,18 +12,38 @@
  */
 
 import { useTranslate } from "@tolgee/react";
-import { Search, Star, TriangleAlert } from "lucide-react";
+import { Search, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { resolveSelection } from "../domain/copy";
 import { retrieve } from "../domain/retrieval";
-import type { CollectionId, Library, Prompt, PromptId } from "../domain/types";
+import type {
+  CollectionId,
+  Library,
+  Prompt,
+  PromptId,
+  TagId,
+} from "../domain/types";
 import { emptyFilters } from "../domain/types";
+import { LauncherFilters } from "./launcher-filters";
+
+/**
+ * What a copy attempt did, which decides whether the launcher closes.
+ *
+ * - `copied`     the clipboard write succeeded; close (issue #7's rule).
+ * - `stay-open`  something in the launcher took over (asking for variable
+ *                values); no write happened yet, so it must not close.
+ * - `handed-off` another surface took over and owns the rest of the flow.
+ *
+ * A rejected promise is a failure: stay open, keep query and selection, show
+ * the error and offer a retry.
+ */
+export type LauncherCopyOutcome = "copied" | "stay-open" | "handed-off";
 
 export interface LauncherPanelProps {
   library: Library;
-  /** Resolves when the copy succeeded; rejects to drive the failure state. */
-  onCopy: (promptId: PromptId) => Promise<void>;
+  /** Rejects to drive the failure state. */
+  onCopy: (promptId: PromptId) => Promise<LauncherCopyOutcome>;
   onOpenPrompt?: (promptId: PromptId) => void;
   onClose: () => void;
   /** True when this is the standalone Tauri launcher window. */
@@ -48,6 +68,7 @@ export const LauncherPanel = ({
   // mounted fresh each time, so local state is the reset.
   const [query, setQuery] = useState("");
   const [collectionId, setCollectionId] = useState<CollectionId | null>(null);
+  const [tagIds, setTagIds] = useState<TagId[]>([]);
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<PromptId | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -58,12 +79,12 @@ export const LauncherPanel = ({
       retrieve({
         library,
         view: { kind: "all" },
-        filters: { ...emptyFilters, collectionId, favoriteOnly },
+        filters: { ...emptyFilters, collectionId, tagIds, favoriteOnly },
         query,
         // Empty query: recently used first, then never-used by modification.
         sort: query.trim() === "" ? "recently-used" : "relevance",
       }).slice(0, MAX_RESULTS),
-    [library, query, collectionId, favoriteOnly]
+    [library, query, collectionId, tagIds, favoriteOnly]
   );
 
   // Selection follows identity while eligible, else the first result.
@@ -91,10 +112,12 @@ export const LauncherPanel = ({
     }
     setBusy(true);
     try {
-      await onCopy(activeId);
+      const outcome = await onCopy(activeId);
       setCopyError(null);
       setBusy(false);
-      onClose();
+      if (outcome !== "stay-open") {
+        onClose();
+      }
     } catch (error) {
       // Stays open, keeps query and selection, records no usage.
       setCopyError(error instanceof Error ? error.message : "clipboard-failed");
@@ -145,6 +168,32 @@ export const LauncherPanel = ({
     (prompt) => !prompt.archived
   ).length;
 
+  const activeTags = new Set(tagIds);
+  // Only tags that are actually in play, so the row stays compact.
+  const tagsInUse = new Set<TagId>();
+  for (const prompt of library.prompts) {
+    if (!prompt.archived) {
+      for (const tagId of prompt.tagIds) {
+        tagsInUse.add(tagId);
+      }
+    }
+  }
+  const launcherTags = library.tags.filter((tag) => tagsInUse.has(tag.id));
+
+  const filtersActive =
+    collectionId !== null || tagIds.length > 0 || favoriteOnly;
+  const hasRestrictions = query.trim() !== "" || filtersActive;
+  const emptyMessage = (() => {
+    if (activeCount === 0) {
+      return t("launcher.emptyLibrary");
+    }
+    // A filter-only exclusion must not claim the query found nothing.
+    if (query.trim() === "") {
+      return t("launcher.emptyFiltered");
+    }
+    return t("launcher.empty", { query });
+  })();
+
   return (
     <div className="pr0-launcher" data-standalone={standalone}>
       <div className="pr0-launcher-head">
@@ -159,36 +208,24 @@ export const LauncherPanel = ({
         <span className="pr0-kbd">{t("launcher.hint.close")}</span>
       </div>
 
-      <div className="pr0-launcher-filters">
-        <button
-          aria-pressed={favoriteOnly}
-          className="pr0-chip"
-          onClick={() => setFavoriteOnly((on) => !on)}
-          type="button"
-        >
-          <Star aria-hidden="true" size={12} />
-          {t("filters.favoriteOnly")}
-        </button>
-        {library.collections.map((collection) => (
-          <button
-            aria-pressed={collectionId === collection.id}
-            className="pr0-chip"
-            key={collection.id}
-            onClick={() =>
-              setCollectionId((current) =>
-                current === collection.id ? null : collection.id
-              )
-            }
-            type="button"
-          >
-            <span
-              className="pr0-dot"
-              style={{ background: collection.accent }}
-            />
-            {collection.name}
-          </button>
-        ))}
-      </div>
+      <LauncherFilters
+        activeTags={activeTags}
+        collectionId={collectionId}
+        collections={library.collections}
+        favoriteOnly={favoriteOnly}
+        onToggleCollection={(id) =>
+          setCollectionId((current) => (current === id ? null : id))
+        }
+        onToggleFavorite={() => setFavoriteOnly((on) => !on)}
+        onToggleTag={(id) =>
+          setTagIds((current) =>
+            activeTags.has(id)
+              ? current.filter((tagId) => tagId !== id)
+              : [...current, id]
+          )
+        }
+        tags={launcherTags}
+      />
 
       <ul
         aria-label={t("launcher.placeholder")}
@@ -238,11 +275,33 @@ export const LauncherPanel = ({
 
         {results.length === 0 ? (
           <li className="pr0-empty">
-            <p>
-              {activeCount === 0
-                ? t("launcher.emptyLibrary")
-                : t("launcher.empty", { query })}
-            </p>
+            <p>{emptyMessage}</p>
+            {hasRestrictions ? (
+              <span className="pr0-empty-actions">
+                {query.trim() === "" ? null : (
+                  <button
+                    className="pr0-chip"
+                    onClick={() => setQuery("")}
+                    type="button"
+                  >
+                    {t("search.clear")}
+                  </button>
+                )}
+                {filtersActive ? (
+                  <button
+                    className="pr0-chip"
+                    onClick={() => {
+                      setCollectionId(null);
+                      setTagIds([]);
+                      setFavoriteOnly(false);
+                    }}
+                    type="button"
+                  >
+                    {t("filters.clear")}
+                  </button>
+                ) : null}
+              </span>
+            ) : null}
           </li>
         ) : null}
       </ul>

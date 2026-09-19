@@ -15,13 +15,10 @@ import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { LauncherUsedPayload } from "./prototype-bridge";
+import { PROTOTYPE_EVENTS, relay } from "./prototype-bridge";
+
 import "@pr0/prototype-library/prototype.css";
-
-/** Payloads crossing the Tauri window boundary. */
-type RelayPayload = Library | { promptId: string; at: number } | null;
-
-const relay = (event: string, payload: RelayPayload = null) =>
-  invoke("relay", { event, payload });
 
 // Captured once at load so relative dates do not drift during a session.
 const SESSION_NOW = Date.now();
@@ -44,7 +41,7 @@ export const App = () => {
 
   const update = useCallback((next: Library) => {
     setLibrary(next);
-    void relay("library:sync", next);
+    void relay(PROTOTYPE_EVENTS.librarySync, next);
   }, []);
 
   useEffect(() => {
@@ -55,10 +52,10 @@ export const App = () => {
     void loadShortcut();
 
     const unlisteners = [
-      listen("launcher:request-library", () =>
-        relay("library:sync", libraryRef.current)
+      listen(PROTOTYPE_EVENTS.libraryRequest, () =>
+        relay(PROTOTYPE_EVENTS.librarySync, libraryRef.current)
       ),
-      listen<{ promptId: string; at: number }>("launcher:used", (event) => {
+      listen<LauncherUsedPayload>(PROTOTYPE_EVENTS.launcherUsed, (event) => {
         // The launcher already wrote to the clipboard, so this is a use.
         const next = recordUse(
           libraryRef.current,
@@ -66,7 +63,7 @@ export const App = () => {
           event.payload.at
         );
         setLibrary(next);
-        void relay("library:sync", next);
+        void relay(PROTOTYPE_EVENTS.librarySync, next);
       }),
     ];
 

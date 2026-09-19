@@ -90,6 +90,7 @@
   "launcher.placeholder": "Find a prompt and copy it with ↵…",
   "launcher.empty": "No match for “{query}”.",
   "launcher.emptyLibrary": "There are no active prompts.",
+  "launcher.emptyFiltered": "No prompts match these filters.",
   "launcher.hint.navigate": "↑↓ Navigate",
   "launcher.hint.copy": "↵ Copy",
   "launcher.hint.open": "⌘↵ Open",
