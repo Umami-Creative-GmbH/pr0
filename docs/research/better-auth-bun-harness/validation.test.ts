@@ -1,5 +1,8 @@
 import { afterAll, expect, test } from "bun:test";
 
+import { betterAuth } from "better-auth";
+import { emailOTP } from "better-auth/plugins";
+
 import { auth, client } from "./auth";
 
 const origin = "http://localhost:30413";
@@ -307,4 +310,189 @@ test("freshAge measures session creation, so stale-browser device approval is no
     authorization: "Bearer invalid-research-token",
   });
   expect(invalidToken.body).toBeNull();
+});
+
+test("email OTP consumes once with TTL and attempts, but checks replay and browser binding is absent", async () => {
+  const mailbox = new Map<string, string>();
+  const otpAuth = betterAuth({
+    ...auth.options,
+    plugins: [
+      emailOTP({
+        expiresIn: 300,
+        allowedAttempts: 3,
+        storeOTP: "hashed",
+        disableSignUp: true,
+        sendVerificationOTP: ({ email, otp }) => {
+          mailbox.set(email, otp);
+        },
+      }),
+    ],
+  });
+  const send = async (
+    path: string,
+    body: Record<string, string>,
+    headers: Record<string, string> = {}
+  ) => {
+    const response = await otpAuth.handler(
+      new Request(`${origin}/api/auth${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin, ...headers },
+        body: JSON.stringify(body),
+      })
+    );
+    return { status: response.status, body: await response.json() };
+  };
+  const browser = await signup(`email-otp-${crypto.randomUUID()}`);
+  const [account] =
+    await client`select email from "user" where id = ${browser.userId}`;
+  const { email } = account;
+  await client`update "user" set email_verified = true where id = ${browser.userId}`;
+  // Make the fixture social-only without calling a real provider.
+  await client`update account set provider_id = 'research-social', password = null where user_id = ${browser.userId}`;
+  const sent = await send(
+    "/email-otp/send-verification-otp",
+    { email, type: "email-verification" },
+    browser.headers
+  );
+  expect(sent.status).toBe(200);
+  const otp = mailbox.get(email);
+  if (!otp) {
+    throw new Error("Research OTP delivery callback was not called");
+  }
+  const identifier = `email-verification-otp-${email}`;
+  const [stored] =
+    await client`select value, expires_at from verification where identifier = ${identifier}`;
+  expect(stored.value).not.toContain(otp);
+  expect(new Date(stored.expires_at).getTime() - Date.now()).toBeGreaterThan(
+    295_000
+  );
+  expect(
+    new Date(stored.expires_at).getTime() - Date.now()
+  ).toBeLessThanOrEqual(300_000);
+  const checks = await Promise.all(
+    Array.from({ length: 5 }, () =>
+      send("/email-otp/check-verification-otp", {
+        email,
+        type: "email-verification",
+        otp,
+      })
+    )
+  );
+  expect(checks.filter((response) => response.status === 200)).toHaveLength(5);
+  // No browser cookie: the plugin proves email possession, not initiating-session possession.
+  const results = await Promise.all(
+    Array.from({ length: 20 }, () =>
+      send("/email-otp/verify-email", { email, otp })
+    )
+  );
+  expect(results.filter((response) => response.status === 200)).toHaveLength(1);
+  const replay = await send("/email-otp/verify-email", { email, otp });
+  expect(replay.status).not.toBe(200);
+  const expiredSend = await send("/email-otp/send-verification-otp", {
+    email,
+    type: "email-verification",
+  });
+  expect(expiredSend.status).toBe(200);
+  const expiredOtp = mailbox.get(email);
+  if (!expiredOtp) {
+    throw new Error("Research expiry OTP absent");
+  }
+  await client`update verification set expires_at = ${new Date(Date.now() - 1000)} where identifier = ${identifier}`;
+  const expired = await send("/email-otp/verify-email", {
+    email,
+    otp: expiredOtp,
+  });
+  expect(expired.status).not.toBe(200);
+  const attemptsSend = await send("/email-otp/send-verification-otp", {
+    email,
+    type: "email-verification",
+  });
+  expect(attemptsSend.status).toBe(200);
+  const correctOtp = mailbox.get(email);
+  if (!correctOtp) {
+    throw new Error("Research attempts OTP absent");
+  }
+  const wrongOtp = correctOtp === "000000" ? "111111" : "000000";
+  const wrong1 = await send("/email-otp/verify-email", {
+    email,
+    otp: wrongOtp,
+  });
+  const wrong2 = await send("/email-otp/verify-email", {
+    email,
+    otp: wrongOtp,
+  });
+  const wrong3 = await send("/email-otp/verify-email", {
+    email,
+    otp: wrongOtp,
+  });
+  expect(wrong1.status).not.toBe(200);
+  expect(wrong2.status).not.toBe(200);
+  expect(wrong3.status).not.toBe(200);
+  const exhausted = await send("/email-otp/verify-email", {
+    email,
+    otp: correctOtp,
+  });
+  expect(exhausted.status).toBe(403);
+  expect(exhausted.body.code).toBe("TOO_MANY_ATTEMPTS");
+});
+
+test("adapter consumeOne can bind a separate reauth proof to account, browser and TTL", async () => {
+  const context = await auth.$context;
+  const browser = await signup(`reauth-bound-${crypto.randomUUID()}`);
+  const session = await request("/get-session", undefined, browser.headers);
+  const id = crypto.randomUUID();
+  const binding = `reauth:research-instance:${browser.userId}:${session.body.session.id}:verified-email-revision-1`;
+  const digest = new Bun.CryptoHasher("sha256", "research-only-hmac-key")
+    .update("research-email-code")
+    .digest("hex");
+  await context.adapter.create({
+    model: "verification",
+    forceAllowId: true,
+    data: {
+      id,
+      identifier: binding,
+      value: digest,
+      expiresAt: new Date(Date.now() + 300_000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  const consume = (identifier: string, value: string) =>
+    context.adapter.consumeOne({
+      model: "verification",
+      where: [
+        { field: "id", value: id },
+        { field: "identifier", value: identifier },
+        { field: "value", value },
+        { field: "expiresAt", operator: "gt", value: new Date() },
+      ],
+    });
+  const wrongBinding = await consume(`${binding}:different-browser`, digest);
+  expect(wrongBinding).toBeNull();
+  const wrongProof = await consume(binding, "incorrect-proof-digest");
+  expect(wrongProof).toBeNull();
+  const results = await Promise.all(
+    Array.from({ length: 20 }, () => consume(binding, digest))
+  );
+  expect(results.filter(Boolean)).toHaveLength(1);
+  const replay = await consume(binding, digest);
+  expect(replay).toBeNull();
+  await context.adapter.create({
+    model: "verification",
+    forceAllowId: true,
+    data: {
+      id,
+      identifier: binding,
+      value: digest,
+      expiresAt: new Date(Date.now() - 1000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+  const expired = await consume(binding, digest);
+  expect(expired).toBeNull();
+  await context.adapter.delete({
+    model: "verification",
+    where: [{ field: "id", value: id }],
+  });
 });
