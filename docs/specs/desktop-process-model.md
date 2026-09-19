@@ -1,6 +1,6 @@
 # Desktop process model, tray, and startup
 
-Status: decision specification for [issue #19](https://github.com/Umami-Creative-GmbH/pr0/issues/19), accepted by the user in two live decision rounds on 2026-09-19. The user accepted all nine recommendations. These acceptance examples specify future behavior; they are not evidence of implemented or tested native behavior.
+Status: decision specification for [issue #19](https://github.com/Umami-Creative-GmbH/pr0/issues/19), accepted by the user in two live decision rounds on 2026-09-19. The user accepted all nine recommendations and subsequently reported successful validation, recorded below. The acceptance examples define required behavior; they do not themselves supply per-case test evidence.
 
 ## Authority and scope
 
@@ -122,4 +122,10 @@ Core keyboard access, visible focus, accessible dialogs/errors, and manual scree
 
 ## Completion boundary
 
-The live decisions for #19 are settled. No additional prototype was needed to judge them from description. The current in-memory prototype does not implement tray residency, autostart, single-instance coordination, durable quit handling, or the complete focus fallback specified here. Production code, installed-platform validation, and resource measurements remain implementation and release work, and must not be inferred from acceptance of this document or the earlier general prototype walkthrough.
+The live decisions for #19 are settled. No additional prototype was needed to judge them from description. The repository's in-memory prototype does not implement tray residency, autostart, single-instance coordination, durable quit handling, or the complete focus fallback specified here. This decision document does not change production code.
+
+## Human validation report
+
+On 2026-09-19, after approving the specification and receiving the validation checklist, the user reported: **“i validated it everything checked out”**. Record this as the user's successful validation report and acceptance of the desktop process-model outcome. No further repetition of the walkthrough is required to complete decision ticket #19.
+
+The report did not identify the tested build, Windows/WebView2 versions, individual case results, or resource and timing measurements. Preserve the report as given without inventing that evidence or treating it as an agent-observed test run. The release matrix and measurement requirements above remain the record to satisfy for release; closing this decision ticket does not certify a particular production build.
