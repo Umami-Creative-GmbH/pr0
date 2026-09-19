@@ -44,3 +44,10 @@ _Avoid_: Version (a conflict copy is an independent prompt, not an entry in visi
 
 **Quick launcher**:
 The desktop entry point dedicated to finding a prompt and copying it to the clipboard.
+
+**Prompt use**:
+A successful copy of a prompt's content to the clipboard. Opening or editing a prompt is not a use.
+_Avoid_: View (viewing a prompt does not indicate that it was used).
+
+**Recents**:
+The view of distinct active prompts that have been used, ordered by default by their most recent use across the account's devices. A prompt appears once regardless of how many times it has been used.
