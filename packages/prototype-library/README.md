@@ -78,7 +78,7 @@ If you press the binding and no `global shortcut pressed` line appears, the keys
 - Variable substitution has been pulled **into** MVP scope (issue #9 session). Issue #1's "Out of scope" list still says otherwise and needs updating.
 - Windows may refuse to give the launcher foreground focus when another app is active. See the note in `apps/desktop/src-tauri/src/lib.rs`.
 - Collection and tag management (rename, merge, delete) is not built. Only assignment through the editor is.
-- **Save/sync/conflict states are not built.** The "Synchronisiert" badge is decoration. Issue #9 asks for visible conflict states; that part of the ticket is not covered here and still needs a decision.
+- **Save/sync/conflict states are not built.** The "Synchronisiert" badge is decoration. The presentation decision is settled in the [issue #18 specification](../../docs/specs/save-sync-conflict-presentation.md); this prototype does not implement its save feedback, synchronization details or conflict review.
 - No tray, autostart or background-process behaviour, so #9's questions about whether the app must already be running are also still open.
 
 ## Layout
