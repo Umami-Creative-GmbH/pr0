@@ -14,6 +14,7 @@
   "dependencies": {
     "@pr0/api-client": "workspace:*",
     "@pr0/api-contract": "workspace:*",
+    "@pr0/prototype-library": "workspace:*",
     "@pr0/ui": "workspace:*",
     "next": "16.3.5",
     "react": "19.2.8",
