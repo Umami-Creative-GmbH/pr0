@@ -15,13 +15,16 @@ import { PrototypeI18nProvider } from "@pr0/prototype-library/ui/i18n-provider";
 import { LauncherPanel } from "@pr0/prototype-library/ui/launcher-panel";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { PROTOTYPE_EVENTS, relay } from "./prototype-bridge";
 
 import "@pr0/prototype-library/prototype.css";
+
+const LAUNCHER_WIDTH = 660;
 
 const close = () => {
   void invoke("hide_launcher");
@@ -34,6 +37,26 @@ const LauncherWindow = () => {
   // Remounts the panel on every opening, which is how the reset of query and
   // filters required by issue #7 happens.
   const [opening, setOpening] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // The window is borderless and transparent, so any height beyond the panel
+  // shows straight through to whatever is behind it. Keep them the same size.
+  useEffect(() => {
+    const element = panelRef.current;
+    if (!element) {
+      return;
+    }
+    const observer = new ResizeObserver(([entry]) => {
+      const height = Math.ceil(entry?.contentRect.height ?? 0);
+      if (height > 0) {
+        void getCurrentWindow().setSize(
+          new LogicalSize(LAUNCHER_WIDTH, height)
+        );
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const unlisteners = [
@@ -80,7 +103,7 @@ const LauncherWindow = () => {
   };
 
   return (
-    <div className="pr0" data-theme="dark" style={{ height: "100vh" }}>
+    <div className="pr0 pr0-window" data-theme="dark" ref={panelRef}>
       <LauncherPanel
         key={opening}
         library={library}

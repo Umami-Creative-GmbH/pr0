@@ -48,6 +48,14 @@
   font-family: var(--font-body);
 }
 
+/* Transparent host for the borderless launcher window. */
+.pr0-window {
+  background: transparent;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
 .pr0[data-theme="light"] {
   --app-desk: #e7ecf4;
   --app-bg: #ffffff;
@@ -999,11 +1007,19 @@
 }
 
 /* The desktop launcher window is the whole surface. */
+/*
+ * The standalone launcher IS the window. It sizes to its content and the
+ * window is resized to match, so no transparent dead space is left around it
+ * and nothing shows through but the panel itself.
+ */
 .pr0-launcher[data-standalone="true"] {
   width: 100%;
-  height: 100vh;
+  height: auto;
+  max-height: 100vh;
   border-radius: 16px;
   animation: none;
+  /* The window is sized to this element, so a CSS shadow would be clipped. */
+  box-shadow: none;
 }
 
 .pr0-launcher-head {
@@ -1050,8 +1066,16 @@
   margin: 0;
 }
 
-.pr0-launcher[data-standalone="true"] .pr0-launcher-list {
+.pr0-launcher[data-standalone="true"] > .pr0-dialog {
+  width: 100%;
   max-height: none;
+  border: none;
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.pr0-launcher[data-standalone="true"] .pr0-launcher-list {
+  max-height: 340px;
 }
 
 .pr0-launcher-row {
