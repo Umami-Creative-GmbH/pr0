@@ -1,0 +1,21 @@
+{
+  "optimizeMs": 6202.8659,
+  "sizes": [
+    {
+      "name": "bench_fields_config",
+      "bytes": 4096
+    },
+    {
+      "name": "bench_fields_data",
+      "bytes": 532856832
+    },
+    {
+      "name": "bench_fields_docsize",
+      "bytes": 114688
+    },
+    {
+      "name": "bench_fields_idx",
+      "bytes": 278528
+    }
+  ]
+}

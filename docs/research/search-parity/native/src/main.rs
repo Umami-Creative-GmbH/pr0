@@ -26,6 +26,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     let order = db.prepare("SELECT id FROM prompts ORDER BY title COLLATE BINARY,id")?.query_map([],|row|row.get::<_,i64>(0))?.collect::<Result<Vec<_>,_>>()?;
     let reference: Value=serde_json::from_str(&fs::read_to_string("../results.json")?)?;
     assert_eq!(json!(order),reference["scalarOrder"]);
+    let exact_exists: bool=db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='exact_fields')",[],|row|row.get(0))?;
+    let mut exact_checks=0;
+    if exact_exists {
+        let records=db.prepare("SELECT rowid,title,content,description,tag1,tag2,collection FROM exact_fields ORDER BY rowid")?.query_map([],|row| Ok((row.get::<_,i64>(0)?,(1..7).map(|i|row.get::<_,String>(i)).collect::<Result<Vec<_>,_>>()?)))?.collect::<Result<Vec<_>,_>>()?;
+        let mut terms: Vec<String>=cases.iter().flat_map(|case|case["terms"].as_array().unwrap().iter().map(|term|term.as_str().unwrap().to_string())).collect();
+        for (id, values) in &records {if *id>=1000 {terms.push(values[1].clone());}}
+        terms.push("x".repeat(200)); terms.push("a".repeat(200));
+        terms.sort(); terms.dedup();
+        for term in terms {if term.chars().count()<3 {continue;} for (field_index,field) in fields.iter().enumerate() {
+            let expected: Vec<i64>=records.iter().filter(|(_,values)|values[field_index].contains(&term)).map(|(id,_)|*id).collect();
+            let expression=format!("{}:\"{}\"",field,term.replace('"',"\"\""));
+            let actual=db.prepare("SELECT rowid FROM exact_fields WHERE exact_fields MATCH ? ORDER BY rowid")?.query_map([expression],|row|row.get::<_,i64>(0))?.collect::<Result<Vec<_>,_>>()?;
+            assert_eq!(actual,expected,"field {} term {}",field,term);exact_checks+=1;
+        }}
+    }
     let version: String=db.query_row("SELECT sqlite_version()",[],|row|row.get(0))?;
     let mut timings=Vec::new();
     let bench_exists: bool=db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='bench')",[],|row|row.get(0))?;
@@ -47,8 +62,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             timings.push(json!({"query":query,"count":count,"min":samples[0],"p50":samples[9],"p95":samples[18],"max":samples[19]}));
         }
     }
-    let result=json!({"rusqlite":"0.40.2","sqlite":version,"cases":checked,"scalarOrder":order,"timings":timings});
+    let result=json!({"rusqlite":"0.40.2","sqlite":version,"cases":checked,"perFieldExactChecks":exact_checks,"scalarOrder":order,"timings":timings});
     fs::write("../native-results.json",serde_json::to_string_pretty(&result)?)?;
     println!("Passed {checked} Rust bundled-SQLite parity cases; scalar ordering; native benchmark recorded.");
     Ok(())
 }
+
