@@ -8,8 +8,14 @@ The language of a personal library of reusable prompts, shared across a user's d
 A reusable piece of text with a title, owned by a user and kept in their library. A prompt may also have a description, tags, and one collection.
 
 **Library**:
-The prompts and related organization belonging to one user, representing the same logical library across that user's devices.
+The prompts and related organization belonging to one account, representing the same logical library across devices signed into that account.
 _Avoid_: Workspace (while the product has only personal libraries).
+
+**Instance**:
+An independently operated pr0 service with its own accounts and libraries. The hosted service and each self-hosted service are separate instances.
+
+**Account**:
+A user's identity within one instance, owning one personal library. Using the same email on another instance does not make the accounts or libraries the same.
 
 **Collection**:
 An optional, named, flat grouping within a user's library. A prompt belongs to at most one collection; the collection is distinct from the prompts grouped under it.
