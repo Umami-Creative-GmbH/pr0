@@ -15,6 +15,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - When using obra/superpowers (including its brainstorming workflow), do not invoke Matt Pocock's skills.
 - This separation applies to both namespaced skills and unprefixed copies or aliases. Skill auto-trigger instructions do not override it; do not mix the two workflows.
 
+## Agent skills
+
+Before using engineering skills or exploring the codebase, read and follow the [Agent skills section in CLAUDE.md](CLAUDE.md#agent-skills) for issue tracking, triage labels, and domain documentation. These conventions apply to Codex and all other agents. Read each instruction file once per session; the `@AGENTS.md` import in `CLAUDE.md` refers to this file.
+
 # Runtime and data access decisions
 
 - Bun is the required JavaScript/TypeScript runtime for development, production servers, scripts and tests. Use `bun run` and `bun x --bun`; keep explicit `bun --bun` on JavaScript CLI entry points. Do not introduce a Node.js runtime requirement or fallback.

@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pr0 — search-to-copy interaction prototype</title>
+  <style>
+    :root { font: 15px/1.5 system-ui, sans-serif; color: #172c31; background: #f0f3f2; accent-color: #146c59; }
+    * { box-sizing: border-box; } body { margin: 0; } button,input,select,textarea { font: inherit; }
+    button { cursor: pointer; border: 1px solid #aebfbb; border-radius: 7px; padding: 7px 12px; background: white; color: inherit; }
+    button:hover { background: #e8f1ee; } button[aria-pressed="true"],button.primary { background: #146c59; color: white; border-color: #146c59; }
+    button:disabled { opacity: .5; cursor: default; } :focus-visible { outline: 3px solid #bd6500; outline-offset: 3px; }
+    input,select,textarea { border: 1px solid #9eb1ac; border-radius: 6px; padding: 8px; background: white; color: inherit; }
+    input[type=checkbox] { width: auto; } textarea { width: 100%; min-height: 190px; resize: vertical; }
+    h1 { font-size: 23px; margin: 0; } h2 { font-size: 20px; margin: 0 0 12px; } h3 { font-size: 16px; } p { margin: 8px 0; }
+    small,.muted { color: #516760; } .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .spread { justify-content: space-between; }
+    .intro { background: #163c35; color: white; padding: 18px 28px; } .intro p { max-width: 1100px; color: #dbebe5; }
+    .lab { margin: 16px 24px; background: #fff; border: 1px dashed #96aaa3; padding: 14px 18px; border-radius: 10px; }
+    .lab h2 { font-size: 15px; } .scenario { margin-top: 12px; padding: 10px; background: #f1f5f3; }
+    .shell { margin: 16px 24px; background: white; border: 1px solid #bfcdc8; border-radius: 12px; overflow: hidden; }
+    .toolbar { padding: 16px 20px; border-bottom: 1px solid #d9e2de; } .layout { display: grid; grid-template-columns: 170px minmax(260px,1fr) minmax(280px,1.1fr); min-height: 455px; }
+    nav { padding: 16px 12px; background: #f7f9f8; border-right: 1px solid #d9e2de; } nav button { display: block; width: 100%; text-align: left; margin: 5px 0; }
+    .results { padding: 14px; border-right: 1px solid #d9e2de; } .detail { padding: 22px; } .item { display: flex; gap: 5px; padding: 8px; border: 1px solid #d6e1dc; border-radius: 8px; margin: 7px 0; }
+    .item.selected { background: #e7f4ee; border-color: #39836e; } .select-prompt { flex: 1; text-align: left; border: 0; background: transparent; padding: 4px; } .select-prompt strong,.select-prompt small { display: block; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f4f6f5; padding: 16px; border-radius: 7px; font: 14px/1.65 ui-monospace,monospace; }
+    .filters { margin-top: 12px; } .filters label { display: inline-flex; align-items: center; gap: 5px; margin-right: 7px; }
+    .notice { padding: 10px 18px; background: #edf4f0; border-bottom: 1px solid #d0dfd8; } .error { color: #942727; background: #fff0eb; }
+    #message { min-height: 42px; padding: 8px 24px; font-weight: 600; } .state { margin: 16px 24px 30px; padding: 14px 18px; border: 1px dashed #9fb0a9; border-radius: 8px; }
+    dl { display: grid; grid-template-columns: 170px 1fr; gap: 5px 14px; margin: 10px 0; } dd { margin: 0; overflow-wrap: anywhere; } dt { color: #516760; }
+    dialog { border: 1px solid #93aaa0; border-radius: 12px; padding: 24px; width: min(760px,92vw); max-height: 90vh; color: inherit; }
+    dialog::backdrop { background: #132d2acc; } dialog label.field { display: block; margin: 12px 0; } .field input { width: 100%; }
+    #launcher .results { max-height: 48vh; overflow-y: auto; border: 0; padding: 10px 0; } .search { width: 100%; } .danger { color: #922c2c; } .pill { border: 1px solid #a8bbb2; border-radius: 20px; padding: 2px 9px; font-size: 12px; }
+    [hidden] { display: none !important; } @media(max-width:900px) { .layout { grid-template-columns: 140px 1fr; } .detail { grid-column: 1/-1; border-top: 1px solid #d9e2de; } .intro { padding: 16px; } .lab,.shell,.state { margin: 12px; } }
+  </style>
+</head>
+<body>
+  <header class="intro">
+    <h1>pr0 / interaction workbench</h1>
+    <p>Can you find and copy a prompt quickly, then reach editing and organization without losing your place?</p>
+    <p><strong>Throwaway behavior prototype.</strong> All data lives in this page’s memory. Clipboard, durable saves, sync, tray, startup and global shortcuts are simulations. Reload resets everything. This is not a visual-design proposal or a Windows integration test.</p>
+  </header>
+  <section class="lab" aria-label="Prototype controls">
+    <h2>Guided trials</h2>
+    <div id="trials" class="row"></div>
+    <div class="scenario"><strong id="trial-title"></strong><p id="trial-text"></p><div id="steps" class="row"></div></div>
+    <details style="margin-top:12px"><summary>Simulation controls</summary>
+      <div class="row" style="margin-top:10px">
+        <label>Platform <select id="platform"><option>Desktop</option><option>Web</option></select></label>
+        <label><input id="offline" type="checkbox"> Offline</label>
+        <label><input id="clipboard-fail" type="checkbox"> Clipboard failure</label>
+        <label><input id="disk-fail" type="checkbox"> Local save failure</label>
+        <label><input id="quota" type="checkbox"> Upload rejected: quota</label>
+        <button id="sync">Simulate server acknowledgement</button><button id="conflict">Simulate text conflict</button>
+        <button id="reorder">Simulate selected prompt moving in results</button>
+      </div>
+    </details>
+  </section>
+  <main class="shell" id="library">
+    <header class="toolbar row spread"><div><h2 style="margin:0">Your library</h2><small>Sample library · personal account</small></div><div class="row"><button id="settings-open">Desktop settings</button><button id="open-launcher">Quick launcher</button><button id="new" class="primary">+ New prompt</button><button id="close-library">Close library</button></div></header>
+    <div id="sync-state" class="notice"></div>
+    <div id="conflict-state" class="notice" hidden></div>
+    <div class="layout"><nav aria-label="Library views" id="views"></nav>
+      <section class="results" aria-label="Prompt search and results">
+        <label for="query">Search this view</label><input id="query" class="search" placeholder="Search title, text, tags…" maxlength="200">
+        <div class="row" style="margin-top:10px"><button id="filter-toggle" aria-expanded="false">Filters</button><label>Sort <select id="sort"><option value="default">Recently modified</option><option value="used">Recently used</option><option value="modified">Recently modified</option><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="title">Title A–Z</option></select></label></div>
+        <div id="filters" class="filters" hidden></div><div id="active-filters" class="row" style="margin-top:8px"></div>
+        <p id="result-count" class="muted" aria-live="polite"></p><div id="result-list"></div>
+      </section><section class="detail" id="detail" aria-label="Selected prompt"></section>
+    </div>
+  </main>
+  <section id="tray" class="lab" hidden><h2>Library window closed · pr0 is running in the tray</h2><p>The proposed Close action keeps the launcher available. Quit stops it. Pending saved edits remain on the device in the real app.</p><div class="row"><button id="tray-library">Open library</button><button id="tray-launcher">Open quick launcher</button><button id="quit">Quit pr0</button><button id="start" hidden>Start pr0</button></div></section>
+  <div id="message" role="status" aria-live="polite"></div>
+  <details class="state" open><summary>Observed prototype state</summary><dl id="state"></dl></details>
+  <dialog id="launcher" aria-labelledby="launcher-title">
+    <div class="row spread"><h2 id="launcher-title">Quick launcher</h2><button id="launcher-close">Close · Esc</button></div>
+    <label for="launcher-query">Find a prompt</label><input id="launcher-query" class="search" placeholder="Type, ↓ to choose, Enter to copy" maxlength="200">
+    <div class="row" style="margin-top:10px"><button id="launcher-filter-toggle" aria-expanded="false">Filters</button><span class="muted">Active prompts only</span></div>
+    <div id="launcher-filters" class="filters" hidden></div><div id="launcher-active-filters" class="row" style="margin-top:8px"></div>
+    <p id="launcher-message" role="status" aria-live="polite"></p><div id="launcher-results" class="results"></div>
+    <small>↑ ↓ select · Enter copies from search/results · Tab reaches actions · Esc closes</small>
+  </dialog>
+  <dialog id="editor" aria-labelledby="editor-title"><form id="edit-form">
+    <div class="row spread"><h2 id="editor-title">Edit prompt</h2><button type="button" id="editor-close">Cancel</button></div>
+    <p class="muted">Only title and content are required. Organization can wait.</p>
+    <label class="field">Title <input id="edit-title" required maxlength="200"></label>
+    <label class="field">Description <input id="edit-description" maxlength="2000"></label>
+    <label class="field">Content <textarea id="edit-content" required></textarea></label>
+    <div class="row"><label>Collection <select id="edit-collection"></select></label><label>Tags (comma-separated) <input id="edit-tags"></label></div>
+    <p id="save-message" role="status"></p><button class="primary" type="submit">Save prompt</button>
+  </form></dialog>
+  <dialog id="confirm" aria-labelledby="confirm-title"><h2 id="confirm-title"></h2><p id="confirm-text"></p><div class="row"><button id="confirm-cancel" autofocus>Cancel</button><button id="confirm-do" class="danger">Confirm</button></div></dialog>
+  <dialog id="settings" aria-labelledby="settings-title"><h2 id="settings-title">Proposed desktop behavior</h2>
+    <p>These choices are proposals for this review.</p>
+    <p><label><input id="startup" type="checkbox"> Start pr0 in the tray when I sign in to Windows</label></p>
+    <p>Closing the library leaves pr0 running. Use <strong>Quit pr0</strong> in the tray to exit. The shortcut works only while pr0 is running.</p>
+    <label class="field">Launcher shortcut <input id="shortcut" value="Ctrl+Alt+Space"></label>
+    <div class="row"><button id="register">Simulate registration</button><button id="collision">Simulate shortcut collision</button><button id="focus-denied">Simulate Windows refusing focus</button></div>
+    <p id="settings-message" role="status">Proposed default: Ctrl+Alt+Space. Startup is off until enabled.</p><button id="settings-close">Done</button>
+  </dialog>
+  <script>
+    // Throwaway interaction-state demo. The model is pure; DOM work follows below.
+    const normalize = (value) => value.normalize('NFD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss').toLowerCase().trim().replace(/\s+/g, ' ');
+    const seed = () => [
+      {id:'email',title:'German email',description:'A concise reply to a client.',content:'Write a warm, concise German email. Summarize the next steps clearly.',collection:'Work',tags:['Writing','German'],favorite:true,archived:false,created:1,modified:8,used:5},
+      {id:'reply',title:'Email reply',description:'Keep the tone friendly.',content:'Summarize the request and draft a helpful reply.',collection:'Work',tags:['Writing','German'],favorite:false,archived:false,created:2,modified:7,used:7},
+      {id:'review',title:'Code review',description:'Review a small change.',content:'Review this C++ patch for correctness and explain any issues.',collection:'Work',tags:['Code'],favorite:true,archived:false,created:3,modified:6,used:6},
+      {id:'cafe',title:'Café notes',description:'Über die Straße',content:'Summarize these notes into three clear observations.',collection:'Personal',tags:['Writing'],favorite:false,archived:false,created:4,modified:5,used:0},
+      {id:'translate',title:'Translation helper',description:'Preserve tone and formatting.',content:'Translate the German email into English.',collection:'',tags:[],favorite:false,archived:false,created:5,modified:4,used:0},
+      {id:'archive',title:'Old launch email',description:'Previous campaign.',content:'Write a German email announcing our original launch.',collection:'Work',tags:['Writing','German'],favorite:true,archived:true,created:6,modified:3,used:8}
+    ];
+    const freshScope = () => ({view:'All prompts',query:'',collection:'',tags:[],favorite:false,sort:'default',selected:null});
+    const initial = () => ({prompts:seed(),library:freshScope(),launcher:freshScope(),sorts:{},collections:['Work','Personal'],tags:['Writing','German','Code'],clock:10,pending:0,uses:0,lastCopy:'None',offline:false,clipboardFail:false,diskFail:false,quota:false,platform:'Desktop',running:true,libraryOpen:true,startup:false,conflicts:[]});
+    const compare = (a,b) => a < b ? -1 : a > b ? 1 : 0;
+    const rank = (prompt,query) => {
+      const terms=normalize(query).split(' '), title=normalize(prompt.title);
+      if(title===normalize(query)) return 1;
+      if(terms.every(term=>title.includes(term))) return 2;
+      if(terms.some(term=>title.includes(term))) return 3;
+      if(terms.some(term=>normalize([...prompt.tags,prompt.collection].join(' ')).includes(term))) return 4;
+      return terms.some(term=>normalize(prompt.description).includes(term)) ? 5 : 6;
+    };
+    const results = (model,surface) => {
+      const scope=model[surface], query=normalize(scope.query), terms=query.split(' ');
+      const sort=scope.sort==='default' ? (query ? 'relevance' : surface==='launcher'||scope.view==='Recents' ? 'used':'modified') : scope.sort;
+      const tie=(a,b)=>compare(normalize(a.title),normalize(b.title))||compare(a.id,b.id);
+      const used=(a,b)=>b.used-a.used||(!a.used&&!b.used ? b.modified-a.modified:0);
+      return model.prompts.filter(prompt=>{
+        const text=normalize([prompt.title,prompt.description,prompt.content,prompt.collection,...prompt.tags].join(' '));
+        return prompt.archived===(scope.view==='Archive') && (scope.view!=='Favorites'||prompt.favorite) && (scope.view!=='Recents'||prompt.used>0) && (!scope.view.startsWith('Collection: ')||prompt.collection===scope.view.slice(12)) && (!scope.collection||prompt.collection===scope.collection) && (!scope.favorite||prompt.favorite) && scope.tags.every(tag=>prompt.tags.includes(tag)) && (!query||terms.every(term=>text.includes(term)));
+      }).sort((a,b)=>{
+        if(sort==='relevance') return rank(a,query)-rank(b,query)||b.used-a.used||b.modified-a.modified||tie(a,b);
+        if(sort==='used') return used(a,b)||tie(a,b);
+        if(sort==='modified') return b.modified-a.modified||tie(a,b);
+        if(sort==='newest') return b.created-a.created||tie(a,b);
+        if(sort==='oldest') return a.created-b.created||tie(a,b);
+        return tie(a,b);
+      });
+    };
+    const reconcile = (model) => {
+      for(const surface of ['library','launcher']) {
+        const list=results(model,surface);
+        if(!list.some(prompt=>prompt.id===model[surface].selected)) model[surface].selected=list[0]?.id??null;
+      }
+      return model;
+    };
+    const transition = (before,action) => {
+      const model=structuredClone(before), scope=model[action.surface??'library'];
+      if(action.type==='scope') Object.assign(scope,action.patch);
+      if(action.type==='query') {
+        if(!normalize(scope.query)&&normalize(action.value)) scope.sort='default';
+        if(!normalize(action.value)) scope.sort=model.sorts[scope.view]??'default';
+        scope.query=action.value;
+      }
+      if(action.type==='view') model.library={...freshScope(),view:action.view,sort:model.sorts[action.view]??'default'};
+      if(action.type==='open') model.launcher=freshScope();
+      if(action.type==='sort') { scope.sort=action.value; if(!normalize(scope.query)) model.sorts[scope.view]=action.value; }
+      if(action.type==='copy'&&!model.clipboardFail) { const prompt=model.prompts.find(item=>item.id===action.id); if(prompt) {prompt.used=++model.clock;model.uses++;model.lastCopy=prompt.title;model.pending++;} }
+      if(action.type==='patch') { const prompt=model.prompts.find(item=>item.id===action.id); if(prompt) {Object.assign(prompt,action.patch,{modified:++model.clock});model.pending++;} }
+      if(action.type==='create') { model.prompts.push({...action.prompt,id:`prompt-${++model.clock}`,created:model.clock,modified:model.clock,used:0,favorite:false,archived:false});model.library={...freshScope(),selected:`prompt-${model.clock}`};model.pending++; }
+      if(action.type==='delete') { model.prompts=model.prompts.filter(prompt=>prompt.id!==action.id);model.pending++; }
+      if(action.type==='environment') Object.assign(model,action.patch);
+      return reconcile(model);
+    };
+    let state=reconcile(initial()), editing=null, confirmAction=null, activeTrial='Retrieve';
+    const $=(id)=>document.getElementById(id);
+    const element=(tag,text,attributes={})=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;for(const [key,value] of Object.entries(attributes))node.setAttribute(key,value);return node;};
+    const button=(text,handler,attributes={})=>{const node=element('button',text,{type:'button',...attributes});node.addEventListener('click',handler);return node;};
+    const announce=(text)=>{$('message').textContent=text;};
+    const dispatch=(action)=>{state=transition(state,action);render();};
+    const showDialog=(id)=>{if(!$(id).open)$(id).showModal();};
+    const confirm=(title,text,action)=>{$('confirm-title').textContent=title;$('confirm-text').textContent=text;confirmAction=action;showDialog('confirm');};
+    const scopeQuery=(surface,value)=>{dispatch({type:'query',surface,value});};
+    function copyPrompt(id,surface) {
+      if(state.clipboardFail) {const text='Could not copy. Your query and selection are kept. Retry when the clipboard is available.';announce(text);$('launcher-message').textContent=text;return;}
+      dispatch({type:'copy',id});
+      announce(`Copied “${state.lastCopy}” — simulated clipboard success.`);
+      if(surface==='launcher') $('launcher').close();
+    }
+    function openLauncher() {
+      if(!state.running) {announce('pr0 is not running. Start pr0 first; a global shortcut cannot start an exited process.');return;}
+      dispatch({type:'open'});$('launcher-query').value='';$('launcher-message').textContent='';$('launcher-filters').hidden=true;$('launcher-filter-toggle').setAttribute('aria-expanded','false');showDialog('launcher');$('launcher-query').focus();renderState();
+    }
+    function drawFilters(surface,target) {
+      const scope=state[surface],container=$(target);container.replaceChildren();
+      const label=element('label','Collection '),select=element('select',undefined,{'aria-label':`${surface} collection filter`});
+      for(const name of ['',...state.collections]) select.append(element('option',name||'Any collection',{value:name}));
+      select.value=scope.collection;select.onchange=()=>dispatch({type:'scope',surface,patch:{collection:select.value}});label.append(select);container.append(label);
+      for(const name of state.tags) {
+        const tagLabel=element('label'),checkbox=element('input',undefined,{type:'checkbox'});checkbox.checked=scope.tags.includes(name);checkbox.onchange=()=>dispatch({type:'scope',surface,patch:{tags:checkbox.checked?[...scope.tags,name]:scope.tags.filter(tag=>tag!==name)}});tagLabel.append(checkbox,document.createTextNode(name));container.append(tagLabel);
+      }
+      const favoriteLabel=element('label'),check=element('input',undefined,{type:'checkbox'});check.checked=scope.favorite;check.onchange=()=>dispatch({type:'scope',surface,patch:{favorite:check.checked}});favoriteLabel.append(check,document.createTextNode('Favorites only'));container.append(favoriteLabel);
+      const active=$(surface==='library'?'active-filters':'launcher-active-filters');active.replaceChildren();
+      for(const name of [scope.collection,...scope.tags,scope.favorite?'Favorites':''].filter(Boolean)) active.append(element('span',name,{class:'pill'}));
+      if(scope.collection||scope.tags.length||scope.favorite)active.append(button('Clear filters',()=>dispatch({type:'scope',surface,patch:{collection:'',tags:[],favorite:false}})));
+      if(scope.query)active.append(button('Clear query',()=>{$(surface==='library'?'query':'launcher-query').value='';scopeQuery(surface,'');}));
+    }
+    function drawResults(surface,target) {
+      const list=results(state,surface),scope=state[surface],container=$(target);container.replaceChildren();
+      if(!list.length) {
+        const restricted=Boolean(scope.query.trim()||scope.collection||scope.tags.length||scope.favorite);
+        const title=restricted?'No matching prompts':!state.prompts.length?'Your library is empty':scope.view==='Recents'?'No copied prompts yet':`No prompts in ${scope.view.toLowerCase()}`;
+        container.append(element('h3',title),element('p',restricted?'Your current scope and filters are still applied.':scope.view==='Recents'?'Prompts appear here after a successful copy.':'Create a prompt when you are ready.'));
+        if(!restricted)container.append(button('Create prompt',()=>{if($('launcher').open)$('launcher').close();openEditor(null);}));
+      }
+      for(const prompt of list) {
+        const row=element('div',undefined,{class:`item${scope.selected===prompt.id?' selected':''}`});
+        const pick=button('',()=>dispatch({type:'scope',surface,patch:{selected:prompt.id}}),{class:'select-prompt','aria-pressed':String(scope.selected===prompt.id),'data-prompt':prompt.id});
+        pick.append(element('strong',prompt.title),element('small',[prompt.collection||'Unassigned',...prompt.tags].join(' · ')));
+        row.append(pick,button(prompt.favorite?'★':'☆',()=>dispatch({type:'patch',id:prompt.id,patch:{favorite:!prompt.favorite}}),{'aria-label':`${prompt.favorite?'Unfavorite':'Favorite'} ${prompt.title}`}),button('Copy',()=>copyPrompt(prompt.id,surface),{'aria-label':`Copy ${prompt.title}`}));container.append(row);
+      }
+      if(surface==='library')$('result-count').textContent=`${scope.view} · ${list.length} ${list.length===1?'prompt':'prompts'}`;
+    }
+    function openEditor(id) {
+      editing=id;const prompt=state.prompts.find(item=>item.id===id);
+      $('editor-title').textContent=prompt?'Edit prompt':'New prompt';$('edit-title').value=prompt?.title??'';$('edit-description').value=prompt?.description??'';$('edit-content').value=prompt?.content??'';$('edit-tags').value=prompt?.tags.join(', ')??'';
+      $('edit-collection').replaceChildren(...['',...state.collections].map(name=>element('option',name||'No collection',{value:name})));$('edit-collection').value=prompt?.collection??'';$('save-message').textContent='';showDialog('editor');$('edit-title').focus();
+    }
+    function renderDetail() {
+      const detail=$('detail'),prompt=state.prompts.find(item=>item.id===state.library.selected);detail.replaceChildren();
+      if(!prompt) {detail.append(element('h2','Choose a prompt'),element('p','Search or create your first prompt.'));return;}
+      detail.append(element('h2',prompt.title),element('p',prompt.description),element('p',[prompt.archived?'Archived':'Active',prompt.collection||'No collection',...prompt.tags].join(' · '),{class:'muted'}),element('pre',prompt.content));
+      const actions=element('div',undefined,{class:'row'});actions.append(button('Copy content',()=>copyPrompt(prompt.id,'library'),{class:'primary'}),button('Edit',()=>openEditor(prompt.id)),button('Duplicate',()=>{dispatch({type:'create',prompt:{...prompt,title:`${prompt.title} (copy)`}});announce('Independent active copy created; no use history inherited.');}),button(prompt.archived?'Restore':'Archive',()=>{dispatch({type:'patch',id:prompt.id,patch:{archived:!prompt.archived}});announce(prompt.archived?'Prompt restored.':'Prompt moved to Archive. Restore it there at any time.');}),button('Delete permanently',()=>confirm('Delete this prompt permanently?',`“${prompt.title}” will be removed. This cannot be undone. Archive instead if you may want it later.`,()=>{dispatch({type:'delete',id:prompt.id});announce('Prompt permanently deleted in this demo.');}),{class:'danger'}));detail.append(actions);
+    }
+    function renderState() {
+      const list=results(state,'library'),selected=state.prompts.find(prompt=>prompt.id===state.library.selected),launcherSelected=state.prompts.find(prompt=>prompt.id===state.launcher.selected);
+      const pairs=[['Surface',`${state.platform} · ${state.offline?'offline':'online'} · ${state.running?'process running':'process stopped'}`],['Library scope',`${state.library.view} / query: ${state.library.query||'(blank)'} / collection: ${state.library.collection||'any'} / tags: ${state.library.tags.join(' + ')||'none'} / favorites: ${state.library.favorite}`],['Library selection',`${selected?.title??'None'} (${state.library.selected??'none'}) · row ${selected?list.findIndex(prompt=>prompt.id===selected.id)+1:0}`],['Launcher',`${$('launcher').open?'open':'closed'} / query: ${state.launcher.query||'(blank)'} / selected: ${launcherSelected?.title??'none'}`],['Successful uses',`${state.uses}; last copied: ${state.lastCopy}`],['Saved mutations / uses',`${state.pending} waiting for simulated server acknowledgement`],['Retained conflict copies',String(state.conflicts.length)],['Startup',state.startup?'Enabled by user (simulated)':'Off (proposed default)']];
+      $('state').replaceChildren(...pairs.flatMap(([key,value])=>[element('dt',key),element('dd',value)]));
+    }
+    function render() {
+      $('views').replaceChildren(...['All prompts','Favorites','Recents',...state.collections.map(name=>`Collection: ${name}`),'Archive'].map(view=>button(view,()=>{$('query').value='';dispatch({type:'view',view});},{'aria-pressed':String(state.library.view===view)})));
+      $('sort').options[0].textContent=state.library.query.trim()?'Relevance':state.library.view==='Recents'?'Recently used':'Recently modified';$('sort').value=state.library.sort;
+      drawFilters('library','filters');drawFilters('launcher','launcher-filters');drawResults('library','result-list');drawResults('launcher','launcher-results');renderDetail();
+      $('sync-state').textContent=`${state.offline?'Offline':state.platform==='Desktop'?'On this device':'Online'} · ${state.pending?`${state.pending} changes waiting to sync`:'Up to date in this simulation'}${state.quota&&state.pending?' · Upload blocked: library quota exceeded. Work retained locally; correct the change or explicitly discard it.':''}`;
+      $('conflict-state').hidden=!state.conflicts.length;$('conflict-state').replaceChildren();
+      if(state.conflicts.length) {
+        $('conflict-state').append(element('strong','Conflicts to review — both text variants are kept. '));
+        for(const id of ['email',...state.conflicts]) {const prompt=state.prompts.find(item=>item.id===id);if(prompt)$('conflict-state').append(button(prompt.title,()=>{dispatch({type:'view',view:'All prompts'});dispatch({type:'scope',patch:{selected:id}});}));}
+        $('conflict-state').append(button('Keep both · acknowledge',()=>dispatch({type:'environment',patch:{conflicts:[]}})));
+      }
+      for(const [id,key] of [['offline','offline'],['clipboard-fail','clipboardFail'],['disk-fail','diskFail'],['quota','quota'],['startup','startup']])$(id).checked=state[key];
+      $('platform').value=state.platform;$('library').hidden=!state.libraryOpen;$('tray').hidden=state.libraryOpen;$('start').hidden=state.running;$('quit').disabled=!state.running;$('tray-launcher').disabled=!state.running;
+      renderState();
+    }
+    function reset() {for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();state=reconcile(initial());$('query').value='';$('launcher-query').value='';announce('Sample library reset.');render();}
+    const trials={
+      Retrieve:{text:'Try German email, then combine Work + Writing + German. Use Clear query and Clear filters separately. Switch to Favorites or Archive and check that search stays in scope.',steps:[['Reset sample library',reset],['Search German email',()=>{$('query').value='German email';scopeQuery('library','German email');}],['Apply Work + Writing + German',()=>{dispatch({type:'scope',patch:{collection:'Work',tags:['Writing','German']}});$('filters').hidden=false;$('filter-toggle').setAttribute('aria-expanded','true');}]]},
+      Launcher:{text:'Open the launcher. Type email, select a result with arrows, and press Enter. On failure it must stay open. Turn failure off and retry; success closes it. Opening again clears query and filters.',steps:[['Open launcher',openLauncher],['Make clipboard fail',()=>dispatch({type:'environment',patch:{clipboardFail:true}})],['Allow clipboard success',()=>dispatch({type:'environment',patch:{clipboardFail:false}})]]},
+      Editing:{text:'Create a prompt with title and content only. Try a failed local save: the draft must remain. Turn failure off and save offline. Then simulate server acknowledgement. These labels demonstrate the proposal; no disk data is written.',steps:[['New unorganized prompt',()=>openEditor(null)],['Fail local save',()=>dispatch({type:'environment',patch:{diskFail:true}})],['Allow offline save',()=>dispatch({type:'environment',patch:{diskFail:false,offline:true}})]]},
+      Lifecycle:{text:'Archive a favorite and look for it in Archive. Restore it, or cancel permanent deletion. A conflict notice links both independent prompts; acknowledging it keeps the copy.',steps:[['Reset sample library',reset],['Show favorites',()=>dispatch({type:'view',view:'Favorites'})],['Simulate conflict',()=>simulateConflict()]]},
+      'Empty states':{text:'Distinguish no matches from an empty library and unused Recents. A failed filter must never silently broaden the results.',steps:[['Impossible query',()=>{$('query').value='no-such-prompt';scopeQuery('library','no-such-prompt');}],['Empty Recents',()=>{state.prompts=state.prompts.map(prompt=>({...prompt,used:0}));$('query').value='';dispatch({type:'view',view:'Recents'});}],['Empty library',()=>{state=reconcile({...initial(),prompts:[]});$('query').value='';render();}]]},
+      Windows:{text:'Proposed behavior: closing the library leaves pr0 in the tray; Quit ends the process; Windows startup is opt-in. Shortcut conflicts offer reassignment; denied foreground focus falls back to a taskbar/tray click. All are simulated here.',steps:[['Desktop settings',()=>showDialog('settings')],['Close library to tray',()=>dispatch({type:'environment',patch:{libraryOpen:false}})],['Simulate global shortcut',openLauncher]]}
+    };
+    function drawTrials() {
+      $('trials').replaceChildren(...Object.keys(trials).map(name=>button(name,()=>{activeTrial=name;drawTrials();},{'aria-pressed':String(activeTrial===name)})));
+      $('trial-title').textContent=activeTrial;$('trial-text').textContent=trials[activeTrial].text;$('steps').replaceChildren(...trials[activeTrial].steps.map(([label,action])=>button(label,action)));
+    }
+    function simulateConflict() {
+      const original=state.prompts.find(prompt=>prompt.id==='email');if(!original){announce('Reset the sample library first.');return;}
+      dispatch({type:'create',prompt:{...original,title:`${original.title} (conflict copy)`,content:'My competing offline draft. Both complete variants must remain available.'}});state.conflicts.push(state.library.selected);render();announce('Conflict copy preserved. Review both prompts or keep both.');
+    }
+    $('query').oninput=(event)=>scopeQuery('library',event.target.value);$('launcher-query').oninput=(event)=>scopeQuery('launcher',event.target.value);$('sort').onchange=(event)=>dispatch({type:'sort',value:event.target.value});
+    for(const [toggle,target] of [['filter-toggle','filters'],['launcher-filter-toggle','launcher-filters']]) $(toggle).onclick=()=>{$(target).hidden=!$(target).hidden;$(toggle).setAttribute('aria-expanded',String(!$(target).hidden));};
+    for(const id of ['open-launcher','tray-launcher'])$(id).onclick=openLauncher;
+    $('launcher-close').onclick=()=>$('launcher').close();$('launcher').addEventListener('close',renderState);
+    $('new').onclick=()=>openEditor(null);
+    const cancelEditor=()=>confirm('Discard this unsaved draft?','The saved prompt stays unchanged. Discarding removes the text currently in this editor.',()=>{$('editor').close();announce('Draft discarded.');});
+    $('editor-close').onclick=cancelEditor;$('editor').addEventListener('cancel',(event)=>{event.preventDefault();cancelEditor();});
+    $('edit-form').onsubmit=(event)=>{
+      event.preventDefault();const title=$('edit-title').value.trim(),content=$('edit-content').value;
+      if(!title||!content.trim()){$('save-message').textContent='Title and content cannot be blank.';return;}
+      if((state.platform==='Desktop'&&state.diskFail)||(state.platform==='Web'&&state.offline)){$('save-message').textContent=state.platform==='Web'?'Not saved. This draft remains only in this open tab. Reconnect and retry; closing or reloading can lose it.':'Not saved. Local storage failed. Your draft is still here; retry saving.';return;}
+      const tags=[...new Set($('edit-tags').value.split(',').map(tag=>tag.trim()).filter(Boolean).map(tag=>state.tags.find(existing=>existing.toLowerCase()===tag.toLowerCase())??tag))];
+      const patch={title,content,description:$('edit-description').value.trim(),collection:$('edit-collection').value,tags};
+      state.tags=[...new Set([...state.tags,...tags])];
+      const previous=state.prompts.find(prompt=>prompt.id===editing),changed=!previous||Object.keys(patch).some(key=>JSON.stringify(patch[key])!==JSON.stringify(previous[key]));
+      if(changed)dispatch(editing?{type:'patch',id:editing,patch}:{type:'create',prompt:patch});
+      $('editor').close();announce(changed?(state.platform==='Desktop'?'Saved on this device · Changes waiting to sync (simulated).':'Saved after simulated server acknowledgement.'):'No changes to save.');
+      if(state.platform==='Web'&&changed){state.pending=0;render();}
+    };
+    $('confirm-cancel').onclick=()=>$('confirm').close();$('confirm-do').onclick=()=>{$('confirm').close();confirmAction?.();};
+    $('settings-open').onclick=()=>showDialog('settings');$('settings-close').onclick=()=>$('settings').close();
+    $('register').onclick=()=>{$('settings-message').textContent=`${$('shortcut').value} registered in this simulation. Native registration still needs Windows validation.`;};
+    $('collision').onclick=()=>{$('settings-message').textContent='Shortcut unavailable. Choose another combination and retry. Open the launcher from the tray meanwhile; no other app shortcut is overridden.';};
+    $('focus-denied').onclick=()=>{$('settings-message').textContent='Windows did not give pr0 keyboard focus. Proposed fallback: flash the taskbar button and keep the tray action available. Click Open quick launcher in the tray to focus search.';};
+    for(const [id,key] of [['offline','offline'],['clipboard-fail','clipboardFail'],['disk-fail','diskFail'],['quota','quota'],['startup','startup']])$(id).onchange=(event)=>dispatch({type:'environment',patch:{[key]:event.target.checked}});
+    $('platform').onchange=(event)=>dispatch({type:'environment',patch:{platform:event.target.value}});
+    $('sync').onclick=()=>{if(state.offline){announce('Offline. Saved work stays queued.');return;}if(state.quota){announce('Upload rejected: quota exceeded. Pending work is retained. Correction/discard interaction needs a later trial.');return;}dispatch({type:'environment',patch:{pending:0}});announce('Server acknowledged the pending work (simulated). Other devices may still be downloading.');};
+    $('conflict').onclick=simulateConflict;
+    $('reorder').onclick=()=>{const id=state.library.selected;if(!id)return;state.prompts=state.prompts.map(prompt=>prompt.id===id?{...prompt,modified:0,used:0}:prompt);state=reconcile(state);render();announce('Selected prompt moved; selection follows its identity, not its old row number.');};
+    $('close-library').onclick=()=>dispatch({type:'environment',patch:{libraryOpen:false}});
+    $('tray-library').onclick=()=>{state.running=true;dispatch({type:'environment',patch:{libraryOpen:true}});};
+    $('quit').onclick=()=>{dispatch({type:'environment',patch:{running:false}});announce('pr0 exited in this simulation. The launcher shortcut is unavailable until you start it again.');};
+    $('start').onclick=()=>{state.library=freshScope();state.library.sort=state.sorts['All prompts']??'default';$('query').value='';dispatch({type:'environment',patch:{running:true,libraryOpen:true}});};
+    document.addEventListener('keydown',(event)=>{
+      if($('editor').open||$('settings').open||$('confirm').open)return;
+      const surface=$('launcher').open?'launcher':'library',search=$(surface==='launcher'?'launcher-query':'query'),container=$(surface==='launcher'?'launcher-results':'result-list');
+      const inSearch=event.target===search,inResult=container.contains(event.target)&&event.target.matches('[data-prompt]');
+      if((event.key==='ArrowDown'||event.key==='ArrowUp')&&(inSearch||inResult)) {event.preventDefault();const list=results(state,surface),current=list.findIndex(prompt=>prompt.id===state[surface].selected),next=Math.max(0,Math.min(list.length-1,current+(event.key==='ArrowDown'?1:-1)));dispatch({type:'scope',surface,patch:{selected:list[next]?.id??null}});if(inResult)container.querySelector(`[data-prompt="${state[surface].selected}"]`)?.focus();}
+      if(event.key==='Enter'&&(inSearch||inResult)&&state[surface].selected){event.preventDefault();copyPrompt(state[surface].selected,surface);}
+      if(event.ctrlKey&&event.altKey&&event.code==='Space'){event.preventDefault();openLauncher();}
+    });
+    drawTrials();render();
+  </script>
+</body>
+</html>
