@@ -1,0 +1,24 @@
+{
+  "buildMs": 8588.0815,
+  "persistMs": 34.07049999999981,
+  "serializedBytes": 1500478,
+  "bitmapKeys": 854,
+  "restoreMs": {
+    "p50": 2.3557999999993626,
+    "p95": 2.892099999999118,
+    "max": 12.319900000000416
+  },
+  "memoryAfterGc": {
+    "rss": 465051648,
+    "heapTotal": 2409472,
+    "heapUsed": 4880722,
+    "external": 4309810,
+    "arrayBuffers": 1151192
+  },
+  "durable256KiBSaveMs": {
+    "p50": 66.46350000000166,
+    "p95": 84.17409999999836,
+    "max": 85.3726999999999
+  },
+  "limitations": "Synthetic I/O allowance: rewrites posting pages without computing correct membership mutation; no claim of full incremental-index correctness. WAL/FULL transaction includes full text, positional FTS delete+insert, posting writes, full variant outbox, cache revision. One prompt, no production quotas or schema."
+}

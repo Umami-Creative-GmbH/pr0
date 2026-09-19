@@ -1,0 +1,236 @@
+[
+  {
+    "query": "",
+    "expected": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+    "ftsQuery": "",
+    "terms": []
+  },
+  {
+    "query": " ",
+    "expected": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+    "ftsQuery": "",
+    "terms": []
+  },
+  {
+    "query": "a",
+    "expected": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+    "ftsQuery": "",
+    "terms": ["a"]
+  },
+  {
+    "query": "ab",
+    "expected": [12, 14],
+    "ftsQuery": "",
+    "terms": ["ab"]
+  },
+  {
+    "query": "C++",
+    "expected": [1],
+    "ftsQuery": "\"c++\"",
+    "terms": ["c++"]
+  },
+  {
+    "query": "++",
+    "expected": [1, 13],
+    "ftsQuery": "",
+    "terms": ["++"]
+  },
+  {
+    "query": "100%",
+    "expected": [1],
+    "ftsQuery": "\"100%\"",
+    "terms": ["100%"]
+  },
+  {
+    "query": "%",
+    "expected": [1, 13],
+    "ftsQuery": "",
+    "terms": ["%"]
+  },
+  {
+    "query": "_",
+    "expected": [1, 13],
+    "ftsQuery": "",
+    "terms": ["_"]
+  },
+  {
+    "query": "under_score",
+    "expected": [1],
+    "ftsQuery": "\"under_score\"",
+    "terms": ["under_score"]
+  },
+  {
+    "query": "\\",
+    "expected": [1, 13],
+    "ftsQuery": "",
+    "terms": ["\\"]
+  },
+  {
+    "query": "C:\\temp",
+    "expected": [1],
+    "ftsQuery": "\"c:\\temp\"",
+    "terms": ["c:\\temp"]
+  },
+  {
+    "query": "[",
+    "expected": [1, 13],
+    "ftsQuery": "",
+    "terms": ["["]
+  },
+  {
+    "query": "[draft]",
+    "expected": [1],
+    "ftsQuery": "\"[draft]\"",
+    "terms": ["[draft]"]
+  },
+  {
+    "query": "\"",
+    "expected": [1, 13],
+    "ftsQuery": "",
+    "terms": ["\""]
+  },
+  {
+    "query": "\"quote\"",
+    "expected": [1],
+    "ftsQuery": "\"\"\"quote\"\"\"",
+    "terms": ["\"quote\""]
+  },
+  {
+    "query": "OR",
+    "expected": [1, 2, 13],
+    "ftsQuery": "",
+    "terms": ["or"]
+  },
+  {
+    "query": "AND",
+    "expected": [1],
+    "ftsQuery": "\"and\"",
+    "terms": ["and"]
+  },
+  {
+    "query": "NOT",
+    "expected": [1],
+    "ftsQuery": "\"not\"",
+    "terms": ["not"]
+  },
+  {
+    "query": "x%_\\[]\"",
+    "expected": [13],
+    "ftsQuery": "\"x%_\\[]\"\"\"",
+    "terms": ["x%_\\[]\""]
+  },
+  {
+    "query": "CAFE",
+    "expected": [3, 4],
+    "ftsQuery": "\"cafe\"",
+    "terms": ["cafe"]
+  },
+  {
+    "query": "café",
+    "expected": [3, 4],
+    "ftsQuery": "\"cafe\"",
+    "terms": ["cafe"]
+  },
+  {
+    "query": "uber",
+    "expected": [3],
+    "ftsQuery": "\"uber\"",
+    "terms": ["uber"]
+  },
+  {
+    "query": "ueber",
+    "expected": [],
+    "ftsQuery": "\"ueber\"",
+    "terms": ["ueber"]
+  },
+  {
+    "query": "strasse",
+    "expected": [3],
+    "ftsQuery": "\"strasse\"",
+    "terms": ["strasse"]
+  },
+  {
+    "query": "ẞ",
+    "expected": [3],
+    "ftsQuery": "",
+    "terms": ["ss"]
+  },
+  {
+    "query": "σ",
+    "expected": [3],
+    "ftsQuery": "",
+    "terms": ["σ"]
+  },
+  {
+    "query": "ς",
+    "expected": [3],
+    "ftsQuery": "",
+    "terms": ["σ"]
+  },
+  {
+    "query": "i",
+    "expected": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13],
+    "ftsQuery": "",
+    "terms": ["i"]
+  },
+  {
+    "query": "𐐨",
+    "expected": [3],
+    "ftsQuery": "",
+    "terms": ["𐐨"]
+  },
+  {
+    "query": "😀",
+    "expected": [3, 4, 16],
+    "ftsQuery": "",
+    "terms": ["😀"]
+  },
+  {
+    "query": "😀🦊",
+    "expected": [4],
+    "ftsQuery": "",
+    "terms": ["😀🦊"]
+  },
+  {
+    "query": "German email",
+    "expected": [5, 6, 7, 8, 9, 10],
+    "ftsQuery": "\"german\" AND \"email\"",
+    "terms": ["german", "email"]
+  },
+  {
+    "query": "email German",
+    "expected": [5, 6, 7, 8, 9, 10],
+    "ftsQuery": "\"email\" AND \"german\"",
+    "terms": ["email", "german"]
+  },
+  {
+    "query": "  German \t email ",
+    "expected": [5, 6, 7, 8, 9, 10],
+    "ftsQuery": "\"german\" AND \"email\"",
+    "terms": ["german", "email"]
+  },
+  {
+    "query": "cdef",
+    "expected": [],
+    "ftsQuery": "\"cdef\"",
+    "terms": ["cdef"]
+  },
+  {
+    "query": "abc def",
+    "expected": [12],
+    "ftsQuery": "\"abc\" AND \"def\"",
+    "terms": ["abc", "def"]
+  },
+  {
+    "query": "summ",
+    "expected": [],
+    "ftsQuery": "\"summ\"",
+    "terms": ["summ"]
+  },
+  {
+    "query": "",
+    "expected": [4, 15],
+    "ftsQuery": "",
+    "terms": [""]
+  }
+]

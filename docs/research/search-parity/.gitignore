@@ -1,0 +1,5 @@
+*.sqlite
+*.sqlite-*
+CaseFolding-17.0.0.txt
+target/
+bitmap-cache.json

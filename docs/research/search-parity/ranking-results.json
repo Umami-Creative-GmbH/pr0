@@ -1,0 +1,80 @@
+{
+  "sqlite": [
+    {
+      "id": 9,
+      "tier": 1
+    },
+    {
+      "id": 10,
+      "tier": 2
+    },
+    {
+      "id": 5,
+      "tier": 3
+    },
+    {
+      "id": 6,
+      "tier": 4
+    },
+    {
+      "id": 7,
+      "tier": 5
+    },
+    {
+      "id": 8,
+      "tier": 6
+    }
+  ],
+  "postgres": [
+    {
+      "id": 9,
+      "tier": 1
+    },
+    {
+      "id": 10,
+      "tier": 2
+    },
+    {
+      "id": 5,
+      "tier": 3
+    },
+    {
+      "id": 6,
+      "tier": 4
+    },
+    {
+      "id": 7,
+      "tier": 5
+    },
+    {
+      "id": 8,
+      "tier": 6
+    }
+  ],
+  "plans": {
+    "like": [
+      {
+        "id": 2,
+        "parent": 0,
+        "notused": 215,
+        "detail": "SCAN search VIRTUAL TABLE INDEX 0:"
+      }
+    ],
+    "escapedLike": [
+      {
+        "id": 2,
+        "parent": 0,
+        "notused": 215,
+        "detail": "SCAN search VIRTUAL TABLE INDEX 0:"
+      }
+    ],
+    "quotedMatch": [
+      {
+        "id": 2,
+        "parent": 0,
+        "notused": 156,
+        "detail": "SCAN search VIRTUAL TABLE INDEX 0:M1"
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+[package]
+name = "pr0-search-parity"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rusqlite = { version = "=0.40.2", features = ["bundled"] }
+serde_json = "=1.0.149"
