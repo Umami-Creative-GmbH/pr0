@@ -20,16 +20,17 @@ const key = () => {
   return createHash("sha256").update(value).digest();
 };
 
-export const enqueueVerification = async (
+const enqueueMail = async (
   email: string,
   url: string,
-  token: string,
-  reservation: string
+  expiresAt: Date,
+  reservation: string,
+  purpose: "verification" | "recovery"
 ) => {
   const nonce = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(), nonce);
   const payload = Buffer.concat([
-    cipher.update(JSON.stringify({ email, url }), "utf-8"),
+    cipher.update(JSON.stringify({ email, url, purpose }), "utf-8"),
     cipher.final(),
   ]);
   const encrypted = Buffer.concat([
@@ -37,14 +38,6 @@ export const enqueueVerification = async (
     cipher.getAuthTag(),
     payload,
   ]).toString("base64");
-  // Use the signed token's original expiry; transport retries never mint a new token.
-  const claims = z
-    .object({ exp: z.number().int().positive() })
-    .parse(
-      JSON.parse(
-        Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf-8")
-      )
-    );
   const sql = database();
   await sql.begin(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(24004)`;
@@ -53,9 +46,47 @@ export const enqueueVerification = async (
     if (!held.length) {
       throw new Error("Email admission expired");
     }
-    await tx`INSERT INTO mail_job(id, payload, expires_at) VALUES (${reservation}, ${encrypted}, ${new Date(claims.exp * 1000)})`;
+    await tx`INSERT INTO mail_job(id, payload, expires_at) VALUES (${reservation}, ${encrypted}, ${expiresAt})`;
     await tx`DELETE FROM mail_reservation WHERE id = ${reservation}`;
   });
+};
+
+export const enqueueVerification = async (
+  email: string,
+  url: string,
+  token: string,
+  reservation: string
+) => {
+  const claims = z
+    .object({ exp: z.number().int().positive() })
+    .parse(
+      JSON.parse(
+        Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf-8")
+      )
+    );
+  await enqueueMail(
+    email,
+    url,
+    new Date(claims.exp * 1000),
+    reservation,
+    "verification"
+  );
+};
+
+export const enqueueRecovery = async (
+  email: string,
+  token: string,
+  reservation: string
+) => {
+  const sql = database();
+  const [record] =
+    await sql`SELECT expires_at FROM verification WHERE identifier = ${`reset-password:${token}`}`;
+  if (!record) {
+    throw new Error("Recovery token unavailable");
+  }
+  // A fragment keeps the token out of HTTP request URLs, access logs and referrers.
+  const url = `${configuration().origin}/reset-password#token=${encodeURIComponent(token)}`;
+  await enqueueMail(email, url, record.expires_at, reservation, "recovery");
 };
 
 const transport = () => {
@@ -149,8 +180,11 @@ export const deliverMail = async () => {
         from: process.env.SMTP_FROM,
         to: decoded.email,
         messageId: `<${job.id}@pr0.local>`,
-        subject: "Verify your pr0 email",
-        text: `Verify your email to access your private pr0 library:\n\n${decoded.url}\n\nThis link expires in one hour. If you did not request it, ignore this email.`,
+        subject:
+          decoded.purpose === "recovery"
+            ? "Reset your pr0 password"
+            : "Verify your pr0 email",
+        text: `${decoded.purpose === "recovery" ? "Reset your password to recover your pr0 account" : "Verify your email to access your private pr0 library"}:\n\n${decoded.url}\n\nThis link expires one hour after it was requested. If you did not request it, ignore this email.`,
       });
       await sql`UPDATE mail_job SET state = 'sent', payload = NULL, completed_at = now() WHERE id = ${job.id}`;
     } catch {
@@ -161,7 +195,7 @@ export const deliverMail = async () => {
         completed_at = CASE WHEN attempts >= 5 THEN now() ELSE NULL END,
         next_attempt_at = now() + ${delay} * interval '1 second' WHERE id = ${job.id}`;
       process.stderr.write(
-        `${JSON.stringify({ event: "verification_delivery_failed", jobId: job.id, attempt: job.attempts })}\n`
+        `${JSON.stringify({ event: "mail_delivery_failed", jobId: job.id, attempt: job.attempts, terminal: job.attempts >= 5 })}\n`
       );
     }
   }

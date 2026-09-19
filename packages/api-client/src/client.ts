@@ -5,8 +5,16 @@ import {
   librarySchema,
   successSchema,
   verificationRequiredSchema,
+  passwordResetSchema,
+  recoveryRequestedSchema,
+  revokeSessionSchema,
+  sessionsSchema,
 } from "@pr0/api-contract/accounts";
-import type { Credentials, AccountRequest } from "@pr0/api-contract/accounts";
+import type {
+  Credentials,
+  AccountRequest,
+  PasswordReset,
+} from "@pr0/api-contract/accounts";
 import { healthPath, healthResponseSchema } from "@pr0/api-contract/health";
 
 const trailingSlashes = /\/+$/u;
@@ -71,6 +79,43 @@ export const createApiClient = ({
 
   return {
     baseUrl: normalizedBaseUrl,
+    async requestRecovery(email: string, signal?: AbortSignal) {
+      return recoveryRequestedSchema.parse(
+        await accountRequest(
+          "/api/auth/request-password-reset",
+          emailRequestSchema.parse({ email }),
+          signal
+        )
+      );
+    },
+    async resetPassword(input: PasswordReset, signal?: AbortSignal) {
+      return successSchema.parse(
+        await accountRequest(
+          "/api/auth/reset-password",
+          passwordResetSchema.parse(input),
+          signal
+        )
+      );
+    },
+    async getSessions(signal?: AbortSignal) {
+      return sessionsSchema.parse(
+        await accountRequest("/api/v1/sessions", undefined, signal)
+      );
+    },
+    async revokeSession(sessionId: string, signal?: AbortSignal) {
+      return successSchema.parse(
+        await accountRequest(
+          "/api/v1/sessions/revoke",
+          revokeSessionSchema.parse({ sessionId }),
+          signal
+        )
+      );
+    },
+    async revokeOtherSessions(signal?: AbortSignal) {
+      return successSchema.parse(
+        await accountRequest("/api/v1/sessions/revoke-others", {}, signal)
+      );
+    },
     async getLibrary(signal?: AbortSignal) {
       return librarySchema.parse(
         await accountRequest("/api/v1/library", undefined, signal)

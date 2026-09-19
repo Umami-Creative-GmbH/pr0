@@ -1,0 +1,12 @@
+services:
+  web:
+    command:
+      [
+        "bun",
+        "--bun",
+        "--preload",
+        "/test-fixtures/clock-preload.ts",
+        "apps/web/server.js",
+      ]
+    volumes:
+      - ./apps/web/tests/clock-preload.ts:/test-fixtures/clock-preload.ts:ro

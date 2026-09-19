@@ -11,7 +11,7 @@ import {
   origin,
   password,
   post,
-  verificationLink,
+  accountEmailLink,
 } from "./http-fixture";
 
 const root = path.resolve(import.meta.dir, "../../..");
@@ -134,7 +134,7 @@ test("production Compose completes closed admission, verified access, failure re
       "mail",
     ]);
     await ready();
-    const link = await verificationLink(firstEmail);
+    const link = await accountEmailLink(firstEmail);
     const expiredUrl = new URL(link);
     const token = expiredUrl.searchParams.get("token") ?? "";
     const [header, payload] = token.split(".");
@@ -251,7 +251,7 @@ test("production Compose completes closed admission, verified access, failure re
     await dc(["start", "smtp"]);
     // Delivery retry has a bounded 30-second backoff; it must not verify by itself.
     await Bun.sleep(30_000);
-    const recoveredLink = await verificationLink(allowedEmail);
+    const recoveredLink = await accountEmailLink(allowedEmail);
     expect(recoveredLink.startsWith(origin)).toBe(true);
     const afterDelivery = await post("/api/auth/sign-in/email", {
       email: allowedEmail,

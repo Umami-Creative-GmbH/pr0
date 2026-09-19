@@ -29,6 +29,51 @@ test("account client rejects malformed library data and preserves typed retry gu
   });
 });
 
+test("recovery and session client methods validate responses, failures, and cancellation", async () => {
+  const id = "626c36c6-7bb6-48d2-a187-9b3c2e349c5b";
+  const invalid = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ invalid: true })),
+  });
+  const controller = new AbortController();
+  controller.abort(new DOMException("Cancelled", "AbortError"));
+  const cancelled = createApiClient({
+    fetcher: (_url, init) => Promise.reject(init.signal?.reason),
+  });
+  const failed = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({ code: "unauthenticated" }, { status: 401 })
+      ),
+  });
+  const operations = [
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.requestRecovery("owner@example.test", signal),
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.resetPassword(
+        { token: "test-token", newPassword: "long-new-password" },
+        signal
+      ),
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.getSessions(signal),
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.revokeSession(id, signal),
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.revokeOtherSessions(signal),
+  ];
+  await Promise.all(
+    operations.map(async (operation) => {
+      await expect(operation(invalid)).rejects.toBeInstanceOf(ZodError);
+      await expect(operation(failed)).rejects.toMatchObject({
+        status: 401,
+        code: "unauthenticated",
+      });
+      await expect(operation(cancelled, controller.signal)).rejects.toBe(
+        controller.signal.reason
+      );
+    })
+  );
+});
+
 test("account requests preserve cancellation and typed non-JSON failures", async () => {
   const controller = new AbortController();
   const reason = new DOMException("Account changed", "AbortError");

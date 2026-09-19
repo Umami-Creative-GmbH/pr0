@@ -34,13 +34,18 @@ export const cookieFrom = (response: Response) =>
     .getSetCookie()
     .map((value) => value.split(";")[0])
     .join("; ");
-export const verificationLink = async (email: string) => {
+export const accountEmailLink = async (
+  email: string,
+  subject?: string,
+  excludeToken?: string
+) => {
   const mailOrigin =
     process.env.PR0_TEST_MAIL_ORIGIN ?? "http://localhost:18424";
   const listSchema = z.object({
     messages: z.array(
       z.object({
         ID: z.string(),
+        Subject: z.string(),
         To: z.array(z.object({ Address: z.string() })),
       })
     ),
@@ -48,14 +53,16 @@ export const verificationLink = async (email: string) => {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     const response = await fetch(`${mailOrigin}/api/v1/messages`);
     const list = listSchema.parse(await response.json());
-    const item = list.messages.find((message) =>
-      message.To.some((recipient) => recipient.Address === email)
+    const item = list.messages.find(
+      (message) =>
+        message.To.some((recipient) => recipient.Address === email) &&
+        (!subject || message.Subject === subject)
     );
     if (item) {
       const detail = await fetch(`${mailOrigin}/api/v1/message/${item.ID}`);
       const mail = z.object({ Text: z.string() }).parse(await detail.json());
       const link = mail.Text.match(/http[^\s]+/u)?.[0];
-      if (link) {
+      if (link && (!excludeToken || !link.includes(excludeToken))) {
         return link;
       }
     }

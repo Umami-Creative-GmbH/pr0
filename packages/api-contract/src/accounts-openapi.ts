@@ -8,6 +8,10 @@ import {
   librarySchema,
   successSchema,
   verificationRequiredSchema,
+  passwordResetSchema,
+  recoveryRequestedSchema,
+  revokeSessionSchema,
+  sessionsSchema,
 } from "./accounts";
 
 const jsonResponse = (schema: string, description: string) => ({
@@ -37,13 +41,15 @@ const post = (
   operationId: string,
   schema: string,
   response: string,
-  status = "200"
+  status = "200",
+  description = "",
+  authenticated = false
 ) => ({
   post: {
     operationId,
     tags: ["Accounts"],
-    description:
-      "Same-origin browser request. The Origin header must equal the configured canonical origin. JSON body maximum 4096 bytes; no content encoding. Unlisted Better Auth routes are disabled.",
+    security: authenticated ? [{ BrowserSession: [] }] : [],
+    description: `Same-origin browser request. The Origin header must equal the configured canonical origin. JSON body maximum 4096 bytes; no content encoding. Unlisted Better Auth routes are disabled. ${description}`,
     requestBody: {
       required: true,
       content: {
@@ -60,6 +66,49 @@ const post = (
 });
 
 export const accountPaths = {
+  "/api/auth/request-password-reset": post(
+    "requestRecovery",
+    "EmailRequest",
+    "RecoveryRequested",
+    "202",
+    "Returns the same response for verified, unverified and unknown accounts. Only verified account emails receive a one-hour recovery link. Uses the shared destination/IP email limits; SMTP failure does not change credentials. Link tokens travel in the reset page fragment, not request URLs."
+  ),
+  "/api/auth/reset-password": post(
+    "resetPassword",
+    "PasswordReset",
+    "AccountSuccess",
+    "200",
+    "Consumes an unexpired token once, sets or replaces the password and revokes every previous session atomically. Invalid, expired or replayed tokens return invalid_recovery without changing credentials. Does not sign in automatically."
+  ),
+  "/api/v1/sessions": {
+    get: {
+      operationId: "getSessions",
+      tags: ["Accounts"],
+      security: [{ BrowserSession: [] }],
+      description:
+        "List active sessions for the verified account, using public session IDs, never credentials. Revalidates and renews the initiating browser session.",
+      responses: {
+        "200": jsonResponse("Sessions", "Independent active sessions"),
+        ...errors,
+      },
+    },
+  },
+  "/api/v1/sessions/revoke": post(
+    "revokeSession",
+    "RevokeSession",
+    "AccountSuccess",
+    "200",
+    "Revokes only the selected public session ID belonging to the caller. Unknown and foreign IDs return not_found. Selecting the current session ends its access.",
+    true
+  ),
+  "/api/v1/sessions/revoke-others": post(
+    "revokeOtherSessions",
+    "EmptyRequest",
+    "AccountSuccess",
+    "200",
+    "Revokes all other sessions of this account and preserves the initiating session. Revalidates persisted expiry and revocation before changing sessions.",
+    true
+  ),
   "/api/auth/sign-up/email": post(
     "registerAccount",
     "Credentials",
@@ -149,6 +198,10 @@ export const accountPaths = {
 } satisfies OpenAPIV3_1.PathsObject;
 
 const schemas = {
+  PasswordReset: passwordResetSchema,
+  RecoveryRequested: recoveryRequestedSchema,
+  RevokeSession: revokeSessionSchema,
+  Sessions: sessionsSchema,
   Credentials: credentialsSchema,
   EmailRequest: emailRequestSchema,
   AccountError: accountErrorSchema,

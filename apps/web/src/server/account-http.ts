@@ -6,6 +6,7 @@ import {
   emailRequestSchema,
   emptyRequestSchema,
   librarySchema,
+  passwordResetSchema,
 } from "@pr0/api-contract/accounts";
 import type {
   AccountRequest,
@@ -25,7 +26,9 @@ import { authentication } from "./auth";
 import { configuration } from "./config";
 import { database } from "./database";
 import { validateMailConfiguration, withMailReservation } from "./mail";
+import { resetPassword } from "./recovery";
 import { withRequestWork } from "./request-work";
+import { withSessionIssuance } from "./session-issuance";
 
 export const json = (
   body: AccountResponse,
@@ -60,7 +63,7 @@ export const failure = (error: Error) => {
 };
 
 // oxlint-disable eslint/no-await-in-loop -- A bounded request stream must be consumed sequentially and cancelled at its byte limit.
-const readBody = async (request: Request): Promise<AccountRequest> => {
+export const readBody = async (request: Request): Promise<AccountRequest> => {
   if (
     request.headers.has("content-encoding") ||
     !request.headers.get("content-type")?.startsWith("application/json")
@@ -115,6 +118,10 @@ const authRequest = (
 ) => {
   // Discard all forwarding metadata and caller-controlled callbacks/auth fields.
   const headers = new Headers({ Origin: configuration().origin });
+  const userAgent = request.headers.get("user-agent");
+  if (userAgent) {
+    headers.set("user-agent", userAgent.slice(0, 512));
+  }
   if (mailReservation) {
     headers.set("x-pr0-mail-reservation", mailReservation);
   }
@@ -174,8 +181,8 @@ const handleCredentials = async (
     { key: `login:pair:${email}:${ip}`, max: 10, seconds: 900 },
     { key: `login:ip:${ip}`, max: 50, seconds: 900 },
   ]);
-  const response = await authentication().handler(
-    authRequest(request, path, { email, password })
+  const response = await withSessionIssuance(email, () =>
+    authentication().handler(authRequest(request, path, { email, password }))
   );
   if (!response.ok) {
     return json({ code: "invalid_credentials" }, 401);
@@ -195,6 +202,8 @@ const processAuth = async (request: Request) => {
             "sign-in/email",
             "send-verification-email",
             "sign-out",
+            "request-password-reset",
+            "reset-password",
           ]
         : ["verify-email"];
     if (!allowed.includes(path)) {
@@ -227,6 +236,30 @@ const processAuth = async (request: Request) => {
       });
     }
     const body = await readBody(request);
+    if (path === "reset-password") {
+      const input = passwordResetSchema.safeParse(body);
+      if (!input.success) {
+        throw new AccountFailureError("invalid_input", 400);
+      }
+      await resetPassword(input.data);
+      return json({ status: "ok" });
+    }
+    if (path === "request-password-reset") {
+      const input = emailRequestSchema.safeParse(body);
+      if (!input.success) {
+        throw new AccountFailureError("invalid_input", 400);
+      }
+      await admitEmail(input.data.email, ip);
+      return await withMailReservation(async (reservation) => {
+        const response = await authentication().handler(
+          authRequest(request, path, input.data, reservation)
+        );
+        if (!response.ok) {
+          throw new AccountFailureError("unavailable", 503, 30);
+        }
+        return json({ status: "recovery_requested" }, 202);
+      });
+    }
     if (path === "sign-up/email" || path === "sign-in/email") {
       return await handleCredentials(request, path, body, ip);
     }
@@ -334,7 +367,7 @@ export const handleReadiness = async () => {
     validateMailConfiguration();
     const sql = database();
     const ready =
-      await sql`SELECT i.id FROM instance i WHERE schema_version = 3 AND EXISTS
+      await sql`SELECT i.id FROM instance i WHERE schema_version = 4 AND EXISTS
       (SELECT 1 FROM worker_health WHERE name = 'mail' AND heartbeat_at > now() - interval '30 seconds')`;
     return json(
       { status: ready.length ? "ready" : "unavailable" },

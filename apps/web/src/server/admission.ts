@@ -11,6 +11,10 @@ type FailureCode =
   | "registration_closed"
   | "rate_limited"
   | "invalid_input"
+  | "invalid_recovery"
+  | "unauthenticated"
+  | "email_unverified"
+  | "not_found"
   | "unavailable";
 export class AccountFailureError extends Error {
   readonly code: FailureCode;

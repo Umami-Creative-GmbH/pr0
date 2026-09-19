@@ -10,7 +10,7 @@ import {
   origin,
   password,
   post,
-  verificationLink,
+  accountEmailLink,
 } from "./http-fixture";
 
 const email = `account-${crypto.randomUUID()}@example.test`;
@@ -28,7 +28,7 @@ test("unverified signup cannot access its private library or sign in", async () 
 });
 
 test("verification email enables a private library with a renewable browser session", async () => {
-  const link = await verificationLink(email);
+  const link = await accountEmailLink(email);
   expect(link).toBeString();
   const verification = await fetch(link, { redirect: "manual" });
   expect(verification.status).toBe(303);
@@ -72,7 +72,7 @@ const verifiedSession = async () => {
     password,
   });
   expect(signup.status).toBe(202);
-  const link = await verificationLink(address);
+  const link = await accountEmailLink(address);
   expect(link.startsWith(`${origin}/api/auth/verify-email?`)).toBe(true);
   const verified = await fetch(link, {
     headers: { ...ingressHeaders(), "Sec-Fetch-Site": "cross-site" },

@@ -6,7 +6,8 @@ import { drizzle } from "drizzle-orm/bun-sql";
 import { account, session, user, verification } from "./auth-schema";
 import { configuration } from "./config";
 import { database } from "./database";
-import { enqueueVerification } from "./mail";
+import { enqueueRecovery, enqueueVerification } from "./mail";
+import { sessionAuthenticationVersion } from "./session-issuance";
 
 const createAuth = () => {
   const config = configuration();
@@ -26,6 +27,19 @@ const createAuth = () => {
       autoSignIn: false,
       minPasswordLength: 12,
       maxPasswordLength: 128,
+      resetPasswordTokenExpiresIn: 3600,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user: recipient, token }, request) => {
+        // Recovery is available only through the verified account address.
+        if (!recipient.emailVerified) {
+          return;
+        }
+        const reservation = request?.headers.get("x-pr0-mail-reservation");
+        if (!reservation) {
+          throw new Error("Missing email admission");
+        }
+        await enqueueRecovery(recipient.email, token, reservation);
+      },
     },
     emailVerification: {
       sendOnSignUp: true,
@@ -50,6 +64,24 @@ const createAuth = () => {
       cookieCache: { enabled: false },
       additionalFields: {
         provenance: { type: "string", defaultValue: "browser", input: false },
+        authenticationVersion: {
+          type: "number",
+          defaultValue: 0,
+          input: false,
+        },
+      },
+    },
+    databaseHooks: {
+      session: {
+        create: {
+          before: (value) =>
+            Promise.resolve({
+              data: {
+                ...value,
+                authenticationVersion: sessionAuthenticationVersion(),
+              },
+            }),
+        },
       },
     },
     advanced: {

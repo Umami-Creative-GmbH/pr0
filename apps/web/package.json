@@ -13,7 +13,8 @@
     "start": "bun --bun next start",
     "typecheck": "bun --bun next typegen && bun --bun tsc --noEmit",
     "test": "bun test src",
-    "test:accounts": "bun --env-file=tests/compose.env test tests/deployment-integration.test.ts"
+    "test:accounts": "bun --env-file=tests/compose.env test tests/deployment-integration.test.ts",
+    "test:recovery": "bun --env-file=tests/compose.env test tests/recovery-deployment.test.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.5",

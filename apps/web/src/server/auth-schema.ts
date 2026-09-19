@@ -1,5 +1,12 @@
 import "server-only";
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -25,6 +32,9 @@ export const session = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     provenance: text("provenance").notNull().default("browser"),
+    authenticationVersion: integer("authentication_version")
+      .notNull()
+      .default(0),
   },
   (table) => [index("session_user_idx").on(table.userId)]
 );

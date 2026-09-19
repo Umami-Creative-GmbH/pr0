@@ -6,23 +6,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-const errorMessage = (error: Error) => {
-  if (error instanceof ApiError) {
-    if (error.code === "invalid_credentials") {
-      return "Unable to sign in. Check your email and password, and verify your email first.";
-    }
-    if (error.code === "registration_closed") {
-      return "Registration is closed for this address. Ask your instance operator for access.";
-    }
-    if (error.code === "rate_limited") {
-      return `Too many attempts. Try again in ${error.retryAfter ?? 60} seconds.`;
-    }
-    if (error.code === "forbidden") {
-      return "This request was refused. Reload this instance and try again.";
-    }
-  }
-  return "The service could not complete this request. Please try again.";
-};
+import { accountErrorMessage } from "./account-errors";
+import { RecoveryForm } from "./recovery-form";
+import { SessionSettings } from "./session-settings";
 
 export const AccountScreen = ({ verification }: { verification?: string }) => {
   const client = useApiClient();
@@ -55,7 +41,7 @@ export const AccountScreen = ({ verification }: { verification?: string }) => {
       await operation();
     } catch (error) {
       setErrorText(
-        errorMessage(
+        accountErrorMessage(
           error instanceof Error ? error : new Error("Request failed")
         )
       );
@@ -161,6 +147,7 @@ export const AccountScreen = ({ verification }: { verification?: string }) => {
               Sign out
             </button>
           </section>
+          <SessionSettings accountId={library.data.account.id} />
           <section
             aria-labelledby="empty-title"
             className="rounded-lg border p-6"
@@ -251,6 +238,7 @@ export const AccountScreen = ({ verification }: { verification?: string }) => {
           </button>
         </section>
       )}
+      {!signedIn && !library.isPending ? <RecoveryForm /> : null}
       {library.isError &&
       !(library.error instanceof ApiError && library.error.status === 401) ? (
         <p role="alert">
