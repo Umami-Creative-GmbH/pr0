@@ -1,6 +1,6 @@
 # Windows launcher, search, and persistence capabilities
 
-Research for [wayfinder issue #3](https://github.com/Umami-Creative-GmbH/pr0/issues/3), supporting [MVP map #1](https://github.com/Umami-Creative-GmbH/pr0/issues/1). Investigated 2026-09-19. This report records capabilities and unresolved choices; it does not select product policies or claim a working Windows prototype.
+Research for [Verify Windows launcher, local search, and persistence capabilities in Tauri](https://github.com/Umami-Creative-GmbH/pr0/issues/3), supporting [pr0 MVP — product and technical specification](https://github.com/Umami-Creative-GmbH/pr0/issues/1). Investigated 2026-09-19. This report records capabilities and unresolved choices; it does not select product policies or claim a working Windows prototype.
 
 ## Conclusion and fixed boundaries
 
