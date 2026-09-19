@@ -9,11 +9,16 @@ import {
   recoveryRequestedSchema,
   revokeSessionSchema,
   sessionsSchema,
+  socialProvidersSchema,
+  socialRedirectSchema,
+  socialSignInSchema,
+  socialVerificationSchema,
 } from "@pr0/api-contract/accounts";
 import type {
   Credentials,
   AccountRequest,
   PasswordReset,
+  SocialProvider,
 } from "@pr0/api-contract/accounts";
 import { healthPath, healthResponseSchema } from "@pr0/api-contract/health";
 
@@ -79,6 +84,38 @@ export const createApiClient = ({
 
   return {
     baseUrl: normalizedBaseUrl,
+    async getSocialProviders(signal?: AbortSignal) {
+      return socialProvidersSchema.parse(
+        await accountRequest("/api/auth/providers", undefined, signal)
+      );
+    },
+    async signInSocial(provider: SocialProvider, signal?: AbortSignal) {
+      return socialRedirectSchema.parse(
+        await accountRequest(
+          "/api/auth/sign-in/social",
+          socialSignInSchema.parse({ provider }),
+          signal
+        )
+      );
+    },
+    async requestSocialEmail(email: string, signal?: AbortSignal) {
+      return verificationRequiredSchema.parse(
+        await accountRequest(
+          "/api/auth/social/email",
+          emailRequestSchema.parse({ email }),
+          signal
+        )
+      );
+    },
+    async verifySocialEmail(token: string, signal?: AbortSignal) {
+      return successSchema.parse(
+        await accountRequest(
+          "/api/auth/social/verify",
+          socialVerificationSchema.parse({ token }),
+          signal
+        )
+      );
+    },
     async requestRecovery(email: string, signal?: AbortSignal) {
       return recoveryRequestedSchema.parse(
         await accountRequest(

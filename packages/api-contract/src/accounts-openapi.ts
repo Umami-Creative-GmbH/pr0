@@ -12,6 +12,10 @@ import {
   recoveryRequestedSchema,
   revokeSessionSchema,
   sessionsSchema,
+  socialProvidersSchema,
+  socialRedirectSchema,
+  socialSignInSchema,
+  socialVerificationSchema,
 } from "./accounts";
 
 const jsonResponse = (schema: string, description: string) => ({
@@ -66,6 +70,81 @@ const post = (
 });
 
 export const accountPaths = {
+  "/api/auth/providers": {
+    get: {
+      operationId: "getSocialProviders",
+      tags: ["Accounts"],
+      description:
+        "Enabled providers for this instance. No credentials are returned. Disabled providers reject direct starts and callbacks.",
+      responses: {
+        "200": jsonResponse(
+          "SocialProviders",
+          "Available browser sign-in methods"
+        ),
+        ...errors,
+      },
+    },
+  },
+  "/api/auth/sign-in/social": post(
+    "signInSocial",
+    "SocialSignIn",
+    "SocialRedirect",
+    "200",
+    "Starts browser OAuth with a signed browser state cookie, single-use state, PKCE, and a fixed per-instance callback. Google additionally uses a verified ID-token nonce. Caller-supplied callbacks, tokens, scopes, and linking fields are rejected."
+  ),
+  "/api/auth/callback/{provider}": {
+    get: {
+      operationId: "completeSocialCallback",
+      tags: ["Accounts"],
+      description:
+        "Provider browser navigation; requires the initiating state cookie. Exchanges the authorization code and verifies provider identity. Returning providers retain their immutable account and verified recovery email. New accounts require registration admission and a usable verified email; matching emails never link accounts. Missing/unverified email redirects to /social-email with a signed pending cookie and no session. Responses use no-store and no-referrer.",
+      parameters: [
+        {
+          in: "path",
+          name: "provider",
+          required: true,
+          schema: { type: "string", enum: ["google", "github"] },
+        },
+        {
+          in: "query",
+          name: "state",
+          schema: { type: "string", maxLength: 256 },
+        },
+        {
+          in: "query",
+          name: "code",
+          schema: { type: "string", maxLength: 2048 },
+        },
+        {
+          in: "query",
+          name: "error",
+          schema: { type: "string", maxLength: 256 },
+        },
+      ],
+      responses: {
+        "303": {
+          description:
+            "Fixed same-instance redirect to the library, email collection, or actionable sign-in error; successful login sets an HttpOnly browser session cookie.",
+          headers: { Location: { schema: { type: "string", format: "uri" } } },
+        },
+        ...errors,
+      },
+    },
+  },
+  "/api/auth/social/email": post(
+    "requestSocialEmail",
+    "EmailRequest",
+    "VerificationRequired",
+    "202",
+    "Requires the signed pending browser cookie. Enforces registration and shared email admission. Queues durable encrypted verification email; resending replaces the token without extending the one-hour pending identity expiry. The email link uses a fragment, and creates no account or session."
+  ),
+  "/api/auth/social/verify": post(
+    "verifySocialEmail",
+    "SocialVerification",
+    "AccountSuccess",
+    "200",
+    "Requires both the email token and initiating pending browser cookie. Atomically consumes the token once, rechecks provider availability and registration, and issues a verified browser session. Existing email collisions return account_not_linked; no implicit linking or account merging. Invalid, expired, wrong-browser, or replayed proofs return invalid_social."
+  ),
   "/api/auth/request-password-reset": post(
     "requestRecovery",
     "EmailRequest",
@@ -198,6 +277,10 @@ export const accountPaths = {
 } satisfies OpenAPIV3_1.PathsObject;
 
 const schemas = {
+  SocialProviders: socialProvidersSchema,
+  SocialRedirect: socialRedirectSchema,
+  SocialSignIn: socialSignInSchema,
+  SocialVerification: socialVerificationSchema,
   PasswordReset: passwordResetSchema,
   RecoveryRequested: recoveryRequestedSchema,
   RevokeSession: revokeSessionSchema,

@@ -9,8 +9,15 @@ import type { FormEvent } from "react";
 import { accountErrorMessage } from "./account-errors";
 import { RecoveryForm } from "./recovery-form";
 import { SessionSettings } from "./session-settings";
+import { SocialSignIn } from "./social-sign-in";
 
-export const AccountScreen = ({ verification }: { verification?: string }) => {
+export const AccountScreen = ({
+  verification,
+  socialError,
+}: {
+  verification?: string;
+  socialError?: string;
+}) => {
   const client = useApiClient();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -18,11 +25,17 @@ export const AccountScreen = ({ verification }: { verification?: string }) => {
   const [message, setMessage] = useState(
     verification === "ok" ? "Email verified. Sign in to open your library." : ""
   );
-  const [errorText, setErrorText] = useState(
-    verification === "invalid"
+  const [errorText, setErrorText] = useState(() => {
+    if (socialError === "rate_limited") {
+      return "Too many account creation attempts. Wait up to one hour before trying again. Existing accounts can still sign in.";
+    }
+    if (socialError) {
+      return accountErrorMessage(new ApiError(400, socialError));
+    }
+    return verification === "invalid"
       ? "This verification link is invalid or expired. Request another email below."
-      : ""
-  );
+      : "";
+  });
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const library = useQuery({
@@ -169,6 +182,7 @@ export const AccountScreen = ({ verification }: { verification?: string }) => {
             Verify your email before accessing your library. Registration
             depends on this instance’s admission settings.
           </p>
+          <SocialSignIn />
           <form className="mt-6 space-y-4" onSubmit={submit} ref={formRef}>
             <div className="space-y-2">
               <label className="block font-medium" htmlFor="email">

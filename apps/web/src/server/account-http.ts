@@ -7,6 +7,8 @@ import {
   emptyRequestSchema,
   librarySchema,
   passwordResetSchema,
+  socialSignInSchema,
+  socialVerificationSchema,
 } from "@pr0/api-contract/accounts";
 import type {
   AccountRequest,
@@ -29,6 +31,7 @@ import { validateMailConfiguration, withMailReservation } from "./mail";
 import { resetPassword } from "./recovery";
 import { withRequestWork } from "./request-work";
 import { withSessionIssuance } from "./session-issuance";
+import { enabledProviders } from "./social-config";
 
 export const json = (
   body: AccountResponse,
@@ -118,6 +121,7 @@ const authRequest = (
 ) => {
   // Discard all forwarding metadata and caller-controlled callbacks/auth fields.
   const headers = new Headers({ Origin: configuration().origin });
+  headers.set("x-pr0-client-bucket", clientBucket(request));
   const userAgent = request.headers.get("user-agent");
   if (userAgent) {
     headers.set("user-agent", userAgent.slice(0, 512));
@@ -192,6 +196,67 @@ const handleCredentials = async (
   return json({ status: "ok" }, 200, new Headers(response.headers));
 };
 
+const handleSocialRequest = async (
+  request: Request,
+  path: string,
+  ip: string
+) => {
+  if (path === "providers") {
+    return json({ providers: enabledProviders() });
+  }
+  if (path === "callback/google" || path === "callback/github") {
+    const provider = path === "callback/google" ? "google" : "github";
+    if (!enabledProviders().includes(provider)) {
+      return json({ code: "not_found" }, 404);
+    }
+    const params = new URL(request.url).searchParams;
+    if ([...params.values()].some((value) => value.length > 2048)) {
+      return json({ code: "invalid_input" }, 400);
+    }
+    return await authentication().handler(
+      authRequest(request, `social/${path}?${params.toString()}`)
+    );
+  }
+  if (!["social/email", "social/verify", "sign-in/social"].includes(path)) {
+    return null;
+  }
+  const body = await readBody(request);
+  if (path === "social/email") {
+    const input = emailRequestSchema.safeParse(body);
+    if (!input.success) {
+      throw new AccountFailureError("invalid_input", 400);
+    }
+    await admitEmail(input.data.email, ip);
+    return await withMailReservation((reservation) =>
+      authentication().handler(
+        authRequest(request, path, input.data, reservation)
+      )
+    );
+  }
+  if (path === "social/verify") {
+    const input = socialVerificationSchema.safeParse(body);
+    if (!input.success) {
+      throw new AccountFailureError("invalid_input", 400);
+    }
+    return await authentication().handler(
+      authRequest(request, path, input.data)
+    );
+  }
+  if (path === "sign-in/social") {
+    const input = socialSignInSchema.safeParse(body);
+    if (!input.success) {
+      throw new AccountFailureError("invalid_input", 400);
+    }
+    if (!enabledProviders().includes(input.data.provider)) {
+      return json({ code: "not_found" }, 404);
+    }
+    return await authentication().handler(
+      authRequest(request, "social/start", input.data)
+    );
+  }
+  return null;
+};
+
 const processAuth = async (request: Request) => {
   try {
     const path = new URL(request.url).pathname.slice("/api/auth/".length);
@@ -204,17 +269,23 @@ const processAuth = async (request: Request) => {
             "sign-out",
             "request-password-reset",
             "reset-password",
+            "sign-in/social",
+            "social/email",
+            "social/verify",
           ]
-        : ["verify-email"];
+        : ["verify-email", "providers", "callback/google", "callback/github"];
     if (!allowed.includes(path)) {
       return json({ code: "not_found" }, 404);
     }
-    assertOrigin(request, path === "verify-email");
     const ip = clientBucket(request);
     await admit([
       { key: `auth:minute:${ip}`, max: 60, seconds: 60 },
       { key: `auth:burst:${ip}`, max: 10, seconds: 10 },
     ]);
+    const socialResponse = await handleSocialRequest(request, path, ip);
+    if (socialResponse) {
+      return socialResponse;
+    }
     if (path === "verify-email") {
       const url = new URL(request.url);
       const token = url.searchParams.get("token");
@@ -367,7 +438,7 @@ export const handleReadiness = async () => {
     validateMailConfiguration();
     const sql = database();
     const ready =
-      await sql`SELECT i.id FROM instance i WHERE schema_version = 4 AND EXISTS
+      await sql`SELECT i.id FROM instance i WHERE schema_version = 5 AND EXISTS
       (SELECT 1 FROM worker_health WHERE name = 'mail' AND heartbeat_at > now() - interval '30 seconds')`;
     return json(
       { status: ready.length ? "ready" : "unavailable" },
@@ -382,9 +453,30 @@ export const handleAuth = async (request: Request) => {
   try {
     assertOrigin(
       request,
-      new URL(request.url).pathname === "/api/auth/verify-email"
+      [
+        "/api/auth/verify-email",
+        "/api/auth/callback/google",
+        "/api/auth/callback/github",
+      ].includes(new URL(request.url).pathname)
     );
-    return await withRequestWork(() => processAuth(request));
+    const response = await withRequestWork(() => processAuth(request));
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    if (response.status >= 400) {
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        return json({ code: "unavailable", retryAfter: 30 }, 503);
+      }
+      const parsed = accountErrorSchema.strip().safeParse(payload);
+      return json(
+        parsed.success ? parsed.data : { code: "unavailable", retryAfter: 30 },
+        parsed.success ? response.status : 503,
+        new Headers(response.headers)
+      );
+    }
+    return response;
   } catch (error) {
     return failure(
       error instanceof Error ? error : new Error("Request failed")

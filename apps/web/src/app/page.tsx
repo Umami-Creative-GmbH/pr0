@@ -13,7 +13,20 @@ const Home = async ({
   if (params.verification === "invalid") {
     verification = "invalid";
   }
-  return <AccountScreen verification={verification} />;
+  let socialError: string | undefined;
+  if (params.social) {
+    socialError = "invalid_social";
+  }
+  if (
+    params.social === "account_not_linked" ||
+    params.social === "registration_closed" ||
+    params.social === "rate_limited"
+  ) {
+    socialError = params.social;
+  }
+  return (
+    <AccountScreen verification={verification} socialError={socialError} />
+  );
 };
 
 export default Home;

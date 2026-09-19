@@ -89,6 +89,20 @@ export const enqueueRecovery = async (
   await enqueueMail(email, url, record.expires_at, reservation, "recovery");
 };
 
+export const enqueueSocialVerification = (
+  email: string,
+  token: string,
+  expiresAt: Date,
+  reservation: string
+) =>
+  enqueueMail(
+    email,
+    `${configuration().origin}/social-email#token=${token}`,
+    expiresAt,
+    reservation,
+    "verification"
+  );
+
 const transport = () => {
   const config = configuration();
   const host = process.env.SMTP_HOST;

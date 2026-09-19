@@ -86,6 +86,8 @@ The Tauri application identifier is currently `com.umami-creative.pr0`; confirm 
 
 The web account slice runs under Bun with PostgreSQL and a durable SMTP worker. Follow [account deployment and local initialization](docs/operations/accounts.md) to configure secrets and email, migrate, and admit the first account. Self-hosted registration defaults to closed.
 
+[Google and GitHub sign-in](docs/social-login.md) are optional per-instance methods with verified-email safeguards. Run `bun run --cwd apps/web test:social` for the disposable PostgreSQL/SMTP production acceptance matrix (Docker required; localhost ports 30426, 55426, 11426, and 18426).
+
 ```sh
 docker compose build
 docker compose up -d database

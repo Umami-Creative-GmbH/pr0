@@ -7,6 +7,31 @@ export const credentialsSchema = z.strictObject({
 });
 export const emailRequestSchema = z.strictObject({ email: emailSchema });
 export const emptyRequestSchema = z.strictObject({});
+export const socialProviderSchema = z.enum(["google", "github"]);
+export type SocialProvider = z.infer<typeof socialProviderSchema>;
+export const socialSignInSchema = z.strictObject({
+  provider: socialProviderSchema,
+});
+export const socialProvidersSchema = z.strictObject({
+  providers: z.array(socialProviderSchema),
+});
+export const socialRedirectSchema = z.strictObject({
+  url: z.url().refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      ((url.hostname === "accounts.google.com" &&
+        url.pathname === "/o/oauth2/v2/auth") ||
+        (url.hostname === "github.com" &&
+          url.pathname === "/login/oauth/authorize"))
+    );
+  }),
+});
+export const socialVerificationSchema = z.strictObject({
+  token: z.string().min(32).max(128),
+});
 export const passwordResetSchema = z.strictObject({
   token: z.string().min(1).max(256),
   newPassword: z.string().min(12).max(128),
@@ -31,6 +56,8 @@ export const accountRequestSchema = z.union([
   emptyRequestSchema,
   passwordResetSchema,
   revokeSessionSchema,
+  socialSignInSchema,
+  socialVerificationSchema,
 ]);
 export type AccountRequest = z.infer<typeof accountRequestSchema>;
 export const accountErrorSchema = z.strictObject({
@@ -46,6 +73,8 @@ export const accountErrorSchema = z.strictObject({
     "not_found",
     "invalid_verification",
     "invalid_recovery",
+    "invalid_social",
+    "account_not_linked",
   ]),
   retryAfter: z.number().int().positive().optional(),
 });
@@ -81,4 +110,6 @@ export type AccountResponse =
   | z.infer<typeof recoveryRequestedSchema>
   | z.infer<typeof sessionsSchema>
   | PrivateLibrary
+  | z.infer<typeof socialProvidersSchema>
+  | z.infer<typeof socialRedirectSchema>
   | { status: "ready" | "unavailable" };

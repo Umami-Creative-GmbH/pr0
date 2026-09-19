@@ -5,9 +5,9 @@ import { database } from "./database";
 
 const issuanceVersion = new AsyncLocalStorage<number>();
 
-export const withSessionIssuance = async (
+export const withSessionIssuance = async <T>(
   email: string,
-  operation: () => Promise<Response>
+  operation: () => Promise<T>
 ) => {
   const sql = database();
   const [owner] =

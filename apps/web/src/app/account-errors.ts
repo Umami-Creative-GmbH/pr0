@@ -2,6 +2,12 @@ import { ApiError } from "@pr0/api-client/client";
 
 export const accountErrorMessage = (error: Error) => {
   if (error instanceof ApiError) {
+    if (error.code === "account_not_linked") {
+      return "This provider is not linked to your existing account. Use your original sign-in method or recover access with your verified email below.";
+    }
+    if (error.code === "invalid_social") {
+      return "This sign-in or verification attempt is invalid, expired, or already used. Return to sign in and try again in the same browser.";
+    }
     if (error.code === "invalid_credentials") {
       return "Unable to sign in. Check your email and password, and verify your email first.";
     }

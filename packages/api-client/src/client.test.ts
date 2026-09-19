@@ -6,6 +6,52 @@ import { ZodError } from "zod";
 import { ApiError, createApiClient } from "./client";
 import { healthQueryOptions } from "./query-options";
 
+// oxlint-disable eslint/no-await-in-loop -- Sequential contract assertions keep each failure attributable to its public operation.
+// oxlint-disable eslint/no-script-url -- A hostile redirect is deliberate negative test input.
+test("social client validates redirect destinations, response data, failures, and cancellation", async () => {
+  const bad = createApiClient({
+    fetcher: () =>
+      Promise.resolve(Response.json({ url: "javascript:alert(1)" })),
+  });
+  await expect(bad.signInSocial("google")).rejects.toBeInstanceOf(ZodError);
+  const invalid = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ invalid: true })),
+  });
+  const controller = new AbortController();
+  controller.abort(new DOMException("Cancelled", "AbortError"));
+  const cancelled = createApiClient({
+    fetcher: (_url, init) => Promise.reject(init.signal?.reason),
+  });
+  const failed = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({ code: "invalid_social" }, { status: 400 })
+      ),
+  });
+  const operations = [
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.getSocialProviders(signal),
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.signInSocial("github", signal),
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.requestSocialEmail("owner@example.test", signal),
+    (client: ReturnType<typeof createApiClient>, signal?: AbortSignal) =>
+      client.verifySocialEmail("a".repeat(43), signal),
+  ];
+  for (const operation of operations) {
+    await expect(operation(invalid)).rejects.toBeInstanceOf(ZodError);
+    await expect(operation(cancelled, controller.signal)).rejects.toMatchObject(
+      { name: "AbortError" }
+    );
+    await expect(operation(failed)).rejects.toMatchObject({
+      code: "invalid_social",
+      status: 400,
+    });
+  }
+});
+
+// oxlint-enable eslint/no-await-in-loop, eslint/no-script-url
+
 test("account client rejects malformed library data and preserves typed retry guidance", async () => {
   const client = createApiClient({
     fetcher: () => Promise.resolve(Response.json({ prompts: [] })),

@@ -3,11 +3,13 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { drizzle } from "drizzle-orm/bun-sql";
 
+import { assertRegistration } from "./admission";
 import { account, session, user, verification } from "./auth-schema";
 import { configuration } from "./config";
 import { database } from "./database";
 import { enqueueRecovery, enqueueVerification } from "./mail";
 import { sessionAuthenticationVersion } from "./session-issuance";
+import { socialAuthentication } from "./social-auth";
 
 const createAuth = () => {
   const config = configuration();
@@ -16,6 +18,8 @@ const createAuth = () => {
     baseURL: config.origin,
     secret: config.authSecret,
     trustedOrigins: [config.origin],
+    plugins: [socialAuthentication()],
+    onAPIError: { errorURL: `${config.origin}/?social=invalid` },
     database: drizzleAdapter(drizzle({ client: database(), schema }), {
       provider: "pg",
       schema,
@@ -72,6 +76,14 @@ const createAuth = () => {
       },
     },
     databaseHooks: {
+      user: {
+        create: {
+          before: async (value) => {
+            await assertRegistration(value.email);
+            return { data: value };
+          },
+        },
+      },
       session: {
         create: {
           before: (value) =>
