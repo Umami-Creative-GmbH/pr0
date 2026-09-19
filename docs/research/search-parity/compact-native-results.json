@@ -1,0 +1,6 @@
+{
+  "compactChecks": 60,
+  "includesFalsePositiveRecheck": true,
+  "rusqlite": "0.40.2",
+  "sqlite": "3.53.2"
+}

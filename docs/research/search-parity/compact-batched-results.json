@@ -1,0 +1,492 @@
+[
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "🫠",
+    "codePoints": 1,
+    "sort": "title",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 0.40380000000004657,
+    "p95": 0.5738000000001193,
+    "max": 0.7582999999995081
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "🫠",
+    "codePoints": 1,
+    "sort": "relevance",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 0.4639999999999418,
+    "p95": 0.6449000000011438,
+    "max": 0.6486999999997352
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "a",
+    "codePoints": 1,
+    "sort": "title",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 0,
+    "candidates": 10000,
+    "p50": 1.7466000000003987,
+    "p95": 1.988599999998769,
+    "max": 2.5538999999989755
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "a",
+    "codePoints": 1,
+    "sort": "relevance",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 0,
+    "candidates": 10000,
+    "p50": 1.4997000000003027,
+    "p95": 1.8378999999986263,
+    "max": 2.0087000000003172
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "common",
+    "codePoints": 6,
+    "sort": "title",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 4.025499999999738,
+    "p95": 5.522999999999229,
+    "max": 5.802800000001298
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "common",
+    "codePoints": 6,
+    "sort": "relevance",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 3.5468000000000757,
+    "p95": 4.896400000001449,
+    "max": 6.7656000000006316
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "zzzzzz",
+    "codePoints": 6,
+    "sort": "title",
+    "ids": [],
+    "rechecked": 4283,
+    "candidates": 4283,
+    "p50": 45.60750000000007,
+    "p95": 52.66990000000078,
+    "max": 54.85769999999866
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "zzzzzz",
+    "codePoints": 6,
+    "sort": "relevance",
+    "ids": [],
+    "rechecked": 4283,
+    "candidates": 4283,
+    "p50": 43.81999999999971,
+    "p95": 53.18370000000141,
+    "max": 53.81629999999859
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "prompt common",
+    "codePoints": 13,
+    "sort": "title",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 7.141300000001138,
+    "p95": 7.961699999999837,
+    "max": 8.316899999999805
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "prompt common",
+    "codePoints": 13,
+    "sort": "relevance",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 7.736799999998766,
+    "p95": 8.948700000000827,
+    "max": 9.137800000000425
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "important changes",
+    "codePoints": 17,
+    "sort": "title",
+    "ids": [],
+    "rechecked": 3,
+    "candidates": 3,
+    "p50": 1.2124000000003434,
+    "p95": 1.8580999999994674,
+    "max": 2.106900000000678
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "important changes",
+    "codePoints": 17,
+    "sort": "relevance",
+    "ids": [],
+    "rechecked": 3,
+    "candidates": 3,
+    "p50": 1.337100000000646,
+    "p95": 1.79529999999977,
+    "max": 1.9160000000010768
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "reference96",
+    "codePoints": 11,
+    "sort": "title",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 0.3794999999990978,
+    "p95": 0.46960000000035507,
+    "max": 0.6340999999993073
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "reference96",
+    "codePoints": 11,
+    "sort": "relevance",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 0.47700000000077125,
+    "p95": 0.5490000000008877,
+    "max": 0.5850000000009459
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "write concise answer useful examples clear steps review following document identify important changes explain reasoning preserve exact names punctuation summarize meeting notes actions owners dates",
+    "codePoints": 197,
+    "sort": "title",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 13.815899999999601,
+    "p95": 18.515199999999822,
+    "max": 18.547600000001694
+  },
+  {
+    "corpus": "noise",
+    "method": "batched",
+    "query": "write concise answer useful examples clear steps review following document identify important changes explain reasoning preserve exact names punctuation summarize meeting notes actions owners dates",
+    "codePoints": 197,
+    "sort": "relevance",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 13.341599999999744,
+    "p95": 16.122700000001714,
+    "max": 16.43659999999909
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "🫠",
+    "codePoints": 1,
+    "sort": "title",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 0.38919999999779975,
+    "p95": 0.4651999999987311,
+    "max": 0.48329999999987194
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "🫠",
+    "codePoints": 1,
+    "sort": "relevance",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 0.12010000000009313,
+    "p95": 0.12529999999969732,
+    "max": 0.13060000000041327
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "a",
+    "codePoints": 1,
+    "sort": "title",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 0,
+    "candidates": 10000,
+    "p50": 0.7276999999994587,
+    "p95": 0.9552000000003318,
+    "max": 1.0653999999994994
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "a",
+    "codePoints": 1,
+    "sort": "relevance",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 0,
+    "candidates": 10000,
+    "p50": 0.7299000000020897,
+    "p95": 0.9604999999974098,
+    "max": 1.0051999999996042
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "common",
+    "codePoints": 6,
+    "sort": "title",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 2.6709999999984575,
+    "p95": 3.8836999999984982,
+    "max": 3.95430000000124
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "common",
+    "codePoints": 6,
+    "sort": "relevance",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 3.2107000000032713,
+    "p95": 4.0305999999982305,
+    "max": 4.635200000000623
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "zzzzzz",
+    "codePoints": 6,
+    "sort": "title",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 0.1643999999978405,
+    "p95": 0.2559000000001106,
+    "max": 0.25969999999870197
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "zzzzzz",
+    "codePoints": 6,
+    "sort": "relevance",
+    "ids": [],
+    "rechecked": 0,
+    "candidates": 0,
+    "p50": 0.2959999999984575,
+    "p95": 0.38409999999930733,
+    "max": 0.38659999999799766
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "prompt common",
+    "codePoints": 13,
+    "sort": "title",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 6.580500000000029,
+    "p95": 9.328799999999319,
+    "max": 10.214499999998225
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "prompt common",
+    "codePoints": 13,
+    "sort": "relevance",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 7.110499999998865,
+    "p95": 10.040500000002794,
+    "max": 11.1846000000005
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "important changes",
+    "codePoints": 17,
+    "sort": "title",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 5.265599999998813,
+    "p95": 6.255799999998999,
+    "max": 7.758499999999913
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "important changes",
+    "codePoints": 17,
+    "sort": "relevance",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 5.288700000000972,
+    "p95": 6.253499999998894,
+    "max": 6.3827000000019325
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "reference96",
+    "codePoints": 11,
+    "sort": "title",
+    "ids": [
+      96, 193, 290, 387, 484, 581, 678, 775, 872, 969, 1066, 1163, 1260, 1357,
+      1454, 1551, 1648, 1745, 1842, 1939, 2036, 2133, 2230, 2327, 2424, 2521,
+      2618, 2715, 2812, 2909, 3006, 3103, 3200, 3297, 3394, 3491, 3588, 3685,
+      3782, 3879, 3976, 4073, 4170, 4267, 4364, 4461, 4558, 4655, 4752, 4849
+    ],
+    "rechecked": 50,
+    "candidates": 103,
+    "p50": 1.385600000001432,
+    "p95": 1.633800000003248,
+    "max": 1.8392000000021653
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "reference96",
+    "codePoints": 11,
+    "sort": "relevance",
+    "ids": [
+      96, 193, 290, 387, 484, 581, 678, 775, 872, 969, 1066, 1163, 1260, 1357,
+      1454, 1551, 1648, 1745, 1842, 1939, 2036, 2133, 2230, 2327, 2424, 2521,
+      2618, 2715, 2812, 2909, 3006, 3103, 3200, 3297, 3394, 3491, 3588, 3685,
+      3782, 3879, 3976, 4073, 4170, 4267, 4364, 4461, 4558, 4655, 4752, 4849
+    ],
+    "rechecked": 50,
+    "candidates": 103,
+    "p50": 1.4605000000010477,
+    "p95": 1.8737999999975727,
+    "max": 1.8774000000012165
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "write concise answer useful examples clear steps review following document identify important changes explain reasoning preserve exact names punctuation summarize meeting notes actions owners dates",
+    "codePoints": 197,
+    "sort": "title",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 65.01989999999932,
+    "p95": 74.87790000000314,
+    "max": 75.64830000000075
+  },
+  {
+    "corpus": "synthetic-prose",
+    "method": "batched",
+    "query": "write concise answer useful examples clear steps review following document identify important changes explain reasoning preserve exact names punctuation summarize meeting notes actions owners dates",
+    "codePoints": 197,
+    "sort": "relevance",
+    "ids": [
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+      40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50
+    ],
+    "rechecked": 50,
+    "candidates": 10000,
+    "p50": 57.08499999999913,
+    "p95": 77.09230000000025,
+    "max": 78.32420000000275
+  }
+]

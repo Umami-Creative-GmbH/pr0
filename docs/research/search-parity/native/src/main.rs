@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use std::{error::Error, fs, time::Instant};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    if std::env::args().any(|arg| arg == "--compact") { return compact_run(); }
     let db = Connection::open("../parity.sqlite")?;
     let cases: Vec<Value> = serde_json::from_str(&fs::read_to_string("../native-cases.json")?)?;
     let fields = ["title", "content", "description", "tag1", "tag2", "collection"];
@@ -68,3 +69,32 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+
+
+fn compact_run() -> Result<(), Box<dyn Error>> {
+    let db=Connection::open("../compact-parity.sqlite")?;
+    let fields=["title","content","description","tag1","tag2","collection"];
+    let terms=["C++","c++","abcd","*x?","[literal]","😀a😀","100%","under_score","\\","[]"];
+    let mut count=0;
+    for field in fields {
+        let table=format!("f_{field}");
+        let records=db.prepare(&format!("SELECT rowid,value FROM {table} ORDER BY rowid"))?.query_map([],|row|Ok((row.get::<_,i64>(0)?,row.get::<_,String>(1)?)))?.collect::<Result<Vec<_>,_>>()?;
+        for term in terms {
+            let expected:Vec<i64>=records.iter().filter(|(_,value)|value.contains(term)).map(|(id,_)|*id).collect();
+            let points:Vec<char>=term.chars().collect();
+            let mut trigrams=Vec::new();
+            for window in points.windows(3) {trigrams.push(window.iter().collect::<String>());}
+            trigrams.sort();trigrams.dedup();
+            let expression=trigrams.iter().map(|gram|format!("\"{}\"",gram.replace('"',"\"\""))).collect::<Vec<_>>().join(" AND ");
+            let sql=if points.len()>=3 {format!("SELECT rowid FROM {table} WHERE {table} MATCH ? AND instr(value,?)>0 ORDER BY rowid")}else{format!("SELECT rowid FROM {table} WHERE instr(value,?)>0 ORDER BY rowid")};
+            let parameters=if points.len()>=3 {vec![expression.as_str(),term]}else{vec![term]};
+            let actual=db.prepare(&sql)?.query_map(params_from_iter(parameters),|row|row.get::<_,i64>(0))?.collect::<Result<Vec<_>,_>>()?;
+            assert_eq!(actual,expected,"{field} {term}");count+=1;
+        }
+    }
+    let version:String=db.query_row("SELECT sqlite_version()",[],|row|row.get(0))?;
+    let result=json!({"rusqlite":"0.40.2","sqlite":version,"compactChecks":count,"includesFalsePositiveRecheck":true});
+    fs::write("../compact-native-results.json",serde_json::to_string_pretty(&result)?)?;
+    println!("Passed {count} native compact-index predicate checks.");
+    Ok(())
+}

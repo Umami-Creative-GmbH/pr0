@@ -125,3 +125,63 @@ This positional/posting design is now a specific candidate with semantic and bou
 The final addendum supersedes the preliminary design questions above: after the human accepts the shared derived SQLite candidate, adaptive representation, revision fencing, cache budgets and revised provisional disk, this research can resolve as **feasible candidate selection**. No additional open-ended research ticket is required merely because production integration and supported-hardware release tests have not been performed. Conversely, this report does not make that human choice or certify those tests. The two decisions awaiting acceptance are the added server-side derived SQLite index and the provisional disk change; the proposed technical details make them concrete and reviewable.
 
 Run the addendum's field-fts.mjs after cache-persistence.mjs creates the ignored bitmap cache; run optimize.mjs afterward, then rerun the native checker for its per-field checks. The final recorded native run passed 522 distinct per-field cases in addition to the 39 end-to-end query cases.
+
+## Final compact-index comparison: supersedes the positional/128 GiB proposal
+
+A follow-up requested a smaller design rather than assuming the full positional index was necessary. **Recommend compact per-field trigram indexes with exact verification and ordered, bounded body fetches. Keep the same search semantics and 150 ms end-to-end target. Recommend 64 GiB as the provisional disk for validating the 10 GiB aggregate workload; do not require 128 GiB.** A smaller initial deployment can start with 40 GiB and expand under the existing operating policy. Actual allocation remains the deployment decision.
+
+### Selected query mechanics
+
+Use one external-content FTS5 table per field class with `trigram case_sensitive 1`, `detail=none`, and `columnsize=0`. The normalized source values remain authoritative for matching; separate field tables preserve field membership despite omitted column positions. For terms longer than three code points, generate their unique overlapping three-code-point grams, quote each gram by doubling embedded quotes, AND those grams, and then verify literal substring occurrence. Nonpositional gram conjunctions can have false positives and must never replace that last check. A three-code-point term is itself one exact per-field trigram; one/two-code-point terms use the already specified exact adaptive postings.
+
+SQLite documents that `detail=none` omits positions and column filters, and that reduced-detail trigram MATCH cannot directly query a token longer than three code points. This design asks MATCH only for individual trigrams. An escaped literal GLOB path also passed the fixtures, but it is **not the selected query method**: explicit gram candidates plus exact substring verification make the boundary and shared Rust/Bun behavior clearer. [SQLite reduced-detail restrictions](https://www.sqlite.org/fts5.html#the_detail_option).
+
+Compute eligibility candidates using AND across terms and OR across fields. For explicit sorts, walk candidates in the complete accepted sort order and verify eligibility before accepting each row. For relevance, either establish the exact tier first or use an optimistic best-possible tier from per-field candidates, plus the complete deterministic tie tuple. Maintain the best verified page. Stop only when the best possible key of every unexamined candidate cannot outrank the last verified result. A failed positional verification can move a candidate to a worse tier or exclude it; it cannot justify discarding unseen candidates. Never take an arbitrary candidate limit before ranking.
+
+Read normalized values in ordered batches of at most **64 candidates or 4 MiB**, using persisted value-byte metadata to enforce the byte bound. Read a candidate body once, evaluate all remaining terms against that value, and discard it after the batch; do not create a full-library text cache. Evaluate exact short/three-code-point field hits and cached title metadata first. Preserve the existing 256 MiB desktop / 512 MiB aggregate server search-cache budgets, versioned normalization, adaptive postings, and PostgreSQL-revision fencing from the addendum. Only the positional-index representation and provisional disk recommendation change.
+
+The two-field capacity prototype can establish exact tiers from title metadata because all remaining matches are content-only. The full implementation must cover organization and description tiers, filters, dates/null handling, and their optimistic-bound ordering proof. This is a specified correctness requirement, not a claim those extensions were implemented. Early stopping is valid only with that proof; scanning all remaining candidates is always a correct fallback and remains subject to performance gates.
+
+### Measured storage
+
+Both datasets contain exactly 10,000 prompts and 100 MiB of title/content. The first is the previous deterministic noisy-letter corpus. The second is explicitly **synthetic prose-like text**, built from seven instruction-sentence templates plus varying reference/section numbers, repeated to the same sizes. It is not actual user data and must not be described as a representative prompt distribution. Both are already normalized; Unicode normalization expansion and organization-field replication are not included.
+
+| Component | Noisy corpus | Synthetic prose-like corpus |
+| --- | --: | --: |
+| Compact FTS index only, used pages | 77.05 MiB | 4.19 MiB |
+| Normalized source table/schema, used pages | 117.28 MiB | 117.28 MiB |
+| Derived database total, used pages | 194.33 MiB | 121.47 MiB |
+| Actual file after build/optimization, including free pages | 209,022,976 bytes | 131,526,656 bytes |
+| Exact short-posting bitmap payload, separately measured | 1.02 MiB | 0.56 MiB |
+| Compact index build and optimization | 18.7 seconds | 1.7 seconds |
+
+The previous optimized full positional index alone occupied **508.6 MiB** on the noisy corpus. Compact indexing reduces that component by about **85%**, while retaining exact eligibility through verification. Short-posting payload numbers exclude their dictionary/persistence overhead. Used-page totals exclude WAL, backups and rebuild scratch space. [Compact measurements](search-parity/compact-results.json).
+
+Scaling only the noisy fixture linearly, 10 GiB of logical text implies about **19.4 GiB of used derived SQLite pages**, or about **19.9 GiB including this build's free pages**, plus short postings and metadata. Add roughly 10 GiB of canonical PostgreSQL text as a conceptual starting allowance, then its row/index/TOAST overhead, WAL, operations/change history, normalization inflation, organization projections, backups and rebuild reserve. Canonical physical size was not remeasured in this comparison. The synthetic prose derivative scales to approximately 12.1 GiB before those additions; actual PostgreSQL compression may differ radically and is not assumed.
+
+These are workload extrapolations, not capacity guarantees. At 40 GiB, the existing 70% alert and 80% expansion thresholds are 28/32 GiB, leaving little room beyond the noisy fixture's canonical-plus-derived starting allowance. At 64 GiB they are 44.8/51.2 GiB, making **64 GiB a defensible provisional validation allocation with useful headroom**. Rebuild one bounded library at a time rather than duplicating every index simultaneously. Measure actual high-cardinality Unicode, field multiplicity, persistent operation growth and WAL/rebuild peaks, and expand before the existing threshold. No promise is made that every permitted distribution fits 64 GiB or that all 1,000 accounts reserve their maximum quota.
+
+### Measured query outcomes
+
+The comparison retained the original machine/runtime and 20 samples after one warmup, with a **64 MiB SQLite page-cache setting**. OS caches were warm/uncontrolled. Timing includes candidate generation, exact checks, ranking, and identifier selection, but excludes HTTP/network, UI/debounce, authentication and production concurrency. Full text retained by the independent oracle is outside the tested query algorithm; no process-RSS claim follows from this harness.
+
+Simple per-term full scans were rejected: the synthetic prose two-term query took 126 ms p95 before network/UI. A fused all-candidate SQL check was also insufficient for broad complex queries: its 197-code-point query took 261 ms p95. Ordered exact verification and bounded batching avoid repeatedly scanning every qualifying body.
+
+| Relevance query                | Final noisy p95 | Final synthetic prose p95 |
+| ------------------------------ | --------------: | ------------------------: |
+| absent one-code-point `🫠`     |         0.64 ms |                   0.13 ms |
+| common one-code-point `a`      |         1.84 ms |                   0.96 ms |
+| common long term `common`      |         4.90 ms |                   4.03 ms |
+| cross-field `prompt common`    |         8.95 ms |                  10.04 ms |
+| absent `zzzzzz`                |        53.18 ms |                   0.38 ms |
+| 197-code-point / 25-term query |        16.12 ms |                  77.09 ms |
+
+The noisy `zzzzzz` query produced **4,283 false-positive candidates** and verified all of them to return no rows; none was dropped through a candidate cap. The common and cross-field queries verified 50 eligible rows in a provably complete order before stopping. The long prose query had 10,000 coarse candidates, all 25 terms common, and verified 50 results. Title sort was measured as well; raw per-case outputs include both sorts. [Ordered/batched final timings](search-parity/compact-batched-results.json), [fused and point-read comparisons](search-parity/compact-ordered-results.json).
+
+Correctness evidence: **1,368 compact per-field assertions** comparing both candidate-plus-instr and literal GLOB with an independent substring oracle, including punctuation, supplementary Unicode, long terms and a deliberate `abcXXbcd` false positive for `abcd`. All benchmark title/relevance outputs were checked against full-text oracle results. The pinned Rust build passed **60 compact predicate cases**, including that false-positive rejection; it still consumes normalized fixtures rather than implementing production normalization. [Native compact results](search-parity/compact-native-results.json).
+
+The final candidate gives meaningful room for the end-to-end budget in measured common cases and materially reduces disk requirements. The 77 ms complex-query and 53 ms false-positive cases leave less room, especially after the agreed 50 ms network condition and on slower hardware. Do not certify 150 ms from these measurements. Retain the unchanged supported-hardware, cold-start, full-field/ranking/filter, concurrency, mutation/crash, high-cardinality and worst-case multi-term release gates. A distribution containing many nonpositional false positives can still require inspecting the full eligible library. Batched verification preserves correctness under that workload; its cost must be measured rather than concealed by truncation or weaker matching.
+
+### Reproduction and scope
+
+After the earlier fixture exists, run `bun docs/research/search-parity/compact.mjs`. Run `compact-ordered.mjs` normally for fused/point-read comparisons and with `COMPACT_BATCH=1` for the final batched path. Run `cargo run --locked --release -- --compact` from the native harness directory. All databases are generated research files; no production schema or dependency changed. This section supersedes the earlier recommendation of full positional indexing and a 128 GiB provisional disk. It completes a bounded candidate comparison; production implementation and release testing remain subsequent work.
