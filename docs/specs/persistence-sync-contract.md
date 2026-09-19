@@ -6,7 +6,7 @@ Status: architecture decision specification for [Choose persistence, synchroniza
 
 The canonical product inputs are [prompt lifecycle](https://github.com/Umami-Creative-GmbH/pr0/issues/4#issuecomment-5742392967), [account access](https://github.com/Umami-Creative-GmbH/pr0/issues/5#issuecomment-5742474484), [offline reconciliation](https://github.com/Umami-Creative-GmbH/pr0/issues/6#issuecomment-5742539348), [retrieval](https://github.com/Umami-Creative-GmbH/pr0/issues/7#issuecomment-5742642457), and [operating envelope](https://github.com/Umami-Creative-GmbH/pr0/issues/8#issuecomment-5742705995). Those decisions remain authoritative; this contract supplies their mechanisms and the refinements explicitly accepted in the architecture discussion.
 
-No production feature, operator provisioning, visible version history, collaboration model, or variable substitution is introduced. PostgreSQL, Next.js REST handlers running under Bun, Tauri/Rust, shared contracts/client/UI, and TanStack Query remain the foundation. No Redis is required.
+No production feature, operator provisioning, visible version history, or collaboration model is introduced by this specification. Variable substitution was outside the original decision; the [issue #21 amendment](#variable-substitution-amendment-issue-21) records its subsequent scope and contract rules. PostgreSQL, Next.js REST handlers running under Bun, Tauri/Rust, shared contracts/client/UI, and TanStack Query remain the foundation. No Redis is required.
 
 ## Components and ownership
 
@@ -180,6 +180,20 @@ Index update failure, corruption, an expired catch-up cursor or incompatible nor
 Preflight real file and scratch requirements before snapshot/index migration. On desktop, preserve authoritative SQLite/outbox data and show explicit search preparation or recovery status if its derived index cannot be read; never clear primary data to make an index rebuild succeed. Persisted cold-start, real incremental updates, all organization fields, Unicode-heavy dictionary growth and memory pressure remain release tests.
 
 Search pages are bounded (default 50, maximum 100 rows) and return summaries rather than full prompt bodies. Fetch full text by prompt identity for editing/copying. Bind a page cursor to query/filter/sort, normalization version and library revision. On a changed revision, return `results_changed` and restart from the first page while preserving selection by identity; do not silently mix pages from different orderings. Pagination must not impose a fixed total limit on Recents. Use a separate stable snapshot protocol for bulk library download.
+
+## Variable substitution amendment (issue #21)
+
+Status: approved amendment for [issue #21](https://github.com/Umami-Creative-GmbH/pr0/issues/21), following eleven accepted live decisions and final confirmation of the consolidated specification on 2026-09-19. The [variable substitution and copying specification](variable-substitution-copy.md) supplies the grammar, interaction rules, and acceptance cases. It extends the original issue #10 scope without introducing template-value persistence.
+
+Store prompt templates, including optional `string`/`number` annotations, as ordinary content. Share identical placeholder parsing, first-appearance ordering, repeated-name type aggregation, literal escaping, validation, and one-pass substitution semantics across web and desktop. Malformed placeholders remain literal saved text. Existing literal search operates on stored templates; filled values and clipboard output are not indexed.
+
+Variable values are required, transient client input. Do not persist or synchronize them or substituted output in database records, browser storage, outboxes, receipts, usage metadata, backups, logs, telemetry, URLs, or application-controlled crash attachments. Clear them at the interaction boundaries defined in the linked specification. No new REST operation, durable record, or migration is required. Existing OS clipboard behavior is outside application retention guarantees.
+
+Bound each value and the final expanded output at 256 KiB of UTF-8 text, reject malformed Unicode and NUL, and never truncate. Count repeated substitutions toward the output bound. These are copy-validation limits; the existing stored-content, total-library, and request limits are unchanged. Typed number validation preserves the original decimal text without floating-point conversion.
+
+Use the latest locally available prompt and partition state to check authority, eligibility, and template changes before beginning the write. Desktop Rust retains native authority over clipboard access. Filled values never cross to another account/instance. In-flight clipboard completion stays bound to its originating identity and cannot update the newly selected account. No database transaction spans clipboard access, and an OS write already started cannot be rolled back.
+
+Only a successful write creates the existing prompt-usage operation. Substitution does not edit the stored template, update modification time, or create a new prompt. Clipboard failure retains the values for explicit retry and creates no use; usage-storage failure after clipboard success retains success and retries only usage delivery. Conformance and interaction acceptance cases in the linked specification supplement the existing implementation/release tests. The final readiness decision must link this amendment.
 
 ## Usage and time validation
 
