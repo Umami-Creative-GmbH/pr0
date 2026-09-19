@@ -1,0 +1,18 @@
+# Check out text files with LF on every platform.
+#
+# oxfmt (via ultracite) formats with LF and `oxfmt --check` treats CRLF as a
+# format issue. GitHub's windows-latest runners default to core.autocrlf=true,
+# so without this every file arrived CRLF and `bun run check` failed on the
+# whole repository regardless of what a change touched.
+* text=auto eol=lf
+
+# Keep generated lockfiles diffable but never line-ending-converted.
+bun.lock -text
+Cargo.lock text eol=lf
+
+# Binary assets: never touch these.
+*.png binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
