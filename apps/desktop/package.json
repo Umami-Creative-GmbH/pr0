@@ -1,0 +1,31 @@
+{
+  "name": "@pr0/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --bun vite --port 1420",
+    "build": "bun --bun vite build",
+    "preview": "bun --bun vite preview",
+    "typecheck": "bun --bun tsc --noEmit",
+    "tauri": "bun x --bun --no-install tauri"
+  },
+  "dependencies": {
+    "@pr0/api-client": "workspace:*",
+    "@pr0/ui": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@pr0/typescript-config": "workspace:*",
+    "@tailwindcss/vite": "^4",
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vite": "^8.3.0"
+  }
+}
