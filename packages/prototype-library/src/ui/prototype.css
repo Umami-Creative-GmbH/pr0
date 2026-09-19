@@ -48,6 +48,15 @@
   font-family: var(--font-body);
 }
 
+/* Transparent host for the borderless launcher window. */
+.pr0-window {
+  background: transparent;
+  display: flex;
+  /* stretch, not flex-start: any slack here becomes a see-through strip. */
+  align-items: stretch;
+  justify-content: stretch;
+}
+
 .pr0[data-theme="light"] {
   --app-desk: #e7ecf4;
   --app-bg: #ffffff;
@@ -83,6 +92,43 @@
 .pr0 input::placeholder,
 .pr0 textarea::placeholder {
   color: var(--app-ink-3);
+}
+
+/*
+ * Scrollbars. The native Windows bar is a light chunk against a dark panel and
+ * reads as a system artifact rather than part of the app. Carried from the
+ * design system; the transparent border plus background-clip gives the thumb
+ * breathing room without a track.
+ */
+.pr0 *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.pr0 *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pr0 *::-webkit-scrollbar-thumb {
+  background: var(--app-line-strong);
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background-clip: content-box;
+}
+
+.pr0 *::-webkit-scrollbar-thumb:hover {
+  background: var(--app-ink-3);
+  background-clip: content-box;
+}
+
+.pr0 *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox, which has no pseudo-elements for this. */
+.pr0 * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-line-strong) transparent;
 }
 
 .pr0 :focus-visible {
@@ -999,11 +1045,22 @@
 }
 
 /* The desktop launcher window is the whole surface. */
+/*
+ * The standalone launcher IS the window. It sizes to its content and the
+ * window is resized to match, so no transparent dead space is left around it
+ * and nothing shows through but the panel itself.
+ */
 .pr0-launcher[data-standalone="true"] {
   width: 100%;
-  height: 100vh;
-  border-radius: 16px;
+  height: auto;
+  max-height: 100vh;
+  /* Square, so the panel meets the window edge exactly. A rounded panel in a
+     square window leaves four transparent corners showing whatever is behind. */
+  border-radius: 0;
   animation: none;
+  /* The window is sized to this element, so a CSS shadow would be clipped. */
+  box-shadow: none;
+  overflow: hidden;
 }
 
 .pr0-launcher-head {
@@ -1050,8 +1107,16 @@
   margin: 0;
 }
 
-.pr0-launcher[data-standalone="true"] .pr0-launcher-list {
+.pr0-launcher[data-standalone="true"] > .pr0-dialog {
+  width: 100%;
   max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.pr0-launcher[data-standalone="true"] .pr0-launcher-list {
+  max-height: 340px;
 }
 
 .pr0-launcher-row {

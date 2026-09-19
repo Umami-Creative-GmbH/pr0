@@ -140,6 +140,8 @@
   "shortcut.registered": "Globaler Shortcut: {shortcut}",
   "shortcut.fallback": "Globaler Shortcut belegt — Ausweichbelegung: {shortcut}",
   "shortcut.none": "Kein globaler Shortcut verfügbar",
+  "shortcut.checking": "Globaler Shortcut wird registriert\u2026",
+  "shortcut.failed": "Shortcut-Status nicht lesbar: {message}",
   "shortcut.simulated": "Im Browser simuliert — kein globaler Shortcut",
 
   "debug.heading": "Prototyp-Werkzeuge",
