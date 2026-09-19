@@ -94,6 +94,43 @@
   color: var(--app-ink-3);
 }
 
+/*
+ * Scrollbars. The native Windows bar is a light chunk against a dark panel and
+ * reads as a system artifact rather than part of the app. Carried from the
+ * design system; the transparent border plus background-clip gives the thumb
+ * breathing room without a track.
+ */
+.pr0 *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.pr0 *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pr0 *::-webkit-scrollbar-thumb {
+  background: var(--app-line-strong);
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background-clip: content-box;
+}
+
+.pr0 *::-webkit-scrollbar-thumb:hover {
+  background: var(--app-ink-3);
+  background-clip: content-box;
+}
+
+.pr0 *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox, which has no pseudo-elements for this. */
+.pr0 * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-line-strong) transparent;
+}
+
 .pr0 :focus-visible {
   outline: 2px solid var(--blue-500);
   outline-offset: 2px;
