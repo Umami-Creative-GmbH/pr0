@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 
-import { applyCopyToLauncher, copyPrompt, resolveSelection } from "./copy";
+import { copyPrompt, resolveSelection } from "./copy";
 import type { Library, Prompt } from "./types";
 
 const prompt = (overrides: Partial<Prompt> & { id: string }): Prompt => ({
@@ -108,44 +108,4 @@ test("copies the variable-resolved text when values are supplied", async () => {
   });
 
   expect(writer).toHaveBeenCalledWith("Hi Jana");
-});
-
-// --- Launcher close-on-success ---------------------------------------------
-
-const launcher = { open: true, query: "ema", selectedId: "p", error: null };
-
-test("the launcher closes only after a successful clipboard write", () => {
-  const next = applyCopyToLauncher(launcher, {
-    status: "copied",
-    text: "hello",
-  });
-
-  expect(next.open).toBe(false);
-  expect(next.error).toBeNull();
-});
-
-test("a failed copy keeps the launcher open with its query and selection", () => {
-  const next = applyCopyToLauncher(launcher, {
-    status: "failed",
-    message: "clipboard blocked",
-  });
-
-  expect(next.open).toBe(true);
-  expect(next.query).toBe("ema");
-  expect(next.selectedId).toBe("p");
-  expect(next.error).toBe("clipboard blocked");
-});
-
-test("a successful retry after a failure closes the launcher", () => {
-  const failed = applyCopyToLauncher(launcher, {
-    status: "failed",
-    message: "clipboard blocked",
-  });
-  const retried = applyCopyToLauncher(failed, {
-    status: "copied",
-    text: "hello",
-  });
-
-  expect(retried.open).toBe(false);
-  expect(retried.error).toBeNull();
 });

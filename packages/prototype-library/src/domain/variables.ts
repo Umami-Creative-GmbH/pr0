@@ -1,10 +1,8 @@
 /**
  * PROTOTYPE (issue #9) — `{{variable}}` substitution.
  *
- * NOTE: issue #1 currently lists variable substitution as OUT of MVP scope
- * ("variable-like text remains ordinary prompt content initially"). It is
- * prototyped here because the design explores it; the decision on whether to
- * pull it into scope belongs to the human on issue #9.
+ * Settled on issue #9: variable substitution is IN MVP scope. Issue #1's
+ * "Out of scope" list predates that decision and still needs updating.
  */
 
 const VARIABLE_PATTERN = /\{\{\s*(?<name>[a-zA-Z0-9_]+)\s*\}\}/gu;
