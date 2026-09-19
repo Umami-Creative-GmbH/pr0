@@ -1,0 +1,5 @@
+{
+  "extends": "@pr0/typescript-config/react.json",
+  "compilerOptions": { "paths": { "@pr0/ui/*": ["./src/*"] } },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}
