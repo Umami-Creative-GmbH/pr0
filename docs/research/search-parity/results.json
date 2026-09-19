@@ -1,0 +1,317 @@
+{
+  "versions": {
+    "bun": "1.4.2",
+    "unicode": "17.0",
+    "icu": "78.3",
+    "sqlite": {
+      "version": "3.53.2"
+    },
+    "postgres": [
+      {
+        "version": "PostgreSQL 17.10 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+        "encoding": "UTF8",
+        "collation": "en_US.utf8"
+      }
+    ],
+    "pgTrgm": [
+      {
+        "extversion": "1.6"
+      }
+    ],
+    "caseFoldingSha256": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183"
+  },
+  "cases": 39,
+  "results": [
+    {
+      "query": "",
+      "expected": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18
+      ],
+      "ftsQuery": "",
+      "sqlite": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+      "postgres": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18
+      ]
+    },
+    {
+      "query": " ",
+      "expected": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18
+      ],
+      "ftsQuery": "",
+      "sqlite": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+      "postgres": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18
+      ]
+    },
+    {
+      "query": "a",
+      "expected": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      "ftsQuery": "",
+      "sqlite": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      "postgres": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+    },
+    {
+      "query": "ab",
+      "expected": [12, 14],
+      "ftsQuery": "",
+      "sqlite": [12, 14],
+      "postgres": [12, 14]
+    },
+    {
+      "query": "C++",
+      "expected": [1],
+      "ftsQuery": "\"c++\"",
+      "sqlite": [1],
+      "postgres": [1]
+    },
+    {
+      "query": "++",
+      "expected": [1, 13],
+      "ftsQuery": "",
+      "sqlite": [1, 13],
+      "postgres": [1, 13]
+    },
+    {
+      "query": "100%",
+      "expected": [1],
+      "ftsQuery": "\"100%\"",
+      "sqlite": [1],
+      "postgres": [1]
+    },
+    {
+      "query": "%",
+      "expected": [1, 13],
+      "ftsQuery": "",
+      "sqlite": [1, 13],
+      "postgres": [1, 13]
+    },
+    {
+      "query": "_",
+      "expected": [1, 13],
+      "ftsQuery": "",
+      "sqlite": [1, 13],
+      "postgres": [1, 13]
+    },
+    {
+      "query": "under_score",
+      "expected": [1],
+      "ftsQuery": "\"under_score\"",
+      "sqlite": [1],
+      "postgres": [1]
+    },
+    {
+      "query": "\\",
+      "expected": [1, 13],
+      "ftsQuery": "",
+      "sqlite": [1, 13],
+      "postgres": [1, 13]
+    },
+    {
+      "query": "C:\\temp",
+      "expected": [1],
+      "ftsQuery": "\"c:\\temp\"",
+      "sqlite": [1],
+      "postgres": [1]
+    },
+    {
+      "query": "[",
+      "expected": [1, 13],
+      "ftsQuery": "",
+      "sqlite": [1, 13],
+      "postgres": [1, 13]
+    },
+    {
+      "query": "[draft]",
+      "expected": [1],
+      "ftsQuery": "\"[draft]\"",
+      "sqlite": [1],
+      "postgres": [1]
+    },
+    {
+      "query": "\"",
+      "expected": [1, 13],
+      "ftsQuery": "",
+      "sqlite": [1, 13],
+      "postgres": [1, 13]
+    },
+    {
+      "query": "\"quote\"",
+      "expected": [1],
+      "ftsQuery": "\"\"\"quote\"\"\"",
+      "sqlite": [1],
+      "postgres": [1]
+    },
+    {
+      "query": "OR",
+      "expected": [1, 2, 13],
+      "ftsQuery": "",
+      "sqlite": [1, 2, 13],
+      "postgres": [1, 2, 13]
+    },
+    {
+      "query": "AND",
+      "expected": [1],
+      "ftsQuery": "\"and\"",
+      "sqlite": [1],
+      "postgres": [1]
+    },
+    {
+      "query": "NOT",
+      "expected": [1],
+      "ftsQuery": "\"not\"",
+      "sqlite": [1],
+      "postgres": [1]
+    },
+    {
+      "query": "x%_\\[]\"",
+      "expected": [13],
+      "ftsQuery": "\"x%_\\[]\"\"\"",
+      "sqlite": [13],
+      "postgres": [13]
+    },
+    {
+      "query": "CAFE",
+      "expected": [3, 4],
+      "ftsQuery": "\"cafe\"",
+      "sqlite": [3, 4],
+      "postgres": [3, 4]
+    },
+    {
+      "query": "café",
+      "expected": [3, 4],
+      "ftsQuery": "\"cafe\"",
+      "sqlite": [3, 4],
+      "postgres": [3, 4]
+    },
+    {
+      "query": "uber",
+      "expected": [3],
+      "ftsQuery": "\"uber\"",
+      "sqlite": [3],
+      "postgres": [3]
+    },
+    {
+      "query": "ueber",
+      "expected": [],
+      "ftsQuery": "\"ueber\"",
+      "sqlite": [],
+      "postgres": []
+    },
+    {
+      "query": "strasse",
+      "expected": [3],
+      "ftsQuery": "\"strasse\"",
+      "sqlite": [3],
+      "postgres": [3]
+    },
+    {
+      "query": "ẞ",
+      "expected": [3],
+      "ftsQuery": "",
+      "sqlite": [3],
+      "postgres": [3]
+    },
+    {
+      "query": "σ",
+      "expected": [3],
+      "ftsQuery": "",
+      "sqlite": [3],
+      "postgres": [3]
+    },
+    {
+      "query": "ς",
+      "expected": [3],
+      "ftsQuery": "",
+      "sqlite": [3],
+      "postgres": [3]
+    },
+    {
+      "query": "i",
+      "expected": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13],
+      "ftsQuery": "",
+      "sqlite": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13],
+      "postgres": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13]
+    },
+    {
+      "query": "𐐨",
+      "expected": [3],
+      "ftsQuery": "",
+      "sqlite": [3],
+      "postgres": [3]
+    },
+    {
+      "query": "😀",
+      "expected": [3, 4, 16],
+      "ftsQuery": "",
+      "sqlite": [3, 4, 16],
+      "postgres": [3, 4, 16]
+    },
+    {
+      "query": "😀🦊",
+      "expected": [4],
+      "ftsQuery": "",
+      "sqlite": [4],
+      "postgres": [4]
+    },
+    {
+      "query": "German email",
+      "expected": [5, 6, 7, 8, 9, 10],
+      "ftsQuery": "\"german\" AND \"email\"",
+      "sqlite": [5, 6, 7, 8, 9, 10],
+      "postgres": [5, 6, 7, 8, 9, 10]
+    },
+    {
+      "query": "email German",
+      "expected": [5, 6, 7, 8, 9, 10],
+      "ftsQuery": "\"email\" AND \"german\"",
+      "sqlite": [5, 6, 7, 8, 9, 10],
+      "postgres": [5, 6, 7, 8, 9, 10]
+    },
+    {
+      "query": "  German \t email ",
+      "expected": [5, 6, 7, 8, 9, 10],
+      "ftsQuery": "\"german\" AND \"email\"",
+      "sqlite": [5, 6, 7, 8, 9, 10],
+      "postgres": [5, 6, 7, 8, 9, 10]
+    },
+    {
+      "query": "cdef",
+      "expected": [],
+      "ftsQuery": "\"cdef\"",
+      "sqlite": [],
+      "postgres": []
+    },
+    {
+      "query": "abc def",
+      "expected": [12],
+      "ftsQuery": "\"abc\" AND \"def\"",
+      "sqlite": [12],
+      "postgres": [12]
+    },
+    {
+      "query": "summ",
+      "expected": [],
+      "ftsQuery": "\"summ\"",
+      "sqlite": [],
+      "postgres": []
+    },
+    {
+      "query": "",
+      "expected": [4, 15],
+      "ftsQuery": "",
+      "sqlite": [4, 15],
+      "postgres": [4, 15]
+    }
+  ],
+  "scalarOrder": [
+    14, 12, 2, 1, 4, 3, 5, 10, 9, 11, 13, 6, 7, 8, 18, 15, 17, 16
+  ],
+  "utf16Order": [14, 12, 2, 1, 4, 3, 5, 10, 9, 11, 13, 6, 7, 8, 18, 17, 16, 15],
+  "postgresNul": {
+    "code": "ERR_POSTGRES_SERVER_ERROR",
+    "message": "invalid byte sequence for encoding \"UTF8\": 0x00"
+  },
+  "rawShortMatch": [],
+  "quoteOnlyMatch": []
+}

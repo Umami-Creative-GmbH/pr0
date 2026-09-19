@@ -1,0 +1,338 @@
+[
+  {
+    "query": "🫠",
+    "p50": 255.82539999999972,
+    "p95": 366.0356999999999,
+    "max": 731.3130999999998,
+    "plan": [
+      {
+        "QUERY PLAN": [
+          {
+            "Plan": {
+              "Node Type": "Limit",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 0.29,
+              "Total Cost": 6.59,
+              "Plan Rows": 50,
+              "Plan Width": 17,
+              "Actual Startup Time": 260.97,
+              "Actual Total Time": 260.972,
+              "Actual Rows": 0,
+              "Actual Loops": 1,
+              "Shared Hit Blocks": 20000,
+              "Shared Read Blocks": 20155,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Forward",
+                  "Index Name": "bench_title_order",
+                  "Relation Name": "bench",
+                  "Alias": "bench",
+                  "Startup Cost": 0.29,
+                  "Total Cost": 700.47,
+                  "Plan Rows": 5556,
+                  "Plan Width": 17,
+                  "Actual Startup Time": 260.968,
+                  "Actual Total Time": 260.968,
+                  "Actual Rows": 0,
+                  "Actual Loops": 1,
+                  "Filter": "((strpos(title, '🫠'::text) > 0) OR (strpos(content, '🫠'::text) > 0))",
+                  "Rows Removed by Filter": 10000,
+                  "Shared Hit Blocks": 20000,
+                  "Shared Read Blocks": 20155,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            },
+            "Planning": {
+              "Shared Hit Blocks": 0,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0
+            },
+            "Planning Time": 0.122,
+            "Triggers": [],
+            "Execution Time": 261
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "a",
+    "p50": 1.5269000000007509,
+    "p95": 1.7785000000003492,
+    "max": 2.0367999999998574,
+    "plan": [
+      {
+        "QUERY PLAN": [
+          {
+            "Plan": {
+              "Node Type": "Limit",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 0.29,
+              "Total Cost": 6.59,
+              "Plan Rows": 50,
+              "Plan Width": 17,
+              "Actual Startup Time": 0.046,
+              "Actual Total Time": 0.672,
+              "Actual Rows": 50,
+              "Actual Loops": 1,
+              "Shared Hit Blocks": 203,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Forward",
+                  "Index Name": "bench_title_order",
+                  "Relation Name": "bench",
+                  "Alias": "bench",
+                  "Startup Cost": 0.29,
+                  "Total Cost": 700.47,
+                  "Plan Rows": 5556,
+                  "Plan Width": 17,
+                  "Actual Startup Time": 0.046,
+                  "Actual Total Time": 0.668,
+                  "Actual Rows": 50,
+                  "Actual Loops": 1,
+                  "Filter": "((strpos(title, 'a'::text) > 0) OR (strpos(content, 'a'::text) > 0))",
+                  "Rows Removed by Filter": 0,
+                  "Shared Hit Blocks": 203,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            },
+            "Planning": {
+              "Shared Hit Blocks": 0,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0
+            },
+            "Planning Time": 0.132,
+            "Triggers": [],
+            "Execution Time": 0.695
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "ab",
+    "p50": 1.6075999999993655,
+    "p95": 2.127599999999802,
+    "max": 2.146199999999226,
+    "plan": [
+      {
+        "QUERY PLAN": [
+          {
+            "Plan": {
+              "Node Type": "Limit",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 0.29,
+              "Total Cost": 6.59,
+              "Plan Rows": 50,
+              "Plan Width": 17,
+              "Actual Startup Time": 0.058,
+              "Actual Total Time": 0.961,
+              "Actual Rows": 50,
+              "Actual Loops": 1,
+              "Shared Hit Blocks": 203,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Forward",
+                  "Index Name": "bench_title_order",
+                  "Relation Name": "bench",
+                  "Alias": "bench",
+                  "Startup Cost": 0.29,
+                  "Total Cost": 700.47,
+                  "Plan Rows": 5556,
+                  "Plan Width": 17,
+                  "Actual Startup Time": 0.058,
+                  "Actual Total Time": 0.956,
+                  "Actual Rows": 50,
+                  "Actual Loops": 1,
+                  "Filter": "((strpos(title, 'ab'::text) > 0) OR (strpos(content, 'ab'::text) > 0))",
+                  "Rows Removed by Filter": 0,
+                  "Shared Hit Blocks": 203,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            },
+            "Planning": {
+              "Shared Hit Blocks": 0,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0
+            },
+            "Planning Time": 0.087,
+            "Triggers": [],
+            "Execution Time": 0.98
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "common",
+    "p50": 1.533000000001266,
+    "p95": 2.0631000000012136,
+    "max": 2.4882999999990716,
+    "plan": [
+      {
+        "QUERY PLAN": [
+          {
+            "Plan": {
+              "Node Type": "Limit",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 0.29,
+              "Total Cost": 6.59,
+              "Plan Rows": 50,
+              "Plan Width": 17,
+              "Actual Startup Time": 0.058,
+              "Actual Total Time": 0.952,
+              "Actual Rows": 50,
+              "Actual Loops": 1,
+              "Shared Hit Blocks": 203,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Plans": [
+                {
+                  "Node Type": "Index Scan",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Scan Direction": "Forward",
+                  "Index Name": "bench_title_order",
+                  "Relation Name": "bench",
+                  "Alias": "bench",
+                  "Startup Cost": 0.29,
+                  "Total Cost": 700.47,
+                  "Plan Rows": 5556,
+                  "Plan Width": 17,
+                  "Actual Startup Time": 0.057,
+                  "Actual Total Time": 0.946,
+                  "Actual Rows": 50,
+                  "Actual Loops": 1,
+                  "Filter": "((strpos(title, 'common'::text) > 0) OR (strpos(content, 'common'::text) > 0))",
+                  "Rows Removed by Filter": 0,
+                  "Shared Hit Blocks": 203,
+                  "Shared Read Blocks": 0,
+                  "Shared Dirtied Blocks": 0,
+                  "Shared Written Blocks": 0,
+                  "Local Hit Blocks": 0,
+                  "Local Read Blocks": 0,
+                  "Local Dirtied Blocks": 0,
+                  "Local Written Blocks": 0,
+                  "Temp Read Blocks": 0,
+                  "Temp Written Blocks": 0
+                }
+              ]
+            },
+            "Planning": {
+              "Shared Hit Blocks": 0,
+              "Shared Read Blocks": 0,
+              "Shared Dirtied Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Dirtied Blocks": 0,
+              "Local Written Blocks": 0,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0
+            },
+            "Planning Time": 0.088,
+            "Triggers": [],
+            "Execution Time": 0.97
+          }
+        ]
+      }
+    ]
+  }
+]

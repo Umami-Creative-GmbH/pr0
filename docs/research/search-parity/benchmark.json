@@ -1,0 +1,956 @@
+{
+  "rows": 10000,
+  "textBytes": 104857600,
+  "sqliteIndexMs": 47551.44500000001,
+  "pgIndexMs": 33580.6746,
+  "pgSize": [
+    {
+      "total": "433 MB",
+      "indexes": "195 MB"
+    }
+  ],
+  "sqlitePages": {
+    "page_count": 143154
+  },
+  "sqlitePageSize": {
+    "page_size": 4096
+  },
+  "timings": [
+    {
+      "query": "🫠",
+      "sqliteMs": {
+        "min": 104.94449999999779,
+        "p50": 112.1371000000072,
+        "p95": 161.1082999999926,
+        "max": 209.3905999999988
+      },
+      "postgresMs": {
+        "min": 240.96940000000177,
+        "p50": 900.8525999999983,
+        "p95": 1063.7900999999983,
+        "max": 1189.6491999999998
+      },
+      "resultCount": 0,
+      "pgPlan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 330.2,
+                "Total Cost": 330.31,
+                "Plan Rows": 44,
+                "Plan Width": 17,
+                "Actual Startup Time": 256.748,
+                "Actual Total Time": 256.75,
+                "Actual Rows": 0,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 20000,
+                "Shared Read Blocks": 20104,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 330.2,
+                    "Total Cost": 330.31,
+                    "Plan Rows": 44,
+                    "Plan Width": 17,
+                    "Actual Startup Time": 256.745,
+                    "Actual Total Time": 256.746,
+                    "Actual Rows": 0,
+                    "Actual Loops": 1,
+                    "Sort Key": ["title COLLATE \"C\"", "id"],
+                    "Sort Method": "quicksort",
+                    "Sort Space Used": 25,
+                    "Sort Space Type": "Memory",
+                    "Shared Hit Blocks": 20000,
+                    "Shared Read Blocks": 20104,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "bench",
+                        "Alias": "bench",
+                        "Startup Cost": 0,
+                        "Total Cost": 329,
+                        "Plan Rows": 44,
+                        "Plan Width": 17,
+                        "Actual Startup Time": 256.732,
+                        "Actual Total Time": 256.733,
+                        "Actual Rows": 0,
+                        "Actual Loops": 1,
+                        "Filter": "((search_text ~~ '%🫠%'::text) AND ((strpos(title, '🫠'::text) > 0) OR (strpos(content, '🫠'::text) > 0)))",
+                        "Rows Removed by Filter": 10000,
+                        "Shared Hit Blocks": 20000,
+                        "Shared Read Blocks": 20104,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.137,
+              "Triggers": [],
+              "Execution Time": 256.782
+            }
+          ]
+        }
+      ],
+      "sqlitePlan": [
+        {
+          "id": 4,
+          "parent": 0,
+          "notused": 216,
+          "detail": "SCAN bench"
+        },
+        {
+          "id": 22,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR ORDER BY"
+        }
+      ]
+    },
+    {
+      "query": "🫠x",
+      "sqliteMs": {
+        "min": 105.87540000000445,
+        "p50": 110.06049999999232,
+        "p95": 128.69720000000962,
+        "max": 130.4728000000032
+      },
+      "postgresMs": {
+        "min": 11.754000000000815,
+        "p50": 12.497700000007171,
+        "p95": 13.955100000006496,
+        "max": 14.573099999994156
+      },
+      "resultCount": 0,
+      "pgPlan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 64.82,
+                "Total Cost": 64.84,
+                "Plan Rows": 9,
+                "Plan Width": 17,
+                "Actual Startup Time": 11.041,
+                "Actual Total Time": 11.044,
+                "Actual Rows": 0,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 1702,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 64.82,
+                    "Total Cost": 64.84,
+                    "Plan Rows": 9,
+                    "Plan Width": 17,
+                    "Actual Startup Time": 11.039,
+                    "Actual Total Time": 11.042,
+                    "Actual Rows": 0,
+                    "Actual Loops": 1,
+                    "Sort Key": ["title COLLATE \"C\"", "id"],
+                    "Sort Method": "quicksort",
+                    "Sort Space Used": 25,
+                    "Sort Space Type": "Memory",
+                    "Shared Hit Blocks": 1702,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Heap Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "bench",
+                        "Alias": "bench",
+                        "Startup Cost": 21.41,
+                        "Total Cost": 64.68,
+                        "Plan Rows": 9,
+                        "Plan Width": 17,
+                        "Actual Startup Time": 11.03,
+                        "Actual Total Time": 11.031,
+                        "Actual Rows": 0,
+                        "Actual Loops": 1,
+                        "Recheck Cond": "(search_text ~~ '%🫠x%'::text)",
+                        "Rows Removed by Index Recheck": 399,
+                        "Filter": "((strpos(title, '🫠x'::text) > 0) OR (strpos(content, '🫠x'::text) > 0))",
+                        "Rows Removed by Filter": 0,
+                        "Exact Heap Blocks": 102,
+                        "Lossy Heap Blocks": 0,
+                        "Shared Hit Blocks": 1702,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Index Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Index Name": "bench_trgm",
+                            "Startup Cost": 0,
+                            "Total Cost": 21.41,
+                            "Plan Rows": 16,
+                            "Plan Width": 0,
+                            "Actual Startup Time": 0.051,
+                            "Actual Total Time": 0.052,
+                            "Actual Rows": 399,
+                            "Actual Loops": 1,
+                            "Index Cond": "(search_text ~~ '%🫠x%'::text)",
+                            "Shared Hit Blocks": 4,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 1,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.203,
+              "Triggers": [],
+              "Execution Time": 11.132
+            }
+          ]
+        }
+      ],
+      "sqlitePlan": [
+        {
+          "id": 4,
+          "parent": 0,
+          "notused": 216,
+          "detail": "SCAN bench"
+        },
+        {
+          "id": 22,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR ORDER BY"
+        }
+      ]
+    },
+    {
+      "query": "a",
+      "sqliteMs": {
+        "min": 59.87950000001001,
+        "p50": 88.4369000000006,
+        "p95": 103.21369999999297,
+        "max": 103.23549999999523
+      },
+      "postgresMs": {
+        "min": 938.9845999999816,
+        "p50": 985.6966999999859,
+        "p95": 1043.3537999999971,
+        "max": 1047.1579000000056
+      },
+      "resultCount": 50,
+      "pgPlan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 513.53,
+                "Total Cost": 513.66,
+                "Plan Rows": 50,
+                "Plan Width": 17,
+                "Actual Startup Time": 523.495,
+                "Actual Total Time": 523.501,
+                "Actual Rows": 50,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 50000,
+                "Shared Read Blocks": 30104,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 513.53,
+                    "Total Cost": 527.42,
+                    "Plan Rows": 5555,
+                    "Plan Width": 17,
+                    "Actual Startup Time": 523.493,
+                    "Actual Total Time": 523.496,
+                    "Actual Rows": 50,
+                    "Actual Loops": 1,
+                    "Sort Key": ["title COLLATE \"C\"", "id"],
+                    "Sort Method": "top-N heapsort",
+                    "Sort Space Used": 28,
+                    "Sort Space Type": "Memory",
+                    "Shared Hit Blocks": 50000,
+                    "Shared Read Blocks": 30104,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "bench",
+                        "Alias": "bench",
+                        "Startup Cost": 0,
+                        "Total Cost": 329,
+                        "Plan Rows": 5555,
+                        "Plan Width": 17,
+                        "Actual Startup Time": 0.086,
+                        "Actual Total Time": 521.919,
+                        "Actual Rows": 10000,
+                        "Actual Loops": 1,
+                        "Filter": "((search_text ~~ '%a%'::text) AND ((strpos(title, 'a'::text) > 0) OR (strpos(content, 'a'::text) > 0)))",
+                        "Rows Removed by Filter": 0,
+                        "Shared Hit Blocks": 50000,
+                        "Shared Read Blocks": 30104,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.203,
+              "Triggers": [],
+              "Execution Time": 523.523
+            }
+          ]
+        }
+      ],
+      "sqlitePlan": [
+        {
+          "id": 4,
+          "parent": 0,
+          "notused": 216,
+          "detail": "SCAN bench"
+        },
+        {
+          "id": 22,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR ORDER BY"
+        }
+      ]
+    },
+    {
+      "query": "ab",
+      "sqliteMs": {
+        "min": 66.14879999999539,
+        "p50": 97.81059999999707,
+        "p95": 118.09359999999288,
+        "max": 125.88850000000093
+      },
+      "postgresMs": {
+        "min": 964.2181000000273,
+        "p50": 1009.4035000000149,
+        "p95": 1155.3064000000013,
+        "max": 1165.5619000000006
+      },
+      "resultCount": 50,
+      "pgPlan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 365.91,
+                "Total Cost": 366.03,
+                "Plan Rows": 50,
+                "Plan Width": 17,
+                "Actual Startup Time": 564.465,
+                "Actual Total Time": 564.471,
+                "Actual Rows": 50,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 50000,
+                "Shared Read Blocks": 30104,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 365.91,
+                    "Total Cost": 368.68,
+                    "Plan Rows": 1111,
+                    "Plan Width": 17,
+                    "Actual Startup Time": 564.462,
+                    "Actual Total Time": 564.465,
+                    "Actual Rows": 50,
+                    "Actual Loops": 1,
+                    "Sort Key": ["title COLLATE \"C\"", "id"],
+                    "Sort Method": "top-N heapsort",
+                    "Sort Space Used": 28,
+                    "Sort Space Type": "Memory",
+                    "Shared Hit Blocks": 50000,
+                    "Shared Read Blocks": 30104,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Seq Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "bench",
+                        "Alias": "bench",
+                        "Startup Cost": 0,
+                        "Total Cost": 329,
+                        "Plan Rows": 1111,
+                        "Plan Width": 17,
+                        "Actual Startup Time": 0.084,
+                        "Actual Total Time": 562.876,
+                        "Actual Rows": 10000,
+                        "Actual Loops": 1,
+                        "Filter": "((search_text ~~ '%ab%'::text) AND ((strpos(title, 'ab'::text) > 0) OR (strpos(content, 'ab'::text) > 0)))",
+                        "Rows Removed by Filter": 0,
+                        "Shared Hit Blocks": 50000,
+                        "Shared Read Blocks": 30104,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.15,
+              "Triggers": [],
+              "Execution Time": 564.494
+            }
+          ]
+        }
+      ],
+      "sqlitePlan": [
+        {
+          "id": 4,
+          "parent": 0,
+          "notused": 216,
+          "detail": "SCAN bench"
+        },
+        {
+          "id": 22,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR ORDER BY"
+        }
+      ]
+    },
+    {
+      "query": "common",
+      "sqliteMs": {
+        "min": 69.31110000002082,
+        "p50": 104.4723000000231,
+        "p95": 120.92190000001574,
+        "max": 131.65659999998752
+      },
+      "postgresMs": {
+        "min": 340.7392000000109,
+        "p50": 385.18919999999343,
+        "p95": 433.8837000000058,
+        "max": 528.8521999999939
+      },
+      "resultCount": 50,
+      "pgPlan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 95.88,
+                "Total Cost": 95.88,
+                "Plan Rows": 2,
+                "Plan Width": 17,
+                "Actual Startup Time": 364.538,
+                "Actual Total Time": 364.557,
+                "Actual Rows": 50,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 50005,
+                "Shared Read Blocks": 30124,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 95.88,
+                    "Total Cost": 95.88,
+                    "Plan Rows": 2,
+                    "Plan Width": 17,
+                    "Actual Startup Time": 364.536,
+                    "Actual Total Time": 364.539,
+                    "Actual Rows": 50,
+                    "Actual Loops": 1,
+                    "Sort Key": ["title COLLATE \"C\"", "id"],
+                    "Sort Method": "top-N heapsort",
+                    "Sort Space Used": 28,
+                    "Sort Space Type": "Memory",
+                    "Shared Hit Blocks": 50005,
+                    "Shared Read Blocks": 30124,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Heap Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "bench",
+                        "Alias": "bench",
+                        "Startup Cost": 85.33,
+                        "Total Cost": 95.87,
+                        "Plan Rows": 2,
+                        "Plan Width": 17,
+                        "Actual Startup Time": 1.096,
+                        "Actual Total Time": 363.108,
+                        "Actual Rows": 10000,
+                        "Actual Loops": 1,
+                        "Recheck Cond": "(search_text ~~ '%common%'::text)",
+                        "Rows Removed by Index Recheck": 0,
+                        "Filter": "((strpos(title, 'common'::text) > 0) OR (strpos(content, 'common'::text) > 0))",
+                        "Rows Removed by Filter": 0,
+                        "Exact Heap Blocks": 104,
+                        "Lossy Heap Blocks": 0,
+                        "Shared Hit Blocks": 50005,
+                        "Shared Read Blocks": 30124,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Index Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Index Name": "bench_trgm",
+                            "Startup Cost": 0,
+                            "Total Cost": 85.33,
+                            "Plan Rows": 3,
+                            "Plan Width": 0,
+                            "Actual Startup Time": 1.018,
+                            "Actual Total Time": 1.019,
+                            "Actual Rows": 10000,
+                            "Actual Loops": 1,
+                            "Index Cond": "(search_text ~~ '%common%'::text)",
+                            "Shared Hit Blocks": 5,
+                            "Shared Read Blocks": 20,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 0,
+                "Shared Read Blocks": 1,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.152,
+              "Triggers": [],
+              "Execution Time": 364.622
+            }
+          ]
+        }
+      ],
+      "sqlitePlan": [
+        {
+          "id": 4,
+          "parent": 0,
+          "notused": 91,
+          "detail": "SEARCH bench USING INTEGER PRIMARY KEY (rowid=?)"
+        },
+        {
+          "id": 8,
+          "parent": 0,
+          "notused": 0,
+          "detail": "LIST SUBQUERY 1"
+        },
+        {
+          "id": 10,
+          "parent": 8,
+          "notused": 156,
+          "detail": "SCAN bench_fts VIRTUAL TABLE INDEX 0:M1"
+        },
+        {
+          "id": 41,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR ORDER BY"
+        }
+      ]
+    },
+    {
+      "query": "zzzzzz",
+      "sqliteMs": {
+        "min": 0.5619000000006054,
+        "p50": 0.5801999999966938,
+        "p95": 0.8301000000210479,
+        "max": 0.9195999999938067
+      },
+      "postgresMs": {
+        "min": 110.82360000000335,
+        "p50": 114.59209999997984,
+        "p95": 117.77540000001318,
+        "max": 118.44139999998151
+      },
+      "resultCount": 0,
+      "pgPlan": [
+        {
+          "QUERY PLAN": [
+            {
+              "Plan": {
+                "Node Type": "Limit",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 31.89,
+                "Total Cost": 31.9,
+                "Plan Rows": 2,
+                "Plan Width": 17,
+                "Actual Startup Time": 114.878,
+                "Actual Total Time": 114.882,
+                "Actual Rows": 0,
+                "Actual Loops": 1,
+                "Shared Hit Blocks": 17241,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Sort",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Startup Cost": 31.89,
+                    "Total Cost": 31.9,
+                    "Plan Rows": 2,
+                    "Plan Width": 17,
+                    "Actual Startup Time": 114.876,
+                    "Actual Total Time": 114.879,
+                    "Actual Rows": 0,
+                    "Actual Loops": 1,
+                    "Sort Key": ["title COLLATE \"C\"", "id"],
+                    "Sort Method": "quicksort",
+                    "Sort Space Used": 25,
+                    "Sort Space Type": "Memory",
+                    "Shared Hit Blocks": 17241,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Heap Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Relation Name": "bench",
+                        "Alias": "bench",
+                        "Startup Cost": 21.34,
+                        "Total Cost": 31.88,
+                        "Plan Rows": 2,
+                        "Plan Width": 17,
+                        "Actual Startup Time": 114.868,
+                        "Actual Total Time": 114.869,
+                        "Actual Rows": 0,
+                        "Actual Loops": 1,
+                        "Recheck Cond": "(search_text ~~ '%zzzzzz%'::text)",
+                        "Rows Removed by Index Recheck": 4283,
+                        "Filter": "((strpos(title, 'zzzzzz'::text) > 0) OR (strpos(content, 'zzzzzz'::text) > 0))",
+                        "Rows Removed by Filter": 0,
+                        "Exact Heap Blocks": 104,
+                        "Lossy Heap Blocks": 0,
+                        "Shared Hit Blocks": 17241,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0,
+                        "Plans": [
+                          {
+                            "Node Type": "Bitmap Index Scan",
+                            "Parent Relationship": "Outer",
+                            "Parallel Aware": false,
+                            "Async Capable": false,
+                            "Index Name": "bench_trgm",
+                            "Startup Cost": 0,
+                            "Total Cost": 21.34,
+                            "Plan Rows": 3,
+                            "Plan Width": 0,
+                            "Actual Startup Time": 0.193,
+                            "Actual Total Time": 0.194,
+                            "Actual Rows": 4283,
+                            "Actual Loops": 1,
+                            "Index Cond": "(search_text ~~ '%zzzzzz%'::text)",
+                            "Shared Hit Blocks": 5,
+                            "Shared Read Blocks": 0,
+                            "Shared Dirtied Blocks": 0,
+                            "Shared Written Blocks": 0,
+                            "Local Hit Blocks": 0,
+                            "Local Read Blocks": 0,
+                            "Local Dirtied Blocks": 0,
+                            "Local Written Blocks": 0,
+                            "Temp Read Blocks": 0,
+                            "Temp Written Blocks": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "Planning": {
+                "Shared Hit Blocks": 1,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              },
+              "Planning Time": 0.146,
+              "Triggers": [],
+              "Execution Time": 114.924
+            }
+          ]
+        }
+      ],
+      "sqlitePlan": [
+        {
+          "id": 4,
+          "parent": 0,
+          "notused": 91,
+          "detail": "SEARCH bench USING INTEGER PRIMARY KEY (rowid=?)"
+        },
+        {
+          "id": 8,
+          "parent": 0,
+          "notused": 0,
+          "detail": "LIST SUBQUERY 1"
+        },
+        {
+          "id": 10,
+          "parent": 8,
+          "notused": 156,
+          "detail": "SCAN bench_fts VIRTUAL TABLE INDEX 0:M1"
+        },
+        {
+          "id": 41,
+          "parent": 0,
+          "notused": 0,
+          "detail": "USE TEMP B-TREE FOR ORDER BY"
+        }
+      ]
+    }
+  ]
+}
