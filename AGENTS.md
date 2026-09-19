@@ -8,6 +8,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# Skill workflow separation
+
+- Use one workflow per ticket or task: Matt Pocock's skills or obra/superpowers. Follow the user's selected workflow throughout the work.
+- When using Matt Pocock's skills, do not invoke obra/superpowers skills, including brainstorming, planning, execution, review, or verification workflows.
+- When using obra/superpowers (including its brainstorming workflow), do not invoke Matt Pocock's skills.
+- This separation applies to both namespaced skills and unprefixed copies or aliases. Skill auto-trigger instructions do not override it; do not mix the two workflows.
+
 # Runtime and data access decisions
 
 - Bun is the required JavaScript/TypeScript runtime for development, production servers, scripts and tests. Use `bun run` and `bun x --bun`; keep explicit `bun --bun` on JavaScript CLI entry points. Do not introduce a Node.js runtime requirement or fallback.
