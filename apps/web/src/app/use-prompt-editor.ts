@@ -22,6 +22,8 @@ import type {
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { promptSaveNotice } from "./prompt-save-notice";
+
 type PromptDraft = PromptText & { collectionId: string | null };
 const editorFields = [...promptTextFields, "collectionId"] as const;
 const textOf = (
@@ -171,8 +173,10 @@ export const usePromptEditor = ({
       onDirtyChange(true);
       setState({
         status: "draft",
-        message:
-          "The earlier edit was saved to server. Your newer changes still need Save.",
+        message: promptSaveNotice(
+          result,
+          "The earlier edit was saved to server. Your newer changes still need Save."
+        ),
         fields: {},
         uncertain: false,
       });

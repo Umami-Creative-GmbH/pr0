@@ -24,6 +24,7 @@ import { PromptConflicts } from "./prompt-conflicts";
 import { PromptEditor } from "./prompt-editor";
 import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 import { PromptResults, PromptViewNavigation } from "./prompt-results";
+import { promptSaveNotice } from "./prompt-save-notice";
 import { usePromptActions } from "./use-prompt-actions";
 import type { PromptAction } from "./use-prompt-actions";
 import { usePromptSelection } from "./use-prompt-selection";
@@ -269,11 +270,7 @@ export const PromptLibrary = ({
     restoreFocus.current = true;
     setEditing(null);
     setSelected(receipt.conflict?.copyId ?? receipt.promptId);
-    setNotice(
-      receipt.conflict
-        ? "Saved to server. Competing text was preserved in an independent conflict copy."
-        : `Saved to server.${receipt.organizationNotice ? ` ${receipt.organizationNotice}` : ""}`
-    );
+    setNotice(promptSaveNotice(receipt));
   };
   const accepted = () => {
     void queryClient.invalidateQueries({ queryKey: organizationKey });

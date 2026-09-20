@@ -5,5 +5,5 @@ export const GET = async (
   context: { params: Promise<{ id: string }> }
 ) => {
   const { id } = await context.params;
-  return handlePrompts(request, id);
+  return handlePrompts(request, { kind: "prompt", id });
 };

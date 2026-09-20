@@ -1,4 +1,4 @@
 import { handlePrompts } from "@/server/prompt-http";
 
 export const GET = (request: Request) =>
-  handlePrompts(request, undefined, true);
+  handlePrompts(request, { kind: "conflicts" });

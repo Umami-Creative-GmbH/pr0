@@ -36,6 +36,72 @@ const openLibrary = async (Cookie: string) => {
   return { browser, page };
 };
 
+test.each([false, true])(
+  "competing text and collection saves announce both outcomes (successor draft: %s)",
+  async (successor) => {
+    const account = await promptBrowser();
+    const client = promptClient(account.Cookie);
+    const first = collectionOperation("First choice");
+    const second = collectionOperation("Second choice");
+    const create = promptOperation();
+    await account.mutate([first, second, create]);
+    const source = await client.getPrompt(create.promptId);
+    const { browser, page } = await openLibrary(account.Cookie);
+    let releaseResponse: (() => void) | undefined;
+    // oxlint-disable-next-line promise/avoid-new -- Delay the real acceptance until a successor draft has been entered.
+    const release = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    try {
+      await page
+        .getByRole("button", { name: "Edit prompt", exact: true })
+        .click();
+      await page.getByLabel("Content (required)").fill("My competing text");
+      await page
+        .getByRole("region", { name: "Edit prompt", exact: true })
+        .getByRole("button", {
+          name: "Second choice · 0 total, 0 active, 0 archived",
+          exact: true,
+        })
+        .click();
+      const competing = assignCollection(source, first.collectionId);
+      competing.desired.content = "Another tab's competing text";
+      competing.changedFields.push("content");
+      await account.mutate([competing]);
+      await page.route("**/api/v1/sync/mutations", async (route) => {
+        const response = await route.fetch();
+        await release;
+        await route.fulfill({ response });
+      });
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByText("Saving…", { exact: true }).waitFor();
+      if (successor) {
+        await page
+          .getByLabel("Content (required)")
+          .fill("My newer unsaved text");
+      }
+      releaseResponse?.();
+      const status = page.getByText(
+        /A concurrent collection assignment was superseded by this saved choice\./u
+      );
+      await status.waitFor({ timeout: 5000 });
+      expect(await status.textContent()).toContain("conflict copy");
+      if (successor) {
+        expect(await status.textContent()).toContain(
+          "Your newer changes still need Save."
+        );
+        expect(await page.getByLabel("Content (required)").inputValue()).toBe(
+          "My newer unsaved text"
+        );
+      }
+    } finally {
+      releaseResponse?.();
+      await browser.close();
+    }
+  },
+  60_000
+);
+
 test("all entries and Unused remain reachable at capacity; management retains filter, selection and keyboard focus", async () => {
   const account = await promptBrowser();
   const client = promptClient(account.Cookie);

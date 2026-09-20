@@ -1,3 +1,4 @@
 import { handlePrompts } from "@/server/prompt-http";
 
-export const GET = (request: Request) => handlePrompts(request);
+export const GET = (request: Request) =>
+  handlePrompts(request, { kind: "prompts" });

@@ -100,11 +100,12 @@ const mutate = async (request: Request, browser: BrowserAccount) => {
   }
   return mutationResponseSchema.parse({ results });
 };
+type LibraryRequestTarget =
+  | { kind: "prompts" | "conflicts" | "organization" | "mutations" }
+  | { kind: "prompt"; id: string };
 export const handlePrompts = async (
   request: Request,
-  promptId?: string,
-  conflicts = false,
-  organization = false
+  target: LibraryRequestTarget
 ) => {
   try {
     assertOrigin(request);
@@ -126,25 +127,27 @@ export const handlePrompts = async (
       const browser = { accountId: user.id, sessionId: session.id };
       const url = new URL(request.url);
       let body;
-      if (request.method === "POST") {
+      if (target.kind === "mutations") {
         if (url.search) {
           throw invalidPromptRequest();
         }
         body = await mutate(request, browser);
-      } else if (organization) {
+      } else if (target.kind === "organization") {
         if (url.search) {
           throw invalidPromptRequest();
         }
         body = await getOrganization(browser);
-      } else if (promptId) {
-        if (url.search || !promptIdentitySchema.safeParse(promptId).success) {
+      } else if (target.kind === "prompt") {
+        if (url.search || !promptIdentitySchema.safeParse(target.id).success) {
           throw invalidPromptRequest();
         }
-        body = await getPrompt(browser, promptId);
+        body = await getPrompt(browser, target.id);
       } else {
         const entries = Object.fromEntries(url.searchParams);
         const input = (
-          conflicts ? promptListInputSchema : promptBrowseInputSchema
+          target.kind === "conflicts"
+            ? promptListInputSchema
+            : promptBrowseInputSchema
         ).safeParse({
           ...entries,
           limit:
@@ -156,12 +159,13 @@ export const handlePrompts = async (
         ) {
           throw invalidPromptRequest();
         }
-        body = conflicts
-          ? await listConflicts(browser, input.data.limit, input.data.cursor)
-          : await listPrompts(
-              browser,
-              promptBrowseInputSchema.parse(input.data)
-            );
+        body =
+          target.kind === "conflicts"
+            ? await listConflicts(browser, input.data.limit, input.data.cursor)
+            : await listPrompts(
+                browser,
+                promptBrowseInputSchema.parse(input.data)
+              );
       }
       const headers = new Headers(result.headers);
       headers.set("Cache-Control", "no-store");

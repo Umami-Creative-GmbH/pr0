@@ -133,7 +133,8 @@ export const applyCollection = async (
   const delta = utf8Bytes(name) - (creating ? 0 : utf8Bytes(current.name));
   const [library] =
     await sql`SELECT collection_count, text_bytes::text FROM library WHERE instance_id = ${instanceId} AND account_id = ${accountId}`;
-  const countExceeded = creating && library.collection_count >= 200;
+  const countExceeded =
+    creating && library.collection_count >= promptLimits.collectionCount;
   if (
     countExceeded ||
     (delta > 0 &&

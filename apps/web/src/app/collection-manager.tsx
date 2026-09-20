@@ -2,6 +2,7 @@
 
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type { Collection } from "@pr0/api-contract/prompts";
+import { promptLimits } from "@pr0/api-contract/prompts";
 import { CollectionList } from "@pr0/ui/components/collection-list";
 import { useEffect, useRef, useState } from "react";
 
@@ -127,19 +128,20 @@ export const CollectionManager = ({
         className="space-y-3"
       >
         <p>
-          {collections.length} / 200 collections ·{" "}
+          {collections.length} / {promptLimits.collectionCount} collections ·{" "}
           {(textBytes / 1_048_576).toFixed(2)} / 100 MiB library text
         </p>
         <p className="text-muted-foreground text-sm">
           Counts are library-wide, including the archive, for the available
           snapshot.
         </p>
-        {collections.length >= 180 ? (
+        {collections.length >=
+        promptLimits.collectionCount * promptLimits.warningRatio ? (
           <output>
             Your library is at or above 90% of its 200 collection limit.
           </output>
         ) : null}
-        {textBytes >= 94_371_840 ? (
+        {textBytes >= promptLimits.libraryBytes * promptLimits.warningRatio ? (
           <output>
             Your library is at or above 90% of its 100 MiB text limit.
           </output>

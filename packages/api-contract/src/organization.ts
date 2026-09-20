@@ -1,7 +1,20 @@
 import { z } from "zod";
 
+import { promptLimits } from "./prompts";
 import data from "./unicode17-data.json";
 
+// Unicode UAX #15 algorithmic Hangul decomposition and composition parameters.
+const hangul = {
+  syllableBase: 0xac_00,
+  leadingBase: 0x11_00,
+  vowelBase: 0x11_61,
+  trailingBase: 0x11_a7,
+  leadingCount: 19,
+  vowelCount: 21,
+  trailingCount: 28,
+} as const;
+const hangulBlockCount = hangul.vowelCount * hangul.trailingCount;
+const hangulSyllableCount = hangul.leadingCount * hangulBlockCount;
 const combining: Readonly<Record<number, number>> = data.combining;
 const decompositions: Readonly<Record<number, readonly number[]>> =
   data.decomposition;
@@ -39,17 +52,19 @@ export const organizationNameSchema = z
     "Enter a collection name."
   )
   .refine(
-    (value) => [...trimOrganizationName(value)].length <= 60,
+    (value) =>
+      [...trimOrganizationName(value)].length <= promptLimits.organizationName,
     "Name must be at most 60 Unicode code points."
   );
 const decompose = (cp: number): readonly number[] => {
-  const hangul = cp - 0xac_00;
-  if (hangul >= 0 && hangul < 11_172) {
-    const tail = hangul % 28;
+  const syllable = cp - hangul.syllableBase;
+  if (syllable >= 0 && syllable < hangulSyllableCount) {
+    const tail = syllable % hangul.trailingCount;
     return [
-      0x11_00 + Math.floor(hangul / 588),
-      0x11_61 + Math.floor((hangul % 588) / 28),
-      ...(tail ? [0x11_a7 + tail] : []),
+      hangul.leadingBase + Math.floor(syllable / hangulBlockCount),
+      hangul.vowelBase +
+        Math.floor((syllable % hangulBlockCount) / hangul.trailingCount),
+      ...(tail ? [hangul.trailingBase + tail] : []),
     ];
   }
   return decompositions[cp]?.flatMap(decompose) ?? [cp];
@@ -69,17 +84,26 @@ const nfd = (input: readonly number[]) => {
   return result;
 };
 const composePair = (a: number, b: number) => {
-  if (a >= 0x11_00 && a < 0x11_13 && b >= 0x11_61 && b < 0x11_76) {
-    return 0xac_00 + (a - 0x11_00) * 588 + (b - 0x11_61) * 28;
+  if (
+    a >= hangul.leadingBase &&
+    a < hangul.leadingBase + hangul.leadingCount &&
+    b >= hangul.vowelBase &&
+    b < hangul.vowelBase + hangul.vowelCount
+  ) {
+    return (
+      hangul.syllableBase +
+      (a - hangul.leadingBase) * hangulBlockCount +
+      (b - hangul.vowelBase) * hangul.trailingCount
+    );
   }
   if (
-    a >= 0xac_00 &&
-    a < 0xd7_a4 &&
-    (a - 0xac_00) % 28 === 0 &&
-    b > 0x11_a7 &&
-    b < 0x11_c3
+    a >= hangul.syllableBase &&
+    a < hangul.syllableBase + hangulSyllableCount &&
+    (a - hangul.syllableBase) % hangul.trailingCount === 0 &&
+    b > hangul.trailingBase &&
+    b < hangul.trailingBase + hangul.trailingCount
   ) {
-    return a + b - 0x11_a7;
+    return a + b - hangul.trailingBase;
   }
   return compositions[`${a},${b}`];
 };

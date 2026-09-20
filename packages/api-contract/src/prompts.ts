@@ -6,6 +6,9 @@ export const promptLimits = {
   contentBytes: 262_144,
   libraryBytes: 104_857_600,
   promptCount: 10_000,
+  collectionCount: 200,
+  organizationName: 60,
+  warningRatio: 0.9,
 } as const;
 // Unicode White_Space (stable since Unicode 6.3); deliberately excludes BOM.
 const outerWhitespace =
@@ -154,7 +157,7 @@ export type Collection = z.infer<typeof collectionSchema>;
 export const organizationSnapshotSchema = z.strictObject({
   ...libraryScopeSchema.shape,
   revision: revisionSchema,
-  collections: z.array(collectionSchema).max(200),
+  collections: z.array(collectionSchema).max(promptLimits.collectionCount),
   textBytes: z.number().int().nonnegative(),
 });
 export const promptTextFields = ["title", "description", "content"] as const;

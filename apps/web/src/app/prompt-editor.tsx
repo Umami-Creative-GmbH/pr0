@@ -77,7 +77,7 @@ export const PromptEditor = ({
         </div>
       ) : null}
       {state.status === "draft" && state.message ? (
-        <p>{state.message}</p>
+        <output>{state.message}</output>
       ) : null}
       <p aria-live="polite" className="my-3" ref={statusRef} tabIndex={-1}>
         {statusText}
