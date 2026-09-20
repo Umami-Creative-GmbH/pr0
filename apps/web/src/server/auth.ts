@@ -1,24 +1,43 @@
 import "server-only";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
+import { bearer, deviceAuthorization } from "better-auth/plugins";
 import { drizzle } from "drizzle-orm/bun-sql";
 
 import { assertRegistration } from "./admission";
-import { account, session, user, verification } from "./auth-schema";
+import {
+  account,
+  deviceCode,
+  session,
+  user,
+  verification,
+} from "./auth-schema";
 import { configuration } from "./config";
 import { database } from "./database";
 import { enqueueRecovery, enqueueVerification } from "./mail";
-import { sessionAuthenticationVersion } from "./session-issuance";
+import {
+  sessionAuthenticationVersion,
+  sessionProvenance,
+} from "./session-issuance";
 import { socialAuthentication } from "./social-auth";
 
 const createAuth = () => {
   const config = configuration();
-  const schema = { account, session, user, verification };
+  const schema = { account, deviceCode, session, user, verification };
   return betterAuth({
     baseURL: config.origin,
     secret: config.authSecret,
     trustedOrigins: [config.origin],
-    plugins: [socialAuthentication()],
+    plugins: [
+      socialAuthentication(),
+      bearer(),
+      deviceAuthorization({
+        validateClient: (id) => id === "pr0-desktop",
+        expiresIn: "10m",
+        interval: "5s",
+        verificationUri: `${config.origin}/device`,
+      }),
+    ],
     onAPIError: { errorURL: `${config.origin}/?social=invalid` },
     database: drizzleAdapter(drizzle({ client: database(), schema }), {
       provider: "pg",
@@ -91,6 +110,7 @@ const createAuth = () => {
               data: {
                 ...value,
                 authenticationVersion: sessionAuthenticationVersion(),
+                provenance: sessionProvenance(),
               },
             }),
         },

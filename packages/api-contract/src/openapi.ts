@@ -2,6 +2,7 @@ import type { OpenAPIV3_1 } from "openapi-types";
 import { z } from "zod";
 
 import { accountPaths, accountSchemas } from "./accounts-openapi";
+import { devicePaths, deviceSchemas } from "./device-openapi";
 import { healthPath, healthResponseSchema } from "./health";
 import { promptPaths, promptSchemas } from "./prompts-openapi";
 
@@ -20,6 +21,7 @@ export const openApiDocument = {
     { name: "Prompts", description: "Owned prompt creation and retrieval" },
   ],
   paths: {
+    ...devicePaths,
     ...accountPaths,
     ...promptPaths,
     [healthPath]: {
@@ -43,6 +45,12 @@ export const openApiDocument = {
   },
   components: {
     securitySchemes: {
+      DesktopSession: {
+        type: "http",
+        scheme: "bearer",
+        description:
+          "Independent device-provenance credential. Native HTTPS only.",
+      },
       BrowserSession: {
         type: "apiKey",
         in: "cookie",
@@ -52,6 +60,7 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      ...deviceSchemas,
       ...accountSchemas,
       ...promptSchemas,
       // SAFETY: Zod emits valid JSON Schema 2020-12, supported by OpenAPI 3.1 but typed more narrowly by openapi-types.

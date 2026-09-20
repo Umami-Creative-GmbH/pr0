@@ -1,0 +1,12 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: pr0
+      POSTGRES_PASSWORD: local-social-test-only
+    ports: ["127.0.0.1:55439:5432"]
+    tmpfs: /var/lib/postgresql/data
+  smtp:
+    image: axllent/mailpit@sha256:030f06031ce5c60913ac9363da1ab0d4be6fd2a78147dd0e1ca0fcac665d6b34
+    ports: ["127.0.0.1:18439:8025", "127.0.0.1:11439:1025"]

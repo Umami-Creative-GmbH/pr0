@@ -14,6 +14,7 @@
     "typecheck": "bun --bun next typegen && bun --bun tsc --noEmit",
     "test": "bun test src",
     "test:accounts": "bun --env-file=tests/compose.env test tests/deployment-integration.test.ts",
+    "test:device": "bun --env-file=tests/device.env tests/device-runner.ts",
     "test:collections": "bun --env-file=tests/social.env tests/collections-runner.ts",
     "test:tags": "bun --env-file=tests/social.env tests/tags-runner.ts",
     "test:prompts": "bun --env-file=tests/social.env tests/prompts-runner.ts",

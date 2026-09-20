@@ -29,6 +29,7 @@
         "@tauri-apps/plugin-clipboard-manager": "^2.3.3",
         "react": "19.2.8",
         "react-dom": "19.2.8",
+        "zod": "^4.6.5",
       },
       "devDependencies": {
         "@pr0/typescript-config": "workspace:*",

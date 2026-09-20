@@ -21,15 +21,11 @@ export const runAcceptance = async (
     );
   }
 };
-export const accountTestServer = (project: string) => {
-  const compose = [
-    "docker",
-    "compose",
-    "-p",
-    project,
-    "-f",
-    "apps/web/tests/social-compose.yaml",
-  ];
+export const accountTestServer = (
+  project: string,
+  composeFile = "apps/web/tests/social-compose.yaml"
+) => {
+  const compose = ["docker", "compose", "-p", project, "-f", composeFile];
   let server: ReturnType<typeof Bun.spawn> | undefined;
   let mail: ReturnType<typeof Bun.spawn> | undefined;
   const stopServer = async () => {
@@ -39,7 +35,10 @@ export const accountTestServer = (project: string) => {
       server = undefined;
     }
   };
-  const startServer = async (extra: Record<string, string> = {}) => {
+  const startServer = async (
+    extra: Record<string, string> = {},
+    preloads: string[] = []
+  ) => {
     await stopServer();
     server = Bun.spawn(
       [
@@ -47,10 +46,11 @@ export const accountTestServer = (project: string) => {
         "--bun",
         "--preload",
         path.join(import.meta.dir, "social-provider-preload.ts"),
+        ...preloads.flatMap((file) => ["--preload", file]),
         "node_modules/next/dist/bin/next",
         "start",
         "--port",
-        "30426",
+        new URL(origin).port,
       ],
       {
         cwd: web,
