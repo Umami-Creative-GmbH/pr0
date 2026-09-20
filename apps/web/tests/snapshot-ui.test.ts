@@ -41,6 +41,17 @@ test("partial desktop download remains browsable with honest offline progress an
               }
               downloaded = 1;
             }
+            if (command === "library_upload_status") {
+              return Promise.resolve({
+                waiting: 0,
+                awaitingDownload: 0,
+                error: null,
+                retryAfterMs: 0,
+                errors: [],
+                mappings: [],
+                lastCheckedAt: null,
+              });
+            }
             if (
               command === "library_status" ||
               command === "library_download"

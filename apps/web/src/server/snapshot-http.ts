@@ -1,7 +1,9 @@
 // oxlint-disable react-doctor/server-sequential-independent-await -- Authenticate before account admission and materialization.
 import "server-only";
-import { emptyRequestSchema } from "@pr0/api-contract/accounts";
-import { snapshotPageRequestSchema } from "@pr0/api-contract/snapshots";
+import {
+  snapshotPageRequestSchema,
+  snapshotCreateRequestSchema,
+} from "@pr0/api-contract/snapshots";
 import { z } from "zod";
 
 import { failure, readRequestJson } from "./account-http";
@@ -23,7 +25,7 @@ export const handleSnapshot = async (request: Request, page: boolean) => {
     }
     const input = page
       ? await readRequestJson(request, snapshotPageRequestSchema)
-      : await readRequestJson(request, emptyRequestSchema);
+      : await readRequestJson(request, snapshotCreateRequestSchema);
     return await withRequestWork(async (claimOwner) => {
       const current = await authentication().api.getSession({
         headers: new Headers({ authorization: token }),

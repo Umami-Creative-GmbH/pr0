@@ -174,7 +174,11 @@ impl AuthService {
             &envelope.origin,
             endpoint,
             Some(&envelope.token),
-            Some(body),
+            if matches!(endpoint, Endpoint::Capabilities) {
+                None
+            } else {
+                Some(body)
+            },
         );
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
         if state.generation != generation {
@@ -201,16 +205,21 @@ impl AuthService {
             .download
             .try_lock()
             .map_err(|_| "download_in_progress")?;
-        let (generation, envelope, pending) = {
+        let (generation, envelope, pending, minimum_revision) = {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
             let envelope = state.credential.clone().ok_or("authentication_required")?;
             let generation = state.generation;
             let store = self.library(&mut state)?;
             let status = store.status()?;
-            if status.complete {
+            if status.complete && !store.refresh_required()? {
                 return Ok(status);
             }
-            (generation, envelope, store.pending()?)
+            (
+                generation,
+                envelope,
+                store.pending()?,
+                store.required_download_revision()?,
+            )
         };
         let (manifest, index) = match pending {
             Some((manifest, index)) if !manifest.expired() => (manifest, index),
@@ -219,9 +228,19 @@ impl AuthService {
                     generation,
                     &envelope,
                     Endpoint::Snapshot,
-                    json!({}),
+                    json!({"minimumRevision":minimum_revision}),
                 )?)?;
                 manifest.validate(&envelope.instance_id, &envelope.account_id)?;
+                if manifest
+                    .revision
+                    .parse::<i64>()
+                    .map_err(|_| "invalid_response")?
+                    < minimum_revision
+                        .parse::<i64>()
+                        .map_err(|_| "storage_unavailable")?
+                {
+                    return Err("invalid_response".into());
+                }
                 let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
                 if state.generation != generation {
                     return Err("operation_cancelled".into());

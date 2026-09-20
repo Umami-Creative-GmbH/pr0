@@ -43,6 +43,7 @@ struct State {
     restore_pending: bool,
 }
 pub struct AuthService {
+    upload: Mutex<()>,
     download: Mutex<()>,
     state: Mutex<State>,
     restoration: Mutex<()>,
@@ -55,6 +56,7 @@ fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, String> {
     serde_json::from_value(value).map_err(|_| "invalid_response".into())
 }
 include!("library_commands.rs");
+include!("upload_commands.rs");
 impl State {
     fn view(&self) -> AuthView {
         let identity = self.retained.as_ref().map(|r| &r.identity);
@@ -134,6 +136,7 @@ impl AuthService {
             String::new()
         };
         Ok(Self {
+            upload: Mutex::new(()),
             download: Mutex::new(()),
             restoration: Mutex::new(()),
             state: Mutex::new(State {

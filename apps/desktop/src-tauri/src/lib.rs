@@ -8,6 +8,7 @@ mod library_contract;
 mod library_storage;
 mod local_contract;
 mod local_search;
+mod upload_contract;
 
 use auth::{AuthService, AuthView};
 use auth_storage::WindowsCredentials;
@@ -111,6 +112,8 @@ pub fn run() {
             auth_sign_out,
             library_status,
             library_download,
+            library_upload,
+            library_upload_status,
             library_browse,
             library_detail,
             library_editor,
@@ -132,6 +135,28 @@ pub fn run() {
                     Arc::new(WindowsCredentials::new("pr0:desktop:active:v1".into())),
                 )?))
             })();
+            if let Ok(worker) = &service {
+                let worker = worker.clone();
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let _ = worker.restore();
+                    let mut previous = String::new();
+                    loop {
+                        let _ = worker.library_upload();
+                        let _ = worker.library_download();
+                        let state = serde_json::to_string(&(
+                            worker.library_upload_status(),
+                            worker.library_status(),
+                        ))
+                        .unwrap_or_default();
+                        if state != previous {
+                            let _ = handle.emit("library-changed", ());
+                            previous = state;
+                        }
+                        std::thread::sleep(std::time::Duration::from_secs(3));
+                    }
+                });
+            }
             app.manage(service);
             Ok(())
         })
@@ -139,6 +164,20 @@ pub fn run() {
         .expect("pr0 could not start");
 }
 
+#[tauri::command]
+async fn library_upload_status(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<upload_contract::UploadStatus, String> {
+    dispatch(window, state, AuthService::library_upload_status).await
+}
+#[tauri::command]
+async fn library_upload(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<upload_contract::UploadStatus, String> {
+    dispatch(window, state, AuthService::library_upload).await
+}
 #[tauri::command]
 async fn library_editor(
     window: tauri::WebviewWindow,

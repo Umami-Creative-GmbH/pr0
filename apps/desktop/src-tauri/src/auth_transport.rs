@@ -12,6 +12,8 @@ pub enum Endpoint {
     SignOut,
     Snapshot,
     SnapshotPage,
+    Mutations,
+    Receipts,
 }
 impl Endpoint {
     fn path(self) -> &'static str {
@@ -24,6 +26,8 @@ impl Endpoint {
             Self::SignOut => "/api/v1/desktop/sign-out",
             Self::Snapshot => "/api/v1/sync/snapshots",
             Self::SnapshotPage => "/api/v1/sync/snapshots/page",
+            Self::Mutations => "/api/v1/sync/mutations",
+            Self::Receipts => "/api/v1/sync/receipts",
         }
     }
 }
@@ -85,6 +89,15 @@ impl Transport for HttpsTransport {
         }
         let result = request.send().map_err(|_| "network_unavailable")?;
         let status = result.status();
+        if status.as_u16() == 429 || status.as_u16() == 503 {
+            let delay = result
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(30);
+            return Err(format!("retry_after:{}", delay.clamp(1, 86400)));
+        }
         if status.is_redirection() {
             return Err("redirect_rejected".into());
         }
@@ -99,6 +112,7 @@ impl Transport for HttpsTransport {
         let limit = match endpoint {
             Endpoint::Snapshot => 262144,
             Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
+            Endpoint::Mutations | Endpoint::Receipts => 4_194_304,
             _ => 16384,
         };
         if result

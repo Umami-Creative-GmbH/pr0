@@ -9,6 +9,7 @@ import { AccountFailureError } from "./admission";
 export interface BrowserAccount {
   accountId: string;
   sessionId: string;
+  provenance?: "device";
 }
 export interface AccountState {
   email: string;
@@ -28,7 +29,7 @@ export const lockAccount = async (
     FROM "user" u CROSS JOIN instance i WHERE u.id = ${browser.accountId} AND u.email_verified AND NOT u.deletion_pending FOR UPDATE OF u`;
   const active =
     await tx`SELECT id FROM session WHERE id = ${browser.sessionId} AND user_id = ${browser.accountId}
-    AND provenance = 'browser' AND expires_at > clock_timestamp() FOR UPDATE`;
+    AND provenance = ${browser.provenance ?? "browser"} AND expires_at > clock_timestamp() FOR UPDATE`;
   if (!owner || !active.length) {
     throw new AccountFailureError("unauthenticated", 401);
   }

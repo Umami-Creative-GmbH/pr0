@@ -39,7 +39,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 2 {
+        if version > 3 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -101,6 +101,18 @@ impl LibraryStore {
             .map_err(io)?;
             super::local_search::migrate(&db).map_err(io)?;
             db.execute_batch("COMMIT").map_err(io)?;
+        }
+        if version < 3 {
+            db.execute_batch("BEGIN IMMEDIATE;
+                ALTER TABLE outbox ADD COLUMN envelope TEXT;
+                ALTER TABLE outbox ADD COLUMN receipt TEXT;
+                ALTER TABLE outbox ADD COLUMN error TEXT;
+                ALTER TABLE outbox ADD COLUMN next_attempt INTEGER NOT NULL DEFAULT 0;
+                CREATE TABLE upload_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL DEFAULT 0, error TEXT, refresh INTEGER NOT NULL DEFAULT 0, last_checked TEXT);
+                INSERT INTO upload_state(singleton) VALUES(1);
+                CREATE TABLE prompt_mapping(original TEXT PRIMARY KEY, copy TEXT NOT NULL, operation TEXT NOT NULL);
+                PRAGMA user_version=3;
+                COMMIT;").map_err(io)?;
         }
         Ok(Self {
             db,
@@ -242,6 +254,11 @@ impl LibraryStore {
         )
         .map_err(io)?;
         if complete {
+            retire_downloaded_uploads(&tx, manifest)?;
+            let checked = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now())
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+            tx.execute("UPDATE upload_state SET last_checked=?1", [checked])
+                .map_err(io)?;
             tx.execute(
                 "UPDATE state SET active=?1,staging=NULL WHERE singleton=1",
                 [&manifest.id],
@@ -320,3 +337,4 @@ impl LibraryStore {
     }
 }
 include!("local_storage.rs");
+include!("upload_storage.rs");

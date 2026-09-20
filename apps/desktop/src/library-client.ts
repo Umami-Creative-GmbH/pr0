@@ -1,6 +1,7 @@
 import {
   localPromptSchema,
   localSaveSchema,
+  uploadStatusSchema,
 } from "@pr0/api-contract/local-prompts";
 import type { LocalSave } from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
@@ -27,6 +28,9 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  upload: async () => uploadStatusSchema.parse(await invoke("library_upload")),
+  uploadStatus: async () =>
+    uploadStatusSchema.parse(await invoke("library_upload_status")),
   editor: async (id: string) =>
     localPromptSchema.parse(await invoke("library_editor", { id })),
   save: async (request: LocalSave) => {
