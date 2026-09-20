@@ -1,4 +1,36 @@
 // Included in library_storage: all local writes use its one native-owned connection.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SaveReceipt {
+    local_revision: String,
+    projection_hash: String,
+}
+fn projection_hash(prompt: &Prompt) -> Result<String, String> {
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(prompt).map_err(|_| "storage_unavailable")?)
+    ))
+}
+fn record_receipt(
+    tx: &rusqlite::Transaction,
+    operation_id: &str,
+    fingerprint: &str,
+    result: &super::local_contract::LocalPrompt,
+) -> Result<(), String> {
+    let receipt = SaveReceipt {
+        local_revision: result.local_revision.clone(),
+        projection_hash: projection_hash(&result.prompt)?,
+    };
+    tx.execute(
+        "INSERT INTO local_receipt VALUES(?1,?2,?3)",
+        params![
+            operation_id,
+            fingerprint,
+            serde_json::to_string(&receipt).map_err(|_| "storage_unavailable")?
+        ],
+    )
+    .map_err(io)?;
+    Ok(())
+}
 #[cfg(test)]
 thread_local! { static TEST_FAULT: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) }; }
 #[cfg(test)]
@@ -140,11 +172,8 @@ impl LibraryStore {
             if hash != fingerprint {
                 return Err("operation_identity_reused".into());
             }
-            let saved_revision: i64 = result.parse().map_err(|_| "storage_unavailable")?;
-            let current:i64=tx.query_row("SELECT coalesce((SELECT revision FROM local_search WHERE id=?1),(SELECT revision FROM local_state))",[&request.prompt_id],|r|r.get(0)).map_err(io)?;
-            if current != saved_revision {
-                return Err("save_superseded".into());
-            }
+            let receipt: SaveReceipt =
+                serde_json::from_str(&result).map_err(|_| "storage_unavailable")?;
             let record: String = tx
                 .query_row(
                     "SELECT record FROM visible_prompt WHERE id=?1",
@@ -152,6 +181,11 @@ impl LibraryStore {
                     |r| r.get(0),
                 )
                 .map_err(io)?;
+            let prompt: Prompt =
+                serde_json::from_str(&record).map_err(|_| "storage_unavailable")?;
+            if projection_hash(&prompt)? != receipt.projection_hash {
+                return Err("save_superseded".into());
+            }
             let pending = tx
                 .query_row(
                     "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1)",
@@ -160,8 +194,8 @@ impl LibraryStore {
                 )
                 .map_err(io)?;
             return Ok(LocalPrompt {
-                prompt: serde_json::from_str(&record).map_err(|_| "storage_unavailable")?,
-                local_revision: result,
+                prompt,
+                local_revision: receipt.local_revision,
                 pending,
             });
         }
@@ -194,12 +228,12 @@ impl LibraryStore {
                     local_revision: current_revision.to_string(),
                     pending: latest.is_some(),
                 };
-                tx.execute(
-                    "INSERT INTO local_receipt VALUES(?1,?2,?3)",
-                    params![request.operation_id, fingerprint, result.local_revision],
-                )
-                .map_err(io)?;
+                record_receipt(&tx, &request.operation_id, &fingerprint, &result)?;
+                #[cfg(test)]
+                test_stage("before_commit")?;
                 tx.commit().map_err(io)?;
+                #[cfg(test)]
+                test_stage("after_commit")?;
                 return Ok(result);
             }
         }
@@ -258,39 +292,30 @@ impl LibraryStore {
         super::local_search::update(&tx, &prompt, revision).map_err(io)?;
         #[cfg(test)]
         test_stage("after_projection")?;
-        let mut operation = if let Some(old) = &previous {
-            serde_json::json!({"operationId":request.operation_id,"kind":"prompt.update","promptId":prompt.id,"baseRevision":old.revision,"base":PromptText::from_prompt(old),"desired":desired,"dependsOn":[]})
-        } else {
-            serde_json::json!({"operationId":request.operation_id,"kind":"prompt.create","promptId":prompt.id,"baseRevision":"0","dependsOn":[],"desired":desired})
-        };
+        let mut operation = super::local_contract::PendingOperation::new(
+            request.operation_id.clone(),
+            prompt.id.clone(),
+            previous.as_ref(),
+            desired.clone(),
+        );
         if let Some((id, payload, state)) = latest {
             if state == "unsent" {
                 operation = serde_json::from_str(&payload).map_err(|_| "storage_unavailable")?;
-                operation["operationId"] = serde_json::json!(request.operation_id);
-                operation["desired"] = serde_json::json!(desired);
+                operation.operation_id = request.operation_id.clone();
                 tx.execute("DELETE FROM outbox WHERE id=?1", [id])
                     .map_err(io)?;
             } else {
-                operation["dependsOn"] = serde_json::json!([id]);
+                operation.depends_on = vec![id];
             }
         }
-        if operation["kind"] == "prompt.update" {
-            operation["changedFields"] = serde_json::json!(["title", "description", "content"]
-                .into_iter()
-                .filter(|field| operation["base"][field] != operation["desired"][field])
-                .collect::<Vec<_>>());
-        }
-        tx.execute("INSERT INTO outbox(id,prompt_id,payload,state,local_revision) VALUES(?1,?2,?3,'unsent',?4)",params![request.operation_id,prompt.id,operation.to_string(),revision]).map_err(io)?;
+        operation.update_desired(desired);
+        tx.execute("INSERT INTO outbox(id,prompt_id,payload,state,local_revision) VALUES(?1,?2,?3,'unsent',?4)",params![request.operation_id,prompt.id,serde_json::to_string(&operation).map_err(|_|"storage_unavailable")?,revision]).map_err(io)?;
         let result = LocalPrompt {
             prompt,
             local_revision: revision.to_string(),
             pending: true,
         };
-        tx.execute(
-            "INSERT INTO local_receipt VALUES(?1,?2,?3)",
-            params![request.operation_id, fingerprint, result.local_revision],
-        )
-        .map_err(io)?;
+        record_receipt(&tx, &request.operation_id, &fingerprint, &result)?;
         #[cfg(test)]
         test_stage("before_commit")?;
         tx.commit().map_err(io)?;

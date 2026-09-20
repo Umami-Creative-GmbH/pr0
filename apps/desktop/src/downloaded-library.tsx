@@ -31,6 +31,22 @@ export const DownloadedLibrary = ({
   const selection = useRef(0);
   const browseRequest = useRef(0);
   const currentOffset = useRef(0);
+  const selectedPrompt = useRef<string | null>(null);
+  const open = useCallback(async (id: string) => {
+    selectedPrompt.current = id;
+    selection.current += 1;
+    const request = selection.current;
+    try {
+      const value = await libraryClient.editor(id);
+      if (alive.current && request === selection.current) {
+        setLocalDetail(value);
+      }
+    } catch (error) {
+      if (alive.current) {
+        setErrorText(downloadError(error));
+      }
+    }
+  }, []);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -74,6 +90,9 @@ export const DownloadedLibrary = ({
         if (requestedOffset === currentOffset.current) {
           setRows(prompts);
         }
+        if (selectedPrompt.current) {
+          await open(selectedPrompt.current);
+        }
       }
       return next;
     };
@@ -110,7 +129,7 @@ export const DownloadedLibrary = ({
       cancelled = true;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- An explicit Retry restarts this effect even when sign-in state is unchanged.
-  }, [signedIn, retry, refreshAuth]);
+  }, [signedIn, retry, refreshAuth, open]);
   const browse = useCallback(async (next: number) => {
     browseRequest.current += 1;
     const request = browseRequest.current;
@@ -120,20 +139,6 @@ export const DownloadedLibrary = ({
         currentOffset.current = next;
         setOffset(next);
         setRows(prompts);
-      }
-    } catch (error) {
-      if (alive.current) {
-        setErrorText(downloadError(error));
-      }
-    }
-  }, []);
-  const open = useCallback(async (id: string) => {
-    selection.current += 1;
-    const request = selection.current;
-    try {
-      const value = await libraryClient.editor(id);
-      if (alive.current && request === selection.current) {
-        setLocalDetail(value);
       }
     } catch (error) {
       if (alive.current) {
@@ -163,6 +168,8 @@ export const DownloadedLibrary = ({
           account={account}
           onCancel={() => setEditor(undefined)}
           onSaved={(value) => {
+            selectedPrompt.current = value.prompt.id;
+            selection.current += 1;
             setEditor(undefined);
             setLocalDetail(value);
             setRetry((count) => count + 1);

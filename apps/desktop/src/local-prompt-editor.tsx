@@ -1,6 +1,6 @@
 import type { LocalPrompt, LocalSave } from "@pr0/api-contract/local-prompts";
 import type { PromptText } from "@pr0/api-contract/prompts";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { z } from "zod";
 
@@ -54,6 +54,13 @@ export const LocalPromptEditor = ({
     revision: initial?.localRevision ?? null,
   });
   const attempt = useRef<LocalSave | null>(null);
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [conflict, setConflict] = useState(false);
@@ -92,6 +99,7 @@ export const LocalPromptEditor = ({
       attempt.current = null;
       // Inputs remain editable during a native save. Its acknowledgement certifies only that submitted variant.
       if (
+        active.current &&
         JSON.stringify(currentDraft.current) === JSON.stringify(request.desired)
       ) {
         onSaved(result);
@@ -228,7 +236,7 @@ export const LocalPromptEditor = ({
       {discard ? (
         <section aria-label="Discard draft confirmation">
           <p>Discard this unsaved draft? Its text will be lost.</p>
-          <button type="button" onClick={onCancel}>
+          <button type="button" disabled={saving} onClick={onCancel}>
             Discard draft
           </button>
           <button type="button" onClick={() => setDiscard(false)}>

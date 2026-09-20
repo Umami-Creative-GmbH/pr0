@@ -31,7 +31,7 @@ export const libraryClient = {
     localPromptSchema.parse(await invoke("library_editor", { id })),
   save: async (request: LocalSave) => {
     const input = localSaveSchema.parse(request);
-    const result = localPromptSchema.parse(
+    const response = localPromptSchema.safeParse(
       await invoke(
         input.expectedLocalRevision === null
           ? "library_create"
@@ -39,6 +39,10 @@ export const libraryClient = {
         { request: input }
       )
     );
+    if (!response.success) {
+      throw new Error("commit_uncertain");
+    }
+    const result = response.data;
     if (
       result.prompt.id !== input.promptId ||
       result.prompt.accountId !== input.accountId ||

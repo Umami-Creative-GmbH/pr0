@@ -1,5 +1,31 @@
 // Included in auth_tests; exercises the typed native service over real SQLite.
 #[test]
+fn offline_unchanged_receipt_replays_after_an_unrelated_prompt_changed() {
+    let directory = std::env::temp_dir().join(format!("pr0-noop-{}", uuid::Uuid::new_v4()));
+    let service =
+        AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+    sign_in(&service);
+    let mut request = save_request(&service);
+    let first = service.library_create(request.clone()).unwrap();
+    let mut other = request.clone();
+    other.prompt_id = uuid::Uuid::new_v4().to_string();
+    other.operation_id = uuid::Uuid::new_v4().to_string();
+    service.library_create(other).unwrap();
+    request.expected_local_revision = Some(
+        service
+            .library_editor(&request.prompt_id)
+            .unwrap()
+            .local_revision,
+    );
+    request.operation_id = uuid::Uuid::new_v4().to_string();
+    let unchanged = service.library_edit(request.clone()).unwrap();
+    let replay = service.library_edit(request).unwrap();
+    assert_eq!(replay.local_revision, unchanged.local_revision);
+    assert_eq!(replay.prompt.modified_at, first.prompt.modified_at);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+#[test]
 fn offline_known_full_library_refuses_growth_but_allows_reduction_during_download() {
     use sha2::{Digest, Sha256};
     let mut data: serde_json::Value = serde_json::from_str(include_str!(

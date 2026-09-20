@@ -30,6 +30,12 @@ const connect = async (
       try {
         const ok = await native.command(command, { ...args, fault: fault() });
         await after(command);
+        if (
+          fault() === "malformed_response" &&
+          (command === "library_create" || command === "library_edit")
+        ) {
+          return { ok: null };
+        }
         return { ok };
       } catch (error) {
         return {
@@ -100,6 +106,11 @@ test("desktop editor retains a disk-full draft then commits and reopens pending 
     expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
       content
     );
+    fault = "malformed_response";
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await page
+      .getByText("The save could not be confirmed.", { exact: false })
+      .waitFor();
     fault = "";
     await page.getByRole("button", { name: "Retry", exact: true }).click();
     await page.getByText("Saved on this device", { exact: true }).waitFor();
@@ -184,6 +195,14 @@ test("two desktop windows keep competing drafts and an older save acknowledgemen
       .fill("Second window complete draft");
     await first.getByRole("button", { name: "Save", exact: true }).click();
     await first.getByLabel("Prompt editor").waitFor({ state: "detached" });
+    await second.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await second.waitForFunction(() => {
+      const field = document.querySelector("#downloaded-content");
+      return (
+        field instanceof HTMLTextAreaElement &&
+        field.value === "First window saved"
+      );
+    });
     await second.getByRole("button", { name: "Save", exact: true }).click();
     await second
       .getByText("The library changed in another window", { exact: false })
@@ -201,9 +220,15 @@ test("two desktop windows keep competing drafts and an older save acknowledgemen
     await first
       .getByLabel("Content", { exact: true })
       .fill("Submitted variant");
+    await first.getByRole("button", { name: "Cancel", exact: true }).click();
     delay = true;
     await first.getByRole("button", { name: "Save", exact: true }).click();
     await accepted;
+    expect(
+      await first
+        .getByRole("button", { name: "Discard draft", exact: true })
+        .isDisabled()
+    ).toBe(true);
     await first
       .getByLabel("Content", { exact: true })
       .fill("Newer unsaved typing");
