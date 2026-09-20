@@ -8,6 +8,14 @@ fn main() {
             "auth_open_browser",
             "auth_refresh",
             "auth_sign_out",
+            "library_status",
+            "library_download",
+            "library_browse",
+            "library_detail",
+            "library_editor",
+            "library_create",
+            "library_edit",
+            "library_copy_draft",
         ]),
     ))
     .expect("could not build native permissions");

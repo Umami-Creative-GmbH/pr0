@@ -10,6 +10,16 @@
     "allow-auth-cancel",
     "allow-auth-open-browser",
     "allow-auth-refresh",
-    "allow-auth-sign-out"
+    "allow-auth-sign-out",
+    "allow-library-status",
+    "allow-library-download",
+    "allow-library-browse",
+    "allow-library-detail",
+    "allow-library-editor",
+    "allow-library-create",
+    "allow-library-edit",
+    "allow-library-copy-draft",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }

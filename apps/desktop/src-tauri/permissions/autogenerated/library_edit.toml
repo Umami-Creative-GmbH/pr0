@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-edit"
+description = "Enables the library_edit command without any pre-configured scope."
+commands.allow = ["library_edit"]
+
+[[permission]]
+identifier = "deny-library-edit"
+description = "Denies the library_edit command without any pre-configured scope."
+commands.deny = ["library_edit"]

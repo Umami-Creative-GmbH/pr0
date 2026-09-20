@@ -10,6 +10,8 @@ pub enum Endpoint {
     Cancel,
     Session,
     SignOut,
+    Snapshot,
+    SnapshotPage,
 }
 impl Endpoint {
     fn path(self) -> &'static str {
@@ -20,6 +22,8 @@ impl Endpoint {
             Self::Cancel => "/api/auth/device/cancel",
             Self::Session => "/api/v1/desktop/session",
             Self::SignOut => "/api/v1/desktop/sign-out",
+            Self::Snapshot => "/api/v1/sync/snapshots",
+            Self::SnapshotPage => "/api/v1/sync/snapshots/page",
         }
     }
 }
@@ -87,15 +91,28 @@ impl Transport for HttpsTransport {
         if status.as_u16() == 401 || status.as_u16() == 403 {
             return Err("authentication_required".into());
         }
-        if result.content_length().is_some_and(|length| length > 16384) {
+        if matches!(endpoint, Endpoint::SnapshotPage)
+            && (status.as_u16() == 410 || status.as_u16() == 404)
+        {
+            return Err("snapshot_expired".into());
+        }
+        let limit = match endpoint {
+            Endpoint::Snapshot => 262144,
+            Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
+            _ => 16384,
+        };
+        if result
+            .content_length()
+            .is_some_and(|length| length > limit as u64)
+        {
             return Err("invalid_response".into());
         }
         let mut bytes = Vec::new();
         result
-            .take(16385)
+            .take(limit as u64 + 1)
             .read_to_end(&mut bytes)
             .map_err(|_| "network_unavailable")?;
-        if bytes.len() > 16384 {
+        if bytes.len() > limit {
             return Err("invalid_response".into());
         }
         let value: Value = serde_json::from_slice(&bytes).map_err(|_| "invalid_response")?;

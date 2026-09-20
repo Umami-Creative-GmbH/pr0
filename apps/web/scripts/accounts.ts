@@ -24,6 +24,7 @@ try {
         "014-prompt-use.sql",
         "015-account-deletion.sql",
         "016-device.sql",
+        "017-snapshots.sql",
       ].map(async (name, index) => ({
         version: index + 1,
         source: await Bun.file(

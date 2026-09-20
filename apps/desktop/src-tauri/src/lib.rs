@@ -4,12 +4,17 @@ mod auth_storage;
 #[cfg(test)]
 mod auth_tests;
 mod auth_transport;
+mod library_contract;
+mod library_storage;
+mod local_contract;
+mod local_search;
 
 use auth::{AuthService, AuthView};
 use auth_storage::WindowsCredentials;
 use auth_transport::HttpsTransport;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 
 type ManagedAuth = Result<Arc<AuthService>, String>;
 
@@ -24,11 +29,11 @@ fn authorize(window: &tauri::WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
-async fn dispatch(
+async fn dispatch<T: Send + 'static>(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, ManagedAuth>,
-    operation: impl FnOnce(&AuthService) -> Result<AuthView, String> + Send + 'static,
-) -> Result<AuthView, String> {
+    operation: impl FnOnce(&AuthService) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
     authorize(&window)?;
     let service = state.inner().clone()?;
     tauri::async_runtime::spawn_blocking(move || operation(&service))
@@ -103,8 +108,17 @@ pub fn run() {
             auth_cancel,
             auth_open_browser,
             auth_refresh,
-            auth_sign_out
+            auth_sign_out,
+            library_status,
+            library_download,
+            library_browse,
+            library_detail,
+            library_editor,
+            library_create,
+            library_edit,
+            library_copy_draft
         ])
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let service: ManagedAuth = (|| {
                 let directory = app
@@ -123,4 +137,99 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("pr0 could not start");
+}
+
+#[tauri::command]
+async fn library_editor(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    id: String,
+) -> Result<local_contract::LocalPrompt, String> {
+    dispatch(window, state, move |service| service.library_editor(&id)).await
+}
+
+async fn save_command(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: local_contract::SaveRequest,
+    create: bool,
+) -> Result<local_contract::LocalPrompt, String> {
+    let app = window.app_handle().clone();
+    let result = dispatch(window, state, move |service| {
+        if create {
+            service.library_create(request)
+        } else {
+            service.library_edit(request)
+        }
+    })
+    .await?;
+    // Events only invalidate views. A lost event cannot change storage truth.
+    let _ = app.emit("library-changed", &result.local_revision);
+    Ok(result)
+}
+#[tauri::command]
+async fn library_create(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: local_contract::SaveRequest,
+) -> Result<local_contract::LocalPrompt, String> {
+    save_command(window, state, request, true).await
+}
+#[tauri::command]
+async fn library_edit(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: local_contract::SaveRequest,
+) -> Result<local_contract::LocalPrompt, String> {
+    save_command(window, state, request, false).await
+}
+#[tauri::command]
+async fn library_copy_draft(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    instance_id: String,
+    account_id: String,
+    generation: u64,
+    text: String,
+) -> Result<(), String> {
+    let app = window.app_handle().clone();
+    dispatch(window, state, move |service| {
+        service.copy_draft(&instance_id, &account_id, generation, &text, |value| {
+            app.clipboard()
+                .write_text(value)
+                .map_err(|_| "clipboard_unavailable".into())
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+async fn library_status(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<library_contract::LibraryStatus, String> {
+    dispatch(window, state, AuthService::library_status).await
+}
+#[tauri::command]
+async fn library_download(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<library_contract::LibraryStatus, String> {
+    dispatch(window, state, AuthService::library_download).await
+}
+#[tauri::command]
+async fn library_browse(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    offset: u32,
+) -> Result<Vec<library_contract::Summary>, String> {
+    dispatch(window, state, move |service| service.library_browse(offset)).await
+}
+#[tauri::command]
+async fn library_detail(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    id: String,
+) -> Result<library_contract::Prompt, String> {
+    dispatch(window, state, move |service| service.library_detail(&id)).await
 }

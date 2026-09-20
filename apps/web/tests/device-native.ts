@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { promptSchema } from "@pr0/api-contract/prompts";
 import { chromium } from "playwright";
 import { z } from "zod";
 
@@ -11,6 +12,7 @@ import { runAcceptance } from "./account-test-server";
 import type { accountTestServer } from "./account-test-server";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
+import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
 
 const resultSchema = z.object({
   Ok: z.object({
@@ -62,11 +64,13 @@ const worker = (
           );
         }
         if (line.includes("PR0_RESULT:")) {
-          return resultSchema.parse(
-            JSON.parse(
-              line.slice(line.indexOf("PR0_RESULT:") + "PR0_RESULT:".length)
-            )
-          ).Ok;
+          return z
+            .object({ Ok: z.json() })
+            .parse(
+              JSON.parse(
+                line.slice(line.indexOf("PR0_RESULT:") + "PR0_RESULT:".length)
+              )
+            ).Ok;
         }
       }
     }
@@ -79,12 +83,26 @@ const worker = (
       await nativeProcess.stdin.flush();
       const timer = setTimeout(() => nativeProcess.kill(), 30_000);
       try {
-        return await read();
+        return resultSchema.parse({ Ok: await read() }).Ok;
       } finally {
         clearTimeout(timer);
       }
     },
     url: () => browserUrl,
+    async library<T>(
+      command: string,
+      schema: z.ZodType<T>,
+      args: { id?: string; offset?: number } = {}
+    ) {
+      nativeProcess.stdin.write(`${JSON.stringify({ command, ...args })}\n`);
+      await nativeProcess.stdin.flush();
+      const timer = setTimeout(() => nativeProcess.kill(), 120_000);
+      try {
+        return schema.parse(await read());
+      } finally {
+        clearTimeout(timer);
+      }
+    },
     async stop() {
       nativeProcess.stdin.write('{"command":"quit"}\n');
       await nativeProcess.stdin.end();
@@ -94,9 +112,13 @@ const worker = (
 };
 
 export const verifyNativeHttps = async (
-  server: ReturnType<typeof accountTestServer>
+  server: ReturnType<typeof accountTestServer>,
+  download = false
 ) => {
   const account = await verifiedBrowser();
+  if (download) {
+    await seedDownloadCapacity(account.library);
+  }
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-device-live-"));
   const selectedOrigin = "https://localhost:30440";
   const certificate = path.join(directory, "certificate.pem");
@@ -210,6 +232,20 @@ export const verifyNativeHttps = async (
     }
     assert.equal(status.state, "signed_in");
     assert.equal(status.accountId, account.library.account.id);
+    const downloadStatus = z.object({
+      complete: z.boolean(),
+      downloaded: z.number(),
+      total: z.number(),
+      appliedPages: z.number(),
+      totalPages: z.number(),
+    });
+    let started = 0;
+    if (download) {
+      started = performance.now();
+      const partial = await native.library("library_download", downloadStatus);
+      assert.equal(partial.complete, false);
+      assert.ok(partial.downloaded > 0 && partial.downloaded < 10_000);
+    }
     await native.stop();
     native = worker(
       executable,
@@ -219,6 +255,58 @@ export const verifyNativeHttps = async (
     );
     const restored = await native.command("status");
     assert.equal(restored.state, "signed_in");
+    if (download) {
+      let progress = await native.library("library_status", downloadStatus);
+      assert.ok(progress.downloaded > 0);
+      while (!progress.complete) {
+        progress = await native.library("library_download", downloadStatus);
+      }
+      assert.equal(progress.downloaded, 10_000);
+      const first = await native.library(
+        "library_browse",
+        z.array(z.object({ id: z.string(), title: z.string() }))
+      );
+      const last = await native.library(
+        "library_browse",
+        z.array(z.object({ id: z.string(), title: z.string() })),
+        { offset: 9950 }
+      );
+      assert.equal(last.length, 50);
+      assert.ok(first[0]);
+      await server.stopServer();
+      await native.stop();
+      native = worker(
+        executable,
+        path.join(directory, "state"),
+        certificate,
+        target
+      );
+      const offline = await native.library("library_detail", promptSchema, {
+        id: first[0].id,
+      });
+      assert.equal(offline.title, "Capacity");
+      assert.ok(offline.content.length >= 10_477);
+      const elapsedMs = performance.now() - started;
+      const files = [
+        ...new Bun.Glob("*.sqlite*").scanSync(path.join(directory, "state")),
+      ];
+      const sizes = await Promise.all(
+        files.map(async (name) => {
+          const metadata = await Bun.file(
+            path.join(directory, "state", name)
+          ).stat();
+          return { name, bytes: metadata.size };
+        })
+      );
+      process.stdout.write(
+        `SNAPSHOT_COST ${JSON.stringify({ prompts: 10_000, logicalBytes: 104_857_600, pages: progress.totalPages, elapsedMs, files: sizes })}\n`
+      );
+      assert.ok(elapsedMs < 120_000);
+      await server.startServer({
+        PR0_ORIGIN: selectedOrigin,
+        SMTP_TLS: "starttls",
+      });
+    }
     const refreshed = await native.command("refresh");
     assert.equal(refreshed.state, "signed_in");
     const signedOut = await native.command("sign_out");

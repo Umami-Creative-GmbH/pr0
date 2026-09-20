@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 
-test("built Tauri shell exposes only account commands and denies remote native access", async () => {
+test("built Tauri shell exposes typed account/library commands and denies remote native access", async () => {
   const executable = path.resolve(
     "apps/desktop/src-tauri/target/debug/pr0-desktop.exe"
   );
@@ -65,6 +65,14 @@ test("built Tauri shell exposes only account commands and denies remote native a
         "window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('auth_status').then(() => false, () => true) : true"
       );
       expect(remoteDenied).toBe(true);
+      const libraryDenied = await page.evaluate(
+        "window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('library_browse', {offset:0}).then(() => false, () => true) : true"
+      );
+      expect(libraryDenied).toBe(true);
+      const savesDenied = await page.evaluate(
+        "window.__TAURI_INTERNALS__ ? Promise.all(['library_create','library_edit','library_editor','library_copy_draft'].map(command => window.__TAURI_INTERNALS__.invoke(command, {}).then(() => false, () => true))) : [true,true,true,true]"
+      );
+      expect(savesDenied).toEqual([true, true, true, true]);
     } finally {
       await browser.close();
     }
