@@ -79,3 +79,28 @@ export const promptEdit = (
   },
   desired,
 });
+
+export const promptState = (
+  base: Prompt,
+  field: "favorite" | "archived",
+  value: boolean
+): UpdatePrompt => ({
+  ...promptEdit(base, {
+    title: base.title,
+    description: base.description,
+    content: base.content,
+  }),
+  base: {
+    title: base.title,
+    description: base.description,
+    content: base.content,
+    [field]: base[field],
+  },
+  desired: {
+    title: base.title,
+    description: base.description,
+    content: base.content,
+    [field]: value,
+  },
+  changedFields: base[field] === value ? [] : [field],
+});

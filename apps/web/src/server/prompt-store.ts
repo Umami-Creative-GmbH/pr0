@@ -9,15 +9,19 @@ import {
   promptSchema,
   promptTextSchema,
   promptTextFields,
+  promptStateFields,
   conflictCopyTitle,
+  duplicatePromptTitle,
   conflictPageSchema,
   trimPromptText,
   utf8Bytes,
+  promptViewSchema,
 } from "@pr0/api-contract/prompts";
 import type {
   MutationEnvelope,
   UpdatePrompt,
   PromptText,
+  promptBrowseInputSchema,
 } from "@pr0/api-contract/prompts";
 import type { TransactionSQL, SQL } from "bun";
 import { z } from "zod";
@@ -72,6 +76,34 @@ const receiptFrom = (row: z.infer<typeof receiptColumns>) =>
         }
       : undefined,
   });
+const validatedUpdateFields = (
+  operation: UpdatePrompt,
+  desired: PromptText
+) => {
+  const base = {
+    title: trimPromptText(operation.base.title),
+    description: trimPromptText(operation.base.description),
+    content: operation.base.content,
+  };
+  const changedFields = new Set(operation.changedFields);
+  if (
+    !promptTextSchema.safeParse(base).success ||
+    new Set(operation.changedFields).size !== operation.changedFields.length ||
+    promptStateFields.some(
+      (field) =>
+        (operation.base[field] === undefined) !==
+          (operation.desired[field] === undefined) ||
+        (operation.base[field] !== operation.desired[field]) !==
+          changedFields.has(field)
+    ) ||
+    promptTextFields.some(
+      (field) => (base[field] !== desired[field]) !== changedFields.has(field)
+    )
+  ) {
+    throw invalidPromptRequest();
+  }
+  return { base, changedFields };
+};
 const applyPromptUpdate = async ({
   savepoint,
   browser,
@@ -90,7 +122,7 @@ const applyPromptUpdate = async ({
   hash: string;
 }) => {
   const [current] =
-    await savepoint`SELECT title, description, content, revision::text, title_revision::text, description_revision::text, content_revision::text FROM prompt
+    await savepoint`SELECT title, description, content, favorite, archived, revision::text, title_revision::text, description_revision::text, content_revision::text FROM prompt
         WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${operation.promptId}`;
   if (!current) {
     throw new PromptFailureError(
@@ -102,28 +134,16 @@ const applyPromptUpdate = async ({
       404
     );
   }
-  const base = {
-    title: trimPromptText(operation.base.title),
-    description: trimPromptText(operation.base.description),
-    content: operation.base.content,
-  };
-  const changedFields = new Set(operation.changedFields);
-  if (
-    !promptTextSchema.safeParse(base).success ||
-    new Set(operation.changedFields).size !== operation.changedFields.length ||
-    promptTextFields.some(
-      (field) => (base[field] !== desired[field]) !== changedFields.has(field)
-    )
-  ) {
-    throw invalidPromptRequest();
-  }
+  const { base, changedFields } = validatedUpdateFields(operation, desired);
   const next = {
     title: current.title,
     description: current.description,
     content: current.content,
   };
   let conflict = false;
-  for (const field of operation.changedFields) {
+  for (const field of promptTextFields.filter((entry) =>
+    changedFields.has(entry)
+  )) {
     if (current[field] === desired[field]) {
       continue;
     }
@@ -133,9 +153,16 @@ const applyPromptUpdate = async ({
       conflict = true;
     }
   }
-  const changed = promptTextFields.some(
-    (field) => next[field] !== current[field]
-  );
+  const favorite = changedFields.has("favorite")
+    ? operation.desired.favorite
+    : current.favorite;
+  const archived = changedFields.has("archived")
+    ? operation.desired.archived
+    : current.archived;
+  const changed =
+    favorite !== current.favorite ||
+    archived !== current.archived ||
+    promptTextFields.some((field) => next[field] !== current[field]);
   const copyId = conflict ? crypto.randomUUID() : null;
   const noticeId = conflict ? crypto.randomUUID() : null;
   const copyTitle = conflictCopyTitle(desired.title);
@@ -171,6 +198,9 @@ const applyPromptUpdate = async ({
         WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} RETURNING revision::text, date_trunc('milliseconds', clock_timestamp()) AS accepted_at`;
   if (changed) {
     await savepoint`UPDATE prompt SET title = ${next.title}, description = ${next.description}, content = ${next.content},
+          favorite_revision = CASE WHEN favorite <> ${favorite} THEN ${accepted.revision}::bigint ELSE favorite_revision END,
+          archived_revision = CASE WHEN archived <> ${archived} THEN ${accepted.revision}::bigint ELSE archived_revision END,
+          favorite = ${favorite}, archived = ${archived},
           title_revision = CASE WHEN title <> ${next.title} THEN ${accepted.revision}::bigint ELSE title_revision END,
           description_revision = CASE WHEN description <> ${next.description} THEN ${accepted.revision}::bigint ELSE description_revision END,
           content_revision = CASE WHEN content <> ${next.content} THEN ${accepted.revision}::bigint ELSE content_revision END,
@@ -250,12 +280,25 @@ export const mutatePrompt = (
           desired.title,
           desired.description,
           desired.content,
+          ...(operation.kind === "prompt.duplicate"
+            ? [operation.sourceId]
+            : []),
           ...(operation.kind === "prompt.update"
             ? [
                 operation.base.title,
                 operation.base.description,
                 operation.base.content,
                 operation.changedFields,
+                ...(promptStateFields.some(
+                  (field) => operation.desired[field] !== undefined
+                )
+                  ? [
+                      operation.base.favorite ?? null,
+                      operation.base.archived ?? null,
+                      operation.desired.favorite ?? null,
+                      operation.desired.archived ?? null,
+                    ]
+                  : []),
               ]
             : []),
         ])
@@ -295,7 +338,7 @@ export const mutatePrompt = (
       VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${hash}) ON CONFLICT DO NOTHING`;
     try {
       return await tx.savepoint(async (savepoint) => {
-        const parsed = promptTextSchema.safeParse(operation.desired);
+        const parsed = promptTextSchema.safeParse(desired);
         if (!parsed.success) {
           const fields = Object.fromEntries(
             parsed.error.issues.map((issue) => [
@@ -338,6 +381,24 @@ export const mutatePrompt = (
             hash,
           });
         }
+        const sourceTitle =
+          operation.kind === "prompt.duplicate" ? desired.title : null;
+        if (operation.kind === "prompt.duplicate") {
+          const [source] =
+            await savepoint`SELECT id FROM prompt WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${operation.sourceId}
+            UNION ALL SELECT prompt_id FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND (prompt_id = ${operation.sourceId} OR conflict_copy_id = ${operation.sourceId}) LIMIT 1`;
+          if (!source) {
+            throw new PromptFailureError(
+              {
+                code: "not_found",
+                message: "This source is not available in your library.",
+                retryable: false,
+              },
+              404
+            );
+          }
+          desired.title = duplicatePromptTitle(desired.title);
+        }
         const used =
           await savepoint`SELECT prompt_id FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND (prompt_id = ${operation.promptId} OR conflict_copy_id = ${operation.promptId})`;
         if (used.length) {
@@ -353,7 +414,8 @@ export const mutatePrompt = (
         const bytes =
           utf8Bytes(desired.title) +
           utf8Bytes(desired.description) +
-          utf8Bytes(desired.content);
+          utf8Bytes(desired.content) +
+          utf8Bytes(sourceTitle ?? "");
         const usage = {
           promptCount: library.prompt_count,
           textBytes: Number(library.text_bytes),
@@ -382,8 +444,8 @@ export const mutatePrompt = (
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} RETURNING revision::text, date_trunc('milliseconds', clock_timestamp()) AS accepted_at`;
         const revision = String(updated.revision);
         const acceptedAt: Date = updated.accepted_at;
-        await savepoint`INSERT INTO prompt(instance_id, account_id, id, title, description, content, revision, title_revision, description_revision, content_revision, created_at, modified_at)
-    VALUES (${library.instance_id}, ${browser.accountId}, ${operation.promptId}, ${desired.title}, ${desired.description}, ${desired.content}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt})`;
+        await savepoint`INSERT INTO prompt(instance_id, account_id, id, title, description, content, source_title, revision, title_revision, description_revision, content_revision, created_at, modified_at)
+    VALUES (${library.instance_id}, ${browser.accountId}, ${operation.promptId}, ${desired.title}, ${desired.description}, ${desired.content}, ${sourceTitle}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt})`;
         await savepoint`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at)
     VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${envelope.epoch}, ${envelope.installationId}, 1, ${hash}, ${operation.kind}, ${operation.promptId}, ${revision}, ${acceptedAt})`;
         await savepoint`INSERT INTO library_change(instance_id, account_id, revision, operation_id, kind, prompt_id, accepted_at)
@@ -419,6 +481,7 @@ const cursorSchema = z.strictObject({
   after: z.string().regex(/^\d+$/u),
   afterId: z.uuid(),
   limit: z.number(),
+  view: promptViewSchema.optional(),
 });
 const signature = (payload: string) =>
   createHmac("sha256", configuration().authSecret)
@@ -443,7 +506,7 @@ const readCursor = (cursor: string) => {
 };
 type PageScope = Pick<
   z.infer<typeof cursorSchema>,
-  "account" | "instance" | "epoch" | "revision" | "kind" | "limit"
+  "account" | "instance" | "epoch" | "revision" | "kind" | "limit" | "view"
 >;
 const scopedCursor = (cursor: string | undefined, scope: PageScope) => {
   if (!cursor) {
@@ -455,7 +518,8 @@ const scopedCursor = (cursor: string | undefined, scope: PageScope) => {
     page.instance !== scope.instance ||
     page.epoch !== scope.epoch ||
     page.kind !== scope.kind ||
-    page.limit !== scope.limit
+    page.limit !== scope.limit ||
+    page.view !== scope.view
   ) {
     throw invalidPromptRequest();
   }
@@ -500,6 +564,7 @@ interface PromptRow {
   archived: boolean;
   use_count: number;
   last_used_at: Date | null;
+  source_title: string | null;
 }
 const summaryFrom = (row: PromptRow) => ({
   id: row.id,
@@ -508,11 +573,12 @@ const summaryFrom = (row: PromptRow) => ({
   revision: row.revision,
   createdAt: row.created_at.toISOString(),
   modifiedAt: row.modified_at.toISOString(),
+  favorite: row.favorite,
+  archived: row.archived,
 });
 export const listPrompts = (
   browser: BrowserAccount,
-  limit: number,
-  cursor?: string
+  { limit, cursor, view }: z.infer<typeof promptBrowseInputSchema>
 ) =>
   database().begin(async (tx) => {
     const library = await lockLibrary(tx, browser);
@@ -522,13 +588,17 @@ export const listPrompts = (
       epoch: library.recovery_epoch,
       revision: library.revision,
       kind: "prompts",
+      view,
       limit,
     } as const;
     const page = scopedCursor(cursor, scope);
     const rows = await tx<
       PromptRow[]
-    >`SELECT id, title, description, revision::text, created_at, modified_at FROM prompt
+    >`SELECT id, title, description, favorite, archived, revision::text, created_at, modified_at FROM prompt
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId}
+      AND archived = ${view === "archive"}
+      AND (${view !== "favorites"} OR favorite = true)
+      AND (${view !== "recents"} OR use_count > 0)
       AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
     ORDER BY prompt.revision DESC, id LIMIT ${limit + 1}`;
     const visible = rows.slice(0, limit);
@@ -551,7 +621,7 @@ export const getPrompt = (browser: BrowserAccount, id: string) =>
     const library = await lockLibrary(tx, browser);
     const [row] = await tx<
       PromptRow[]
-    >`SELECT id, title, description, content, revision::text, created_at, modified_at, favorite, archived, use_count, last_used_at FROM prompt
+    >`SELECT id, title, description, content, source_title, revision::text, created_at, modified_at, favorite, archived, use_count, last_used_at FROM prompt
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${id}`;
     if (!row) {
       throw new PromptFailureError(
@@ -572,6 +642,7 @@ export const getPrompt = (browser: BrowserAccount, id: string) =>
       archived: row.archived,
       useCount: row.use_count,
       lastUsedAt: row.last_used_at?.toISOString() ?? null,
+      sourceTitle: row.source_title,
     });
   });
 

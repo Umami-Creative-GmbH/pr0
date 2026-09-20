@@ -47,6 +47,8 @@ export const promptTextSchema = z.strictObject({
 export type PromptText = z.infer<typeof promptTextSchema>;
 export const conflictCopyTitle = (title: string) =>
   `${[...title].slice(0, promptLimits.title - 16).join("")} (conflict copy)`;
+export const duplicatePromptTitle = (title: string) =>
+  `${[...title].slice(0, promptLimits.title - 7).join("")} (copy)`;
 export const revisionSchema = z
   .string()
   .regex(/^(?:0|[1-9]\d{0,18})$/u)
@@ -64,6 +66,8 @@ export const promptSummarySchema = z.strictObject({
   revision: revisionSchema,
   createdAt: z.iso.datetime(),
   modifiedAt: z.iso.datetime(),
+  favorite: z.boolean(),
+  archived: z.boolean(),
 });
 export const promptSchema = promptSummarySchema.extend({
   content: promptTextSchema.shape.content,
@@ -72,6 +76,7 @@ export const promptSchema = promptSummarySchema.extend({
   archived: z.boolean(),
   useCount: z.number().int().nonnegative(),
   lastUsedAt: z.iso.datetime().nullable(),
+  sourceTitle: z.string().nullable(),
 });
 export const conflictNoticeSchema = z.strictObject({
   id: promptIdentitySchema,
@@ -102,6 +107,16 @@ export const promptListInputSchema = z.strictObject({
   cursor: z.string().max(2048).optional(),
   limit: z.number().int().min(1).max(100).default(50),
 });
+export const promptViewSchema = z.enum([
+  "all",
+  "favorites",
+  "archive",
+  "recents",
+]);
+export type PromptView = z.infer<typeof promptViewSchema>;
+export const promptBrowseInputSchema = promptListInputSchema.extend({
+  view: promptViewSchema.default("all"),
+});
 export const createPromptSchema = z.strictObject({
   operationId: promptIdentitySchema,
   kind: z.literal("prompt.create"),
@@ -115,10 +130,23 @@ export const createPromptSchema = z.strictObject({
   }),
 });
 export const promptTextFields = ["title", "description", "content"] as const;
+export const duplicatePromptSchema = createPromptSchema.extend({
+  kind: z.literal("prompt.duplicate"),
+  sourceId: promptIdentitySchema,
+});
+export type DuplicatePrompt = z.infer<typeof duplicatePromptSchema>;
+export const promptStateFields = ["favorite", "archived"] as const;
+const editablePromptSchema = createPromptSchema.shape.desired.extend({
+  favorite: z.boolean().optional(),
+  archived: z.boolean().optional(),
+});
 export const updatePromptSchema = createPromptSchema.extend({
   kind: z.literal("prompt.update"),
-  base: createPromptSchema.shape.desired,
-  changedFields: z.array(z.enum(promptTextFields)).max(3),
+  base: editablePromptSchema,
+  desired: editablePromptSchema,
+  changedFields: z
+    .array(z.enum([...promptTextFields, ...promptStateFields]))
+    .max(5),
 });
 export type UpdatePrompt = z.infer<typeof updatePromptSchema>;
 export type Prompt = z.infer<typeof promptSchema>;
@@ -130,7 +158,11 @@ export const mutationEnvelopeSchema = z.strictObject({
   installationId: promptIdentitySchema,
   operations: z
     .array(
-      z.discriminatedUnion("kind", [createPromptSchema, updatePromptSchema])
+      z.discriminatedUnion("kind", [
+        createPromptSchema,
+        updatePromptSchema,
+        duplicatePromptSchema,
+      ])
     )
     .min(1)
     .max(100),

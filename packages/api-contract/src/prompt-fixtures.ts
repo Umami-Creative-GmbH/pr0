@@ -38,3 +38,18 @@ export const competingPromptEdits = {
     content: "B",
   },
 };
+
+export const duplicatePromptFixtures = [
+  {
+    sourceTitle: "Writing helper",
+    title: "Writing helper (copy)",
+    description: "Context",
+    content: "  Hello\n    world\n",
+  },
+  {
+    sourceTitle: "🌍".repeat(200),
+    title: `${"🌍".repeat(193)} (copy)`,
+    description: "",
+    content: "Original text",
+  },
+] as const;

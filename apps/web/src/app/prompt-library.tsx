@@ -4,7 +4,11 @@ import { PromptApiError } from "@pr0/api-client/prompts";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { promptLimits } from "@pr0/api-contract/prompts";
-import type { Prompt, MutationReceipt } from "@pr0/api-contract/prompts";
+import type {
+  Prompt,
+  MutationReceipt,
+  PromptView,
+} from "@pr0/api-contract/prompts";
 import {
   useInfiniteQuery,
   useQuery,
@@ -12,9 +16,12 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { PromptActionStatus } from "./prompt-action-status";
 import { PromptConflicts } from "./prompt-conflicts";
 import { PromptEditor } from "./prompt-editor";
 import { retryPromptRead, promptRetryDelay } from "./prompt-query";
+import { usePromptActions } from "./use-prompt-actions";
+import type { PromptAction } from "./use-prompt-actions";
 
 const buttonClass =
   "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
@@ -27,11 +34,15 @@ const PromptDetail = ({
   library,
   onEdit,
   editing,
+  onAction,
+  actionsBlocked,
 }: {
   id: string;
   library: PrivateLibrary;
   onEdit: (prompt: Prompt) => void;
   editing: boolean;
+  onAction: (prompt: Prompt, action: PromptAction, value?: boolean) => void;
+  actionsBlocked: boolean;
 }) => {
   const client = useApiClient();
   const detail = useQuery({
@@ -50,6 +61,7 @@ const PromptDetail = ({
     retry: retryPromptRead,
     retryDelay: promptRetryDelay,
   });
+
   return (
     <section aria-labelledby="detail-heading" className="rounded-lg border p-6">
       <h2 className="text-xl font-semibold break-words" id="detail-heading">
@@ -84,6 +96,51 @@ const PromptDetail = ({
           >
             Edit prompt
           </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              className={buttonClass}
+              type="button"
+              aria-pressed={detail.data.favorite}
+              disabled={actionsBlocked}
+              onClick={() => {
+                if (detail.data) {
+                  onAction(detail.data, "favorite", !detail.data.favorite);
+                }
+              }}
+            >
+              {detail.data.favorite ? "Unfavorite prompt" : "Favorite prompt"}
+            </button>
+            <button
+              className={buttonClass}
+              type="button"
+              disabled={actionsBlocked}
+              onClick={() => {
+                if (detail.data) {
+                  onAction(detail.data, "duplicate");
+                }
+              }}
+            >
+              Duplicate prompt
+            </button>
+            <button
+              className={buttonClass}
+              type="button"
+              disabled={actionsBlocked}
+              onClick={() => {
+                if (detail.data) {
+                  onAction(detail.data, "archived", !detail.data.archived);
+                }
+              }}
+            >
+              {detail.data.archived ? "Restore prompt" : "Archive prompt"}
+            </button>
+          </div>
+          {detail.data.sourceTitle &&
+          detail.data.title !== `${detail.data.sourceTitle} (copy)` ? (
+            <p className="mt-3 break-words">
+              Original title: {detail.data.sourceTitle}
+            </p>
+          ) : null}
           {detail.data.description ? (
             <p className="mt-3 break-words whitespace-pre-wrap">
               {detail.data.description}
@@ -112,12 +169,90 @@ const PromptDetail = ({
     </section>
   );
 };
+const PromptListRow = ({
+  prompt,
+  selectedId,
+  setSelected,
+  actions,
+}: {
+  prompt: Pick<
+    Prompt,
+    "id" | "title" | "description" | "favorite" | "archived"
+  >;
+  selectedId: string | null;
+  setSelected: (id: string) => void;
+  actions: ReturnType<typeof usePromptActions>;
+}) => (
+  <li>
+    <button
+      aria-pressed={selectedId === prompt.id}
+      className="w-full rounded-md border px-3 py-3 text-left break-words focus-visible:outline-2 focus-visible:outline-offset-2"
+      onClick={() => setSelected(prompt.id)}
+      type="button"
+    >
+      <span className="block font-medium">{prompt.title}</span>
+      {prompt.description ? (
+        <span className="text-muted-foreground mt-1 block text-sm">
+          {prompt.description}
+        </span>
+      ) : null}
+    </button>
+    <div className="mt-1 flex flex-wrap gap-2">
+      <button
+        className={buttonClass}
+        type="button"
+        aria-label={`${prompt.favorite ? "Unfavorite" : "Favorite"} ${prompt.title}`}
+        aria-pressed={prompt.favorite}
+        disabled={actions.blocked}
+        onClick={() => {
+          void actions.act(prompt, "favorite", !prompt.favorite);
+        }}
+      >
+        {prompt.favorite ? "Unfavorite" : "Favorite"}
+      </button>
+      <button
+        className={buttonClass}
+        type="button"
+        aria-label={`Duplicate ${prompt.title}`}
+        disabled={actions.blocked}
+        onClick={() => {
+          void actions.act(prompt, "duplicate");
+        }}
+      >
+        Duplicate
+      </button>
+      <button
+        className={buttonClass}
+        type="button"
+        aria-label={`${prompt.archived ? "Restore" : "Archive"} ${prompt.title}`}
+        disabled={actions.blocked}
+        onClick={() => {
+          void actions.act(prompt, "archived", !prompt.archived);
+        }}
+      >
+        {prompt.archived ? "Restore" : "Archive"}
+      </button>
+    </div>
+  </li>
+);
 const nearingCapacity = (usage?: { promptCount: number; textBytes: number }) =>
   Boolean(
     usage &&
     (usage.promptCount >= promptLimits.promptCount * 0.9 ||
       usage.textBytes >= promptLimits.libraryBytes * 0.9)
   );
+const selectionInPage = (
+  selected: string | null,
+  prompts: { id: string }[],
+  incomplete: boolean
+) =>
+  selected && (incomplete || prompts.some((prompt) => prompt.id === selected))
+    ? selected
+    : (prompts[0]?.id ?? null);
+const emptyViewMessage = (view: PromptView) =>
+  view === "all"
+    ? "Create your first prompt with a title and content."
+    : `No prompts in ${view === "archive" ? "the archive" : "favorites"}.`;
 export const PromptLibrary = ({
   library,
   onDirtyChange,
@@ -130,6 +265,10 @@ export const PromptLibrary = ({
   const [editing, setEditing] = useState<Prompt | "create" | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [view, setView] = useState<PromptView>("all");
+  const editorDirty = useRef(false);
+  const actionDirty = useRef(false);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
   useEffect(() => {
@@ -143,12 +282,13 @@ export const PromptLibrary = ({
     client.baseUrl,
     library.instance.id,
     library.account.id,
+    view,
   ];
   const list = useInfiniteQuery({
     queryKey,
     initialPageParam: "",
     queryFn: ({ pageParam, signal }) =>
-      client.getPrompts({ cursor: pageParam || undefined }, signal, {
+      client.getPrompts({ cursor: pageParam || undefined, view }, signal, {
         instanceId: library.instance.id,
         accountId: library.account.id,
       }),
@@ -159,7 +299,12 @@ export const PromptLibrary = ({
   });
   const usage = list.data?.pages[0]?.usage;
   const prompts = list.data?.pages.flatMap((page) => page.prompts) ?? [];
-  const empty = !list.isPending && !list.isError && !prompts.length;
+  const selectedId = selectionInPage(
+    selected,
+    prompts,
+    list.isFetching || list.hasNextPage
+  );
+  const empty = list.isSuccess && !prompts.length;
   const saved = (receipt: MutationReceipt) => {
     restoreFocus.current = true;
     setEditing(null);
@@ -171,7 +316,7 @@ export const PromptLibrary = ({
     );
   };
   const accepted = () => {
-    void queryClient.resetQueries({ queryKey });
+    void queryClient.resetQueries({ queryKey: queryKey.slice(0, -1) });
     void queryClient.invalidateQueries({
       queryKey: [
         "prompt",
@@ -189,10 +334,33 @@ export const PromptLibrary = ({
       ],
     });
   };
+  const actions = usePromptActions({
+    library,
+    onDirtyChange: (dirty) => {
+      actionDirty.current = dirty;
+      onDirtyChange(dirty || editorDirty.current);
+    },
+    onAccepted: (receipt, action, message) => {
+      accepted();
+      setNotice(message);
+      if (action === "duplicate") {
+        setView("all");
+        setSelected(receipt.promptId);
+      } else if (
+        receipt.promptId === selectedId &&
+        (action === "archived" || view === "favorites")
+      ) {
+        setSelected(null);
+      }
+      noticeRef.current?.focus();
+    },
+  });
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p aria-live="polite">{notice}</p>
+        <p aria-live="polite" ref={noticeRef} tabIndex={-1}>
+          {notice}
+        </p>
         <button
           className={buttonClass}
           disabled={Boolean(editing)}
@@ -206,6 +374,29 @@ export const PromptLibrary = ({
           Create prompt
         </button>
       </div>
+      <nav aria-label="Prompt views" className="flex flex-wrap gap-2">
+        {(
+          [
+            ["all", "All prompts"],
+            ["favorites", "Favorites"],
+            ["archive", "Archive"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            className={buttonClass}
+            key={value}
+            type="button"
+            aria-pressed={view === value}
+            onClick={() => {
+              setView(value);
+              setSelected(null);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <PromptActionStatus actions={actions} />
       <PromptConflicts library={library} onOpen={setSelected} />
       {usage ? (
         <p className="text-muted-foreground text-sm">
@@ -228,7 +419,10 @@ export const PromptLibrary = ({
             restoreFocus.current = true;
             setEditing(null);
           }}
-          onDirtyChange={onDirtyChange}
+          onDirtyChange={(dirty) => {
+            editorDirty.current = dirty;
+            onDirtyChange(dirty || actionDirty.current);
+          }}
           onSaved={saved}
           onAccepted={accepted}
         />
@@ -238,13 +432,11 @@ export const PromptLibrary = ({
         className="rounded-lg border p-6"
       >
         <h2 className="text-xl font-semibold" id="prompts-heading">
-          {empty ? "Your library is empty" : "Saved prompts"}
+          {empty && view === "all" ? "Your library is empty" : "Saved prompts"}
         </h2>
         {list.isPending ? <output>Loading your library…</output> : null}
         {empty ? (
-          <p className="text-muted-foreground mt-2">
-            Create your first prompt with a title and content.
-          </p>
+          <p className="text-muted-foreground mt-2">{emptyViewMessage(view)}</p>
         ) : null}
         {list.isError ? (
           <div role="alert">
@@ -262,21 +454,13 @@ export const PromptLibrary = ({
         ) : null}
         <ul className="mt-4 space-y-2">
           {prompts.map((prompt) => (
-            <li key={prompt.id}>
-              <button
-                aria-pressed={selected === prompt.id}
-                className="w-full rounded-md border px-3 py-3 text-left break-words focus-visible:outline-2 focus-visible:outline-offset-2"
-                onClick={() => setSelected(prompt.id)}
-                type="button"
-              >
-                <span className="block font-medium">{prompt.title}</span>
-                {prompt.description ? (
-                  <span className="text-muted-foreground mt-1 block text-sm">
-                    {prompt.description}
-                  </span>
-                ) : null}
-              </button>
-            </li>
+            <PromptListRow
+              key={prompt.id}
+              prompt={prompt}
+              selectedId={selectedId}
+              setSelected={setSelected}
+              actions={actions}
+            />
           ))}
         </ul>
         {list.hasNextPage ? (
@@ -292,15 +476,19 @@ export const PromptLibrary = ({
           </button>
         ) : null}
       </section>
-      {selected ? (
+      {selectedId ? (
         <PromptDetail
-          id={selected}
-          key={selected}
+          id={selectedId}
+          key={selectedId}
           library={library}
           editing={Boolean(editing)}
           onEdit={(prompt) => {
             setEditing(prompt);
             setNotice("");
+          }}
+          actionsBlocked={actions.blocked}
+          onAction={(prompt, action, value) => {
+            void actions.act(prompt, action, value);
           }}
         />
       ) : null}

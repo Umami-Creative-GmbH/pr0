@@ -5,6 +5,7 @@ import {
   mutationResponseSchema,
   promptIdentitySchema,
   promptListInputSchema,
+  promptBrowseInputSchema,
 } from "@pr0/api-contract/prompts";
 import type { MutationResult } from "@pr0/api-contract/prompts";
 
@@ -135,7 +136,9 @@ export const handlePrompts = async (
         body = await getPrompt(browser, promptId);
       } else {
         const entries = Object.fromEntries(url.searchParams);
-        const input = promptListInputSchema.safeParse({
+        const input = (
+          conflicts ? promptListInputSchema : promptBrowseInputSchema
+        ).safeParse({
           ...entries,
           limit:
             entries.limit === undefined ? undefined : Number(entries.limit),
@@ -146,11 +149,12 @@ export const handlePrompts = async (
         ) {
           throw invalidPromptRequest();
         }
-        body = await (conflicts ? listConflicts : listPrompts)(
-          browser,
-          input.data.limit,
-          input.data.cursor
-        );
+        body = conflicts
+          ? await listConflicts(browser, input.data.limit, input.data.cursor)
+          : await listPrompts(
+              browser,
+              promptBrowseInputSchema.parse(input.data)
+            );
       }
       const headers = new Headers(result.headers);
       headers.set("Cache-Control", "no-store");

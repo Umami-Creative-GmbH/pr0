@@ -4,6 +4,7 @@ import {
   promptErrorSchema,
   promptIdentitySchema,
   promptListInputSchema,
+  promptBrowseInputSchema,
   promptPageSchema,
   promptSchema,
   conflictPageSchema,
@@ -12,6 +13,7 @@ import type {
   LibraryScope,
   MutationEnvelope,
   PromptError,
+  PromptView,
 } from "@pr0/api-contract/prompts";
 
 export class PromptApiError extends Error {
@@ -96,13 +98,14 @@ export const createPromptClient = (
       return result;
     },
     async getPrompts(
-      input: { cursor?: string; limit?: number } = {},
+      input: { cursor?: string; limit?: number; view?: PromptView } = {},
       signal?: AbortSignal,
       scope?: LibraryScope
     ) {
-      const parsed = promptListInputSchema.parse(input);
+      const parsed = promptBrowseInputSchema.parse(input);
       const params = new URLSearchParams({
         limit: String(parsed.limit),
+        view: parsed.view,
       });
       if (parsed.cursor) {
         params.set("cursor", parsed.cursor);
