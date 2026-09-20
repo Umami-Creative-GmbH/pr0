@@ -39,9 +39,7 @@ export const handleSnapshot = async (request: Request, page: boolean) => {
         throw new AccountFailureError("forbidden", 403);
       }
       await claimOwner(current.user.id);
-      await admit([
-        { key: `snapshot:${current.user.id}`, max: 120, seconds: 60 },
-      ]);
+      await admit([{ key: `api:${current.user.id}`, max: 120, seconds: 60 }]);
       const result = await readSnapshot(
         current.user.id,
         current.session.id,

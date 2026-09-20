@@ -13,9 +13,11 @@ type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 const boundedJson = async <T>(
   response: Response,
   limit: number,
-  schema: z.ZodType<T>
+  schema: z.ZodType<T>,
+  signal: AbortSignal
 ) => {
   if (!response.ok) {
+    await response.body?.cancel();
     throw new Error(
       response.status === 410 ? "snapshot_expired" : "snapshot_unavailable"
     );
@@ -26,9 +28,22 @@ const boundedJson = async <T>(
   }
   const chunks: Uint8Array[] = [];
   let size = 0;
+  const cancel = async () => {
+    try {
+      await reader.cancel();
+    } catch {
+      /* A failed stream may already be closed; preserve the original failure. */
+    }
+  };
+  const abort = () => {
+    void cancel();
+  };
+  signal.addEventListener("abort", abort, { once: true });
   try {
     while (true) {
+      signal.throwIfAborted();
       const { done, value } = await reader.read();
+      signal.throwIfAborted();
       if (done) {
         break;
       }
@@ -39,7 +54,8 @@ const boundedJson = async <T>(
       chunks.push(value);
     }
   } finally {
-    await reader.cancel();
+    signal.removeEventListener("abort", abort);
+    await cancel();
   }
   const bytes = new Uint8Array(size);
   let offset = 0;
@@ -60,9 +76,14 @@ export const createSnapshotClient = (
     path: string,
     body: Record<string, never> | { id: string; page: number },
     limit: number,
-    schema: z.ZodType<T>
-  ) =>
-    boundedJson(
+    schema: z.ZodType<T>,
+    cancellation?: AbortSignal
+  ) => {
+    const timeout = AbortSignal.timeout(30_000);
+    const signal = cancellation
+      ? AbortSignal.any([cancellation, timeout])
+      : timeout;
+    return boundedJson(
       await fetcher(
         `${origin.replace(/\/$/u, "")}/api/v1/sync/snapshots${path}`,
         {
@@ -71,19 +92,22 @@ export const createSnapshotClient = (
           body: JSON.stringify(body),
           redirect: "error",
           cache: "no-store",
-          signal: AbortSignal.timeout(30_000),
+          signal,
         }
       ),
       limit,
-      schema
+      schema,
+      signal
     );
+  };
   return {
-    create: async () => {
+    create: async (signal?: AbortSignal) => {
       const manifest = await request(
         "",
         {},
         snapshotLimits.manifestBytes,
-        snapshotManifestSchema
+        snapshotManifestSchema,
+        signal
       );
       if (
         manifest.accountId !== scope.accountId ||
@@ -93,7 +117,11 @@ export const createSnapshotClient = (
       }
       return manifest;
     },
-    page: async (manifest: SnapshotManifest, page: number) => {
+    page: async (
+      manifest: SnapshotManifest,
+      page: number,
+      signal?: AbortSignal
+    ) => {
       if (
         manifest.accountId !== scope.accountId ||
         manifest.instanceId !== scope.instanceId ||
@@ -105,7 +133,8 @@ export const createSnapshotClient = (
         "/page",
         { id: manifest.id, page },
         snapshotLimits.pageBytes,
-        snapshotPageSchema
+        snapshotPageSchema,
+        signal
       );
       const bytes = new TextEncoder().encode(result.payload);
       const digest = [
@@ -122,6 +151,13 @@ export const createSnapshotClient = (
         throw new Error("snapshot_digest_mismatch");
       }
       const records = snapshotRecordsSchema.parse(JSON.parse(result.payload));
+      if (
+        (page === 0) !== (records.organization !== null) ||
+        (records.organization &&
+          records.organization.revision !== manifest.revision)
+      ) {
+        throw new Error("invalid_response");
+      }
       if (
         records.prompts.some(
           (prompt) =>

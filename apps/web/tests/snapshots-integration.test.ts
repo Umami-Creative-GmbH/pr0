@@ -105,3 +105,30 @@ test("a desktop downloads a stable revision cut and cannot read another account'
   );
   expect(browserDenied.status).toBe(403);
 });
+
+test("browser and snapshot requests share one account-wide API budget", async () => {
+  const owner = await verifiedBrowser();
+  const code = await startDevice();
+  await approveDevice(code.user_code, owner.library.account.id, owner.browser);
+  const token = await tokenFrom(await redeem(code.device_code));
+  const headers = { Authorization: `Bearer ${token.access_token}` };
+  const initial = await post("/api/v1/sync/snapshots", {}, headers);
+  expect(initial.status).toBe(200);
+  let limited = false;
+  // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Exercise the public account budget without overlapping requests.
+  for (let index = 0; index < 120; index += 1) {
+    const response = await fetch(`${origin}/api/v1/library`, {
+      headers: { Cookie: owner.browser },
+    });
+    if (response.status === 429) {
+      limited = true;
+      break;
+    }
+    expect(response.status).toBe(200);
+  }
+  // oxlint-enable eslint/no-await-in-loop, react-doctor/async-await-in-loop
+  expect(limited).toBe(true);
+  const refused = await post("/api/v1/sync/snapshots", {}, headers);
+  expect(refused.status).toBe(429);
+  expect(Number(refused.headers.get("Retry-After"))).toBeGreaterThan(0);
+});

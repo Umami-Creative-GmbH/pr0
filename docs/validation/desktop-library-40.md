@@ -15,13 +15,24 @@ Validated on Windows on 2026-09-20 with Bun 1.4.2, Rust/Tauri, PostgreSQL 17 and
 - `bun run test`: all seven workspace tasks passed.
 - `bun run typecheck`: all six workspace checks passed.
 - `bun x --bun ultracite check`: formatting and lint passed, including the repository's React Doctor rules.
-- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib`: 21 passed, including real Windows Credential Manager and a separate-process restart. Snapshot tests cover partial progress, restart, disconnect, expiry/restart, digest failure, a real read-only filesystem failure, wrong-account manifests, missing credentials and exact sign-out cleanup.
+- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib`: real Windows Credential Manager and a separate-process restart, partial progress, restart, disconnect, expiry/restart, digest failure, a real read-only filesystem failure, wrong-account manifests, missing credentials, malformed organization conformance and exact sign-out cleanup.
 - `bun --env-file=apps/web/tests/device.env apps/web/tests/snapshots-runner.ts`: real REST ownership/bounds/revision-cut tests, expiry across a server restart with a test-only clock, and Rust HTTPS → browser email approval → Windows Credential Manager → partial download → native process restart → complete download → server disconnect → new process offline detail → independent sign-out.
 - `bun test apps/web/tests/snapshot-ui.test.ts --timeout 30000` with desktop Vite on port 1420: partial/offline messaging, committed progress, keyboard detail opening and exact whitespace passed. This UI check substitutes the typed native boundary; persistence is tested by the real native journey above. Screenshot: `.scratch/issue40-partial-offline.png`.
+- `VITE_API_BASE_URL=https://instance.example bun run --cwd apps/desktop tauri build --debug --no-bundle` and the real WebView2 `device-shell.test.ts`: executable built successfully; remote content was denied both account and library native commands. Together with the final UI test, 2 tests / 10 assertions passed.
+- Review corrections passed shared account-wide API-budget coverage (2 REST tests / 139 assertions), client HTTP/UTF-8/JSON/size rejection and response-stream cancellation (5 client tests / 23 assertions), and shared TypeScript/Rust malformed-organization fixtures.
+
+## Review
+
+| Review | Findings resolved | Remaining findings |
+| --- | --- | --- |
+| Standards | Shared API rate-limit budget; client failure and cancellation coverage | 0 |
+| Specification | Organization placement and revision validation in the shared client | 0 |
+
+Both independent reviewers checked the corrections after the initial implementation commit.
 
 ## Measured initial-download costs
 
-Synthetic fixture: 10,000 prompts, exactly 104,857,600 logical UTF-8 text bytes (repeated ASCII content). The real HTTPS/native journey produced 27 pages. Its latest measured elapsed time was 15,403 ms, including process restart and a final disconnected process opening a downloaded prompt. An earlier run measured 17,844 ms. Both were below the specified 120-second initial-download budget on this development machine.
+Synthetic fixture: 10,000 prompts, exactly 104,857,600 logical UTF-8 text bytes (repeated ASCII content). The real HTTPS/native journey produced 27 pages. Its latest measured elapsed time was 18,875 ms, including process restart and a final disconnected process opening a downloaded prompt. Earlier runs measured 15,403 ms and 17,844 ms. All were below the specified 120-second initial-download budget on this development machine.
 
 After the offline restart, the library SQLite file occupied 123,936,768 bytes (118.20 MiB), shared-memory file 32,768 bytes, WAL 0 bytes and session metadata 8,192 bytes. During download/staging, additional WAL and scratch space are required. This is not a worst-case arbitrary-Unicode or supported-hardware benchmark; JSON escaping, metadata and replacement staging change costs. No artificial response truncation or durability reduction was used.
 

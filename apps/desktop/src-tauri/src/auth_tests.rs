@@ -618,6 +618,41 @@ fn concurrent_restore_waits_for_the_same_revocation_check() {
 struct Fixture(Mutex<Vec<serde_json::Value>>);
 
 #[test]
+fn shared_malformed_organization_pages_never_advance_durable_progress() {
+    let data: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/snapshot-fixtures.json"
+    ))
+    .unwrap();
+    for entry in data["malformed"].as_array().unwrap() {
+        let directory =
+            std::env::temp_dir().join(format!("pr0-library-test-{}", uuid::Uuid::new_v4()));
+        let transport = approval();
+        transport.0.lock().unwrap().pop();
+        transport.0.lock().unwrap().push(entry["manifest"].clone());
+        let page = entry["page"]["page"].as_u64().unwrap();
+        if page == 1 {
+            transport.0.lock().unwrap().push(data["pages"][0].clone());
+        }
+        transport.0.lock().unwrap().push(entry["page"].clone());
+        let service =
+            AuthService::new(directory.clone(), transport, Arc::new(Vault::default())).unwrap();
+        sign_in(&service);
+        if page == 1 {
+            service.library_download().unwrap();
+        }
+        assert_eq!(
+            service.library_download().err().as_deref(),
+            Some("invalid_response"),
+            "{}",
+            entry["name"]
+        );
+        assert_eq!(service.library_status().unwrap().applied_pages, page as u32);
+        drop(service);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
 fn manifest_authorization_failure_requires_sign_in_without_erasing_identity() {
     let directory = std::env::temp_dir().join(format!("pr0-library-test-{}", uuid::Uuid::new_v4()));
     let transport = approval();

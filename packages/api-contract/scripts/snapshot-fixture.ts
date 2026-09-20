@@ -61,7 +61,34 @@ const manifest = {
     bytes: Buffer.byteLength(page.payload),
   })),
 };
+const malformed = [
+  { name: "missing first-page organization", page: 0, organization: null },
+  {
+    name: "organization from another revision",
+    page: 0,
+    organization: { ...organization, revision: "1" },
+  },
+  { name: "organization on a subsequent page", page: 1, organization },
+].map((entry) => {
+  const payload = JSON.stringify({
+    organization: entry.organization,
+    prompts: [],
+  });
+  const digests = manifest.pages.map((digest, index) =>
+    index === entry.page
+      ? {
+          digest: new Bun.CryptoHasher("sha256").update(payload).digest("hex"),
+          bytes: Buffer.byteLength(payload),
+        }
+      : digest
+  );
+  return {
+    name: entry.name,
+    manifest: { ...manifest, pages: digests },
+    page: { id, page: entry.page, payload },
+  };
+});
 await Bun.write(
   new URL("../src/snapshot-fixtures.json", import.meta.url),
-  `${JSON.stringify({ manifest, pages }, null, 2)}\n`
+  `${JSON.stringify({ manifest, pages, malformed }, null, 2)}\n`
 );
