@@ -1,3 +1,7 @@
+// oxlint-disable eslint/no-bitwise -- Bitmap membership and seeded PRNGs require exact 32-bit operations.
+// oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Samples and corpus writes run sequentially to avoid contaminating benchmark measurements.
+// oxlint-disable react-doctor/js-combine-iterations -- Keep the independent reference oracle's filtering and projection separate from the measured search implementation.
+// oxlint-disable eslint/no-nested-ternary -- Ordered expressions preserve the reference ranking and comparison branches used by these recorded experiments.
 import { Database } from "bun:sqlite";
 import { strict as assert } from "node:assert";
 
@@ -44,14 +48,15 @@ records.push({
 });
 small.transaction(() => {
   for (const record of records) {
-    for (const field of fields)
+    for (const field of fields) {
       small
         .query(`INSERT INTO f_${field}(rowid,value) VALUES(?,?)`)
         .run(record.id, record[field]);
+    }
   }
 })();
 const oldCases = await Bun.file(`${root}/native-cases.json`).json();
-const terms = [
+const parityTerms = [
   ...new Set([
     ...oldCases.flatMap((row) => row.terms),
     ...records
@@ -74,7 +79,7 @@ const terms = [
   ]),
 ];
 let parityChecks = 0;
-for (const term of terms) {
+for (const term of parityTerms) {
   for (const field of fields) {
     const expected = records
       .filter((row) => row[field].includes(term))
@@ -204,8 +209,11 @@ for (const corpus of ["noise", "synthetic-prose"]) {
     const bits = index.get(JSON.stringify([field, term]));
     const found = new Set();
     if (bits) {
-      for (let slot = 0; slot < metadata.length; slot += 1)
-        if (bits[slot >>> 5] & (1 << (slot & 31))) found.add(metadata[slot].id);
+      for (let slot = 0; slot < metadata.length; slot += 1) {
+        if (bits[slot >>> 5] & (1 << (slot & 31))) {
+          found.add(metadata[slot].id);
+        }
+      }
     }
     return found;
   };
@@ -214,7 +222,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
       return shortHits(field, term);
     }
     const table = `f_${field}`;
-    const rows =
+    const matchedRows =
       method === "glob"
         ? db
             .query(`SELECT rowid AS id FROM ${table} WHERE ${field} GLOB ?`)
@@ -224,7 +232,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
               `SELECT rowid AS id FROM ${table} WHERE ${table} MATCH ? AND instr(${field},?)>0`
             )
             .all(grams(term), term);
-    return new Set(rows.map((row) => row.id));
+    return new Set(matchedRows.map((row) => row.id));
   };
   const search = (query, sort, method) => {
     const terms = [...new Set(query.split(" ").filter(Boolean))];
@@ -282,14 +290,16 @@ for (const corpus of ["noise", "synthetic-prose"]) {
   ];
   const timings = [];
   for (const method of ["match-recheck", "glob"]) {
-    for (const query of queries)
+    for (const query of queries) {
       for (const sort of ["title", "relevance"]) {
         const samples = [];
         let found;
         for (let run = 0; run < 21; run += 1) {
           const start = performance.now();
           found = search(query, sort, method);
-          if (run > 0) samples.push(performance.now() - start);
+          if (run > 0) {
+            samples.push(performance.now() - start);
+          }
         }
         samples.sort((a, b) => a - b);
         const terms = query.split(" ");
@@ -335,6 +345,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
           max: samples[19],
         });
       }
+    }
   }
   const sizes = db
     .query("SELECT name,sum(pgsize) AS bytes FROM dbstat GROUP BY name")

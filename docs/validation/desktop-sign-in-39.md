@@ -17,4 +17,10 @@ Executed on Windows on 2026-09-20 using Bun 1.4.2, Rust 1.94, Better Auth 1.7.5,
 
 This slice enables account access only. It deliberately exposes no local prompt edits or library-download completion. Pending-work decisions, installed update/reboot/second-Windows-user ACL release checks, provider-operated Google/GitHub journeys, receipt verification/rotation, and deletion restoration remain their respective dependent release gates.
 
-React Doctor 0.9.14 was attempted with `bun x --bun react-doctor@latest --verbose --scope changed`; its worker crashed because Bun's child-process channel has no `unref` method. No Node fallback was introduced. The repository's bundled React Doctor/Oxlint rules run with the normal lint check. A repository-wide formatter invocation also found existing lint failures in research harnesses; unrelated formatter changes were reverted.
+React Doctor 0.9.14 was attempted with `bun x --bun react-doctor@latest --verbose --scope changed`; its worker crashed because Bun's child-process channel has no `unref` method. No Node fallback was introduced. The repository's bundled React Doctor/Oxlint rules run with the normal lint check.
+
+## Main integration
+
+Integration with the prompt-use work already on main preserves migration 014 and adds desktop storage as migration 015. All 100 combined workspace tests, six typecheck tasks, and the served device acceptance journey passed again.
+
+The initial CI run exposed pre-existing formatting failures and research-script lint errors. A separate cleanup applies formatting, equivalent syntax fixes, and documented exceptions for intentional bitmap operations, sequential benchmark samples, and reference expressions. The full repository lint check now passes. All eight affected research scripts passed their assertions against a copied Unicode fixture, disposable PostgreSQL, and a 100-row SQLite/PostgreSQL corpus; the ordered variant also passed in batched mode. These smoke checks do not replace the original maximum-library performance measurements.

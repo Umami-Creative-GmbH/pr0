@@ -1,3 +1,6 @@
+// oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Samples and corpus writes run sequentially to avoid contaminating benchmark measurements.
+// oxlint-disable react-doctor/js-combine-iterations -- Keep the independent reference oracle's filtering and projection separate from the measured search implementation.
+// oxlint-disable eslint/no-nested-ternary -- Ordered expressions preserve the reference ranking and comparison branches used by these recorded experiments.
 import { Database } from "bun:sqlite";
 import { strict as assert } from "node:assert";
 
@@ -59,7 +62,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
             .all(grams(term))
             .map((row) => row.id)
         );
-  function search(query, sort, method) {
+  const search = (query, sort, method) => {
     const terms = [...new Set(query.split(" ").filter(Boolean))];
     const coarse = terms.map((term) => ({
       term,
@@ -100,6 +103,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
       let chunkBodies = new Map();
       for (const [candidateIndex, row] of candidates.entries()) {
         let content;
+        // oxlint-disable-next-line eslint/no-loop-func -- every completes synchronously; the callback updates this iteration's batch cache.
         const eligible = coarse.every((hit) => {
           if (row.title.includes(hit.term)) {
             return true;
@@ -140,7 +144,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
               }
               content = chunkBodies.get(row.id);
             } else {
-              content = get.get(row.id).content;
+              ({ content } = get.get(row.id));
             }
             rechecked += 1;
           }
@@ -178,7 +182,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
       }
     }
     return { ids: result, rechecked, candidates: candidates.length };
-  }
+  };
   const longQuery =
     "write concise answer useful examples clear steps review following document identify important changes explain reasoning preserve exact names punctuation summarize meeting notes actions owners dates";
   const queries = [
@@ -194,14 +198,16 @@ for (const corpus of ["noise", "synthetic-prose"]) {
   for (const method of process.env.COMPACT_BATCH === "1"
     ? ["batched"]
     : ["fused", "ordered"]) {
-    for (const query of queries)
+    for (const query of queries) {
       for (const sort of ["title", "relevance"]) {
         const samples = [];
         let actual;
         for (let run = 0; run < 21; run += 1) {
           const start = performance.now();
           actual = search(query, sort, method);
-          if (run > 0) samples.push(performance.now() - start);
+          if (run > 0) {
+            samples.push(performance.now() - start);
+          }
         }
         samples.sort((a, b) => a - b);
         const terms = [...new Set(query.split(" "))];
@@ -247,6 +253,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
           max: samples[19],
         });
       }
+    }
   }
   await Bun.write(
     `${root}/${process.env.COMPACT_BATCH === "1" ? "compact-batched-results" : "compact-ordered-results"}.json`,
@@ -256,7 +263,7 @@ for (const corpus of ["noise", "synthetic-prose"]) {
     `${JSON.stringify(
       output
         .filter((row) => row.corpus === corpus && row.sort === "relevance")
-        .map(({ ids, ...row }) => row),
+        .map(({ ids: _ids, ...row }) => row),
       null,
       2
     )}\n`

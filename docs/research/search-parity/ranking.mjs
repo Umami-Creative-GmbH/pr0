@@ -18,13 +18,13 @@ const fields = [
 ];
 const terms = ["german", "email"];
 const values = [];
-function contains(field, term, dialect) {
+const contains = (field, term, dialect) => {
   values.push(term);
   return dialect === "pg"
     ? `strpos(${field},$${values.length})>0`
     : `instr(${field},?)>0`;
-}
-function build(dialect) {
+};
+const build = (dialect) => {
   values.length = 0;
   values.push("german email");
   const equality = dialect === "pg" ? "title=$1" : "title=?";
@@ -51,7 +51,7 @@ function build(dialect) {
     )
     .join(" AND ");
   return `SELECT id, CASE WHEN ${equality} THEN 1 WHEN ${titleAll} THEN 2 WHEN ${titleAny} THEN 3 WHEN ${org} THEN 4 WHEN ${description} THEN 5 ELSE 6 END AS tier FROM prompts WHERE ${eligible} ORDER BY tier,title COLLATE ${dialect === "pg" ? '"C"' : "BINARY"},id`;
-}
+};
 const sqliteSql = build("sqlite");
 const sqlite = db.query(sqliteSql).all(...values);
 const pgSql = build("pg");
