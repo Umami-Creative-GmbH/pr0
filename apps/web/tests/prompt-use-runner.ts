@@ -10,6 +10,7 @@ try {
     "bun",
     "test",
     "apps/web/tests/prompt-copy-browser.test.ts",
+    "apps/web/tests/prompt-copy-webkit.test.ts",
     "apps/web/tests/prompt-use-integration.test.ts",
     "apps/web/tests/full-search-integration.test.ts",
     "apps/web/tests/full-search-browser.test.ts",

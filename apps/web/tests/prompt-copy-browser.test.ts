@@ -7,6 +7,26 @@ import { origin } from "./http-fixture";
 import { promptBrowser, promptClient, promptOperation } from "./prompt-fixture";
 import { withUsageStorageFailure } from "./prompt-storage-fixture";
 
+test("clipboard initiation retains the original gesture while eligibility is prepared asynchronously", async () => {
+  const account = await promptBrowser();
+  const create = promptOperation();
+  await account.mutate([create]);
+  const ui = await copyBrowser(account.Cookie);
+  try {
+    const page = await ui.open();
+    await page.getByLabel("Saved content").waitFor();
+    await page.evaluate(() => {
+      window.clipboardTest.requireGesture = true;
+    });
+    await page
+      .getByRole("button", { name: "Copy prompt", exact: true })
+      .click();
+    await waitForCopy(page);
+  } finally {
+    await ui.browser.close();
+  }
+});
+
 test("copy failures record no use; list and detail copy exact saved text without navigation", async () => {
   const account = await promptBrowser();
   const client = promptClient(account.Cookie);
@@ -250,6 +270,59 @@ test("usage storage rollback retains clipboard success and retry records one use
       "Hello",
     ]);
   } finally {
+    await ui.browser.close();
+  }
+});
+
+test("account changes during prompt preparation reject the clipboard payload before writing", async () => {
+  const account = await promptBrowser();
+  const other = await promptBrowser();
+  const create = promptOperation();
+  const foreign = promptOperation({
+    title: "New library",
+    description: "",
+    content: "other",
+  });
+  await account.mutate([create]);
+  await other.mutate([foreign]);
+  const ui = await copyBrowser(account.Cookie);
+  const release = Promise.withResolvers<undefined>();
+  try {
+    const page = await ui.open();
+    await page.getByLabel("Saved content").waitFor();
+    const requested = Promise.withResolvers<undefined>();
+    await page.route(
+      `**/api/v1/library/prompts/${create.promptId}`,
+      async (route) => {
+        const response = await route.fetch();
+        requested.resolve();
+        await release.promise;
+        await route.fulfill({ response });
+      }
+    );
+    await page
+      .getByRole("button", { name: "Copy prompt", exact: true })
+      .click();
+    await requested.promise;
+    await ui.setAccount(other.Cookie);
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("visibilitychange"))
+    );
+    await page
+      .getByRole("button", { name: "Copy New library", exact: true })
+      .waitFor();
+    release.resolve();
+    await page.waitForFunction(async () => {
+      const locks = await navigator.locks.query();
+      return !locks.held?.some((lock) => lock.name === "pr0:clipboard");
+    });
+    expect(await page.evaluate(() => window.clipboardTest.writes)).toEqual([]);
+    const prompt = await promptClient(account.Cookie).getPrompt(
+      create.promptId
+    );
+    expect(prompt.useCount).toBe(0);
+  } finally {
+    release.resolve();
     await ui.browser.close();
   }
 });

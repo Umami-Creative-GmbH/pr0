@@ -9,6 +9,8 @@ declare global {
       writes: string[];
       fail: boolean;
       delay: boolean;
+      requireGesture?: boolean;
+      gesture?: boolean;
       finish?: () => void;
     };
   }
@@ -33,10 +35,32 @@ export const copyBrowser = async (cookieHeader: string) => {
   await setAccount(cookieHeader);
   await context.addInitScript(() => {
     window.clipboardTest = { writes: [], fail: false, delay: false };
-    const original = navigator.clipboard.writeText.bind(navigator.clipboard);
-    Object.defineProperty(navigator.clipboard, "writeText", {
+    document.addEventListener(
+      "click",
+      () => {
+        window.clipboardTest.gesture = true;
+        setTimeout(() => {
+          window.clipboardTest.gesture = false;
+        }, 0);
+      },
+      { capture: true }
+    );
+    const original = navigator.clipboard.write.bind(navigator.clipboard);
+    Object.defineProperty(navigator.clipboard, "write", {
       configurable: true,
-      value: async (text: string) => {
+      value: async (items: ClipboardItem[]) => {
+        if (
+          window.clipboardTest.requireGesture &&
+          !window.clipboardTest.gesture
+        ) {
+          throw new Error("Clipboard needs the original gesture");
+        }
+        const [item] = items;
+        if (!item) {
+          throw new Error("Missing clipboard item");
+        }
+        const blob = await item.getType("text/plain");
+        const text = await blob.text();
         window.clipboardTest.writes.push(text);
         if (window.clipboardTest.fail) {
           throw new Error("Clipboard denied");
@@ -46,7 +70,7 @@ export const copyBrowser = async (cookieHeader: string) => {
           window.clipboardTest.finish = () => deferred.resolve();
           await deferred.promise;
         }
-        await original(text);
+        await original([new ClipboardItem({ "text/plain": blob })]);
       },
     });
   });
