@@ -405,6 +405,18 @@ test("device-provenance cookies and direct sensitive auth routes cannot acquire 
   const headers = { Cookie: browser.Cookie };
   await sql`UPDATE session SET provenance = 'device' WHERE id = ${browser.sessionId}`;
   await assertCode(
+    await post(
+      "/api/auth/device/approve",
+      {
+        userCode: "ABCD2345",
+        accountId: browser.identity.accountId,
+      },
+      headers
+    ),
+    403,
+    "forbidden"
+  );
+  await assertCode(
     await fetch(`${origin}/api/v1/account`, { headers }),
     403,
     "forbidden"
@@ -435,7 +447,6 @@ test("device-provenance cookies and direct sensitive auth routes cannot acquire 
     "email-otp/check-verification-otp",
     "email-otp/change-email",
     "email-otp/verify-email",
-    "device/approve",
     "get-session",
   ]) {
     await assertCode(
