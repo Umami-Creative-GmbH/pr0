@@ -19,6 +19,7 @@ export const CollectionPicker = ({
   label,
   emptyLabel,
   disabled = false,
+  unavailableName,
 }: {
   collections: CollectionOption[];
   value: string | null;
@@ -27,11 +28,14 @@ export const CollectionPicker = ({
   label: string;
   emptyLabel: string;
   disabled?: boolean;
+  unavailableName?: string;
 }) => {
   const id = useId();
   const [query, setQuery] = useState("");
   const visible = collections.filter((entry) => search(entry.name, query));
   const selected = collections.find((entry) => entry.id === value);
+  const selectedName =
+    selected?.name ?? unavailableName ?? "Unavailable collection";
   return (
     <fieldset
       disabled={disabled}
@@ -48,9 +52,9 @@ export const CollectionPicker = ({
             className={buttonClass}
             type="button"
             onClick={() => onChange(null)}
-            aria-label={`Remove collection ${selected?.name ?? "Unavailable"}`}
+            aria-label={`Remove collection ${selectedName}`}
           >
-            {selected?.name ?? "Unavailable collection"} · Remove
+            {selectedName} · Remove
           </button>
         </div>
       ) : null}

@@ -11,6 +11,7 @@ export const TagPicker = ({
   search,
   label,
   disabled = false,
+  unavailableNames,
 }: {
   tags: CollectionOption[];
   value: string[];
@@ -18,11 +19,15 @@ export const TagPicker = ({
   search: (name: string, query: string) => boolean;
   label: string;
   disabled?: boolean;
+  unavailableNames?: ReadonlyMap<string, string>;
 }) => {
   const id = useId();
   const [query, setQuery] = useState("");
   const selected = new Set(value);
   const visible = tags.filter((tag) => search(tag.name, query));
+  const names = new Map(tags.map((tag) => [tag.id, tag.name]));
+  const nameFor = (tagId: string) =>
+    names.get(tagId) ?? unavailableNames?.get(tagId) ?? "Unavailable tag";
   return (
     <fieldset
       disabled={disabled}
@@ -40,10 +45,9 @@ export const TagPicker = ({
             type="button"
             className="rounded-md border px-2 py-1 break-words focus-visible:outline-2"
             onClick={() => onChange(value.filter((entry) => entry !== tagId))}
-            aria-label={`Remove tag ${tags.find((tag) => tag.id === tagId)?.name ?? "Unavailable"}`}
+            aria-label={`Remove tag ${nameFor(tagId)}`}
           >
-            {tags.find((tag) => tag.id === tagId)?.name ?? "Unavailable tag"} ·
-            Remove
+            {nameFor(tagId)} · Remove
           </button>
         ))}
       </div>

@@ -1,4 +1,5 @@
 import { accountTestServer, runAcceptance } from "./account-test-server";
+import { organizationRestartFixture } from "./organization-cleanup-restart";
 import { promptBrowser, promptClient, promptOperation } from "./prompt-fixture";
 import { tagOperation, tagDelta } from "./tag-fixture";
 
@@ -11,6 +12,8 @@ try {
     ...(process.argv.slice(2).length
       ? process.argv.slice(2)
       : [
+          "apps/web/tests/organization-cleanup-integration.test.ts",
+          "apps/web/tests/organization-cleanup-browser.test.ts",
           "apps/web/tests/tags-integration.test.ts",
           "apps/web/tests/tags-browser.test.ts",
           "apps/web/tests/collections-integration.test.ts",
@@ -53,10 +56,19 @@ try {
       prompt: await client.getPrompt(create.promptId),
       snapshot: await client.getOrganization(),
     };
+    const cleanupFixture = await organizationRestartFixture();
     await server.startServer();
     await runAcceptance(
-      ["bun", "test", "apps/web/tests/tags-restart.test.ts"],
-      { PR0_TAG_RESTART_FIXTURE: JSON.stringify(fixture) }
+      [
+        "bun",
+        "test",
+        "apps/web/tests/tags-restart.test.ts",
+        "apps/web/tests/organization-cleanup-restart.test.ts",
+      ],
+      {
+        PR0_TAG_RESTART_FIXTURE: JSON.stringify(fixture),
+        PR0_ORGANIZATION_RESTART_FIXTURE: JSON.stringify(cleanupFixture),
+      }
     );
   }
 } finally {

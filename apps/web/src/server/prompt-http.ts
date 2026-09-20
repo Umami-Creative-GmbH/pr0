@@ -13,6 +13,11 @@ import { AccountFailureError, admit, assertOrigin } from "./admission";
 import { authentication } from "./auth";
 import type { BrowserAccount } from "./browser-proof";
 import {
+  getOrganizationImpact,
+  getOrganizationReview,
+  getOrganizationStates,
+} from "./organization-read";
+import {
   invalidPromptRequest,
   PromptFailureError,
   promptErrorResponse,
@@ -102,7 +107,10 @@ const mutate = async (request: Request, browser: BrowserAccount) => {
 };
 type LibraryRequestTarget =
   | { kind: "prompts" | "conflicts" | "organization" | "mutations" }
-  | { kind: "prompt"; id: string };
+  | { kind: "prompt" | "organization-review"; id: string }
+  | { kind: "organization-impact" | "organization-states" };
+const promptIdRequestValid = (url: URL, id: string) =>
+  !url.search && promptIdentitySchema.safeParse(id).success;
 export const handlePrompts = async (
   request: Request,
   target: LibraryRequestTarget
@@ -132,13 +140,19 @@ export const handlePrompts = async (
           throw invalidPromptRequest();
         }
         body = await mutate(request, browser);
+      } else if (target.kind === "organization-impact") {
+        body = await getOrganizationImpact(browser, url);
+      } else if (target.kind === "organization-review") {
+        body = await getOrganizationReview(browser, target.id, url);
+      } else if (target.kind === "organization-states") {
+        body = await getOrganizationStates(browser, url);
       } else if (target.kind === "organization") {
         if (url.search) {
           throw invalidPromptRequest();
         }
         body = await getOrganization(browser);
       } else if (target.kind === "prompt") {
-        if (url.search || !promptIdentitySchema.safeParse(target.id).success) {
+        if (!promptIdRequestValid(url, target.id)) {
           throw invalidPromptRequest();
         }
         body = await getPrompt(browser, target.id);

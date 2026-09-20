@@ -10,6 +10,10 @@ import {
   promptPageSchema,
   promptSchema,
   conflictPageSchema,
+  organizationImpactInputSchema,
+  organizationImpactSchema,
+  organizationReviewSchema,
+  organizationStatesSchema,
 } from "@pr0/api-contract/prompts";
 import type {
   LibraryScope,
@@ -32,6 +36,24 @@ export class PromptApiError extends Error {
     this.detail = detail;
   }
 }
+const cleanupReceiptMatches = (
+  entry: Extract<MutationResult, { effect: unknown }>,
+  operation: MutationEnvelope["operations"][number]
+) => {
+  let sourceId: string | null = null;
+  if ("collectionId" in operation) {
+    sourceId = operation.collectionId;
+  }
+  if ("tagId" in operation) {
+    sourceId = operation.tagId;
+  }
+  return (
+    entry.effect.kind === operation.kind &&
+    entry.effect.sourceId === sourceId &&
+    entry.effect.targetId ===
+      (operation.kind === "tag.merge" ? operation.targetId : null)
+  );
+};
 const receiptMatches = (
   entry: MutationResult,
   operation: MutationEnvelope["operations"][number] | undefined
@@ -45,7 +67,13 @@ const receiptMatches = (
   if (entry.operationId !== operation.operationId) {
     return false;
   }
+  if ("effect" in entry) {
+    return cleanupReceiptMatches(entry, operation);
+  }
   if ("tagId" in entry) {
+    if (operation.kind !== "tag.create" && operation.kind !== "tag.rename") {
+      return false;
+    }
     if (!("tagId" in operation) || entry.tagId !== operation.tagId) {
       return false;
     }
@@ -61,7 +89,8 @@ const receiptMatches = (
   }
   if ("collectionId" in entry) {
     return (
-      "collectionId" in operation &&
+      (operation.kind === "collection.create" ||
+        operation.kind === "collection.rename") &&
       entry.collectionId === operation.collectionId
     );
   }
@@ -119,6 +148,82 @@ export const createPromptClient = (
     return response.json();
   };
   return {
+    async getOrganizationImpact(
+      input: {
+        kind: "collection.delete" | "tag.delete" | "tag.merge";
+        sourceId: string;
+        targetId?: string;
+      },
+      signal?: AbortSignal,
+      scope?: LibraryScope
+    ) {
+      const parsed = organizationImpactInputSchema.parse(input);
+      const params = new URLSearchParams({
+        kind: parsed.kind,
+        sourceId: parsed.sourceId,
+      });
+      if (parsed.targetId) {
+        params.set("targetId", parsed.targetId);
+      }
+      const result = organizationImpactSchema.parse(
+        await request(`library/organization/impact?${params}`, signal)
+      );
+      assertScope(result, scope);
+      if (
+        result.effect.kind !== input.kind ||
+        result.effect.sourceId !== input.sourceId ||
+        result.effect.targetId !== (input.targetId ?? null)
+      ) {
+        throw new Error("Organization impact identity mismatch.");
+      }
+      return result;
+    },
+    async getOrganizationReview(
+      operationId: string,
+      offset = 0,
+      signal?: AbortSignal,
+      scope?: LibraryScope
+    ) {
+      promptIdentitySchema.parse(operationId);
+      if (!Number.isInteger(offset) || offset < 0 || offset > 10_000) {
+        throw new Error("Invalid review offset.");
+      }
+      const result = organizationReviewSchema.parse(
+        await request(
+          `library/organization/operations/${operationId}?offset=${offset}`,
+          signal
+        )
+      );
+      assertScope(result, scope);
+      if (result.operationId !== operationId) {
+        throw new Error("Organization review identity mismatch.");
+      }
+      return result;
+    },
+    async getOrganizationStates(
+      ids: string[],
+      signal?: AbortSignal,
+      scope?: LibraryScope
+    ) {
+      if (!ids.length || ids.length > 1000) {
+        throw new Error("Invalid organization identity count.");
+      }
+      for (const id of ids) {
+        promptIdentitySchema.parse(id);
+      }
+      const result = organizationStatesSchema.parse(
+        await request(
+          `library/organization/states?${new URLSearchParams({ ids: ids.join(",") })}`,
+          signal
+        )
+      );
+      assertScope(result, scope);
+      const requestedIds = new Set(ids);
+      if (result.states.some((state) => !requestedIds.has(state.id))) {
+        throw new Error("Organization state identity mismatch.");
+      }
+      return result;
+    },
     async getOrganization(signal?: AbortSignal, scope?: LibraryScope) {
       const snapshot = organizationSnapshotSchema.parse(
         await request("library/organization", signal)

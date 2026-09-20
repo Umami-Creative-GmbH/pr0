@@ -10,6 +10,7 @@ export const CollectionList = ({
   search,
   disabled,
   onRename,
+  onDelete,
   label = "Collections",
 }: {
   label?: "Collections" | "Tags";
@@ -17,6 +18,7 @@ export const CollectionList = ({
   search: (name: string, query: string) => boolean;
   disabled: boolean;
   onRename: (entry: CollectionOption) => void;
+  onDelete?: (entry: CollectionOption) => void;
 }) => {
   const [query, setQuery] = useState("");
   const [unused, setUnused] = useState(false);
@@ -64,6 +66,17 @@ export const CollectionList = ({
             >
               Rename
             </button>
+            {onDelete ? (
+              <button
+                type="button"
+                className={buttonClass}
+                aria-label={`Delete ${entry.name}`}
+                disabled={disabled}
+                onClick={() => onDelete(entry)}
+              >
+                Delete
+              </button>
+            ) : null}
           </li>
         ))}
       </ul>

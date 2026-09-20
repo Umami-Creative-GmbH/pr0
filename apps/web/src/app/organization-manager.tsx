@@ -1,17 +1,24 @@
 "use client";
 
+import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
+import { organizationIdentity } from "@pr0/api-contract/organization";
 import type { Collection, Tag } from "@pr0/api-contract/prompts";
 import { promptLimits } from "@pr0/api-contract/prompts";
 import { CollectionList } from "@pr0/ui/components/collection-list";
 import { useEffect, useRef, useState } from "react";
 
 import { collectionMatches } from "./collection-query";
+import { OrganizationCapacity } from "./organization-capacity";
+import { OrganizationCleanupPanel } from "./organization-cleanup";
+import type { CleanupRequest } from "./organization-cleanup";
 import { OrganizationTabs } from "./organization-tabs";
 import { useOrganizationNameSave } from "./use-organization-name-save";
 
 const buttonClass =
   "rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
+const cleanupSelected = (request: CleanupRequest | null, ids: string[]) =>
+  request !== null && ids.includes(request.sourceId);
 const tabLabels = {
   collections: {
     singular: "Collection",
@@ -38,6 +45,7 @@ export const OrganizationManager = ({
   onAccepted,
   onClose,
   onDirtyChange,
+  selectedIds,
 }: {
   library: PrivateLibrary;
   collections: Collection[];
@@ -50,8 +58,12 @@ export const OrganizationManager = ({
   onAccepted: () => void | Promise<void>;
   onClose: () => void;
   onDirtyChange: (value: boolean) => void;
+  selectedIds: string[];
 }) => {
   const [tab, setTab] = useState(initialTab);
+  const client = useApiClient();
+  const [cleanup, setCleanup] = useState<CleanupRequest | null>(null);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
   const entries = { collections, tags }[tab];
   const { singular, plural, limit, entity } = tabLabels[tab];
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -61,7 +73,8 @@ export const OrganizationManager = ({
   const [editing, setEditing] = useState<string | null>(null);
   const [discard, setDiscard] = useState<"close" | "create" | null>(null);
   const { state, save } = useOrganizationNameSave(library, onAccepted, entity);
-  const dirty = name !== baseline || state.busy || state.uncertain;
+  const dirty =
+    name !== baseline || state.busy || state.uncertain || cleanupBusy;
   useEffect(() => {
     const dialog = dialogRef.current;
     const opener = document.activeElement;
@@ -83,7 +96,7 @@ export const OrganizationManager = ({
     return () => window.removeEventListener("beforeunload", prevent);
   }, [dirty]);
   const close = () => {
-    if (state.busy) {
+    if (state.busy || cleanupBusy) {
       return;
     }
     if (dirty) {
@@ -105,6 +118,27 @@ export const OrganizationManager = ({
     const accepted = await save(name, editing);
     if (accepted) {
       clear();
+    } else if (entity === "tag" && editing) {
+      try {
+        const snapshot = await client.getOrganization(
+          AbortSignal.timeout(30_000),
+          { instanceId: library.instance.id, accountId: library.account.id }
+        );
+        const target = snapshot.tags.find(
+          (tag) =>
+            tag.id !== editing &&
+            organizationIdentity(tag.name) === organizationIdentity(name)
+        );
+        if (target) {
+          setCleanup({
+            kind: "tag.merge",
+            sourceId: editing,
+            targetId: target.id,
+          });
+        }
+      } catch {
+        /* The retained name and existing error provide the retry path. */
+      }
     }
   };
   const actionLabel = editing
@@ -125,7 +159,7 @@ export const OrganizationManager = ({
       </h2>
       <OrganizationTabs
         value={tab}
-        disabled={dirty}
+        disabled={dirty || Boolean(cleanup)}
         onChange={(value) => {
           clear();
           setTab(value);
@@ -137,34 +171,16 @@ export const OrganizationManager = ({
         aria-labelledby={`${tab}-tab`}
         className="space-y-3"
       >
-        <p>
-          {entries.length} / {limit} {plural.toLowerCase()} ·{" "}
-          {(textBytes / 1_048_576).toFixed(2)} / 100 MiB library text
-        </p>
-        <p className="text-muted-foreground text-sm">
-          Counts are library-wide, including the archive, for the available
-          snapshot.
-        </p>
-        {entries.length >= limit * promptLimits.warningRatio ? (
-          <output>
-            Your library is at or above 90% of its{" "}
-            {limit.toLocaleString("en-US")} {singular.toLowerCase()} limit.
-          </output>
-        ) : null}
-        {textBytes >= promptLimits.libraryBytes * promptLimits.warningRatio ? (
-          <output>
-            Your library is at or above 90% of its 100 MiB text limit.
-          </output>
-        ) : null}
-        {loading ? <output>Loading {plural.toLowerCase()}…</output> : null}
-        {error ? (
-          <div role="alert">
-            {error}{" "}
-            <button className={buttonClass} type="button" onClick={onRetry}>
-              Retry {plural.toLowerCase()}
-            </button>
-          </div>
-        ) : null}
+        <OrganizationCapacity
+          count={entries.length}
+          limit={limit}
+          plural={plural}
+          singular={singular}
+          textBytes={textBytes}
+          loading={loading}
+          error={error}
+          onRetry={onRetry}
+        />
         <form
           className="space-y-2 rounded-md border p-3"
           onSubmit={(event) => {
@@ -180,7 +196,9 @@ export const OrganizationManager = ({
             ref={nameRef}
             aria-invalid={Boolean(state.error)}
             aria-describedby="collection-name-error"
-            readOnly={loading || state.busy || state.uncertain}
+            readOnly={
+              loading || state.busy || state.uncertain || Boolean(cleanup)
+            }
             className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
             value={name}
             onChange={(event) => {
@@ -193,7 +211,7 @@ export const OrganizationManager = ({
             <button
               type="submit"
               className={buttonClass}
-              disabled={state.busy || loading}
+              disabled={state.busy || loading || Boolean(cleanup)}
             >
               {state.uncertain ? "Retry" : actionLabel}
             </button>
@@ -201,7 +219,7 @@ export const OrganizationManager = ({
               <button
                 type="button"
                 className={buttonClass}
-                disabled={state.busy || state.uncertain}
+                disabled={state.busy || state.uncertain || Boolean(cleanup)}
                 onClick={() => {
                   if (dirty) {
                     setDiscard("create");
@@ -220,7 +238,14 @@ export const OrganizationManager = ({
           collections={entries}
           label={plural}
           search={collectionMatches}
-          disabled={dirty}
+          disabled={dirty || Boolean(cleanup)}
+          onDelete={(entry) =>
+            setCleanup({
+              kind:
+                entity === "collection" ? "collection.delete" : "tag.delete",
+              sourceId: entry.id,
+            })
+          }
           onRename={(entry) => {
             setEditing(entry.id);
             setName(entry.name);
@@ -229,10 +254,27 @@ export const OrganizationManager = ({
           }}
         />
       </section>
+      <OrganizationCleanupPanel
+        library={library}
+        request={cleanup}
+        selected={cleanupSelected(cleanup, selectedIds)}
+        onCancel={() => {
+          setCleanup(null);
+          nameRef.current?.focus();
+        }}
+        onBusyChange={(value) => {
+          setCleanupBusy(value);
+          onDirtyChange(value || name !== baseline);
+        }}
+        onAccepted={async () => {
+          clear();
+          await onAccepted();
+        }}
+      />
       <button
         type="button"
         className={`${buttonClass} mt-4`}
-        disabled={state.busy}
+        disabled={state.busy || cleanupBusy}
         onClick={close}
       >
         Close

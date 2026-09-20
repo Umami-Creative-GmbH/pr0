@@ -18,6 +18,7 @@ import {
   trimPromptText,
   utf8Bytes,
   promptViewSchema,
+  organizationEffectSchema,
 } from "@pr0/api-contract/prompts";
 import type {
   MutationEnvelope,
@@ -41,6 +42,7 @@ import {
 import { configuration } from "./config";
 import { database } from "./database";
 import { operationFingerprint } from "./operation-fingerprint";
+import { applyOrganizationCleanup } from "./organization-cleanup";
 import { prepareConflictCopy, persistConflictCopy } from "./prompt-conflict";
 import {
   applyPromptDeletion,
@@ -65,7 +67,10 @@ interface LibraryRow {
   prompt_count: number;
   text_bytes: string;
 }
-const lockLibrary = async (tx: TransactionSQL, browser: BrowserAccount) => {
+export const lockLibrary = async (
+  tx: TransactionSQL,
+  browser: BrowserAccount
+) => {
   await lockAccount(tx, browser);
   const [library] = await tx<
     LibraryRow[]
@@ -77,6 +82,7 @@ const lockLibrary = async (tx: TransactionSQL, browser: BrowserAccount) => {
   return library;
 };
 const receiptColumns = z.object({
+  organization_effect: organizationEffectSchema.nullable().optional(),
   operation_id: z.string(),
   prompt_id: z.string().nullable(),
   collection_id: z.string().nullable().optional(),
@@ -90,6 +96,15 @@ const receiptColumns = z.object({
   conflict_notice_id: z.string().nullable().optional(),
 });
 const receiptFrom = (row: z.infer<typeof receiptColumns>) => {
+  if (row.organization_effect) {
+    return mutationResultSchema.parse({
+      status: "accepted",
+      operationId: row.operation_id,
+      revision: row.revision,
+      acceptedAt: row.accepted_at.toISOString(),
+      effect: row.organization_effect,
+    });
+  }
   if (row.tag_id) {
     return mutationResultSchema.parse({
       status: "accepted",
@@ -302,8 +317,11 @@ const applyPromptCreation = async ({
   desired: PromptText;
   hash: string;
 }) => {
-  const collectionId = operation.desired.collectionId ?? null;
-  await validateCollectionReference(savepoint, envelope, collectionId);
+  const collectionId = await validateCollectionReference(
+    savepoint,
+    envelope,
+    operation.desired.collectionId
+  );
   const sourceTitle =
     operation.kind === "prompt.duplicate" ? desired.title : null;
   if (operation.kind === "prompt.duplicate") {
@@ -323,7 +341,7 @@ const applyPromptCreation = async ({
     desired.title = duplicatePromptTitle(desired.title);
   }
   const used =
-    await savepoint`SELECT prompt_id FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND (prompt_id = ${operation.promptId} OR conflict_copy_id = ${operation.promptId})`;
+    await savepoint`SELECT prompt_id FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND (prompt_id = ${operation.promptId} OR conflict_copy_id = ${operation.promptId} OR collection_id = ${operation.promptId} OR tag_id = ${operation.promptId})`;
   if (used.length) {
     throw new PromptFailureError(
       {
@@ -368,23 +386,31 @@ const applyPromptCreation = async ({
   await savepoint`INSERT INTO prompt(instance_id, account_id, id, title, description, content, source_title, revision, title_revision, description_revision, content_revision, created_at, modified_at, collection_id, collection_revision)
     VALUES (${library.instance_id}, ${browser.accountId}, ${operation.promptId}, ${desired.title}, ${desired.description}, ${desired.content}, ${sourceTitle}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt}, ${collectionId}, ${revision})`;
   const initialTags = operation.desired.tagIds ?? [];
-  await initializePromptTags(
+  const tagsAdjusted = await initializePromptTags(
     savepoint,
     envelope,
     operation.promptId,
     initialTags,
     revision
   );
+  const organizationNotice =
+    tagsAdjusted || collectionId !== (operation.desired.collectionId ?? null)
+      ? "Removed or merged organization assignments were adjusted. Your prompt was kept."
+      : null;
   await savepoint`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at)
     VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${envelope.epoch}, ${envelope.installationId}, 1, ${hash}, ${operation.kind}, ${operation.promptId}, ${revision}, ${acceptedAt})`;
   await savepoint`INSERT INTO library_change(instance_id, account_id, revision, operation_id, kind, prompt_id, accepted_at)
     VALUES (${library.instance_id}, ${browser.accountId}, ${revision}, ${operation.operationId}, ${operation.kind}, ${operation.promptId}, ${acceptedAt})`;
+  if (organizationNotice) {
+    await savepoint`UPDATE library_operation SET organization_notice = ${organizationNotice} WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id = ${operation.operationId}`;
+  }
   return mutationReceiptSchema.parse({
     status: "accepted",
     operationId: operation.operationId,
     promptId: operation.promptId,
     revision,
     acceptedAt: acceptedAt.toISOString(),
+    organizationNotice: organizationNotice ?? undefined,
   });
 };
 export const mutatePrompt = (
@@ -431,7 +457,7 @@ export const mutatePrompt = (
           };
     const hash = operationFingerprint(envelope, operation, desired);
     const [existing] =
-      await tx`SELECT operation_id, prompt_id, collection_id, tag_id, resolved_tag_id, tag_outcome, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation
+      await tx`SELECT organization_effect, operation_id, prompt_id, collection_id, tag_id, resolved_tag_id, tag_outcome, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id = ${operation.operationId}`;
     if (existing) {
       if (existing.request_hash !== hash) {
@@ -495,6 +521,13 @@ export const mutatePrompt = (
               409
             );
           }
+        }
+        if (
+          operation.kind === "collection.delete" ||
+          operation.kind === "tag.delete" ||
+          operation.kind === "tag.merge"
+        ) {
+          return applyOrganizationCleanup(savepoint, envelope, operation, hash);
         }
         if ("collectionId" in operation) {
           return applyCollection(savepoint, envelope, operation, hash);
@@ -659,7 +692,7 @@ interface PromptRow {
   collection_id: string | null;
   tag_ids?: string[];
 }
-const summaryFrom = (row: PromptRow) => ({
+export const summaryFrom = (row: PromptRow) => ({
   id: row.id,
   title: row.title,
   description: row.description,

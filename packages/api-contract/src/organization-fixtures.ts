@@ -12,3 +12,17 @@ export const organizationIdentityFixtures = [
   { name: "①", equivalent: "①", distinct: "1" },
   { name: "A\uFE0F", equivalent: "a\uFE0F", distinct: "A" },
 ] as const;
+
+export const organizationMergeFixture = {
+  sourceName: "Draft",
+  targetName: "Writing",
+  sourceActive: ["A", "B"],
+  sourceArchived: ["C"],
+  targetActive: ["B", "D"],
+  expected: {
+    activeCount: 2,
+    archivedCount: 1,
+    targetActiveCount: 3,
+    targetArchivedCount: 1,
+  },
+} as const;

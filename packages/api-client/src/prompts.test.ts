@@ -7,6 +7,137 @@ import type {
 
 import { createApiClient } from "./client";
 
+test("cleanup receipts bind the named operation, source and target and reject mixed batches before fetch", async () => {
+  const operation = {
+    kind: "tag.merge" as const,
+    operationId: crypto.randomUUID(),
+    tagId: crypto.randomUUID(),
+    targetId: crypto.randomUUID(),
+    baseRevision: "0",
+    dependsOn: [],
+  };
+  const envelope: MutationEnvelope = {
+    protocolVersion: 1,
+    instanceId: crypto.randomUUID(),
+    accountId: crypto.randomUUID(),
+    epoch: crypto.randomUUID(),
+    installationId: crypto.randomUUID(),
+    operations: [operation],
+  };
+  const receipt: Extract<MutationResult, { effect: unknown }> = {
+    status: "accepted",
+    operationId: operation.operationId,
+    revision: "1",
+    acceptedAt: "2026-09-20T12:00:00.000Z",
+    effect: {
+      kind: "tag.merge",
+      sourceId: operation.tagId,
+      sourceName: "Draft",
+      targetId: operation.targetId,
+      targetName: "Writing",
+      activeCount: 2,
+      archivedCount: 1,
+      targetActiveCount: 3,
+      targetArchivedCount: 1,
+    },
+  };
+  const client = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ results: [receipt] })),
+  });
+  expect(await client.mutatePrompts(envelope)).toEqual({ results: [receipt] });
+  receipt.effect.targetId = crypto.randomUUID();
+  await expect(client.mutatePrompts(envelope)).rejects.toThrow(
+    "does not match"
+  );
+  await expect(
+    client.mutatePrompts({ ...envelope, operations: [operation, operation] })
+  ).rejects.toThrow("singleton");
+});
+
+test("cleanup reads reject malformed, foreign and failed responses and forward cancellation", async () => {
+  const scope = {
+    instanceId: crypto.randomUUID(),
+    accountId: crypto.randomUUID(),
+  };
+  const id = crypto.randomUUID();
+  const operationId = crypto.randomUUID();
+  const effect = {
+    kind: "tag.delete" as const,
+    sourceId: id,
+    sourceName: "Deleted",
+    targetId: null,
+    targetName: null,
+    activeCount: 0,
+    archivedCount: 0,
+    targetActiveCount: 0,
+    targetArchivedCount: 0,
+  };
+  const input = { kind: "tag.delete" as const, sourceId: id };
+  let reply = Response.json({ ...scope, revision: "1", effect });
+  const client = createApiClient({
+    fetcher: (_url, init) => {
+      init?.signal?.throwIfAborted();
+      return Promise.resolve(reply.clone());
+    },
+  });
+  expect(
+    await client.getOrganizationImpact(input, undefined, scope)
+  ).toMatchObject({ effect });
+  reply = Response.json({
+    ...scope,
+    operationId,
+    effect,
+    prompts: [],
+    nextOffset: null,
+  });
+  expect(
+    await client.getOrganizationReview(operationId, 0, undefined, scope)
+  ).toMatchObject({ prompts: [] });
+  reply = Response.json({ ...scope, states: [] });
+  expect(
+    await client.getOrganizationStates([id], undefined, scope)
+  ).toMatchObject({ states: [] });
+  reply = Response.json({
+    ...scope,
+    accountId: crypto.randomUUID(),
+    states: [],
+  });
+  await expect(
+    client.getOrganizationStates([id], undefined, scope)
+  ).rejects.toMatchObject({ status: 403 });
+  reply = Response.json({});
+  await expect(client.getOrganizationImpact(input)).rejects.toThrow();
+  await expect(client.getOrganizationReview(operationId)).rejects.toThrow();
+  await expect(client.getOrganizationStates([id])).rejects.toThrow();
+  reply = Response.json(
+    {
+      code: "temporarily_unavailable",
+      message: "Retry.",
+      retryable: true,
+    },
+    { status: 503 }
+  );
+  await expect(client.getOrganizationImpact(input)).rejects.toMatchObject({
+    status: 503,
+  });
+  await expect(client.getOrganizationReview(operationId)).rejects.toMatchObject(
+    { status: 503 }
+  );
+  await expect(client.getOrganizationStates([id])).rejects.toMatchObject({
+    status: 503,
+  });
+  const signal = AbortSignal.abort();
+  await expect(
+    client.getOrganizationImpact(input, signal)
+  ).rejects.toMatchObject({ name: "AbortError" });
+  await expect(
+    client.getOrganizationReview(operationId, 0, signal)
+  ).rejects.toMatchObject({ name: "AbortError" });
+  await expect(
+    client.getOrganizationStates([id], signal)
+  ).rejects.toMatchObject({ name: "AbortError" });
+});
+
 test("tag receipts accept equivalent mappings but reject mismatched identities and outcomes", async () => {
   const operation = {
     kind: "tag.create" as const,

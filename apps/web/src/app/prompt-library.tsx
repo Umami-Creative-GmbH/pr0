@@ -10,14 +10,12 @@ import type {
   Prompt,
   MutationReceipt,
   PromptView,
+  promptPageSchema,
 } from "@pr0/api-contract/prompts";
 import { PromptDeleteDialog } from "@pr0/ui/components/prompt-delete-dialog";
-import {
-  useInfiniteQuery,
-  useQueryClient,
-  useQuery,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import type { z } from "zod";
 
 import { CollectionControls } from "./collection-controls";
 import { PromptActionStatus } from "./prompt-action-status";
@@ -28,6 +26,7 @@ import { PromptResults, PromptViewNavigation } from "./prompt-results";
 import { promptSaveNotice } from "./prompt-save-notice";
 import { PromptTags } from "./prompt-tags";
 import { useLibraryDrafts } from "./use-library-drafts";
+import { useOrganization } from "./use-organization";
 import { usePromptActions } from "./use-prompt-actions";
 import type { PromptAction } from "./use-prompt-actions";
 import { usePromptSelection } from "./use-prompt-selection";
@@ -207,6 +206,28 @@ const nearingCapacity = (usage?: { promptCount: number; textBytes: number }) =>
     (usage.promptCount >= promptLimits.promptCount * 0.9 ||
       usage.textBytes >= promptLimits.libraryBytes * 0.9)
   );
+const matchingOrganization = (
+  prompts: z.infer<typeof promptPageSchema>["prompts"],
+  organization: { collections: Collection[]; tags: Tag[] } | undefined,
+  collectionId: string | null,
+  tagIds: string[],
+  incomplete: boolean
+) => {
+  if (!organization) {
+    return { prompts, incomplete };
+  }
+  const availableTags = new Set(organization.tags.map((tag) => tag.id));
+  if (
+    (collectionId &&
+      !organization.collections.some(
+        (collection) => collection.id === collectionId
+      )) ||
+    tagIds.some((id) => !availableTags.has(id))
+  ) {
+    return { prompts: [], incomplete: false };
+  }
+  return { prompts, incomplete };
+};
 export const PromptLibrary = ({
   library,
   onDirtyChange,
@@ -227,22 +248,7 @@ export const PromptLibrary = ({
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [tagEditing, setTagEditing] = useState<Prompt | null>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
-  const organizationKey = [
-    "organization",
-    client.baseUrl,
-    library.instance.id,
-    library.account.id,
-  ];
-  const organization = useQuery({
-    queryKey: organizationKey,
-    queryFn: ({ signal }) =>
-      client.getOrganization(signal, {
-        instanceId: library.instance.id,
-        accountId: library.account.id,
-      }),
-    retry: retryPromptRead,
-    retryDelay: promptRetryDelay,
-  });
+  const { organization, organizationKey } = useOrganization(library);
   const collections = organization.data?.collections ?? [];
   const tags = organization.data?.tags ?? [];
   const noticeRef = useRef<HTMLParagraphElement>(null);
@@ -287,14 +293,20 @@ export const PromptLibrary = ({
   });
   const pages = list.data?.pages ?? [];
   const usage = pages[0]?.usage;
-  const prompts = pages.flatMap((page) => page.prompts);
+  const { prompts, incomplete } = matchingOrganization(
+    pages.flatMap((page) => page.prompts),
+    organization.data,
+    collectionId,
+    tagIds,
+    list.isFetching || list.hasNextPage
+  );
   const { selectedId, setSelected, detail } = usePromptSelection({
     library,
     view,
     collectionId,
     tagIds,
     prompts,
-    incomplete: list.isFetching || list.hasNextPage,
+    incomplete,
     loading: list.isPending,
   });
   const saved = (receipt: MutationReceipt) => {
@@ -302,6 +314,12 @@ export const PromptLibrary = ({
     setEditing(null);
     setSelected(receipt.conflict?.copyId ?? receipt.promptId);
     setNotice(promptSaveNotice(receipt));
+  };
+  const changeView = (value: PromptView) => {
+    setView(value);
+    setCollectionId(null);
+    setTagIds([]);
+    setSelected(null);
   };
   const detailUnavailable = detail.isFetching || detail.isError;
   const accepted = async () => {
@@ -398,15 +416,7 @@ export const PromptLibrary = ({
           Create prompt
         </button>
       </div>
-      <PromptViewNavigation
-        view={view}
-        onChange={(value) => {
-          setView(value);
-          setCollectionId(null);
-          setTagIds([]);
-          setSelected(null);
-        }}
-      />
+      <PromptViewNavigation view={view} onChange={changeView} />
       <CollectionControls
         tagIds={tagIds}
         onTagsChange={(ids) => {
@@ -415,9 +425,8 @@ export const PromptLibrary = ({
         }}
         library={library}
         organization={organization}
-        onAccepted={() =>
-          queryClient.invalidateQueries({ queryKey: organizationKey })
-        }
+        onAccepted={accepted}
+        onAllPrompts={() => changeView("all")}
         collectionId={collectionId}
         onSelect={(id) => {
           setCollectionId(id);

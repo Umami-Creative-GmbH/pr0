@@ -28,11 +28,16 @@ export const validateCollectionReference = async (
   id: string | null | undefined
 ) => {
   if (!id) {
-    return;
+    return null;
   }
   const [collection] =
     await sql`SELECT id FROM collection WHERE instance_id = ${scope.instanceId} AND account_id = ${scope.accountId} AND id = ${id}`;
   if (!collection) {
+    const [removed] =
+      await sql`SELECT id FROM organization_removed WHERE instance_id = ${scope.instanceId} AND account_id = ${scope.accountId} AND id = ${id} AND entity = 'collection'`;
+    if (removed) {
+      return null;
+    }
     throw new PromptFailureError({
       code: "validation_failed",
       message: "Choose an available collection in this library.",
@@ -42,6 +47,7 @@ export const validateCollectionReference = async (
       retryable: false,
     });
   }
+  return id;
 };
 
 export const reconcileCollectionAssignment = async (
@@ -51,25 +57,36 @@ export const reconcileCollectionAssignment = async (
   current: { collection_id: string | null; collection_revision: string }
 ) => {
   const changed = operation.changedFields.includes("collectionId");
-  const collectionId = changed
+  const requestedId = changed
     ? (operation.desired.collectionId ?? null)
     : current.collection_id;
-  const copyCollectionId =
+  const requestedCopyId =
     operation.desired.collectionId === undefined
       ? current.collection_id
       : operation.desired.collectionId;
-  await validateCollectionReference(sql, envelope, copyCollectionId);
+  const copyCollectionId = await validateCollectionReference(
+    sql,
+    envelope,
+    requestedCopyId
+  );
+  const collectionId = changed ? copyCollectionId : current.collection_id;
   const superseded =
     changed &&
     current.collection_id !== collectionId &&
     current.collection_id !== operation.base.collectionId &&
     BigInt(current.collection_revision) > BigInt(operation.baseRevision);
+  let organizationNotice: string | null = null;
+  if (requestedId !== collectionId || requestedCopyId !== copyCollectionId) {
+    organizationNotice =
+      "A deleted collection assignment was cleared. Your prompt was kept.";
+  } else if (superseded) {
+    organizationNotice =
+      "A concurrent collection assignment was superseded by this saved choice.";
+  }
   return {
     collectionId,
     copyCollectionId,
-    organizationNotice: superseded
-      ? "A concurrent collection assignment was superseded by this saved choice."
-      : null,
+    organizationNotice,
   };
 };
 export const applyCollection = async (
@@ -103,7 +120,7 @@ export const applyCollection = async (
     );
   }
   const [used] =
-    await sql`SELECT operation_id FROM library_operation WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND (collection_id = ${operation.collectionId} OR prompt_id = ${operation.collectionId} OR conflict_copy_id = ${operation.collectionId}) LIMIT 1`;
+    await sql`SELECT operation_id FROM library_operation WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND (collection_id = ${operation.collectionId} OR tag_id = ${operation.collectionId} OR prompt_id = ${operation.collectionId} OR conflict_copy_id = ${operation.collectionId}) LIMIT 1`;
   if (operation.kind === "collection.create" && (current || used)) {
     throw new PromptFailureError(
       {

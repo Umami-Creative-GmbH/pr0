@@ -160,14 +160,14 @@ export const preserveDeletedPromptEdit = async (
   ) {
     throw unavailable();
   }
-  await validateCollectionReference(
+  const collectionId = await validateCollectionReference(
     sql,
     { instanceId, accountId },
     operation.desired.collectionId
   );
   return commitDeletionOutcome(context, {
     copy: desired,
-    collectionId: operation.desired.collectionId ?? null,
+    collectionId,
     removedBytes: 0,
     removeOriginal: false,
   });

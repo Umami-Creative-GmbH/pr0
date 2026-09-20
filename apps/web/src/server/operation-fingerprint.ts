@@ -38,9 +38,8 @@ export const operationFingerprint = (
         ...(operation.kind === "prompt.tags"
           ? [operation.add, operation.remove]
           : []),
-        ...("collectionId" in operation || "tagId" in operation
-          ? [trimOrganizationName(operation.name)]
-          : []),
+        ...(operation.kind === "tag.merge" ? [operation.targetId] : []),
+        ...("name" in operation ? [trimOrganizationName(operation.name)] : []),
         ...(desired
           ? [desired.title, desired.description, desired.content]
           : []),

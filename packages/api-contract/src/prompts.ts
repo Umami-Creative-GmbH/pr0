@@ -184,6 +184,14 @@ export type TagOperation =
   | z.infer<typeof createTagSchema>
   | z.infer<typeof renameTagSchema>;
 export type Tag = z.infer<typeof collectionSchema>;
+export const organizationStateSchema = z.strictObject({
+  id: promptIdentitySchema,
+  entity: z.enum(["collection", "tag"]),
+  name: z.string(),
+  state: z.enum(["deleted", "merged"]),
+  targetId: promptIdentitySchema.nullable(),
+  targetName: z.string().nullable(),
+});
 export const organizationSnapshotSchema = z.strictObject({
   ...libraryScopeSchema.shape,
   revision: revisionSchema,
@@ -230,6 +238,62 @@ export const assignTagsSchema = deletePromptSchema.extend({
 });
 export type AssignTags = z.infer<typeof assignTagsSchema>;
 export type Prompt = z.infer<typeof promptSchema>;
+export const deleteCollectionSchema = createCollectionSchema
+  .omit({ name: true })
+  .extend({ kind: z.literal("collection.delete") });
+export const deleteTagSchema = createTagSchema
+  .omit({ name: true })
+  .extend({ kind: z.literal("tag.delete") });
+export const mergeTagSchema = deleteTagSchema.extend({
+  kind: z.literal("tag.merge"),
+  targetId: promptIdentitySchema,
+});
+export const organizationCleanupSchema = z.discriminatedUnion("kind", [
+  deleteCollectionSchema,
+  deleteTagSchema,
+  mergeTagSchema,
+]);
+export type OrganizationCleanup = z.infer<typeof organizationCleanupSchema>;
+export const organizationEffectSchema = z.strictObject({
+  kind: z.enum(["collection.delete", "tag.delete", "tag.merge"]),
+  sourceId: promptIdentitySchema,
+  sourceName: z.string(),
+  targetId: promptIdentitySchema.nullable(),
+  targetName: z.string().nullable(),
+  activeCount: z.number().int().min(0).max(promptLimits.promptCount),
+  archivedCount: z.number().int().min(0).max(promptLimits.promptCount),
+  targetActiveCount: z.number().int().min(0).max(promptLimits.promptCount),
+  targetArchivedCount: z.number().int().min(0).max(promptLimits.promptCount),
+});
+export const organizationImpactInputSchema = z.strictObject({
+  kind: z.enum(["collection.delete", "tag.delete", "tag.merge"]),
+  sourceId: promptIdentitySchema,
+  targetId: promptIdentitySchema.optional(),
+});
+export const organizationImpactSchema = z.strictObject({
+  ...libraryScopeSchema.shape,
+  revision: revisionSchema,
+  effect: organizationEffectSchema,
+});
+export const organizationReviewSchema = z.strictObject({
+  ...libraryScopeSchema.shape,
+  operationId: promptIdentitySchema,
+  effect: organizationEffectSchema,
+  prompts: z
+    .array(
+      z.strictObject({
+        id: promptIdentitySchema,
+        originallyArchived: z.boolean(),
+        current: promptSummarySchema.nullable(),
+      })
+    )
+    .max(100),
+  nextOffset: z.number().int().min(0).max(promptLimits.promptCount).nullable(),
+});
+export const organizationStatesSchema = z.strictObject({
+  ...libraryScopeSchema.shape,
+  states: z.array(organizationStateSchema).max(1000),
+});
 export const mutationEnvelopeSchema = z.strictObject({
   protocolVersion: z.literal(1),
   instanceId: z.uuid(),
@@ -248,10 +312,21 @@ export const mutationEnvelopeSchema = z.strictObject({
         createTagSchema,
         renameTagSchema,
         assignTagsSchema,
+        deleteCollectionSchema,
+        deleteTagSchema,
+        mergeTagSchema,
       ])
     )
     .min(1)
-    .max(100),
+    .max(100)
+    .refine(
+      (operations) =>
+        operations.length === 1 ||
+        !operations.some(
+          (operation) => organizationCleanupSchema.safeParse(operation).success
+        ),
+      "Organization cleanup must be a singleton request."
+    ),
 });
 export type MutationEnvelope = z.infer<typeof mutationEnvelopeSchema>;
 export type CreatePrompt = z.infer<typeof createPromptSchema>;
@@ -308,6 +383,9 @@ export const collectionReceiptSchema = mutationReceiptSchema
   .omit({ promptId: true, conflict: true, organizationNotice: true })
   .extend({ collectionId: promptIdentitySchema });
 export const mutationResultSchema = z.union([
+  mutationReceiptSchema
+    .omit({ promptId: true, conflict: true, organizationNotice: true })
+    .extend({ effect: organizationEffectSchema }),
   mutationReceiptSchema,
   collectionReceiptSchema,
   z.strictObject({

@@ -8,6 +8,7 @@ import type {
 } from "@pr0/api-contract/prompts";
 import type { SQL } from "bun";
 
+import { resolveTagReferences } from "./organization-references";
 import { invalidPromptRequest, PromptFailureError } from "./prompt-errors";
 
 export const initializePromptTags = async (
@@ -26,17 +27,11 @@ export const initializePromptTags = async (
   if (!ids.length) {
     return;
   }
-  const [tags] =
-    await sql`SELECT count(*)::int AS count FROM tag WHERE instance_id = ${scope.instanceId} AND account_id = ${scope.accountId} AND id IN ${sql(ids)}`;
-  if (tags.count !== ids.length) {
-    throw new PromptFailureError({
-      code: "validation_failed",
-      message: "Choose available tags in this library.",
-      fields: { tagIds: "A tag is not available in your library." },
-      retryable: false,
-    });
+  const resolved = await resolveTagReferences(sql, scope, ids);
+  if (resolved.ids.length) {
+    await sql`INSERT INTO prompt_tag(instance_id, account_id, prompt_id, tag_id, add_revision) SELECT ${scope.instanceId}::uuid, ${scope.accountId}, ${promptId}::uuid, id, ${revision}::bigint FROM tag WHERE instance_id = ${scope.instanceId} AND account_id = ${scope.accountId} AND id IN ${sql(resolved.ids)}`;
   }
-  await sql`INSERT INTO prompt_tag(instance_id, account_id, prompt_id, tag_id, add_revision) SELECT ${scope.instanceId}::uuid, ${scope.accountId}, ${promptId}::uuid, id, ${revision}::bigint FROM tag WHERE instance_id = ${scope.instanceId} AND account_id = ${scope.accountId} AND id IN ${sql(ids)}`;
+  return resolved.adjusted;
 };
 
 export const copyPromptTags = async (
@@ -82,28 +77,39 @@ export const applyTagAssignments = async (
       404
     );
   }
-  if (ids.length) {
-    const [tags] =
-      await sql`SELECT count(*)::int AS count FROM tag WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND id IN ${sql(ids)}`;
-    if (tags.count !== ids.length) {
-      throw new PromptFailureError({
-        code: "validation_failed",
-        message: "Choose available tags in this library.",
-        fields: { tagIds: "A tag is not available in your library." },
-        retryable: false,
-      });
-    }
-  }
+  const adds = await resolveTagReferences(sql, envelope, operation.add);
+  const removes = await resolveTagReferences(sql, envelope, operation.remove);
   const current = await sql<
-    { tag_id: string; add_revision: string; remove_revision: string }[]
-  >`SELECT tag_id, add_revision::text, remove_revision::text FROM prompt_tag WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND prompt_id = ${operation.promptId}`;
+    {
+      tag_id: string;
+      add_revision: string;
+      remove_revision: string;
+      merge_revision: string;
+    }[]
+  >`SELECT tag_id, add_revision::text, remove_revision::text, merge_revision::text FROM prompt_tag WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND prompt_id = ${operation.promptId}`;
   const active = new Set<string>();
   for (const row of current) {
     if (BigInt(row.add_revision) > BigInt(row.remove_revision)) {
       active.add(row.tag_id);
     }
   }
-  const additions = operation.add.filter((id) => {
+  const removalIds = new Set(removes.ids);
+  const eligiblePaths = [...adds.paths.values()].filter(
+    (path) =>
+      !path.some((id) => {
+        const membership = current.find((row) => row.tag_id === id);
+        return (
+          membership &&
+          membership.remove_revision !== membership.merge_revision &&
+          BigInt(membership.remove_revision) > BigInt(operation.baseRevision)
+        );
+      })
+  );
+  const eligibleIds = new Set(eligiblePaths.flat());
+  const additions = adds.ids.filter((id) => {
+    if (removalIds.has(id) || !eligibleIds.has(id)) {
+      return false;
+    }
     const membership = current.find((row) => row.tag_id === id);
     return (
       !membership ||
@@ -111,7 +117,7 @@ export const applyTagAssignments = async (
     );
   });
   const next = new Set(active);
-  for (const id of operation.remove) {
+  for (const id of removes.ids) {
     next.delete(id);
   }
   for (const id of additions) {
@@ -129,10 +135,14 @@ export const applyTagAssignments = async (
   }
   const changed =
     next.size !== active.size || [...next].some((id) => !active.has(id));
-  const notice =
-    additions.length === operation.add.length
-      ? null
-      : "An older tag add was ignored because a later removal was not observed. Refresh before deliberately adding the tag again.";
+  let notice: string | null = null;
+  if (adds.adjusted || removes.adjusted) {
+    notice =
+      "Removed or merged tag assignments were adjusted. Your prompt was kept.";
+  } else if (additions.length !== operation.add.length) {
+    notice =
+      "An older tag add was ignored because a later removal was not observed. Refresh before deliberately adding the tag again.";
+  }
   const [accepted] =
     await sql`UPDATE library SET revision = revision + 1 WHERE instance_id = ${instanceId} AND account_id = ${accountId} RETURNING revision::text, date_trunc('milliseconds', clock_timestamp()) AS accepted_at`;
   if (additions.length) {
@@ -140,9 +150,9 @@ export const applyTagAssignments = async (
       SELECT ${instanceId}::uuid, ${accountId}, ${operation.promptId}::uuid, id, ${accepted.revision}::bigint FROM tag WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND id IN ${sql(additions)}
       ON CONFLICT(instance_id, account_id, prompt_id, tag_id) DO UPDATE SET add_revision = EXCLUDED.add_revision`;
   }
-  if (operation.remove.length) {
+  if (removes.ids.length) {
     await sql`INSERT INTO prompt_tag(instance_id, account_id, prompt_id, tag_id, remove_revision)
-      SELECT ${instanceId}::uuid, ${accountId}, ${operation.promptId}::uuid, id, ${accepted.revision}::bigint FROM tag WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND id IN ${sql(operation.remove)}
+      SELECT ${instanceId}::uuid, ${accountId}, ${operation.promptId}::uuid, id, ${accepted.revision}::bigint FROM tag WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND id IN ${sql(removes.ids)}
       ON CONFLICT(instance_id, account_id, prompt_id, tag_id) DO UPDATE SET remove_revision = EXCLUDED.remove_revision`;
   }
   if (changed) {

@@ -99,7 +99,7 @@ export const applyTag = async (
       {
         code: "name_conflict",
         message:
-          "An equivalent tag already exists. Renaming requires an explicit tag merge, which is not available yet. Choose another name.",
+          "An equivalent tag already exists. Review the explicit merge confirmation or choose another name.",
         fields: {
           name: "This rename requires an explicit merge. Choose another name.",
         },
@@ -142,6 +142,8 @@ export const readTags = async (
   sql: SQL,
   scope: { instanceId: string; accountId: string }
 ): Promise<Tag[]> => {
+  // Keep up to 200,000 memberships set-based even before fresh-library statistics exist.
+  await sql`SET LOCAL enable_nestloop = off`;
   const rows = await sql`SELECT t.id, t.name, t.revision::text,
     count(p.id) FILTER (WHERE NOT p.archived)::int AS active_count,
     count(p.id) FILTER (WHERE p.archived)::int AS archived_count, count(p.id)::int AS total_count
