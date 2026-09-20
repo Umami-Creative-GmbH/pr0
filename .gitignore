@@ -16,6 +16,7 @@ apps/web/public/swagger-ui/
 next-env.d.ts
 
 # Local configuration
+/.scratch/
 .env*
 !.env.example
 .vercel/
