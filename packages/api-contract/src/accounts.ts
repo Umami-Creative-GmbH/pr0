@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  deviceApprovalSchema,
+  deviceCancelSchema,
+  deviceClientSchema,
+  deviceTokenRequestSchema,
+} from "./device";
+
 export const emailSchema = z.string().trim().max(254).email().toLowerCase();
 export const credentialsSchema = z.strictObject({
   email: emailSchema,
@@ -124,6 +131,10 @@ export const sessionsSchema = z.strictObject({
   ),
 });
 export const accountRequestSchema = z.union([
+  deviceApprovalSchema,
+  deviceCancelSchema,
+  deviceClientSchema,
+  deviceTokenRequestSchema,
   deleteAccountSchema,
   linkMethodSchema,
   removeMethodSchema,

@@ -45,7 +45,9 @@ import {
   deletionTrustSchema,
   deletionVerificationSchema,
 } from "@pr0/api-contract/deletions";
+import { deviceApprovalSchema } from "@pr0/api-contract/device";
 import { healthPath, healthResponseSchema } from "@pr0/api-contract/health";
+import { z } from "zod";
 
 import { createPromptClient } from "./prompts";
 
@@ -110,6 +112,21 @@ export const createApiClient = ({
   };
 
   return {
+    async decideDevice(
+      input: z.infer<typeof deviceApprovalSchema>,
+      approve: boolean,
+      signal?: AbortSignal
+    ) {
+      return z
+        .object({ success: z.literal(true) })
+        .parse(
+          await accountRequest(
+            `/api/auth/device/${approve ? "approve" : "deny"}`,
+            deviceApprovalSchema.parse(input),
+            signal
+          )
+        );
+    },
     async getDeletionVerification(signal?: AbortSignal) {
       return deletionVerificationSchema.parse(
         await accountRequest(

@@ -164,12 +164,20 @@ test("forged origins, malformed bodies, client provenance, and direct auth bypas
     "change-password",
     "delete-user",
     "link-social",
-    "device/token",
     "get-session",
   ]) {
     const response = await post(`/api/auth/${path}`, {});
     expect(response.status).toBe(404);
   }
+  const malformedDevice = await post("/api/auth/device/token", {});
+  expect(malformedDevice.status).toBe(400);
+  expect(await malformedDevice.json()).toEqual({ code: "invalid_input" });
+  const browserDevice = await post(
+    "/api/auth/device/token",
+    {},
+    { "Sec-Fetch-Site": "same-origin" }
+  );
+  expect(browserDevice.status).toBe(403);
   const malformedSocial = await post("/api/auth/sign-in/social", {});
   expect(malformedSocial.status).toBe(400);
   expect(await malformedSocial.json()).toEqual({ code: "invalid_input" });

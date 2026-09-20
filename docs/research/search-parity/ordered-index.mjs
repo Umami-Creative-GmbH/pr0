@@ -1,3 +1,4 @@
+// oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Samples and corpus writes run sequentially to avoid contaminating benchmark measurements.
 import { SQL } from "bun";
 
 const pg = new SQL(
@@ -8,7 +9,7 @@ await pg`CREATE INDEX IF NOT EXISTS bench_title_order ON bench(title COLLATE "C"
 const output = [];
 for (const q of ["🫠", "a", "ab", "common"]) {
   const samples = [];
-  for (let run = 0; run < 21; run++) {
+  for (let run = 0; run < 21; run += 1) {
     const start = performance.now();
     await pg`SELECT id FROM bench WHERE strpos(title,${q})>0 OR strpos(content,${q})>0 ORDER BY title COLLATE "C",id LIMIT 50`;
     if (run > 0) {
@@ -30,7 +31,7 @@ await Bun.write(
 );
 process.stdout.write(
   JSON.stringify(
-    output.map(({ plan, ...other }) => other),
+    output.map(({ plan: _plan, ...other }) => other),
     null,
     2
   )
