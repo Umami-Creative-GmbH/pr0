@@ -18,18 +18,22 @@ import { useEffect, useRef, useState } from "react";
 import { CollectionControls } from "./collection-controls";
 import { PromptActionStatus } from "./prompt-action-status";
 import { PromptConflicts } from "./prompt-conflicts";
+import { PromptCopyStatus } from "./prompt-copy-status";
 import { PromptEditor } from "./prompt-editor";
 import { PromptExtraFilters } from "./prompt-extra-filters";
 import { PromptResults, PromptViewNavigation } from "./prompt-results";
 import { promptSaveNotice } from "./prompt-save-notice";
 import { PromptSearchControls } from "./prompt-search-controls";
 import { PromptTags } from "./prompt-tags";
+import { useCopyEligibility } from "./use-copy-eligibility";
 import { useLibraryDrafts } from "./use-library-drafts";
 import { useLibraryFilters } from "./use-library-filters";
+import { useLibraryRefresh } from "./use-library-refresh";
 import { useLibraryResults } from "./use-library-results";
 import { useOrganization } from "./use-organization";
 import { usePromptActions } from "./use-prompt-actions";
 import type { PromptAction } from "./use-prompt-actions";
+import { usePromptCopy } from "./use-prompt-copy";
 import { usePromptSearch } from "./use-prompt-search";
 import type { usePromptSelection } from "./use-prompt-selection";
 
@@ -49,7 +53,9 @@ const PromptDetail = ({
   onAction,
   actionsBlocked,
   onDelete,
+  copy,
 }: {
+  copy: ReturnType<typeof usePromptCopy>;
   collections: Collection[];
   tags: Tag[];
   onTags: (prompt: Prompt) => void;
@@ -94,6 +100,18 @@ const PromptDetail = ({
           Edit prompt
         </button>
         <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            className={buttonClass}
+            type="button"
+            disabled={copy.blocked || editing}
+            onClick={() => {
+              if (detail.data) {
+                void copy.copy(detail.data.id);
+              }
+            }}
+          >
+            Copy prompt
+          </button>
           <button
             className={buttonClass}
             type="button"
@@ -211,7 +229,9 @@ const nearingCapacity = (usage?: { promptCount: number; textBytes: number }) =>
 export const PromptLibrary = ({
   library,
   onDirtyChange,
+  accountAvailable = true,
 }: {
+  accountAvailable?: boolean;
   library: PrivateLibrary;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
@@ -234,8 +254,11 @@ export const PromptLibrary = ({
     view,
     viewCollectionId,
   ].join(":");
-  const search = usePromptSearch(sortScope);
-  const { organization, organizationKey } = useOrganization(library);
+  const search = usePromptSearch(
+    sortScope,
+    view === "recents" ? "recently-used" : "recently-modified"
+  );
+  const { organization } = useOrganization(library);
   const { collections, tags } = organization.data ?? {
     collections: [],
     tags: [],
@@ -286,27 +309,7 @@ export const PromptLibrary = ({
     });
   };
   const detailUnavailable = detail.isFetching || detail.isError;
-  const accepted = async () => {
-    // Refresh the selected snapshot before resetting lists can change selection.
-    await queryClient.invalidateQueries({
-      queryKey: [
-        "prompt",
-        client.baseUrl,
-        library.instance.id,
-        library.account.id,
-      ],
-    });
-    await queryClient.resetQueries({ queryKey: queryKey.slice(0, 4) });
-    await queryClient.invalidateQueries({ queryKey: organizationKey });
-    await queryClient.resetQueries({
-      queryKey: [
-        "conflicts",
-        client.baseUrl,
-        library.instance.id,
-        library.account.id,
-      ],
-    });
-  };
+  const accepted = useLibraryRefresh(library);
   const actions = usePromptActions({
     library,
     onDirtyChange: (dirty) => markDraft("action", dirty),
@@ -329,6 +332,25 @@ export const PromptLibrary = ({
       }
       noticeRef.current?.focus();
     },
+  });
+  const eligible = useCopyEligibility({
+    accountAvailable,
+    searchBlocked,
+    view,
+    collectionId,
+    viewCollectionId,
+    tagIds,
+    favorite,
+    query: search.query,
+    collections,
+    tags,
+    prompts,
+    selectedId,
+  });
+  const copy = usePromptCopy({
+    library,
+    eligible,
+    onAccepted: accepted,
   });
   const openPrompt = async (id: string) => {
     try {
@@ -426,6 +448,7 @@ export const PromptLibrary = ({
         />
       ) : null}
       <PromptActionStatus actions={actions} />
+      <PromptCopyStatus copy={copy} />
       <PromptConflicts
         library={library}
         onOpen={(id) => {
@@ -463,6 +486,7 @@ export const PromptLibrary = ({
         />
       ) : null}
       <PromptResults
+        copy={copy}
         restricted={search.searching || hasExtraFilters}
         pendingSearch={search.pending || Boolean(search.error)}
         view={view}
@@ -479,6 +503,7 @@ export const PromptLibrary = ({
       />
       {selectedId && !searchBlocked ? (
         <PromptDetail
+          copy={copy}
           detail={detail}
           collections={collections}
           key={selectedId}

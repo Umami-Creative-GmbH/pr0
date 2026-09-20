@@ -50,6 +50,7 @@ import {
   PromptFailureError,
   promptFailure,
 } from "./prompt-errors";
+import { applyPromptUse } from "./prompt-use";
 import {
   initializePromptTags,
   applyTagAssignments,
@@ -88,6 +89,7 @@ const receiptColumns = z.object({
   tag_outcome: z.string().nullable().optional(),
   revision: z.string(),
   accepted_at: z.date(),
+  used_at: z.date().nullable().optional(),
   organization_notice: z.string().nullable().optional(),
   conflict_copy_id: z.string().nullable().optional(),
   conflict_notice_id: z.string().nullable().optional(),
@@ -128,6 +130,7 @@ const receiptFrom = (row: z.infer<typeof receiptColumns>) => {
         revision: row.revision,
         acceptedAt: row.accepted_at.toISOString(),
         organizationNotice: row.organization_notice ?? undefined,
+        usedAt: row.used_at?.toISOString(),
         conflict: row.conflict_copy_id
           ? {
               copyId: row.conflict_copy_id,
@@ -443,6 +446,7 @@ export const mutatePrompt = (
     }
     const desired =
       operation.kind === "prompt.delete" ||
+      operation.kind === "prompt.use" ||
       operation.kind === "prompt.tags" ||
       "collectionId" in operation ||
       "tagId" in operation
@@ -454,7 +458,7 @@ export const mutatePrompt = (
           };
     const hash = operationFingerprint(envelope, operation, desired);
     const [existing] =
-      await tx`SELECT organization_effect, operation_id, prompt_id, collection_id, tag_id, resolved_tag_id, tag_outcome, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation
+      await tx`SELECT used_at, organization_effect, operation_id, prompt_id, collection_id, tag_id, resolved_tag_id, tag_outcome, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id = ${operation.operationId}`;
     if (existing) {
       if (existing.request_hash !== hash) {
@@ -534,6 +538,9 @@ export const mutatePrompt = (
         }
         if (operation.kind === "prompt.tags") {
           return applyTagAssignments(savepoint, envelope, operation, hash);
+        }
+        if (operation.kind === "prompt.use") {
+          return applyPromptUse(savepoint, envelope, operation, hash);
         }
         if (operation.kind === "prompt.delete") {
           return applyPromptDeletion({

@@ -13,26 +13,29 @@ const subscribeSort = (changed: () => void) => {
     window.removeEventListener("pr0:browse-sort", changed);
   };
 };
-const readSort = (scope: string): PromptSort => {
+const readSort = (scope: string, defaultSort: PromptSort): PromptSort => {
   try {
     const saved = promptSortSchema.safeParse(
       localStorage.getItem(`pr0:browse-sort:${scope}`)
     );
     return saved.success && saved.data !== "relevance"
       ? saved.data
-      : "recently-modified";
+      : defaultSort;
   } catch {
-    return "recently-modified";
+    return defaultSort;
   }
 };
 
-export const usePromptSearch = (scope: string) => {
+export const usePromptSearch = (
+  scope: string,
+  defaultSort: PromptSort = "recently-modified"
+) => {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const browseSort = useSyncExternalStore(
     subscribeSort,
-    () => readSort(scope),
-    (): PromptSort => "recently-modified"
+    () => readSort(scope, defaultSort),
+    (): PromptSort => defaultSort
   );
   const [searchSort, setSearchSort] = useState<PromptSort>("relevance");
   const validation = promptQuerySchema.safeParse(query);

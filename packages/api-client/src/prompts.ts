@@ -95,7 +95,11 @@ const receiptMatches = (
       entry.collectionId === operation.collectionId
     );
   }
-  return "promptId" in operation && entry.promptId === operation.promptId;
+  return (
+    "promptId" in operation &&
+    entry.promptId === operation.promptId &&
+    (operation.kind !== "prompt.use" || entry.usedAt !== undefined)
+  );
 };
 export const createPromptClient = (
   baseUrl: string,

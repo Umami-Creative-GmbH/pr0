@@ -35,6 +35,7 @@ export const operationFingerprint = (
         operationEntityId(operation),
         operation.baseRevision,
         operation.dependsOn,
+        ...(operation.kind === "prompt.use" ? [operation.occurredAt] : []),
         ...(operation.kind === "prompt.tags"
           ? [operation.add, operation.remove]
           : []),

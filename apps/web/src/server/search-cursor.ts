@@ -22,6 +22,8 @@ const sign = (value: string) =>
     .digest("base64url");
 export const searchCursor = (scope: SearchScope, input: SearchInput) => {
   const query = organizationSearch(input.query);
+  const browseDefault =
+    input.view === "recents" ? "recently-used" : "recently-modified";
   const binding = sign(
     JSON.stringify([
       scope.instance,
@@ -29,7 +31,7 @@ export const searchCursor = (scope: SearchScope, input: SearchInput) => {
       scope.epoch,
       searchNormalizationVersion,
       query,
-      input.sort ?? (query ? "relevance" : "recently-modified"),
+      input.sort ?? (query ? "relevance" : browseDefault),
       input.view,
       input.viewCollectionId ?? null,
       input.favorite ?? null,

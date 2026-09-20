@@ -28,6 +28,7 @@ const eligible = (
   (!viewCollectionId || prompt.collectionId === viewCollectionId) &&
   (!favorite || prompt.favorite) &&
   prompt.archived === (view === "archive") &&
+  (view !== "recents" || prompt.lastUsedAt !== null) &&
   (view !== "favorites" || prompt.favorite);
 
 export const usePromptSelection = ({
