@@ -1,0 +1,94 @@
+[
+  {
+    "content": "Hello {{name}}; {{ name }} meets {{Name}}.",
+    "fields": [
+      ["name", "string"],
+      ["Name", "string"]
+    ],
+    "values": [
+      ["name", "a"],
+      ["Name", "B"]
+    ],
+    "output": "Hello a; a meets B."
+  },
+  {
+    "content": "{{a}} / {{a|number}} / {{a|string}}",
+    "fields": [["a", "number"]],
+    "values": [["a", "+02.50"]],
+    "output": "+02.50 / +02.50 / +02.50"
+  },
+  {
+    "content": "{{x|strng}} {{y}}",
+    "fields": [["y", "string"]],
+    "values": [["y", "ok"]],
+    "output": "{{x|strng}} ok"
+  },
+  {
+    "content": "{{ count \t|\tnumber }}",
+    "fields": [["count", "number"]],
+    "values": [["count", "9007199254740993"]],
+    "output": "9007199254740993"
+  },
+  {
+    "content": "\\{{x|number}} {{x}}",
+    "fields": [["x", "string"]],
+    "values": [["x", "word"]],
+    "output": "{{x|number}} word"
+  },
+  {
+    "content": "\\\\{{name}}",
+    "fields": [],
+    "values": [],
+    "output": "\\{{name}}"
+  },
+  {
+    "content": "\\{{count|unknown}}",
+    "fields": [],
+    "values": [],
+    "output": "\\{{count|unknown}}"
+  },
+  {
+    "content": "{{{x}}} / {{outer {{inner}} }} / {{ok}}",
+    "fields": [["ok", "string"]],
+    "values": [["ok", "yes"]],
+    "output": "{{{x}}} / {{outer {{inner}} }} / yes"
+  },
+  {
+    "content": "{{outer {{a}} {{b}} }} {{ok}}",
+    "fields": [["ok", "string"]],
+    "values": [["ok", "yes"]],
+    "output": "{{outer {{a}} {{b}} }} yes"
+  },
+  {
+    "content": "{{broken\n{{ok}}",
+    "fields": [["ok", "string"]],
+    "values": [["ok", "yes"]],
+    "output": "{{broken\nyes"
+  },
+  {
+    "content": "{{broken\r{{ok}}",
+    "fields": [["ok", "string"]],
+    "values": [["ok", "yes"]],
+    "output": "{{broken\ryes"
+  },
+  {
+    "content": "{{a}}} {{first name}} {{9name}} {{}} {{x|}} {{x|Number}} {{x\u00a0}}",
+    "fields": [],
+    "values": [],
+    "output": "{{a}}} {{first name}} {{9name}} {{}} {{x|}} {{x|Number}} {{x\u00a0}}"
+  },
+  {
+    "content": "{{__proto__}} {{constructor}} {{toString}}",
+    "fields": [
+      ["__proto__", "string"],
+      ["constructor", "string"],
+      ["toString", "string"]
+    ],
+    "values": [
+      ["__proto__", "Keep {{other}} and $&"],
+      ["constructor", "\\"],
+      ["toString", "  text\n  "]
+    ],
+    "output": "Keep {{other}} and $& \\   text\n  "
+  }
+]

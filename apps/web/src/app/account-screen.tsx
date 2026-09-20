@@ -195,6 +195,7 @@ export const AccountScreen = ({
       {signedIn ? (
         <>
           <PromptLibrary
+            accountChanged={accountChanged}
             accountAvailable={copyAccountAvailable(library, accountChanged)}
             key={`${signedIn.instance.id}:${signedIn.account.id}`}
             library={signedIn}

@@ -76,7 +76,9 @@ export const copyBrowser = async (cookieHeader: string) => {
   });
   const open = async () => {
     const page = await context.newPage();
-    page.setDefaultTimeout(7000);
+    // UI observations can include the server's five-second admission retry and
+    // a ten-second result refresh; clipboard latency is measured separately.
+    page.setDefaultTimeout(15_000);
     await page.goto(origin);
     return page;
   };

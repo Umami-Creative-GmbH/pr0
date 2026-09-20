@@ -25,6 +25,7 @@ import { PromptResults, PromptViewNavigation } from "./prompt-results";
 import { promptSaveNotice } from "./prompt-save-notice";
 import { PromptSearchControls } from "./prompt-search-controls";
 import { PromptTags } from "./prompt-tags";
+import { PromptVariables } from "./prompt-variables";
 import { useCopyEligibility } from "./use-copy-eligibility";
 import { useLibraryDrafts } from "./use-library-drafts";
 import { useLibraryFilters } from "./use-library-filters";
@@ -226,12 +227,37 @@ const nearingCapacity = (usage?: { promptCount: number; textBytes: number }) =>
     (usage.promptCount >= promptLimits.promptCount * 0.9 ||
       usage.textBytes >= promptLimits.libraryBytes * 0.9)
   );
+const LibraryCapacity = ({
+  usage,
+}: {
+  usage?: { promptCount: number; textBytes: number };
+}) => (
+  <>
+    {usage ? (
+      <p className="text-muted-foreground text-sm">
+        {usage.promptCount.toLocaleString()} / 10,000 prompts ·{" "}
+        {(usage.textBytes / 1_048_576).toFixed(2)} / 100 MiB of text
+      </p>
+    ) : null}
+    {nearingCapacity(usage) ? (
+      <output>
+        Your library is at or above 90% capacity. Archiving does not free
+        capacity.
+      </output>
+    ) : null}
+  </>
+);
+const copyLibraryRevision = (
+  data: { pages: { revision: string }[] } | undefined
+) => data?.pages[0]?.revision;
 export const PromptLibrary = ({
   library,
   onDirtyChange,
   accountAvailable = true,
+  accountChanged = false,
 }: {
   accountAvailable?: boolean;
+  accountChanged?: boolean;
   library: PrivateLibrary;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
@@ -349,6 +375,8 @@ export const PromptLibrary = ({
   });
   const copy = usePromptCopy({
     library,
+    accountChanged,
+    libraryRevision: copyLibraryRevision(list.data),
     eligible,
     onAccepted: accepted,
   });
@@ -371,6 +399,7 @@ export const PromptLibrary = ({
   };
   return (
     <div className="space-y-6">
+      <PromptVariables copy={copy} />
       {deleting ? (
         <PromptDeleteDialog
           title={deleting.title}
@@ -455,18 +484,7 @@ export const PromptLibrary = ({
           void openPrompt(id);
         }}
       />
-      {usage ? (
-        <p className="text-muted-foreground text-sm">
-          {usage.promptCount.toLocaleString()} / 10,000 prompts ·{" "}
-          {(usage.textBytes / 1_048_576).toFixed(2)} / 100 MiB of text
-        </p>
-      ) : null}
-      {nearingCapacity(usage) ? (
-        <output>
-          Your library is at or above 90% capacity. Archiving does not free
-          capacity.
-        </output>
-      ) : null}
+      <LibraryCapacity usage={usage} />
       {editing ? (
         <PromptEditor
           library={library}

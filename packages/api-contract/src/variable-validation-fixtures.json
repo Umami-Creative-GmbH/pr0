@@ -1,0 +1,34 @@
+{
+  "acceptedNumbers": [
+    "42",
+    "-3",
+    "+2.50",
+    "0.5",
+    ".5",
+    "001",
+    "  -0.50\t",
+    "9007199254740993"
+  ],
+  "rejectedNumbers": [
+    "1,5",
+    "1e3",
+    "NaN",
+    "Infinity",
+    "1.",
+    "+",
+    "١",
+    "1 2",
+    "1\n",
+    "1\r",
+    "\u00a01"
+  ],
+  "invalidStrings": ["", "\u0085\u2000\u3000\t\n", "nul\u0000"],
+  "invalidUtf16Units": [[55296], [57343]],
+  "bounds": [
+    { "content": "{{x}}{{x}}", "unit": "a", "repeat": 131072, "ok": true },
+    { "content": "{{x}}{{x}}", "unit": "a", "repeat": 131073, "ok": false },
+    { "content": "{{x}}", "unit": "😀", "repeat": 65536, "ok": true },
+    { "content": "{{x}}", "unit": "😀", "repeat": 65537, "ok": false },
+    { "content": " {{x}}", "unit": "😀", "repeat": 65536, "ok": false }
+  ]
+}
