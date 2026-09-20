@@ -4,6 +4,8 @@ use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::collections::BTreeSet;
 
 #[allow(dead_code)]
+// Preserve the layout owned by the shared Unicode generator.
+#[rustfmt::skip]
 #[path = "../../../../packages/api-contract/unicode/unicode17.rs"]
 mod unicode;
 
