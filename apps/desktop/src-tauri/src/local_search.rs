@@ -198,6 +198,23 @@ fn postings(
     }
     Ok(())
 }
+pub fn remove(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
+    let old: Option<(u16, [String; 3])> = tx
+        .query_row(
+            "SELECT slot,title,description,content FROM local_search WHERE id=?1",
+            [id],
+            |r| Ok((r.get(0)?, [r.get(1)?, r.get(2)?, r.get(3)?])),
+        )
+        .optional()?;
+    if let Some((slot, values)) = old {
+        for (field, before) in ["title", "description", "content"].into_iter().zip(values) {
+            tx.execute(&format!("INSERT INTO local_f_{field}(local_f_{field},rowid,{field}) VALUES('delete',?1,?2)"),params![slot,before])?;
+            postings(tx, field, slot, &before, "")?;
+        }
+        tx.execute("DELETE FROM local_search WHERE id=?1", [id])?;
+    }
+    Ok(())
+}
 pub fn update(tx: &Transaction, prompt: &Prompt, revision: i64) -> rusqlite::Result<()> {
     let old: Option<(u16, [String; 3])> = tx
         .query_row(
@@ -209,7 +226,7 @@ pub fn update(tx: &Transaction, prompt: &Prompt, revision: i64) -> rusqlite::Res
     let slot = match &old {
         Some((slot, _)) => *slot,
         None => tx.query_row(
-            "SELECT coalesce(max(slot)+1,0) FROM local_search",
+            "SELECT coalesce((SELECT min(slot+1) FROM local_search s WHERE NOT EXISTS(SELECT 1 FROM local_search n WHERE n.slot=s.slot+1)),0) WHERE EXISTS(SELECT 1 FROM local_search WHERE slot=0) UNION ALL SELECT 0 WHERE NOT EXISTS(SELECT 1 FROM local_search WHERE slot=0)",
             [],
             |r| r.get::<_, u16>(0),
         )?,

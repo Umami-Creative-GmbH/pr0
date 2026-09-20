@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { localPromptSchema } from "@pr0/api-contract/local-prompts";
 import { chromium } from "playwright";
 import type { Page } from "playwright";
 
@@ -253,3 +254,72 @@ test("two desktop windows keep competing drafts and an older save acknowledgemen
     await rm(directory, { recursive: true, force: true });
   }
 }, 60_000);
+
+test("an open draft follows its conflict copy without replacing text and offers the retained original", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-upload-ui-"));
+  const native = await localNativeWorker(directory, true);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const page = await browser.newPage();
+    await connect(page, native, () => "");
+    const original = localPromptSchema.parse(
+      await native.command("library_editor", {
+        id: "66666666-6666-4666-8666-666666666666",
+      })
+    );
+    await page
+      .getByRole("button", { name: original.prompt.title, exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Edit prompt", exact: true })
+      .click();
+    const editor = page.getByRole("form", { name: "Prompt editor" });
+    await editor.getByLabel("Content", { exact: true }).fill("B1 saved text");
+    await editor.getByRole("button", { name: "Save", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Edit prompt", exact: true })
+      .click();
+    await editor
+      .getByLabel("Content", { exact: true })
+      .fill("B2 unsaved complete text");
+    await native.command("library_upload");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page
+      .getByText(
+        "You're editing the conflict copy. Your unsaved text is retained."
+      )
+      .waitFor();
+    await page
+      .getByRole("button", { name: "Open original", exact: true })
+      .waitFor();
+    expect(
+      await editor.getByLabel("Content", { exact: true }).inputValue()
+    ).toBe("B2 unsaved complete text");
+    await page.screenshot({
+      path: "docs/evidence/issue-42-conflict-draft.png",
+      fullPage: true,
+    });
+    await page
+      .getByRole("button", { name: "Open original", exact: true })
+      .click();
+    expect(
+      await editor.getByLabel("Content", { exact: true }).inputValue()
+    ).toBe("B2 unsaved complete text");
+    await editor.getByRole("button", { name: "Save", exact: true }).click();
+    await editor.waitFor({ state: "hidden" });
+    const copy = localPromptSchema.parse(
+      await native.command("library_editor", {
+        id: "99999999-9999-4999-8999-999999999999",
+      })
+    );
+    expect(copy.prompt.content).toBe("B2 unsaved complete text");
+    const preserved = localPromptSchema.parse(
+      await native.command("library_editor", { id: original.prompt.id })
+    );
+    expect(preserved.prompt.content).toBe(original.prompt.content);
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

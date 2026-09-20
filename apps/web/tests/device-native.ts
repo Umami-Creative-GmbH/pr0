@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { uploadStatusSchema } from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
 import { chromium } from "playwright";
 import { z } from "zod";
@@ -12,7 +13,9 @@ import { runAcceptance } from "./account-test-server";
 import type { accountTestServer } from "./account-test-server";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
+import type { NativeArgs } from "./local-native-worker";
 import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
+import { verifyNativeUploads } from "./uploads-native";
 
 const resultSchema = z.object({
   Ok: z.object({
@@ -64,13 +67,17 @@ const worker = (
           );
         }
         if (line.includes("PR0_RESULT:")) {
-          return z
-            .object({ Ok: z.json() })
+          const result = z
+            .union([z.object({ Ok: z.json() }), z.object({ Err: z.string() })])
             .parse(
               JSON.parse(
                 line.slice(line.indexOf("PR0_RESULT:") + "PR0_RESULT:".length)
               )
-            ).Ok;
+            );
+          if ("Err" in result) {
+            throw new Error(`Native command failed: ${result.Err}`);
+          }
+          return result.Ok;
         }
       }
     }
@@ -92,7 +99,7 @@ const worker = (
     async library<T>(
       command: string,
       schema: z.ZodType<T>,
-      args: { id?: string; offset?: number } = {}
+      args: NativeArgs = {}
     ) {
       nativeProcess.stdin.write(`${JSON.stringify({ command, ...args })}\n`);
       await nativeProcess.stdin.flush();
@@ -113,7 +120,8 @@ const worker = (
 
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
-  download = false
+  download = false,
+  upload = false
 ) => {
   const account = await verifiedBrowser();
   if (download) {
@@ -158,6 +166,8 @@ export const verifyNativeHttps = async (
     .map((line) => artifact.safeParse(JSON.parse(line)));
   const executable = artifacts.find((value) => value.success)?.data?.executable;
   assert.ok(executable);
+  let loseNextUpload = false;
+  const traffic: { path: string; body: string }[] = [];
   const proxy = Bun.serve({
     hostname: "localhost",
     port: 30_440,
@@ -169,18 +179,32 @@ export const verifyNativeHttps = async (
       const url = new URL(request.url);
       const headers = new Headers(request.headers);
       headers.delete("accept-encoding");
+      const body =
+        request.method === "GET" || request.method === "HEAD"
+          ? undefined
+          : await request.text();
+      if (
+        url.pathname === "/api/v1/sync/mutations" ||
+        url.pathname === "/api/v1/sync/receipts"
+      ) {
+        traffic.push({ path: url.pathname, body: body ?? "" });
+      }
       const upstream = await fetch(`${origin}${url.pathname}${url.search}`, {
         method: request.method,
         headers,
-        body:
-          request.method === "GET" || request.method === "HEAD"
-            ? undefined
-            : await request.arrayBuffer(),
+        body,
         redirect: "manual",
       });
       const responseHeaders = new Headers(upstream.headers);
       responseHeaders.delete("content-encoding");
       responseHeaders.delete("content-length");
+      if (loseNextUpload && url.pathname === "/api/v1/sync/mutations") {
+        loseNextUpload = false;
+        await upstream.arrayBuffer();
+        return new Response("Acknowledgement intentionally lost", {
+          status: 502,
+        });
+      }
       return new Response(await upstream.arrayBuffer(), {
         status: upstream.status,
         headers: responseHeaders,
@@ -307,6 +331,33 @@ export const verifyNativeHttps = async (
         SMTP_TLS: "starttls",
       });
     }
+    if (upload) {
+      await verifyNativeUploads({
+        command: (command, args = {}) =>
+          native.library(command, z.json(), args),
+        restart: async () => {
+          await native.stop();
+          native = worker(
+            executable,
+            path.join(directory, "state"),
+            certificate,
+            target
+          );
+          await native.command("status");
+        },
+        lose: () => {
+          loseNextUpload = true;
+        },
+        traffic,
+        page,
+        origin: selectedOrigin,
+      });
+      const uploadStatus = await native.library(
+        "library_upload_status",
+        uploadStatusSchema
+      );
+      assert.equal(uploadStatus.waiting, 0);
+    }
     const refreshed = await native.command("refresh");
     assert.equal(refreshed.state, "signed_in");
     const signedOut = await native.command("sign_out");
@@ -317,6 +368,9 @@ export const verifyNativeHttps = async (
   } finally {
     try {
       await native.command("sign_out");
+    } catch {
+      // A failed preservation test can intentionally leave pending work. Remove only its disposable credential.
+      await native.library("test_clear_credential", z.null());
     } finally {
       await native.stop();
     }

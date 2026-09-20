@@ -35,6 +35,9 @@ export const snapshotManifestSchema = z.strictObject({
     .max(snapshotLimits.pages),
 });
 export type SnapshotManifest = z.infer<typeof snapshotManifestSchema>;
+export const snapshotCreateRequestSchema = z.strictObject({
+  minimumRevision: revisionSchema.optional(),
+});
 export const snapshotPageRequestSchema = z.strictObject({
   id: z.uuidv4(),
   page: z

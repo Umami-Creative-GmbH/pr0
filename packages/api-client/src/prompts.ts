@@ -3,6 +3,7 @@ import {
   mutationEnvelopeSchema,
   organizationSnapshotSchema,
   mutationResponseSchema,
+  receiptLookupResponseSchema,
   promptErrorSchema,
   promptIdentitySchema,
   promptListInputSchema,
@@ -313,6 +314,23 @@ export const createPromptClient = (
         );
       }
       return prompt;
+    },
+    async lookupReceipts(input: MutationEnvelope, signal?: AbortSignal) {
+      const envelope = mutationEnvelopeSchema.parse(input);
+      const result = receiptLookupResponseSchema.parse(
+        await request("sync/receipts", signal, envelope)
+      );
+      if (
+        result.results.length !== envelope.operations.length ||
+        result.results.some((entry, index) =>
+          entry.status === "unknown"
+            ? entry.operationId !== envelope.operations[index]?.operationId
+            : !receiptMatches(entry, envelope.operations[index])
+        )
+      ) {
+        throw new PromptApiError(502);
+      }
+      return result;
     },
     async mutatePrompts(input: MutationEnvelope, signal?: AbortSignal) {
       const envelope = mutationEnvelopeSchema.parse(input);

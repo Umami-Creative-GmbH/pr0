@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-upload-status"
+description = "Enables the library_upload_status command without any pre-configured scope."
+commands.allow = ["library_upload_status"]
+
+[[permission]]
+identifier = "deny-library-upload-status"
+description = "Denies the library_upload_status command without any pre-configured scope."
+commands.deny = ["library_upload_status"]

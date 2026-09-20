@@ -22,7 +22,9 @@ export const LocalPromptDetail = ({
           <p>Changes waiting to sync</p>
           <p>Dates are provisional until server acceptance.</p>
         </>
-      ) : null}
+      ) : (
+        <p>Saved to server</p>
+      )}
       <p>
         Modified:{" "}
         <time dateTime={prompt.modifiedAt}>

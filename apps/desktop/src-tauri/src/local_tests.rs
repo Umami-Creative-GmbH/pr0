@@ -1,5 +1,52 @@
 // Included in auth_tests; exercises the typed native service over real SQLite.
 #[test]
+fn upload_acceptance_keeps_overlay_until_current_download() {
+    let data: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/snapshot-fixtures.json"
+    ))
+    .unwrap();
+    let directory = std::env::temp_dir().join(format!("pr0-upload-{}", uuid::Uuid::new_v4()));
+    let transport = approval();
+    transport.0.lock().unwrap().pop();
+    transport.0.lock().unwrap().extend([
+        data["manifest"].clone(),
+        data["pages"][0].clone(),
+        data["pages"][1].clone(),
+    ]);
+    let service = AuthService::new(
+        directory.clone(),
+        transport.clone(),
+        Arc::new(Vault::default()),
+    )
+    .unwrap();
+    sign_in(&service);
+    service.library_download().unwrap();
+    service.library_download().unwrap();
+    let request = save_request(&service);
+    service.library_create(request.clone()).unwrap();
+    transport.0.lock().unwrap().extend([
+        fixtures()["capabilities"].clone(),
+        fixtures()["session"].clone(),
+        serde_json::from_str::<serde_json::Value>(include_str!(
+            "../../../../packages/api-contract/src/upload-fixtures.json"
+        ))
+        .unwrap()["accepted"]
+            .clone(),
+    ]);
+    let status = service.library_upload().unwrap();
+    assert_eq!(status.awaiting_download, 1);
+    assert_eq!(
+        service.library_detail(&request.prompt_id).unwrap().content,
+        request.desired.content
+    );
+    assert_eq!(
+        service.library_pending().unwrap()[0].state,
+        "accepted_awaiting_download"
+    );
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+#[test]
 fn offline_unchanged_receipt_replays_after_an_unrelated_prompt_changed() {
     let directory = std::env::temp_dir().join(format!("pr0-noop-{}", uuid::Uuid::new_v4()));
     let service =
@@ -261,9 +308,19 @@ fn offline_command_worker() {
     };
     let directory = std::path::PathBuf::from(directory);
     let vault = Arc::new(Vault::default());
-    let service = AuthService::new(directory, approval(), vault).unwrap();
+    let upload_fixture_enabled = std::env::var("PR0_UPLOAD_UI_FIXTURE").as_deref() == Ok("true");
+    let transport: Arc<dyn Transport> = if upload_fixture_enabled {
+        upload_fixture(true, false)
+    } else {
+        approval()
+    };
+    let service = AuthService::new(directory, transport, vault).unwrap();
     if view(&service)["state"] == "signed_out" {
         sign_in(&service);
+    }
+    if upload_fixture_enabled && !service.library_status().unwrap().complete {
+        service.library_download().unwrap();
+        service.library_download().unwrap();
     }
     println!("READY:{}", view(&service)["generation"]);
     std::io::stdout().flush().unwrap();
@@ -297,6 +354,8 @@ fn offline_command_worker() {
                 result.map(|v| json!(v))
             }
             "library_pending" => service.library_pending().map(|v| json!(v)),
+            "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
+            "library_upload" => service.library_upload().map(|v| json!(v)),
             "library_copy_draft" => service
                 .copy_draft(
                     input["instanceId"].as_str().unwrap(),

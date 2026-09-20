@@ -1,0 +1,47 @@
+{
+  "operation": {
+    "operationId": "77777777-7777-4777-8777-777777777777",
+    "promptId": "88888888-8888-4888-8888-888888888888",
+    "kind": "prompt.create",
+    "baseRevision": "0",
+    "dependsOn": [],
+    "desired": {
+      "title": "Offline",
+      "description": "Notes",
+      "content": "  My complete draft\n"
+    }
+  },
+  "accepted": {
+    "results": [
+      {
+        "status": "accepted",
+        "operationId": "77777777-7777-4777-8777-777777777777",
+        "promptId": "88888888-8888-4888-8888-888888888888",
+        "revision": "3",
+        "acceptedAt": "2026-09-20T12:00:00.000Z"
+      }
+    ]
+  },
+  "unknown": {
+    "results": [
+      {
+        "status": "unknown",
+        "operationId": "77777777-7777-4777-8777-777777777777"
+      }
+    ]
+  },
+  "rejected": {
+    "results": [
+      {
+        "status": "rejected",
+        "error": {
+          "code": "quota_exceeded",
+          "message": "Free capacity and retry.",
+          "retryable": true,
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "retryAfter": 60
+        }
+      }
+    ]
+  }
+}

@@ -3,12 +3,14 @@ import { z } from "zod";
 
 import {
   snapshotManifestSchema,
+  snapshotCreateRequestSchema,
   snapshotPageRequestSchema,
   snapshotPageSchema,
   snapshotRecordsSchema,
 } from "./snapshots";
 
 const schemas = {
+  SnapshotCreateRequest: snapshotCreateRequestSchema,
   SnapshotManifest: snapshotManifestSchema,
   SnapshotPageRequest: snapshotPageRequestSchema,
   SnapshotPage: snapshotPageSchema,
@@ -29,16 +31,12 @@ const operation = (page: boolean) => ({
   tags: ["Prompts"],
   security: [{ DesktopSession: [] }],
   description:
-    "Device bearer only; cookies and browser Fetch Metadata are rejected. A materialized account/instance/epoch/revision cut is reusable for 15 minutes. No transaction spans requests. Maximum serialized page response: 4 MiB UTF-8; manifest: 256 KiB. SHA-256 digests cover the exact UTF-8 bytes of the decoded payload string (SnapshotRecords JSON), with no reserialization. Apply pages in order and advance progress only after local commit. A completed snapshot is complete at its cut, not a claim of current synchronization. Expiry requires a new manifest while retaining usable local data.",
+    "Device bearer only; cookies and browser Fetch Metadata are rejected. A materialized account/instance/epoch/revision cut is reusable for 15 minutes. Creation accepts optional minimumRevision (an acknowledged revision): this explicitly reconciles uploads against the current library revision, replacing stale cuts and invalidating their page requests. A revision beyond the current library is rejected. No transaction spans requests. Maximum serialized page response: 4 MiB UTF-8; manifest: 256 KiB. SHA-256 digests cover the exact UTF-8 bytes of the decoded payload string (SnapshotRecords JSON), with no reserialization. Apply pages in order and advance progress only after local commit. A completed snapshot is complete at its cut, not a claim of current synchronization. Expiry requires a new manifest while retaining usable local data.",
   requestBody: {
     required: true,
     content: page
       ? content("SnapshotPageRequest")
-      : {
-          "application/json": {
-            schema: { type: "object" as const, additionalProperties: false },
-          },
-        },
+      : content("SnapshotCreateRequest"),
   },
   responses: {
     "200": {

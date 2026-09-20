@@ -2,6 +2,7 @@ use super::auth::*;
 use serde_json::json;
 use std::sync::{Arc, Mutex};
 include!("local_tests.rs");
+include!("upload_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     serde_json::from_str(include_str!(
@@ -359,7 +360,7 @@ fn restart_worker() {
     let service = AuthService::new(
         path.into(),
         approval(),
-        Arc::new(WindowsCredentials::new(target)),
+        Arc::new(WindowsCredentials::new(target.clone())),
     )
     .unwrap();
     assert_eq!(view(&service)["state"], "signed_in");
@@ -509,7 +510,7 @@ fn live_https_worker() {
         Arc::new(BrowserBoundary(
             HttpsTransport::with_test_root(&certificate).unwrap(),
         )),
-        Arc::new(WindowsCredentials::new(target)),
+        Arc::new(WindowsCredentials::new(target.clone())),
     )
     .unwrap();
     for line in std::io::stdin().lock().lines() {
@@ -520,6 +521,9 @@ fn live_https_worker() {
             break;
         }
         let result = match command {
+            "test_clear_credential" => WindowsCredentials::new(target.clone())
+                .delete()
+                .map(|_| json!(null)),
             "status" => service.restore().map(|value| json!(value)),
             "begin" => service
                 .begin(input["origin"].as_str().unwrap())
@@ -529,6 +533,17 @@ fn live_https_worker() {
             "refresh" => service.refresh().map(|value| json!(value)),
             "library_status" => service.library_status().map(|value| json!(value)),
             "library_download" => service.library_download().map(|value| json!(value)),
+            "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
+            "library_upload" => service.library_upload().map(|v| json!(v)),
+            "library_editor" => service
+                .library_editor(input["id"].as_str().unwrap())
+                .map(|v| json!(v)),
+            "library_create" => service
+                .library_create(serde_json::from_value(input["request"].clone()).unwrap())
+                .map(|v| json!(v)),
+            "library_edit" => service
+                .library_edit(serde_json::from_value(input["request"].clone()).unwrap())
+                .map(|v| json!(v)),
             "library_browse" => service
                 .library_browse(input["offset"].as_u64().unwrap_or(0) as u32)
                 .map(|value| json!(value)),

@@ -10,6 +10,8 @@ fn main() {
             "auth_sign_out",
             "library_status",
             "library_download",
+            "library_upload",
+            "library_upload_status",
             "library_browse",
             "library_detail",
             "library_editor",

@@ -1,4 +1,7 @@
-import type { LocalPrompt } from "@pr0/api-contract/local-prompts";
+import type {
+  LocalPrompt,
+  UploadStatus,
+} from "@pr0/api-contract/local-prompts";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -19,6 +22,7 @@ export const DownloadedLibrary = ({
   refreshAuth: (command: "auth_status") => Promise<void>;
 }) => {
   const [status, setStatus] = useState<DownloadStatus>();
+  const [upload, setUpload] = useState<UploadStatus>();
   const [rows, setRows] = useState<DownloadedSummary[]>([]);
   const [localDetail, setLocalDetail] = useState<LocalPrompt>();
   const [editor, setEditor] = useState<{ initial?: LocalPrompt }>();
@@ -32,6 +36,7 @@ export const DownloadedLibrary = ({
   const browseRequest = useRef(0);
   const currentOffset = useRef(0);
   const selectedPrompt = useRef<string | null>(null);
+  const observedMappings = useRef(new Set<string>());
   const open = useCallback(async (id: string) => {
     selectedPrompt.current = id;
     selection.current += 1;
@@ -81,17 +86,30 @@ export const DownloadedLibrary = ({
     let cancelled = false;
     const refresh = async () => {
       const requestedOffset = currentOffset.current;
-      const [next, prompts] = await Promise.all([
+      const [next, prompts, sync] = await Promise.all([
         libraryClient.status(),
         libraryClient.browse(requestedOffset),
+        libraryClient.uploadStatus(),
       ]);
       if (!cancelled) {
         setStatus(next);
+        setUpload(sync);
+        if (sync.error === "authentication_required") {
+          await refreshAuth("auth_status");
+        }
         if (requestedOffset === currentOffset.current) {
           setRows(prompts);
         }
         if (selectedPrompt.current) {
-          await open(selectedPrompt.current);
+          const mapping = sync.mappings.find(
+            (entry) =>
+              entry.originalId === selectedPrompt.current &&
+              !observedMappings.current.has(entry.copyId)
+          );
+          await open(mapping?.copyId ?? selectedPrompt.current);
+        }
+        for (const mapping of sync.mappings) {
+          observedMappings.current.add(mapping.copyId);
         }
       }
       return next;
@@ -146,6 +164,13 @@ export const DownloadedLibrary = ({
       }
     }
   }, []);
+  const retryUpload = async () => {
+    try {
+      setUpload(await libraryClient.upload());
+    } catch {
+      setRetry((value) => value + 1);
+    }
+  };
   return (
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
@@ -153,6 +178,13 @@ export const DownloadedLibrary = ({
         status={status}
         signedIn={signedIn}
         offline={offline}
+        upload={upload}
+        onOpen={(id) => {
+          void open(id);
+        }}
+        onRetry={() => {
+          void retryUpload();
+        }}
       />
       <button
         type="button"
@@ -165,6 +197,10 @@ export const DownloadedLibrary = ({
       {editor ? (
         <LocalPromptEditor
           initial={editor.initial}
+          mappings={upload?.mappings}
+          onOpenOriginal={(id) => {
+            void open(id);
+          }}
           account={account}
           onCancel={() => setEditor(undefined)}
           onSaved={(value) => {

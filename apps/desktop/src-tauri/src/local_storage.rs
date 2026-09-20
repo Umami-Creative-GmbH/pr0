@@ -71,7 +71,7 @@ impl LibraryStore {
         let pending = self
             .db
             .query_row(
-                "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1)",
+                "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND state<>'accepted_awaiting_download')",
                 [id],
                 |r| r.get(0),
             )
@@ -188,7 +188,7 @@ impl LibraryStore {
             }
             let pending = tx
                 .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1)",
+                    "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND state<>'accepted_awaiting_download')",
                     [&request.prompt_id],
                     |r| r.get(0),
                 )
@@ -226,7 +226,7 @@ impl LibraryStore {
                 let result = LocalPrompt {
                     prompt: old.clone(),
                     local_revision: current_revision.to_string(),
-                    pending: latest.is_some(),
+                    pending: latest.as_ref().is_some_and(|(_,_,state)|state!="accepted_awaiting_download"),
                 };
                 record_receipt(&tx, &request.operation_id, &fingerprint, &result)?;
                 #[cfg(test)]

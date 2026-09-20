@@ -448,3 +448,17 @@ export const mutationResponseSchema = z.strictObject({
   results: z.array(mutationResultSchema).min(1).max(100),
 });
 export type MutationResult = z.infer<typeof mutationResultSchema>;
+export const receiptLookupResponseSchema = z.strictObject({
+  results: z
+    .array(
+      z.union([
+        mutationResultSchema,
+        z.strictObject({
+          status: z.literal("unknown"),
+          operationId: promptIdentitySchema,
+        }),
+      ])
+    )
+    .min(1)
+    .max(100),
+});

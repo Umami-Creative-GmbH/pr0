@@ -413,79 +413,93 @@ const applyPromptCreation = async ({
     organizationNotice: organizationNotice ?? undefined,
   });
 };
+const inspectOperation = async (
+  tx: TransactionSQL,
+  browser: BrowserAccount,
+  envelope: MutationEnvelope,
+  operation: MutationEnvelope["operations"][number]
+) => {
+  const library = await lockLibrary(tx, browser);
+  if (
+    envelope.accountId !== browser.accountId ||
+    envelope.instanceId !== library.instance_id
+  ) {
+    throw new PromptFailureError(
+      {
+        code: "forbidden",
+        message: "This operation belongs to a different library.",
+        retryable: false,
+      },
+      403
+    );
+  }
+  if (envelope.epoch !== library.recovery_epoch) {
+    throw new PromptFailureError(
+      {
+        code: "snapshot_required",
+        message: "This instance was recovered. Retain local work for recovery.",
+        retryable: false,
+      },
+      409
+    );
+  }
+  const desired =
+    "desired" in operation
+      ? {
+          title: trimPromptText(operation.desired.title),
+          description: trimPromptText(operation.desired.description),
+          content: operation.desired.content,
+        }
+      : null;
+  const hash = operationFingerprint(envelope, operation, desired);
+  const [existing] =
+    await tx`SELECT used_at, organization_effect, operation_id, prompt_id, collection_id, tag_id, resolved_tag_id, tag_outcome, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation WHERE instance_id=${library.instance_id} AND account_id=${browser.accountId} AND operation_id=${operation.operationId}`;
+  const [attempt] = existing
+    ? [existing]
+    : await tx`SELECT request_hash FROM library_operation_attempt WHERE instance_id=${library.instance_id} AND account_id=${browser.accountId} AND operation_id=${operation.operationId}`;
+  if (attempt && attempt.request_hash !== hash) {
+    throw new PromptFailureError(
+      {
+        code: "operation_identity_reused",
+        message:
+          "This operation identity was already used for different content.",
+        retryable: false,
+      },
+      409
+    );
+  }
+  return { library, desired, hash, existing };
+};
+export const lookupPromptReceipt = (
+  browser: BrowserAccount,
+  envelope: MutationEnvelope,
+  operation: MutationEnvelope["operations"][number]
+) =>
+  database().begin(async (tx) => {
+    const { existing } = await inspectOperation(
+      tx,
+      browser,
+      envelope,
+      operation
+    );
+    return existing
+      ? receiptFrom(receiptColumns.parse(existing))
+      : { status: "unknown" as const, operationId: operation.operationId };
+  });
 export const mutatePrompt = (
   browser: BrowserAccount,
   envelope: MutationEnvelope,
   operation: MutationEnvelope["operations"][number]
 ) =>
   database().begin(async (tx) => {
-    const library = await lockLibrary(tx, browser);
-    if (
-      envelope.accountId !== browser.accountId ||
-      envelope.instanceId !== library.instance_id
-    ) {
-      throw new PromptFailureError(
-        {
-          code: "forbidden",
-          message: "This operation belongs to a different library.",
-          retryable: false,
-        },
-        403
-      );
-    }
-    if (envelope.epoch !== library.recovery_epoch) {
-      throw new PromptFailureError(
-        {
-          code: "snapshot_required",
-          message:
-            "This instance was recovered. Refresh library information before retrying; retain your text.",
-          retryable: false,
-        },
-        409
-      );
-    }
-    const desired =
-      operation.kind === "prompt.delete" ||
-      operation.kind === "prompt.use" ||
-      operation.kind === "prompt.tags" ||
-      "collectionId" in operation ||
-      "tagId" in operation
-        ? null
-        : {
-            title: trimPromptText(operation.desired.title),
-            description: trimPromptText(operation.desired.description),
-            content: operation.desired.content,
-          };
-    const hash = operationFingerprint(envelope, operation, desired);
-    const [existing] =
-      await tx`SELECT used_at, organization_effect, operation_id, prompt_id, collection_id, tag_id, resolved_tag_id, tag_outcome, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation
-    WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id = ${operation.operationId}`;
+    const { library, desired, hash, existing } = await inspectOperation(
+      tx,
+      browser,
+      envelope,
+      operation
+    );
     if (existing) {
-      if (existing.request_hash !== hash) {
-        throw new PromptFailureError(
-          {
-            code: "operation_identity_reused",
-            message:
-              "This operation identity was already used for different content.",
-            retryable: false,
-          },
-          409
-        );
-      }
       return receiptFrom(receiptColumns.parse(existing));
-    }
-    const [attempt] =
-      await tx`SELECT request_hash FROM library_operation_attempt WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id = ${operation.operationId}`;
-    if (attempt && attempt.request_hash !== hash) {
-      throw new PromptFailureError(
-        {
-          code: "operation_identity_reused",
-          message:
-            "This operation identity was already used for different content.",
-          retryable: false,
-        },
-        409
-      );
     }
     await tx`INSERT INTO library_operation_attempt(instance_id, account_id, operation_id, request_hash)
       VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${hash}) ON CONFLICT DO NOTHING`;

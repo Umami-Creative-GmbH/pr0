@@ -9,6 +9,7 @@ export const seedCapacity = async (
   const url = process.env.DATABASE_URL;
   if (
     url !== "postgres://pr0:local-social-test-only@localhost:55426/pr0" &&
+    url !== "postgres://pr0:local-social-test-only@localhost:55439/pr0" &&
     url !== "postgres://pr0:local-deletion-test-only@localhost:55456/pr0"
   ) {
     throw new Error(

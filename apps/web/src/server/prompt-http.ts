@@ -3,6 +3,7 @@ import "server-only";
 import {
   mutationEnvelopeSchema,
   mutationResponseSchema,
+  receiptLookupResponseSchema,
   promptIdentitySchema,
   promptListInputSchema,
   promptBrowseInputSchema,
@@ -12,6 +13,7 @@ import type { MutationResult } from "@pr0/api-contract/prompts";
 import { AccountFailureError, admit, assertOrigin } from "./admission";
 import { authentication } from "./auth";
 import type { BrowserAccount } from "./browser-proof";
+import { nativeOrigin } from "./device-http";
 import {
   getOrganizationImpact,
   getOrganizationReview,
@@ -25,6 +27,7 @@ import {
 } from "./prompt-errors";
 import {
   mutatePrompt,
+  lookupPromptReceipt,
   getOrganization,
   getPrompt,
   listConflicts,
@@ -90,16 +93,27 @@ const readMutation = async (request: Request) => {
     clearTimeout(timer);
   }
 };
-const mutate = async (request: Request, browser: BrowserAccount) => {
+const mutate = async (
+  request: Request,
+  browser: BrowserAccount,
+  lookup = false
+) => {
   const envelope = await readMutation(request);
-  const results: MutationResult[] = [];
+  const results: (
+    | MutationResult
+    | { status: "unknown"; operationId: string }
+  )[] = [];
   for (const operation of envelope.operations) {
     try {
       await admit([
         { key: `mutation:minute:${browser.accountId}`, max: 1200, seconds: 60 },
         { key: `mutation:burst:${browser.accountId}`, max: 200, seconds: 10 },
       ]);
-      results.push(await mutatePrompt(browser, envelope, operation));
+      results.push(
+        await (lookup
+          ? lookupPromptReceipt(browser, envelope, operation)
+          : mutatePrompt(browser, envelope, operation))
+      );
     } catch (error) {
       results.push({
         status: "rejected",
@@ -112,10 +126,14 @@ const mutate = async (request: Request, browser: BrowserAccount) => {
       });
     }
   }
-  return mutationResponseSchema.parse({ results });
+  return (lookup ? receiptLookupResponseSchema : mutationResponseSchema).parse({
+    results,
+  });
 };
 type LibraryRequestTarget =
-  | { kind: "prompts" | "conflicts" | "organization" | "mutations" }
+  | {
+      kind: "prompts" | "conflicts" | "organization" | "mutations" | "receipts";
+    }
   | { kind: "prompt" | "organization-review"; id: string }
   | { kind: "organization-impact" | "organization-states" };
 const readListInput = (url: URL, kind: "conflicts" | "prompts") => {
@@ -148,15 +166,28 @@ const readListInput = (url: URL, kind: "conflicts" | "prompts") => {
 };
 const promptIdRequestValid = (url: URL, id: string) =>
   !url.search && promptIdentitySchema.safeParse(id).success;
+const sessionHeaders = (request: Request, native: boolean) =>
+  new Headers(
+    native
+      ? { authorization: request.headers.get("authorization") ?? "" }
+      : { cookie: request.headers.get("cookie") ?? "" }
+  );
 export const handlePrompts = async (
   request: Request,
   target: LibraryRequestTarget
 ) => {
   try {
-    assertOrigin(request);
+    const native =
+      request.headers.has("authorization") &&
+      (target.kind === "mutations" || target.kind === "receipts");
+    if (native) {
+      nativeOrigin(request);
+    } else {
+      assertOrigin(request);
+    }
     return await withRequestWork(async (claimOwner) => {
       const result = await authentication().api.getSession({
-        headers: new Headers({ cookie: request.headers.get("cookie") ?? "" }),
+        headers: sessionHeaders(request, native),
         query: { disableCookieCache: true },
         returnHeaders: true,
       });
@@ -164,20 +195,29 @@ export const handlePrompts = async (
         throw new AccountFailureError("unauthenticated", 401);
       }
       const { user, session } = result.response;
-      if (!user.emailVerified || session.provenance !== "browser") {
+      if (
+        !user.emailVerified ||
+        session.provenance !== (native ? "device" : "browser")
+      ) {
         throw new AccountFailureError("forbidden", 403);
       }
       await claimOwner(user.id);
       await admit([{ key: `api:${user.id}`, max: 120, seconds: 60 }]);
-      const browser = { accountId: user.id, sessionId: session.id };
+      const browser: BrowserAccount = {
+        accountId: user.id,
+        sessionId: session.id,
+      };
+      if (native) {
+        browser.provenance = "device";
+      }
       const url = new URL(request.url);
       let body;
       let searchTiming: string | undefined;
-      if (target.kind === "mutations") {
+      if (target.kind === "mutations" || target.kind === "receipts") {
         if (url.search) {
           throw invalidPromptRequest();
         }
-        body = await mutate(request, browser);
+        body = await mutate(request, browser, target.kind === "receipts");
       } else if (target.kind === "organization-impact") {
         body = await getOrganizationImpact(browser, url);
       } else if (target.kind === "organization-review") {

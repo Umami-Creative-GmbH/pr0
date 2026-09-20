@@ -4,6 +4,7 @@ import {
   snapshotLimits,
   snapshotManifestSchema,
   snapshotPageRequestSchema,
+  snapshotCreateRequestSchema,
   snapshotRecordsSchema,
 } from "@pr0/api-contract/snapshots";
 import type { SnapshotManifest } from "@pr0/api-contract/snapshots";
@@ -15,7 +16,7 @@ import { readOrganization } from "./collection-store";
 import { database } from "./database";
 
 export const snapshotRequestSchema = z.union([
-  z.strictObject({}),
+  snapshotCreateRequestSchema,
   snapshotPageRequestSchema,
 ]);
 const readPage = async (
@@ -44,6 +45,19 @@ const readPage = async (
     payload: z.string().parse(row.payload),
   };
 };
+const reusableSnapshot = (
+  prior: SnapshotManifest | undefined,
+  epoch: string,
+  currentRevision: string,
+  minimumRevision?: string
+) =>
+  prior &&
+  Date.parse(prior.expiresAt) > Date.now() &&
+  prior.epoch === epoch &&
+  BigInt(prior.revision) >= BigInt(minimumRevision ?? "0") &&
+  (minimumRevision === undefined || prior.revision === currentRevision)
+    ? prior
+    : undefined;
 export const readSnapshot = (
   accountId: string,
   sessionId: string,
@@ -77,13 +91,18 @@ export const readSnapshot = (
         library.recovery_epoch
       );
     }
-    if (
-      existing &&
-      prior &&
-      existing.expires_at.getTime() > Date.now() &&
-      prior.epoch === library.recovery_epoch
-    ) {
-      return prior;
+    const minimumRevision = BigInt(input.minimumRevision ?? "0");
+    if (minimumRevision > BigInt(library.revision)) {
+      throw new AccountFailureError("invalid_input", 400);
+    }
+    const reusable = reusableSnapshot(
+      prior,
+      library.recovery_epoch,
+      library.revision,
+      input.minimumRevision
+    );
+    if (reusable) {
+      return reusable;
     }
     const id = crypto.randomUUID();
     const expiresAt = new Date(

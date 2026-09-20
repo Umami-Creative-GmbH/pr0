@@ -51,6 +51,10 @@ test("built Tauri shell exposes typed account/library commands and denies remote
         "window.__TAURI_INTERNALS__.invoke('auth_status')"
       );
       expect(JSON.stringify(status)).not.toContain('"token"');
+      const uploadStatus = await page.evaluate(
+        "window.__TAURI_INTERNALS__.invoke('library_upload_status').then(value => typeof value.waiting === 'number', error => error === 'authentication_required')"
+      );
+      expect(uploadStatus).toBe(true);
       const denied = await page.evaluate(
         "window.__TAURI_INTERNALS__.invoke('relay', {event:'test',payload:{}}).then(() => false, () => true)"
       );
@@ -73,6 +77,10 @@ test("built Tauri shell exposes typed account/library commands and denies remote
         "window.__TAURI_INTERNALS__ ? Promise.all(['library_create','library_edit','library_editor','library_copy_draft'].map(command => window.__TAURI_INTERNALS__.invoke(command, {}).then(() => false, () => true))) : [true,true,true,true]"
       );
       expect(savesDenied).toEqual([true, true, true, true]);
+      const uploadsDenied = await page.evaluate(
+        "window.__TAURI_INTERNALS__ ? Promise.all(['library_upload','library_upload_status'].map(command => window.__TAURI_INTERNALS__.invoke(command, {}).then(() => false, () => true))) : [true,true]"
+      );
+      expect(uploadsDenied).toEqual([true, true]);
     } finally {
       await browser.close();
     }

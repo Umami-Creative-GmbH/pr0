@@ -1,4 +1,8 @@
-import type { LocalPrompt, LocalSave } from "@pr0/api-contract/local-prompts";
+import type {
+  LocalPrompt,
+  LocalSave,
+  UploadStatus,
+} from "@pr0/api-contract/local-prompts";
 import type { PromptText } from "@pr0/api-contract/prompts";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -34,14 +38,18 @@ const failureMessages = new Map(Object.entries(failures));
 
 export const LocalPromptEditor = ({
   initial,
+  mappings,
   account,
   onSaved,
   onCancel,
+  onOpenOriginal,
 }: {
   initial?: LocalPrompt;
+  mappings?: UploadStatus["mappings"];
   account: Status;
   onSaved: (value: LocalPrompt) => void;
   onCancel: () => void;
+  onOpenOriginal: (id: string) => void;
 }) => {
   const [draft, setDraft] = useState<PromptText>(() => ({
     title: initial?.prompt.title ?? "",
@@ -54,6 +62,51 @@ export const LocalPromptEditor = ({
     revision: initial?.localRevision ?? null,
   });
   const attempt = useRef<LocalSave | null>(null);
+  const existingMappings = useRef<Set<string> | null>(null);
+  if (existingMappings.current === null) {
+    existingMappings.current = new Set(mappings?.map((entry) => entry.copyId));
+  }
+  const [redirected, setRedirected] = useState(false);
+  const [originalId, setOriginalId] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    const mapping = mappings?.find(
+      (entry) =>
+        entry.originalId === target.current.id &&
+        !existingMappings.current?.has(entry.copyId)
+    );
+    if (!mapping || saving) {
+      return;
+    }
+    let cancelled = false;
+    const redirect = async () => {
+      try {
+        const current = await libraryClient.editor(mapping.copyId);
+        if (!cancelled && !attempt.current) {
+          target.current = {
+            id: current.prompt.id,
+            revision: current.localRevision,
+          };
+          existingMappings.current?.add(mapping.copyId);
+          setRedirected(true);
+          try {
+            await libraryClient.detail(mapping.originalId);
+            if (!cancelled) {
+              setOriginalId(mapping.originalId);
+            }
+          } catch {
+            // A deleted or unavailable original has no Open action.
+          }
+        }
+      } catch {
+        // A later invalidation retries identity resolution; the draft remains untouched.
+      }
+    };
+    void redirect();
+    return () => {
+      cancelled = true;
+    };
+  }, [mappings, saving]);
   const active = useRef(true);
   useEffect(() => {
     active.current = true;
@@ -61,7 +114,6 @@ export const LocalPromptEditor = ({
       active.current = false;
     };
   }, []);
-  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [conflict, setConflict] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
@@ -159,6 +211,16 @@ export const LocalPromptEditor = ({
       className="space-y-4 rounded border p-4"
       onSubmit={submit}
     >
+      {originalId ? (
+        <button type="button" onClick={() => onOpenOriginal(originalId)}>
+          Open original
+        </button>
+      ) : null}
+      {redirected ? (
+        <p>
+          You&apos;re editing the conflict copy. Your unsaved text is retained.
+        </p>
+      ) : null}
       <h3 className="text-lg font-semibold">
         {initial ? "Edit prompt" : "New prompt"}
       </h3>
