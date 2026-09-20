@@ -1,8 +1,12 @@
+import { createPromptClient } from "@pr0/api-client/prompts";
 import type {
   CreatePrompt,
   MutationEnvelope,
   PromptText,
+  Prompt,
+  UpdatePrompt,
 } from "@pr0/api-contract/prompts";
+import { promptTextFields } from "@pr0/api-contract/prompts";
 
 import { socialBrowser } from "./email-change-fixture";
 import { origin, post } from "./http-fixture";
@@ -34,7 +38,7 @@ export const promptBrowser = async () => {
     installationId: crypto.randomUUID(),
   };
   const mutate = (
-    operations: CreatePrompt[],
+    operations: MutationEnvelope["operations"],
     overrides: Partial<MutationEnvelope> = {}
   ) =>
     post(
@@ -48,3 +52,30 @@ export const promptBrowser = async () => {
     });
   return { ...browser, identity, mutate, get };
 };
+
+export const promptClient = (Cookie: string) =>
+  createPromptClient(origin, (url, init) => {
+    const headers = new Headers(init.headers);
+    headers.set("Cookie", Cookie);
+    headers.set("Origin", origin);
+    return fetch(url, { ...init, headers });
+  });
+export const promptEdit = (
+  base: Prompt,
+  desired: PromptText
+): UpdatePrompt => ({
+  operationId: crypto.randomUUID(),
+  kind: "prompt.update",
+  promptId: base.id,
+  baseRevision: base.revision,
+  dependsOn: [],
+  changedFields: promptTextFields.filter(
+    (field) => base[field] !== desired[field]
+  ),
+  base: {
+    title: base.title,
+    description: base.description,
+    content: base.content,
+  },
+  desired,
+});

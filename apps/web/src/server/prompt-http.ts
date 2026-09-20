@@ -17,7 +17,12 @@ import {
   promptErrorResponse,
   promptFailure,
 } from "./prompt-errors";
-import { createPrompt, getPrompt, listPrompts } from "./prompt-store";
+import {
+  mutatePrompt,
+  getPrompt,
+  listPrompts,
+  listConflicts,
+} from "./prompt-store";
 import { withRequestWork } from "./request-work";
 
 const readMutation = async (request: Request) => {
@@ -78,7 +83,7 @@ const mutate = async (request: Request, browser: BrowserAccount) => {
         { key: `mutation:minute:${browser.accountId}`, max: 1200, seconds: 60 },
         { key: `mutation:burst:${browser.accountId}`, max: 200, seconds: 10 },
       ]);
-      results.push(await createPrompt(browser, envelope, operation));
+      results.push(await mutatePrompt(browser, envelope, operation));
     } catch (error) {
       results.push({
         status: "rejected",
@@ -93,7 +98,11 @@ const mutate = async (request: Request, browser: BrowserAccount) => {
   }
   return mutationResponseSchema.parse({ results });
 };
-export const handlePrompts = async (request: Request, promptId?: string) => {
+export const handlePrompts = async (
+  request: Request,
+  promptId?: string,
+  conflicts = false
+) => {
   try {
     assertOrigin(request);
     return await withRequestWork(async (claimOwner) => {
@@ -137,7 +146,11 @@ export const handlePrompts = async (request: Request, promptId?: string) => {
         ) {
           throw invalidPromptRequest();
         }
-        body = await listPrompts(browser, input.data.limit, input.data.cursor);
+        body = await (conflicts ? listConflicts : listPrompts)(
+          browser,
+          input.data.limit,
+          input.data.cursor
+        );
       }
       const headers = new Headers(result.headers);
       headers.set("Cache-Control", "no-store");

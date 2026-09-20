@@ -6,6 +6,7 @@ import {
   promptListInputSchema,
   promptPageSchema,
   promptSchema,
+  conflictPageSchema,
 } from "@pr0/api-contract/prompts";
 import type {
   LibraryScope,
@@ -78,6 +79,22 @@ export const createPromptClient = (
     return response.json();
   };
   return {
+    async getConflicts(
+      input: { cursor?: string; limit?: number } = {},
+      signal?: AbortSignal,
+      scope?: LibraryScope
+    ) {
+      const parsed = promptListInputSchema.parse(input);
+      const params = new URLSearchParams({ limit: String(parsed.limit) });
+      if (parsed.cursor) {
+        params.set("cursor", parsed.cursor);
+      }
+      const result = conflictPageSchema.parse(
+        await request(`library/conflicts?${params}`, signal)
+      );
+      assertScope(result, scope);
+      return result;
+    },
     async getPrompts(
       input: { cursor?: string; limit?: number } = {},
       signal?: AbortSignal,

@@ -65,3 +65,55 @@ test("prompt requests validate inputs and forward cancellation to authenticated 
   });
   await expect(client.getPrompt("not-a-uuid")).rejects.toThrow();
 });
+
+test("conflict reads validate scope, HTTP failures, payloads, pagination input and cancellation", async () => {
+  const scope = {
+    instanceId: crypto.randomUUID(),
+    accountId: crypto.randomUUID(),
+  };
+  const client = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({ ...scope, notices: [], nextCursor: null })
+      ),
+  });
+  expect(await client.getConflicts({}, undefined, scope)).toMatchObject({
+    notices: [],
+  });
+  await expect(
+    client.getConflicts({}, undefined, {
+      ...scope,
+      accountId: crypto.randomUUID(),
+    })
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(client.getConflicts({ limit: 101 })).rejects.toThrow();
+  const malformed = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ notices: [] })),
+  });
+  await expect(malformed.getConflicts()).rejects.toThrow();
+  const failed = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json(
+          {
+            code: "temporarily_unavailable",
+            message: "Retry later",
+            retryable: true,
+          },
+          { status: 503 }
+        )
+      ),
+  });
+  await expect(failed.getConflicts()).rejects.toMatchObject({ status: 503 });
+  const controller = new AbortController();
+  controller.abort();
+  const aborted = createApiClient({
+    fetcher: (_url, init) => {
+      init.signal?.throwIfAborted();
+      return Promise.resolve(Response.json({}));
+    },
+  });
+  await expect(
+    aborted.getConflicts({}, controller.signal)
+  ).rejects.toMatchObject({ name: "AbortError" });
+});

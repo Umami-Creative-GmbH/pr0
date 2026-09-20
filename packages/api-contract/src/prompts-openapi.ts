@@ -7,6 +7,7 @@ import {
   promptErrorSchema,
   promptPageSchema,
   promptSchema,
+  conflictPageSchema,
 } from "./prompts";
 
 const response = (schema: string, description: string) => ({
@@ -28,13 +29,41 @@ const errors = Object.fromEntries(
   ])
 );
 export const promptPaths = {
+  "/api/v1/library/conflicts": {
+    get: {
+      operationId: "listPromptConflicts",
+      tags: ["Prompts"],
+      security: [{ BrowserSession: [] }],
+      description:
+        "Durable unreviewed conflict notices, newest revision first with UUID ties. The full source title remains retained and quota-accounted. Scoped signed cursors use the same limit and revision checks as prompt pages; no title or notice expires. Review acknowledgement is reserved for the combined review surface.",
+      parameters: [
+        {
+          name: "limit",
+          in: "query",
+          schema: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+        },
+        {
+          name: "cursor",
+          in: "query",
+          schema: { type: "string", maxLength: 2048 },
+        },
+      ],
+      responses: {
+        "200": response(
+          "ConflictPage",
+          "Original/copy identities, retained full source titles and server dates."
+        ),
+        ...errors,
+      },
+    },
+  },
   "/api/v1/library/prompts": {
     get: {
       operationId: "listPrompts",
       tags: ["Prompts"],
       security: [{ BrowserSession: [] }],
       description:
-        "Newest first by numeric library revision; summaries omit content. Cursors are integrity protected and bound to library, recovery epoch, version, page limit and revision. Changed revisions return results_changed; restart the list while preserving selection and drafts.",
+        "Newest first by numeric library revision, then ascending UUID. Summaries omit content. Cursors retain both sort keys and are integrity protected and bound to library, recovery epoch, version, page limit and revision. Changed revisions return results_changed; restart the list while preserving selection and drafts.",
       parameters: [
         {
           name: "limit",
@@ -84,7 +113,7 @@ export const promptPaths = {
       tags: ["Prompts"],
       security: [{ BrowserSession: [] }],
       description:
-        "Same-origin browser JSON, at most 4 MiB and 100 ordered operations. This slice supports prompt.create only. Each entry commits independently and returns an accepted receipt or explicit rejection. Titles/descriptions trim Unicode White_Space; title/content are nonblank. Reject unpaired surrogates and NUL. Limits: title 200 code points, description 2,000 code points, content 262,144 UTF-8 bytes. Preserve nonblank content exactly; duplicate titles allowed. Library limits: 10,000 prompts and 104,857,600 stored UTF-8 text bytes including title/description/content. Receipts and counters commit atomically. Canonical hashing v1 uses decoded normalized fields and fixed field order (not JSON property order); unchanged UUID/payload replays the original receipt, changed payload returns operation_identity_reused. Freeze transmitted payloads until their outcome is known. API admission is 120 requests/min/account; mutation work admission is 1,200/min and 200/10 seconds. All responses are no-store.",
+        "Same-origin browser JSON, at most 4 MiB and 100 ordered operations. Supports prompt.create and prompt.update. Updates carry baseRevision, full baseline and desired title/description/content, and exactly the changedFields after normalization. Per-field equal desired text is a no-op; independent edits combine. Competing fields retain accepted text in the original and preserve the full incoming variant in one active, unfavorited conflict copy with fresh dates and no usage. An accepted receipt keeps promptId as the requested original and optionally maps conflict.copyId and conflict.noticeId. Unchanged text leaves prompt modification time unchanged. Never use a replayed receipt to replace newer canonical records or unsaved drafts. Successor drafts follow a returned copy identity using the submitted text and accepted revision as their baseline. Each entry commits independently and returns an accepted receipt or explicit rejection. Titles/descriptions trim Unicode White_Space; title/content are nonblank. Reject unpaired surrogates and NUL. Limits: title 200 code points, description 2,000 code points, content 262,144 UTF-8 bytes. Preserve nonblank content exactly; duplicate titles allowed. Library limits: 10,000 prompts and 104,857,600 stored UTF-8 text bytes including title/description/content. Receipts, notices, copies, changes and counters commit atomically. Quota or storage refusal changes none of these. A separate compact canonical fingerprint survives refused effects so the same identity can retry only the same payload; corrections use a new identity after the earlier outcome is known. Full retained source titles count toward text quota, including when derived titles are shortened to fit 200 Unicode code points. Canonical hashing v1 uses decoded normalized fields and fixed field order (not JSON property order); unchanged UUID/payload replays the original receipt, changed payload returns operation_identity_reused. Freeze transmitted payloads until their outcome is known. API admission is 120 requests/min/account; mutation work admission is 1,200/min and 200/10 seconds. All responses are no-store.",
       requestBody: {
         required: true,
         content: {
@@ -107,6 +136,7 @@ export const promptPaths = {
 export const promptSchemas = Object.fromEntries(
   Object.entries({
     Prompt: promptSchema,
+    ConflictPage: conflictPageSchema,
     PromptPage: promptPageSchema,
     PromptError: promptErrorSchema,
     MutationEnvelope: mutationEnvelopeSchema,

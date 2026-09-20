@@ -15,6 +15,7 @@ try {
         "005-social.sql",
         "006-email-change.sql",
         "007-prompts.sql",
+        "008-prompt-edits.sql",
       ].map(async (name, index) => ({
         version: index + 1,
         source: await Bun.file(

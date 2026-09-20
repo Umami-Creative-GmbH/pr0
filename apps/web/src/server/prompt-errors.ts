@@ -60,6 +60,17 @@ export const promptFailure = (error: Error): PromptFailureError => {
         429
       );
     }
+    if (error.code === "unavailable") {
+      return new PromptFailureError(
+        {
+          code: "temporarily_unavailable",
+          message: "The service is busy. Keep your draft and retry shortly.",
+          retryable: true,
+          retryAfter: error.retryAfter ?? 5,
+        },
+        503
+      );
+    }
   }
   return new PromptFailureError(
     {

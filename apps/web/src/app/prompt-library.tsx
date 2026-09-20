@@ -4,6 +4,7 @@ import { PromptApiError } from "@pr0/api-client/prompts";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { promptLimits } from "@pr0/api-contract/prompts";
+import type { Prompt, MutationReceipt } from "@pr0/api-contract/prompts";
 import {
   useInfiniteQuery,
   useQuery,
@@ -11,7 +12,9 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { PromptConflicts } from "./prompt-conflicts";
 import { PromptEditor } from "./prompt-editor";
+import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 
 const buttonClass =
   "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
@@ -22,9 +25,13 @@ const errorMessage = (error: Error) =>
 const PromptDetail = ({
   id,
   library,
+  onEdit,
+  editing,
 }: {
   id: string;
   library: PrivateLibrary;
+  onEdit: (prompt: Prompt) => void;
+  editing: boolean;
 }) => {
   const client = useApiClient();
   const detail = useQuery({
@@ -40,7 +47,8 @@ const PromptDetail = ({
         instanceId: library.instance.id,
         accountId: library.account.id,
       }),
-    retry: false,
+    retry: retryPromptRead,
+    retryDelay: promptRetryDelay,
   });
   return (
     <section aria-labelledby="detail-heading" className="rounded-lg border p-6">
@@ -64,6 +72,18 @@ const PromptDetail = ({
       ) : null}
       {detail.data ? (
         <>
+          <button
+            className={`${buttonClass} mt-3`}
+            disabled={editing}
+            onClick={() => {
+              if (detail.data) {
+                onEdit(detail.data);
+              }
+            }}
+            type="button"
+          >
+            Edit prompt
+          </button>
           {detail.data.description ? (
             <p className="mt-3 break-words whitespace-pre-wrap">
               {detail.data.description}
@@ -92,6 +112,12 @@ const PromptDetail = ({
     </section>
   );
 };
+const nearingCapacity = (usage?: { promptCount: number; textBytes: number }) =>
+  Boolean(
+    usage &&
+    (usage.promptCount >= promptLimits.promptCount * 0.9 ||
+      usage.textBytes >= promptLimits.libraryBytes * 0.9)
+  );
 export const PromptLibrary = ({
   library,
   onDirtyChange,
@@ -101,7 +127,7 @@ export const PromptLibrary = ({
 }) => {
   const client = useApiClient();
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<Prompt | "create" | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const createRef = useRef<HTMLButtonElement>(null);
@@ -127,18 +153,39 @@ export const PromptLibrary = ({
         accountId: library.account.id,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-    retry: false,
+    retry: retryPromptRead,
+    retryDelay: promptRetryDelay,
     refetchOnWindowFocus: false,
   });
   const usage = list.data?.pages[0]?.usage;
   const prompts = list.data?.pages.flatMap((page) => page.prompts) ?? [];
   const empty = !list.isPending && !list.isError && !prompts.length;
-  const saved = (id: string) => {
+  const saved = (receipt: MutationReceipt) => {
     restoreFocus.current = true;
-    setEditing(false);
-    setSelected(id);
-    setNotice("Saved to server.");
+    setEditing(null);
+    setSelected(receipt.conflict?.copyId ?? receipt.promptId);
+    setNotice(
+      receipt.conflict
+        ? "Saved to server. Competing text was preserved in an independent conflict copy."
+        : "Saved to server."
+    );
     void queryClient.resetQueries({ queryKey });
+    void queryClient.invalidateQueries({
+      queryKey: [
+        "prompt",
+        client.baseUrl,
+        library.instance.id,
+        library.account.id,
+      ],
+    });
+    void queryClient.resetQueries({
+      queryKey: [
+        "conflicts",
+        client.baseUrl,
+        library.instance.id,
+        library.account.id,
+      ],
+    });
   };
   return (
     <div className="space-y-6">
@@ -146,9 +193,9 @@ export const PromptLibrary = ({
         <p aria-live="polite">{notice}</p>
         <button
           className={buttonClass}
-          disabled={editing}
+          disabled={Boolean(editing)}
           onClick={() => {
-            setEditing(true);
+            setEditing("create");
             setNotice("");
           }}
           ref={createRef}
@@ -157,15 +204,14 @@ export const PromptLibrary = ({
           Create prompt
         </button>
       </div>
+      <PromptConflicts library={library} onOpen={setSelected} />
       {usage ? (
         <p className="text-muted-foreground text-sm">
           {usage.promptCount.toLocaleString()} / 10,000 prompts ·{" "}
           {(usage.textBytes / 1_048_576).toFixed(2)} / 100 MiB of text
         </p>
       ) : null}
-      {usage &&
-      (usage.promptCount >= promptLimits.promptCount * 0.9 ||
-        usage.textBytes >= promptLimits.libraryBytes * 0.9) ? (
+      {nearingCapacity(usage) ? (
         <output>
           Your library is at or above 90% capacity. Archiving does not free
           capacity.
@@ -174,9 +220,11 @@ export const PromptLibrary = ({
       {editing ? (
         <PromptEditor
           library={library}
+          prompt={editing === "create" ? undefined : editing}
+          onOpen={setSelected}
           onCancel={() => {
             restoreFocus.current = true;
-            setEditing(false);
+            setEditing(null);
           }}
           onDirtyChange={onDirtyChange}
           onSaved={saved}
@@ -242,7 +290,16 @@ export const PromptLibrary = ({
         ) : null}
       </section>
       {selected ? (
-        <PromptDetail id={selected} key={selected} library={library} />
+        <PromptDetail
+          id={selected}
+          key={selected}
+          library={library}
+          editing={Boolean(editing)}
+          onEdit={(prompt) => {
+            setEditing(prompt);
+            setNotice("");
+          }}
+        />
       ) : null}
     </div>
   );

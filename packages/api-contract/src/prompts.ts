@@ -45,6 +45,8 @@ export const promptTextSchema = z.strictObject({
     ),
 });
 export type PromptText = z.infer<typeof promptTextSchema>;
+export const conflictCopyTitle = (title: string) =>
+  `${[...title].slice(0, promptLimits.title - 16).join("")} (conflict copy)`;
 export const revisionSchema = z
   .string()
   .regex(/^(?:0|[1-9]\d{0,18})$/u)
@@ -66,6 +68,24 @@ export const promptSummarySchema = z.strictObject({
 export const promptSchema = promptSummarySchema.extend({
   content: promptTextSchema.shape.content,
   ...libraryScopeSchema.shape,
+  favorite: z.boolean(),
+  archived: z.boolean(),
+  useCount: z.number().int().nonnegative(),
+  lastUsedAt: z.iso.datetime().nullable(),
+});
+export const conflictNoticeSchema = z.strictObject({
+  id: promptIdentitySchema,
+  originalId: promptIdentitySchema,
+  copyId: promptIdentitySchema,
+  sourceTitle: z.string(),
+  createdAt: z.iso.datetime(),
+  revision: revisionSchema,
+});
+export type ConflictNotice = z.infer<typeof conflictNoticeSchema>;
+export const conflictPageSchema = z.strictObject({
+  ...libraryScopeSchema.shape,
+  notices: z.array(conflictNoticeSchema).max(100),
+  nextCursor: z.string().nullable(),
 });
 export const libraryUsageSchema = z.strictObject({
   promptCount: z.number().int().nonnegative(),
@@ -94,13 +114,26 @@ export const createPromptSchema = z.strictObject({
     content: z.string(),
   }),
 });
+export const promptTextFields = ["title", "description", "content"] as const;
+export const updatePromptSchema = createPromptSchema.extend({
+  kind: z.literal("prompt.update"),
+  base: createPromptSchema.shape.desired,
+  changedFields: z.array(z.enum(promptTextFields)).max(3),
+});
+export type UpdatePrompt = z.infer<typeof updatePromptSchema>;
+export type Prompt = z.infer<typeof promptSchema>;
 export const mutationEnvelopeSchema = z.strictObject({
   protocolVersion: z.literal(1),
   instanceId: z.uuid(),
   accountId: z.uuid(),
   epoch: z.uuid(),
   installationId: promptIdentitySchema,
-  operations: z.array(createPromptSchema).min(1).max(100),
+  operations: z
+    .array(
+      z.discriminatedUnion("kind", [createPromptSchema, updatePromptSchema])
+    )
+    .min(1)
+    .max(100),
 });
 export type MutationEnvelope = z.infer<typeof mutationEnvelopeSchema>;
 export type CreatePrompt = z.infer<typeof createPromptSchema>;
@@ -135,7 +168,14 @@ export const mutationReceiptSchema = z.strictObject({
   promptId: promptIdentitySchema,
   revision: revisionSchema,
   acceptedAt: z.iso.datetime(),
+  conflict: z
+    .strictObject({
+      copyId: promptIdentitySchema,
+      noticeId: promptIdentitySchema,
+    })
+    .optional(),
 });
+export type MutationReceipt = z.infer<typeof mutationReceiptSchema>;
 export const mutationResultSchema = z.discriminatedUnion("status", [
   mutationReceiptSchema,
   z.strictObject({ status: z.literal("rejected"), error: promptErrorSchema }),

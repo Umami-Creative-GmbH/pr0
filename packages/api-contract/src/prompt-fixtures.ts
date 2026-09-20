@@ -26,3 +26,15 @@ export const maximumPromptText = {
   description: "🌍".repeat(2000),
   content: "🌍".repeat(65_536),
 };
+
+export const competingPromptEdits = {
+  base: { title: "Reply", description: "Context", content: "old" },
+  first: { title: "Reply", description: "Context", content: "A" },
+  incoming: { title: "B title", description: "Context", content: "B" },
+  original: { title: "B title", description: "Context", content: "A" },
+  copy: {
+    title: "B title (conflict copy)",
+    description: "Context",
+    content: "B",
+  },
+};
