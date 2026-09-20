@@ -11,6 +11,8 @@ import type {
 } from "@pr0/api-contract/prompts";
 import { useEffect, useRef, useState } from "react";
 
+import { writeClipboard } from "./clipboard";
+
 export type PromptAction = "favorite" | "archived" | "duplicate" | "delete";
 export const usePromptActions = ({
   library,
@@ -209,7 +211,7 @@ export const usePromptActions = ({
       return;
     }
     try {
-      await navigator.clipboard.writeText(retainedText.content);
+      await writeClipboard(() => retainedText.content);
       setCopyMessage("Copied text.");
     } catch {
       setCopyMessage(

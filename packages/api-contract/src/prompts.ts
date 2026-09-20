@@ -129,6 +129,7 @@ export const promptViewSchema = z.enum([
   "favorites",
   "archive",
   "collection",
+  "recents",
 ]);
 export type PromptView = z.infer<typeof promptViewSchema>;
 export const searchNormalizationVersion = "pr0-search-v1-ucd17";
@@ -323,6 +324,18 @@ export const organizationStatesSchema = z.strictObject({
   ...libraryScopeSchema.shape,
   states: z.array(organizationStateSchema).max(1000),
 });
+export const usePromptSchema = createPromptSchema
+  .omit({ desired: true })
+  .extend({
+    kind: z.literal("prompt.use"),
+    occurredAt: z.iso
+      .datetime({ precision: 3 })
+      .refine(
+        (value) => !value.startsWith("0000-"),
+        "Use a UTC date in years 0001 through 9999."
+      ),
+  });
+export type UsePrompt = z.infer<typeof usePromptSchema>;
 export const mutationEnvelopeSchema = z.strictObject({
   protocolVersion: z.literal(1),
   instanceId: z.uuid(),
@@ -336,6 +349,7 @@ export const mutationEnvelopeSchema = z.strictObject({
         updatePromptSchema,
         duplicatePromptSchema,
         deletePromptSchema,
+        usePromptSchema,
         createCollectionSchema,
         renameCollectionSchema,
         createTagSchema,
@@ -400,6 +414,7 @@ export const mutationReceiptSchema = z.strictObject({
   promptId: promptIdentitySchema,
   revision: revisionSchema,
   acceptedAt: z.iso.datetime(),
+  usedAt: z.iso.datetime({ precision: 3 }).optional(),
   organizationNotice: z.string().optional(),
   conflict: z
     .strictObject({

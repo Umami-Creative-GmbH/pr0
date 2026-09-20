@@ -7,6 +7,63 @@ import type {
 
 import { createApiClient } from "./client";
 
+test("usage requires a corrected timestamp receipt and retains cancellation and HTTP failures", async () => {
+  const operation = {
+    kind: "prompt.use" as const,
+    operationId: crypto.randomUUID(),
+    promptId: crypto.randomUUID(),
+    baseRevision: "0",
+    dependsOn: [],
+    occurredAt: "2099-01-01T00:00:00.000Z",
+  };
+  const envelope: MutationEnvelope = {
+    protocolVersion: 1,
+    accountId: crypto.randomUUID(),
+    instanceId: crypto.randomUUID(),
+    epoch: crypto.randomUUID(),
+    installationId: crypto.randomUUID(),
+    operations: [operation],
+  };
+  const receipt = {
+    status: "accepted" as const,
+    operationId: operation.operationId,
+    promptId: operation.promptId,
+    revision: "1",
+    acceptedAt: "2026-09-20T12:00:00.000Z",
+  };
+  const client = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ results: [receipt] })),
+  });
+  await expect(client.mutatePrompts(envelope)).rejects.toThrow(
+    "does not match"
+  );
+  const controller = new AbortController();
+  const valid = { ...receipt, usedAt: receipt.acceptedAt };
+  const validClient = createApiClient({
+    fetcher: (_url, init) => {
+      expect(init?.signal).toBe(controller.signal);
+      return Promise.resolve(Response.json({ results: [valid] }));
+    },
+  });
+  expect(await validClient.mutatePrompts(envelope, controller.signal)).toEqual({
+    results: [valid],
+  });
+  const failure = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json(
+          {
+            code: "temporarily_unavailable",
+            message: "Retry usage",
+            retryable: true,
+          },
+          { status: 503 }
+        )
+      ),
+  });
+  await expect(failure.mutatePrompts(envelope)).rejects.toThrow("Retry usage");
+});
+
 test("cleanup receipts bind the named operation, source and target and reject mixed batches before fetch", async () => {
   const operation = {
     kind: "tag.merge" as const,

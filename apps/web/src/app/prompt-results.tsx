@@ -12,6 +12,7 @@ import type {
 import type { z } from "zod";
 
 import type { usePromptActions } from "./use-prompt-actions";
+import type { usePromptCopy } from "./use-prompt-copy";
 
 const buttonClass =
   "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
@@ -25,7 +26,9 @@ const PromptListRow = ({
   setSelected,
   actions,
   onDelete,
+  copy,
 }: {
+  copy: ReturnType<typeof usePromptCopy>;
   prompt: Pick<
     Prompt,
     "id" | "title" | "description" | "favorite" | "archived" | "revision"
@@ -50,6 +53,17 @@ const PromptListRow = ({
       ) : null}
     </button>
     <div className="mt-1 flex flex-wrap gap-2">
+      <button
+        className={buttonClass}
+        type="button"
+        aria-label={`Copy ${prompt.title}`}
+        disabled={copy.blocked}
+        onClick={() => {
+          void copy.copy(prompt.id);
+        }}
+      >
+        Copy
+      </button>
       <button
         className={buttonClass}
         type="button"
@@ -96,10 +110,14 @@ const PromptListRow = ({
     </div>
   </li>
 );
-const emptyViewMessage = (view: PromptView) =>
-  view === "all"
+const emptyViewMessage = (view: PromptView) => {
+  if (view === "recents") {
+    return "No recent prompts. Successfully copy a prompt to see it here.";
+  }
+  return view === "all"
     ? "No active prompts. Create a prompt or open the Archive view."
     : `No prompts in ${view === "archive" ? "the archive" : "favorites"}.`;
+};
 const resultsHeading = (
   empty: boolean,
   restricted: boolean,
@@ -121,7 +139,9 @@ export const PromptResults = ({
   actions,
   onDelete,
   onRefresh,
+  copy,
 }: {
+  copy: ReturnType<typeof usePromptCopy>;
   restricted: boolean;
   pendingSearch: boolean;
   view: PromptView;
@@ -189,6 +209,7 @@ export const PromptResults = ({
       <ul className="mt-4 space-y-2">
         {prompts.map((prompt) => (
           <PromptListRow
+            copy={copy}
             key={prompt.id}
             prompt={prompt}
             selectedId={selectedId}
@@ -226,6 +247,7 @@ export const PromptViewNavigation = ({
       [
         ["all", "All prompts"],
         ["favorites", "Favorites"],
+        ["recents", "Recents"],
         ["archive", "Archive"],
       ] as const
     ).map(([value, label]) => (

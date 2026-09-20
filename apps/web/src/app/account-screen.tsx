@@ -30,6 +30,10 @@ const changedLibrary = (
     (draft.account.id !== current.account.id ||
       draft.instance.id !== current.instance.id)
   );
+const copyAccountAvailable = (
+  library: { data?: PrivateLibrary; isError: boolean },
+  accountChanged: boolean
+) => Boolean(library.data) && !library.isError && !accountChanged;
 const accountStatus = (
   error: string,
   message: string,
@@ -191,6 +195,7 @@ export const AccountScreen = ({
       {signedIn ? (
         <>
           <PromptLibrary
+            accountAvailable={copyAccountAvailable(library, accountChanged)}
             key={`${signedIn.instance.id}:${signedIn.account.id}`}
             library={signedIn}
             onDirtyChange={retainDraft}

@@ -33,3 +33,9 @@ Run `bun run --cwd apps/web test:account-deletion` for the full integration, res
 The standalone React Doctor command could not finish on Bun/Windows because its dependency calls `child.channel?.unref`, which is unavailable in that runtime. Integrated React Doctor lint rules passed through Ultracite. No Node.js fallback was introduced.
 
 Deployment still requires the two independently durable PostgreSQL hosts, runtime grants, shared search volume and retention procedures described in [account deletion operations](../operations/account-deletion.md). Actual host-loss durability and backup-retention evidence belongs to the deployed infrastructure. No native Tauri command or permission was added by this browser-only slice.
+
+## Integration with current main
+
+Before publication, main commit `e3bcacf` was integrated. Its existing prompt-use migration remains version 014; the unpublished account-deletion migration is version 015. Both contract exports and the browser copy-eligibility changes were preserved. Typechecking and the repository test suite passed on the combined tree (28 API-client tests), and the full deletion runner was repeated for merge validation.
+
+Repository-wide `bun run check` reports formatting issues in seven unchanged files and lint errors in the existing search-parity research scripts. The same failures occur in [main's CI run 35528918138](https://github.com/Umami-Creative-GmbH/pr0/actions/runs/35528918138), before this branch. Changed-file checks pass; the repository-wide check is not reported as passing.
