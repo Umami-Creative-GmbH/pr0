@@ -1,4 +1,49 @@
 // Shared observable conformance vectors for REST and future native command tests.
+export const relevanceFixtures = [
+  {
+    title: "German email",
+    description: "",
+    content: "body",
+    tag: "",
+    collection: "",
+  },
+  {
+    title: "Email templates in German",
+    description: "",
+    content: "body",
+    tag: "",
+    collection: "",
+  },
+  {
+    title: "Email reply",
+    description: "",
+    content: "body",
+    tag: "German",
+    collection: "",
+  },
+  {
+    title: "Reply template",
+    description: "",
+    content: "email",
+    tag: "",
+    collection: "German",
+  },
+  {
+    title: "Response template",
+    description: "German email",
+    content: "body",
+    tag: "",
+    collection: "",
+  },
+  {
+    title: "Translation helper",
+    description: "",
+    content: "German email ".repeat(50),
+    tag: "",
+    collection: "",
+  },
+] as const;
+
 export const textSearchFixtures = [
   { query: "  CAFE  ", text: "Café", matches: true },
   { query: "cafe", text: "Cafe\u0301", matches: true },

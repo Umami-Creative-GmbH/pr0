@@ -32,6 +32,15 @@ import {
 import { withRequestWork } from "./request-work";
 import { searchPrompts } from "./search-service";
 
+const parseFavorite = (value: string | undefined) => {
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  return value;
+};
 const readMutation = async (request: Request) => {
   if (
     request.headers.has("content-encoding") ||
@@ -126,6 +135,7 @@ const readListInput = (url: URL, kind: "conflicts" | "prompts") => {
       : promptBrowseInputSchema.safeParse({
           ...fields,
           tagIds: entries.tagIds?.split(","),
+          favorite: parseFavorite(entries.favorite),
         });
   if (
     !input.success ||

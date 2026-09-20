@@ -30,7 +30,7 @@ const decode = (posting: Posting | null) => {
     payload.byteLength
   );
   if (representation === "bitmap") {
-    for (let slot = 0; slot < slotCount; slot += 1) {
+    for (let slot = 0; slot < payload.length * 8; slot += 1) {
       if ((payload[slot >> 3] ?? 0) & (1 << (slot & 7))) {
         slots.add(slot);
       }
@@ -51,7 +51,7 @@ const decode = (posting: Posting | null) => {
   }
   return slots;
 };
-const encode = (slots: Set<number>): Posting => {
+const encode = (slots: Set<number>, capacity: number): Posting => {
   const sorted = [...slots];
   sorted.sort((a, b) => a - b);
   const runs: { start: number; length: number }[] = [];
@@ -65,7 +65,7 @@ const encode = (slots: Set<number>): Posting => {
   }
   const sparseBytes = sorted.length * 2;
   const runBytes = runs.length * 4;
-  const bitmapBytes = slotCount / 8;
+  const bitmapBytes = Math.ceil(capacity / 8);
   if (bitmapBytes < sparseBytes && bitmapBytes < runBytes) {
     const payload = new Uint8Array(bitmapBytes);
     for (const slot of sorted) {
@@ -100,7 +100,7 @@ const shortGrams = (value: string) => {
   }
   return grams;
 };
-export const shortPostings = (db: Database) => {
+export const shortPostings = (db: Database, capacity = slotCount) => {
   const read = db.query<Posting, [string, Uint8Array]>(
     "SELECT representation,payload,count FROM search_short WHERE field=? AND gram=CAST(? AS TEXT)"
   );
@@ -142,7 +142,7 @@ export const shortPostings = (db: Database) => {
           remove.run(field, key);
           return;
         }
-        const posting = encode(slots);
+        const posting = encode(slots, capacity);
         write.run(
           field,
           key,

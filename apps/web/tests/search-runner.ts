@@ -12,7 +12,9 @@ try {
       : [
           "apps/web/tests/search-integration.test.ts",
           "apps/web/tests/search-browser.test.ts",
-          "apps/web/tests/search-capacity.test.ts",
+          "apps/web/tests/full-search-integration.test.ts",
+          "apps/web/tests/full-search-browser.test.ts",
+          "apps/web/tests/full-search-capacity.test.ts",
         ]),
     "--timeout",
     "120000",

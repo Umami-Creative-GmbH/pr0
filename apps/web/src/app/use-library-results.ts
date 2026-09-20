@@ -16,7 +16,7 @@ import { usePromptSelection } from "./use-prompt-selection";
 const matchingOrganization = (
   prompts: z.infer<typeof promptPageSchema>["prompts"],
   organization: { collections: Collection[]; tags: Tag[] } | undefined,
-  collectionId: string | null,
+  collectionIds: (string | null)[],
   tagIds: string[],
   incomplete: boolean
 ) => {
@@ -25,10 +25,11 @@ const matchingOrganization = (
   }
   const availableTags = new Set(organization.tags.map((tag) => tag.id));
   if (
-    (collectionId &&
-      !organization.collections.some(
-        (collection) => collection.id === collectionId
-      )) ||
+    collectionIds.some(
+      (id) =>
+        id &&
+        !organization.collections.some((collection) => collection.id === id)
+    ) ||
     tagIds.some((id) => !availableTags.has(id))
   ) {
     return { prompts: [], incomplete: false };
@@ -40,6 +41,8 @@ export const useLibraryResults = ({
   library,
   view,
   collectionId,
+  viewCollectionId,
+  favorite,
   tagIds,
   search,
   organization,
@@ -47,6 +50,8 @@ export const useLibraryResults = ({
   library: PrivateLibrary;
   view: PromptView;
   collectionId: string | null;
+  viewCollectionId: string | null;
+  favorite: boolean;
   tagIds: string[];
   search: ReturnType<typeof usePromptSearch>;
   organization: { collections: Collection[]; tags: Tag[] } | undefined;
@@ -55,6 +60,8 @@ export const useLibraryResults = ({
     library,
     view,
     collectionId,
+    viewCollectionId,
+    favorite,
     tagIds,
     query: search.debounced,
     sort: search.sort,
@@ -71,7 +78,7 @@ export const useLibraryResults = ({
   const { prompts, incomplete } = matchingOrganization(
     searchBlocked ? [] : pages.flatMap((page) => page.prompts),
     organization,
-    collectionId,
+    [collectionId, viewCollectionId],
     tagIds,
     list.isFetching || list.hasNextPage
   );
@@ -81,6 +88,9 @@ export const useLibraryResults = ({
     library,
     view,
     collectionId,
+    viewCollectionId,
+    favorite,
+    organization,
     tagIds,
     prompts,
     incomplete: incomplete || searchBlocked,

@@ -76,7 +76,7 @@ test("all explicit sorts and relevance use scalar title and UUID tie breaks", as
       const modified = new Date(
         `2026-01-0${index === 2 ? 5 : index + 1}T00:00:00Z`
       );
-      await sql`UPDATE prompt SET created_at=${created},modified_at=${modified},last_used_at=${index >= 2 ? new Date("2026-01-06T00:00:00Z") : null} WHERE account_id=${account.identity.accountId} AND id=${id}`;
+      await sql`UPDATE prompt SET created_at=${created},modified_at=${modified},last_used_at=${index >= 2 ? new Date("1960-01-06T00:00:00Z") : null} WHERE account_id=${account.identity.accountId} AND id=${id}`;
     }
   } finally {
     await sql.close();

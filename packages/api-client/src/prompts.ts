@@ -255,6 +255,8 @@ export const createPromptClient = (
         cursor?: string;
         limit?: number;
         view?: PromptView;
+        viewCollectionId?: string;
+        favorite?: boolean;
         collectionId?: string;
         tagIds?: string[];
       } = {},
@@ -277,6 +279,12 @@ export const createPromptClient = (
       }
       if (parsed.collectionId) {
         params.set("collectionId", parsed.collectionId);
+      }
+      if (parsed.viewCollectionId) {
+        params.set("viewCollectionId", parsed.viewCollectionId);
+      }
+      if (parsed.favorite !== undefined) {
+        params.set("favorite", String(parsed.favorite));
       }
       if (parsed.tagIds?.length) {
         params.set("tagIds", sortedTagIds(parsed.tagIds).join(","));

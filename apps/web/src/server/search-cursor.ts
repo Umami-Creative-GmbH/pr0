@@ -18,7 +18,7 @@ const schema = z.strictObject({
 });
 const sign = (value: string) =>
   createHmac("sha256", configuration().authSecret)
-    .update(`search-page-v1:${value}`)
+    .update(`search-page-v2:${value}`)
     .digest("base64url");
 export const searchCursor = (scope: SearchScope, input: SearchInput) => {
   const query = organizationSearch(input.query);
@@ -31,6 +31,8 @@ export const searchCursor = (scope: SearchScope, input: SearchInput) => {
       query,
       input.sort ?? (query ? "relevance" : "recently-modified"),
       input.view,
+      input.viewCollectionId ?? null,
+      input.favorite ?? null,
       input.collectionId ?? null,
       sortedTagIds(input.tagIds ?? []),
       input.limit,

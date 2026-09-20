@@ -4,6 +4,7 @@ import { PromptApiError } from "@pr0/api-client/prompts";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type { PromptSort, PromptView } from "@pr0/api-contract/prompts";
+import { searchNormalizationVersion } from "@pr0/api-contract/prompts";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -13,6 +14,8 @@ export const usePromptList = ({
   library,
   view,
   collectionId,
+  viewCollectionId,
+  favorite,
   tagIds,
   query,
   sort,
@@ -21,6 +24,8 @@ export const usePromptList = ({
   library: PrivateLibrary;
   view: PromptView;
   collectionId: string | null;
+  viewCollectionId: string | null;
+  favorite: boolean;
   tagIds: string[];
   query: string;
   sort: PromptSort;
@@ -39,6 +44,10 @@ export const usePromptList = ({
     tagIds,
     query,
     sort,
+    viewCollectionId,
+    favorite,
+    library.epoch,
+    searchNormalizationVersion,
   ];
   const list = useInfiniteQuery({
     queryKey,
@@ -50,6 +59,8 @@ export const usePromptList = ({
             cursor: pageParam || undefined,
             view,
             collectionId: collectionId ?? undefined,
+            viewCollectionId: viewCollectionId ?? undefined,
+            favorite: favorite || undefined,
             tagIds,
             query,
             sort,
@@ -77,6 +88,7 @@ export const usePromptList = ({
     enabled,
     refetchOnWindowFocus: true,
     refetchInterval: 10_000,
+    gcTime: 0,
   });
   useEffect(() => {
     if (

@@ -19,11 +19,13 @@ import { CollectionControls } from "./collection-controls";
 import { PromptActionStatus } from "./prompt-action-status";
 import { PromptConflicts } from "./prompt-conflicts";
 import { PromptEditor } from "./prompt-editor";
+import { PromptExtraFilters } from "./prompt-extra-filters";
 import { PromptResults, PromptViewNavigation } from "./prompt-results";
 import { promptSaveNotice } from "./prompt-save-notice";
 import { PromptSearchControls } from "./prompt-search-controls";
 import { PromptTags } from "./prompt-tags";
 import { useLibraryDrafts } from "./use-library-drafts";
+import { useLibraryFilters } from "./use-library-filters";
 import { useLibraryResults } from "./use-library-results";
 import { useOrganization } from "./use-organization";
 import { usePromptActions } from "./use-prompt-actions";
@@ -222,13 +224,17 @@ export const PromptLibrary = ({
     Prompt,
     "id" | "title" | "revision"
   > | null>(null);
-  const [view, setView] = useState<PromptView>("all");
-  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const { filters, setFilters, hasExtraFilters } = useLibraryFilters();
+  const { view, viewCollectionId, collectionId, tagIds, favorite } = filters;
   const [tagEditing, setTagEditing] = useState<Prompt | null>(null);
-  const [tagIds, setTagIds] = useState<string[]>([]);
-  const search = usePromptSearch(
-    `${library.instance.id}:${library.account.id}:${view}:${collectionId ?? ""}`
-  );
+
+  const sortScope = [
+    library.instance.id,
+    library.account.id,
+    view,
+    viewCollectionId,
+  ].join(":");
+  const search = usePromptSearch(sortScope);
   const { organization, organizationKey } = useOrganization(library);
   const { collections, tags } = organization.data ?? {
     collections: [],
@@ -257,6 +263,8 @@ export const PromptLibrary = ({
     library,
     view,
     collectionId,
+    viewCollectionId,
+    favorite,
     tagIds,
     search,
     organization: organization.data,
@@ -267,12 +275,15 @@ export const PromptLibrary = ({
     setSelected(receipt.conflict?.copyId ?? receipt.promptId);
     setNotice(promptSaveNotice(receipt));
   };
-  const changeView = (value: PromptView) => {
+  const changeView = (value: PromptView, id: string | null = null) => {
     search.clear();
-    setView(value);
-    setCollectionId(null);
-    setTagIds([]);
-    setSelected(null);
+    setFilters({
+      view: value,
+      viewCollectionId: id,
+      collectionId: null,
+      tagIds: [],
+      favorite: false,
+    });
   };
   const detailUnavailable = detail.isFetching || detail.isError;
   const accepted = async () => {
@@ -309,14 +320,11 @@ export const PromptLibrary = ({
       if (action === "delete") {
         setSelected(receipt.conflict?.copyId ?? null);
         if (receipt.conflict) {
-          setView("all");
+          changeView("all");
         }
       }
       if (action === "duplicate") {
-        search.clear();
-        setView("all");
-        setCollectionId(null);
-        setTagIds([]);
+        changeView("all");
         setSelected(receipt.promptId);
       }
       noticeRef.current?.focus();
@@ -328,10 +336,7 @@ export const PromptLibrary = ({
         instanceId: library.instance.id,
         accountId: library.account.id,
       });
-      setView(prompt.archived ? "archive" : "all");
-      search.clear();
-      setCollectionId(null);
-      setTagIds([]);
+      changeView(prompt.archived ? "archive" : "all");
       setSelected(id);
     } catch (error) {
       setNotice(
@@ -373,6 +378,19 @@ export const PromptLibrary = ({
       </div>
       <PromptViewNavigation view={view} onChange={changeView} />
       <PromptSearchControls search={search} />
+      <PromptExtraFilters
+        favorite={favorite}
+        hasExtraFilters={hasExtraFilters}
+        onFavorite={(value) => setFilters({ ...filters, favorite: value })}
+        onClear={() =>
+          setFilters({
+            ...filters,
+            collectionId: null,
+            tagIds: [],
+            favorite: false,
+          })
+        }
+      />
       {restarted ? (
         <output>
           Your library changed. Results restarted from the first page.
@@ -381,8 +399,11 @@ export const PromptLibrary = ({
       <CollectionControls
         tagIds={tagIds}
         onTagsChange={(ids) => {
-          setTagIds(ids);
-          setSelected(null);
+          setFilters({ ...filters, tagIds: ids });
+        }}
+        viewCollectionId={viewCollectionId}
+        onNavigateCollection={(id) => {
+          changeView(id ? "collection" : "all", id);
         }}
         library={library}
         organization={organization}
@@ -390,9 +411,7 @@ export const PromptLibrary = ({
         onAllPrompts={() => changeView("all")}
         collectionId={collectionId}
         onSelect={(id) => {
-          search.clear();
-          setCollectionId(id);
-          setSelected(null);
+          setFilters({ ...filters, collectionId: id });
         }}
         onDirtyChange={(dirty) => markDraft("organization", dirty)}
       />
@@ -444,10 +463,10 @@ export const PromptLibrary = ({
         />
       ) : null}
       <PromptResults
-        restricted={search.searching || tagIds.length > 0}
+        restricted={search.searching || hasExtraFilters}
         pendingSearch={search.pending || Boolean(search.error)}
         view={view}
-        collectionId={collectionId}
+        collectionId={viewCollectionId}
         list={list}
         prompts={prompts}
         selectedId={selectedId}

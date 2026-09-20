@@ -34,7 +34,7 @@ const readSearchSnapshot = async (tx: TransactionSQL, job: SearchJob) => {
 
   return library;
 };
-const indexVersion = `2:${searchNormalizationVersion}`;
+const indexVersion = `4:${searchNormalizationVersion}`;
 export const searchDirectory = () =>
   path.resolve(process.env.PR0_SEARCH_DIRECTORY ?? ".data/search");
 const invalidIndexes = new Set<string>();
@@ -55,6 +55,8 @@ export const searchProjection = async (job: SearchJob) => {
         index = openSearchIndex(filename);
         compatible =
           index.state("version") === indexVersion &&
+          index.state("instance") === job.scope.instance &&
+          index.state("account") === job.scope.account &&
           index.state("epoch") === job.scope.epoch;
       } catch {
         compatible = false;
@@ -97,6 +99,12 @@ export const searchProjection = async (job: SearchJob) => {
         if (applied !== library.revision || !compatible) {
           projection.db.exec("BEGIN IMMEDIATE");
           try {
+            const names = await tx<
+              { id: string; entity: "tag" | "collection"; name: string }[]
+            >`
+              SELECT id,'tag' AS entity,name FROM tag WHERE instance_id=${job.scope.instance} AND account_id=${job.scope.account}
+              UNION ALL SELECT id,'collection' AS entity,name FROM collection WHERE instance_id=${job.scope.instance} AND account_id=${job.scope.account}`;
+            projection.organization.reconcile(names);
             const deleted = await tx<
               { prompt_id: string }[]
             >`SELECT prompt_id FROM prompt_deletion
@@ -124,6 +132,8 @@ export const searchProjection = async (job: SearchJob) => {
             projection.setState("revision", library.revision);
             projection.setState("epoch", library.epoch);
             projection.setState("version", indexVersion);
+            projection.setState("instance", job.scope.instance);
+            projection.setState("account", job.scope.account);
             projection.db.exec("COMMIT");
           } catch (error) {
             projection.db.exec("ROLLBACK");

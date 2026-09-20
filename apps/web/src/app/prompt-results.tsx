@@ -98,8 +98,17 @@ const PromptListRow = ({
 );
 const emptyViewMessage = (view: PromptView) =>
   view === "all"
-    ? "Create your first prompt with a title and content."
+    ? "No active prompts. Create a prompt or open the Archive view."
     : `No prompts in ${view === "archive" ? "the archive" : "favorites"}.`;
+const resultsHeading = (
+  empty: boolean,
+  restricted: boolean,
+  view: PromptView,
+  count?: number
+) =>
+  empty && !restricted && view === "all" && count === 0
+    ? "Your library is empty"
+    : "Saved prompts";
 export const PromptResults = ({
   restricted,
   pendingSearch,
@@ -131,7 +140,7 @@ export const PromptResults = ({
   let emptyMessage = emptyViewMessage(view);
   if (collectionId) {
     emptyMessage =
-      "No prompts in this collection for the selected view. Remove the collection filter to see other prompts.";
+      "This collection is empty. Create a prompt or choose another view.";
   }
   if (restricted) {
     emptyMessage = "No matching prompts";
@@ -143,9 +152,12 @@ export const PromptResults = ({
       className="rounded-lg border p-6"
     >
       <h2 className="text-xl font-semibold" id="prompts-heading">
-        {empty && view === "all" && !collectionId && !restricted
-          ? "Your library is empty"
-          : "Saved prompts"}
+        {resultsHeading(
+          empty,
+          restricted,
+          view,
+          list.data?.pages[0]?.usage.promptCount
+        )}
       </h2>
       {list.isPending ? <output>Loading your library…</output> : null}
       {list.failureReason instanceof PromptApiError &&

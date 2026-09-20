@@ -1,7 +1,10 @@
 "use client";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
-import type { organizationSnapshotSchema } from "@pr0/api-contract/prompts";
+import type {
+  organizationSnapshotSchema,
+  organizationStateSchema,
+} from "@pr0/api-contract/prompts";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -14,34 +17,70 @@ import { OrganizationManager } from "./organization-manager";
 
 const buttonClass =
   "rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
-export const CollectionControls = ({
-  library,
-  organization,
-  collectionId,
-  onSelect,
-  onAccepted,
-  onDirtyChange,
+const UnavailableTags = ({
+  states,
   tagIds,
   onTagsChange,
-  onAllPrompts,
 }: {
-  library: PrivateLibrary;
+  states: z.infer<typeof organizationStateSchema>[];
+  tagIds: string[];
+  onTagsChange: (ids: string[]) => void;
+}) => {
+  const selectedTags = new Set(tagIds);
+  return (
+    <div className="max-h-36 overflow-y-auto">
+      {states.map((state) =>
+        state.entity === "tag" && selectedTags.has(state.id) ? (
+          <p key={state.id}>
+            {state.name} ·{" "}
+            {state.state === "deleted"
+              ? "Deleted"
+              : `Merged into ${state.targetName ?? "a deleted tag"}`}
+            . No matches until removed or replaced.{" "}
+            {state.targetId ? (
+              <button
+                type="button"
+                className={buttonClass}
+                onClick={() => {
+                  const { targetId } = state;
+                  if (targetId) {
+                    onTagsChange([
+                      ...new Set(
+                        tagIds.map((id) => (id === state.id ? targetId : id))
+                      ),
+                    ]);
+                  }
+                }}
+              >
+                Use {state.targetName} instead
+              </button>
+            ) : null}
+          </p>
+        ) : null
+      )}
+    </div>
+  );
+};
+
+const useSelectedOrganization = (
+  library: PrivateLibrary,
   organization: UseQueryResult<
     z.infer<typeof organizationSnapshotSchema>,
     Error
-  >;
-  tagIds: string[];
-  onTagsChange: (ids: string[]) => void;
-  onAllPrompts: () => void;
-  collectionId: string | null;
-  onSelect: (id: string | null) => void;
-  onAccepted: () => void | Promise<void>;
-  onDirtyChange: (dirty: boolean) => void;
-}) => {
-  const [managing, setManaging] = useState<"collections" | "tags" | null>(null);
+  >,
+  collectionId: string | null,
+  viewCollectionId: string | null,
+  tagIds: string[]
+) => {
   const client = useApiClient();
-  const selectedIds = [...tagIds, ...(collectionId ? [collectionId] : [])];
-  const selectedTags = new Set(tagIds);
+  const selectedIds = [
+    ...new Set([
+      ...tagIds,
+      ...(collectionId ? [collectionId] : []),
+      ...(viewCollectionId ? [viewCollectionId] : []),
+    ]),
+  ];
+
   const missing = selectedIds.filter(
     (id) =>
       !organization.data?.tags.some((tag) => tag.id === id) &&
@@ -69,13 +108,56 @@ export const CollectionControls = ({
     },
     refetchInterval: 5000,
   });
-  const collections = organization.data?.collections ?? [];
+
   const unavailableNames = new Map(
     states.data?.map((state) => [
       state.id,
       `${state.name} · ${state.state === "deleted" ? "Deleted" : "Merged"}`,
     ])
   );
+  return { selectedIds, states, unavailableNames };
+};
+export const CollectionControls = ({
+  library,
+  organization,
+  collectionId,
+  viewCollectionId,
+  onNavigateCollection,
+  onSelect,
+  onAccepted,
+  onDirtyChange,
+  tagIds,
+  onTagsChange,
+  onAllPrompts,
+}: {
+  library: PrivateLibrary;
+  organization: UseQueryResult<
+    z.infer<typeof organizationSnapshotSchema>,
+    Error
+  >;
+  tagIds: string[];
+  onTagsChange: (ids: string[]) => void;
+  onAllPrompts: () => void;
+  collectionId: string | null;
+  viewCollectionId: string | null;
+  onNavigateCollection: (id: string | null) => void;
+  onSelect: (id: string | null) => void;
+  onAccepted: () => void | Promise<void>;
+  onDirtyChange: (dirty: boolean) => void;
+}) => {
+  const [managing, setManaging] = useState<"collections" | "tags" | null>(null);
+  const { selectedIds, states, unavailableNames } = useSelectedOrganization(
+    library,
+    organization,
+    collectionId,
+    viewCollectionId,
+    tagIds
+  );
+  const {
+    collections = [],
+    tags = [],
+    textBytes = 0,
+  } = organization.data ?? {};
   const error = organization.isError
     ? "Could not refresh collections. Counts may be stale."
     : "";
@@ -89,9 +171,9 @@ export const CollectionControls = ({
           library={library}
           selectedIds={selectedIds}
           collections={collections}
-          tags={organization.data?.tags ?? []}
+          tags={tags}
           initialTab={managing}
-          textBytes={organization.data?.textBytes ?? 0}
+          textBytes={textBytes}
           loading={organization.isPending}
           error={error}
           onRetry={refresh}
@@ -122,6 +204,26 @@ export const CollectionControls = ({
           {error}{" "}
           <button className={buttonClass} type="button" onClick={refresh}>
             Retry collections
+          </button>
+        </p>
+      ) : null}
+      <CollectionPicker
+        unavailableName={
+          viewCollectionId ? unavailableNames.get(viewCollectionId) : undefined
+        }
+        label="Collection view"
+        emptyLabel="All prompts"
+        collections={collections}
+        value={viewCollectionId}
+        search={collectionMatches}
+        onChange={onNavigateCollection}
+      />
+      {viewCollectionId &&
+      states.data?.some((state) => state.id === viewCollectionId) ? (
+        <p>
+          This collection was deleted and is unavailable.{" "}
+          <button type="button" className={buttonClass} onClick={onAllPrompts}>
+            Go to All prompts
           </button>
         </p>
       ) : null}
@@ -162,43 +264,17 @@ export const CollectionControls = ({
       </div>
       <TagPicker
         unavailableNames={unavailableNames}
-        tags={organization.data?.tags ?? []}
+        tags={tags}
         label="Tag filters"
         value={tagIds}
         search={collectionMatches}
         onChange={onTagsChange}
       />
-      <div className="max-h-36 overflow-y-auto">
-        {states.data?.map((state) =>
-          state.entity === "tag" && selectedTags.has(state.id) ? (
-            <p key={state.id}>
-              {state.name} ·{" "}
-              {state.state === "deleted"
-                ? "Deleted"
-                : `Merged into ${state.targetName ?? "a deleted tag"}`}
-              . No matches until removed or replaced.{" "}
-              {state.targetId ? (
-                <button
-                  type="button"
-                  className={buttonClass}
-                  onClick={() => {
-                    const { targetId } = state;
-                    if (targetId) {
-                      onTagsChange([
-                        ...new Set(
-                          tagIds.map((id) => (id === state.id ? targetId : id))
-                        ),
-                      ]);
-                    }
-                  }}
-                >
-                  Use {state.targetName} instead
-                </button>
-              ) : null}
-            </p>
-          ) : null
-        )}
-      </div>
+      <UnavailableTags
+        states={states.data ?? []}
+        tagIds={tagIds}
+        onTagsChange={onTagsChange}
+      />
     </section>
   );
 };

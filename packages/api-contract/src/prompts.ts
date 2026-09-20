@@ -124,7 +124,12 @@ export const promptListInputSchema = z.strictObject({
   cursor: z.string().max(2048).optional(),
   limit: z.number().int().min(1).max(100).default(50),
 });
-export const promptViewSchema = z.enum(["all", "favorites", "archive"]);
+export const promptViewSchema = z.enum([
+  "all",
+  "favorites",
+  "archive",
+  "collection",
+]);
 export type PromptView = z.infer<typeof promptViewSchema>;
 export const searchNormalizationVersion = "pr0-search-v1-ucd17";
 export const promptQuerySchema = scalarText.refine(
@@ -140,13 +145,21 @@ export const promptSortSchema = z.enum([
   "title",
 ]);
 export type PromptSort = z.infer<typeof promptSortSchema>;
-export const promptBrowseInputSchema = promptListInputSchema.extend({
-  query: promptQuerySchema.default(""),
-  sort: promptSortSchema.optional(),
-  view: promptViewSchema.default("all"),
-  collectionId: promptIdentitySchema.optional(),
-  tagIds: z.array(promptIdentitySchema).max(promptLimits.tagCount).optional(),
-});
+export const promptBrowseInputSchema = promptListInputSchema
+  .extend({
+    query: promptQuerySchema.default(""),
+    sort: promptSortSchema.optional(),
+    view: promptViewSchema.default("all"),
+    viewCollectionId: promptIdentitySchema.optional(),
+    favorite: z.boolean().optional(),
+    collectionId: promptIdentitySchema.optional(),
+    tagIds: z.array(promptIdentitySchema).max(promptLimits.tagCount).optional(),
+  })
+  .refine(
+    (input) =>
+      (input.view === "collection") === Boolean(input.viewCollectionId),
+    "Collection views require a collection identity; other views must omit it."
+  );
 export const createPromptSchema = z.strictObject({
   operationId: promptIdentitySchema,
   kind: z.literal("prompt.create"),

@@ -4,7 +4,12 @@ import { PromptApiError } from "@pr0/api-client/prompts";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { organizationSearch } from "@pr0/api-contract/organization";
-import type { Prompt, PromptView } from "@pr0/api-contract/prompts";
+import type {
+  Prompt,
+  PromptView,
+  Collection,
+  Tag,
+} from "@pr0/api-contract/prompts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
@@ -14,10 +19,14 @@ const eligible = (
   prompt: Prompt,
   view: PromptView,
   collectionId: string | null,
-  tagIds: string[]
+  tagIds: string[],
+  viewCollectionId: string | null,
+  favorite: boolean
 ) =>
   tagIds.every((id) => new Set(prompt.tagIds).has(id)) &&
   (!collectionId || prompt.collectionId === collectionId) &&
+  (!viewCollectionId || prompt.collectionId === viewCollectionId) &&
+  (!favorite || prompt.favorite) &&
   prompt.archived === (view === "archive") &&
   (view !== "favorites" || prompt.favorite);
 
@@ -25,6 +34,9 @@ export const usePromptSelection = ({
   library,
   view,
   collectionId,
+  viewCollectionId,
+  favorite,
+  organization,
   tagIds,
   query,
   prompts,
@@ -35,6 +47,9 @@ export const usePromptSelection = ({
   library: PrivateLibrary;
   view: PromptView;
   collectionId: string | null;
+  viewCollectionId: string | null;
+  favorite: boolean;
+  organization: { collections: Collection[]; tags: Tag[] } | undefined;
   tagIds: string[];
   query: string;
   prompts: { id: string; revision: string }[];
@@ -63,15 +78,24 @@ export const usePromptSelection = ({
     retry: retryPromptRead,
     retryDelay: promptRetryDelay,
   });
-  const selectedText = useMemo(
-    () =>
-      detail.data
-        ? [detail.data.title, detail.data.description, detail.data.content].map(
-            organizationSearch
-          )
-        : [],
-    [detail.data]
-  );
+  const selectedText = useMemo(() => {
+    const prompt = detail.data;
+    if (!prompt) {
+      return [];
+    }
+    const selectedTags = new Set(prompt.tagIds);
+    return [
+      prompt.title,
+      prompt.description,
+      prompt.content,
+      organization?.collections.find(
+        (entry) => entry.id === prompt.collectionId
+      )?.name ?? "",
+      ...(organization?.tags.flatMap((tag) =>
+        selectedTags.has(tag.id) ? [tag.name] : []
+      ) ?? []),
+    ].map(organizationSearch);
+  }, [detail.data, organization]);
   const detailRevision = detail.data?.libraryRevision;
   const refreshDetail = detail.refetch;
   useEffect(() => {
@@ -99,7 +123,14 @@ export const usePromptSelection = ({
     return Boolean(
       state?.data &&
       BigInt(state.data.revision) >= BigInt(revision) &&
-      !eligible(state.data, view, collectionId, tagIds)
+      !eligible(
+        state.data,
+        view,
+        collectionId,
+        tagIds,
+        viewCollectionId,
+        favorite
+      )
     );
   };
   const excluded =

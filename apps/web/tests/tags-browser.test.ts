@@ -74,7 +74,9 @@ test("keyboard management creates unused tags, reports equivalents, renames and 
     await dialog.getByLabel("Tag name", { exact: true }).fill("Ready");
     await page.keyboard.press("Enter");
     await dialog.getByRole("button", { name: "Rename Ready" }).waitFor();
+    await dialog.getByText("Saved to server.", { exact: true }).waitFor();
     await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "hidden" });
     expect(
       await opener.evaluate((element) => document.activeElement === element)
     ).toBe(true);

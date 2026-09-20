@@ -3,6 +3,8 @@ import { Database } from "bun:sqlite";
 
 import { organizationSearch } from "@pr0/api-contract/organization";
 
+import { trigramQuery } from "./search-grams";
+import { organizationIndex } from "./search-organization-index";
 import { shortPostings, SearchSlots } from "./search-postings";
 import type { SearchInput, SearchRecord } from "./search-types";
 
@@ -37,18 +39,37 @@ interface IndexedRow {
   collection_id: string | null;
   tags: string;
 }
-type Candidate = Omit<IndexedRow, "content"> & { tier: number; key: Buffer };
+type SearchMetadata = Omit<IndexedRow, "content" | "summary">;
+type Candidate = SearchMetadata & { tier: number; key: Buffer };
 interface TermHits {
   term: string;
   exact: boolean;
   title: SearchSlots;
   description: SearchSlots;
   content: SearchSlots;
+  organization: SearchSlots;
 }
-const recentUse = (a: Candidate, b: Candidate) =>
-  (b.used ?? -1) - (a.used ?? -1);
+const recentUse = (a: Candidate, b: Candidate) => {
+  if (a.used === null) {
+    return b.used === null ? 0 : 1;
+  }
+  if (b.used === null) {
+    return -1;
+  }
+  return b.used - a.used;
+};
+const matchesTags = (stored: string, selected: string[]) => {
+  const tags = new Set<string>(JSON.parse(stored));
+  return selected.every((tag) => tags.has(tag));
+};
+const withinScope = (row: SearchMetadata, input: SearchInput) =>
+  row.archived === Number(input.view === "archive") &&
+  (input.view !== "favorites" || Boolean(row.favorite)) &&
+  (input.favorite === undefined || row.favorite === Number(input.favorite)) &&
+  (!input.viewCollectionId || row.collection_id === input.viewCollectionId) &&
+  (!input.collectionId || row.collection_id === input.collectionId);
 const orderedCandidates = (
-  rows: Omit<IndexedRow, "content">[],
+  rows: SearchMetadata[],
   {
     input,
     query,
@@ -65,21 +86,17 @@ const orderedCandidates = (
 ) => {
   const candidates: Candidate[] = [];
   for (const row of rows) {
-    if (
-      row.archived !== Number(input.view === "archive") ||
-      (input.view === "favorites" && !row.favorite) ||
-      (input.collectionId && row.collection_id !== input.collectionId)
-    ) {
+    if (!withinScope(row, input)) {
       continue;
     }
-    const tags = new Set<string>(JSON.parse(row.tags));
-    if (!input.tagIds?.every((tag) => tags.has(tag)) && input.tagIds?.length) {
+    if (input.tagIds?.length && !matchesTags(row.tags, input.tagIds)) {
       continue;
     }
     if (
       !hits.every(
         (hit) =>
           hit.title.has(row.slot) ||
+          hit.organization.has(row.slot) ||
           hit.description.has(row.slot) ||
           hit.content.has(row.slot)
       )
@@ -90,6 +107,9 @@ const orderedCandidates = (
     let tier = 6;
     if (terms.some((term) => row.description.includes(term))) {
       tier = 5;
+    }
+    if (hits.some((hit) => hit.organization.has(row.slot))) {
+      tier = 4;
     }
     if (titleCount > 0) {
       tier = 3;
@@ -183,6 +203,7 @@ export const openSearchIndex = (filename: string) => {
     throw error;
   }
   const postings = shortPostings(db);
+  const organization = organizationIndex(db);
   const get = db.query<IndexedRow, [string]>(
     "SELECT m.*,p.content FROM search_metadata m JOIN search_prompt p USING(slot) WHERE m.id=?"
   );
@@ -212,6 +233,7 @@ export const openSearchIndex = (filename: string) => {
   };
   return {
     db,
+    organization,
     state: (key: string) => state.get(key)?.value,
     setState: (key: string, value: string) =>
       db
@@ -227,9 +249,18 @@ export const openSearchIndex = (filename: string) => {
       }
       db.query("DELETE FROM search_prompt WHERE slot=?").run(old.slot);
       db.query("DELETE FROM search_metadata WHERE slot=?").run(old.slot);
+      organization.removePrompt(old.slot);
     },
     upsert(row: SearchRecord) {
       if (row.content === null) {
+        const current = db
+          .query<{ slot: number }, [string]>(
+            "SELECT slot FROM search_metadata WHERE id=?"
+          )
+          .get(row.id);
+        if (current) {
+          organization.assign(current.slot, row.collection_id, row.tag_ids);
+        }
         db.query(
           "UPDATE search_metadata SET summary=?,modified=?,used=?,archived=?,favorite=?,collection_id=?,tags=? WHERE id=?"
         ).run(
@@ -255,6 +286,7 @@ export const openSearchIndex = (filename: string) => {
       if (slot === undefined) {
         throw new Error("Search slot capacity exceeded");
       }
+      organization.assign(slot, row.collection_id, row.tag_ids);
       const normalized = {
         title: organizationSearch(row.title),
         description: organizationSearch(row.description),
@@ -298,21 +330,12 @@ export const openSearchIndex = (filename: string) => {
         if (points.length < 3) {
           return postings.get(field, term);
         }
-        const grams = new Set<string>();
-        for (let index = 0; index + 2 < points.length; index += 1) {
-          grams.add(
-            `"${points
-              .slice(index, index + 3)
-              .join("")
-              .replaceAll('"', '""')}"`
-          );
-        }
         return new SearchSlots(
           db
             .query<{ id: number }, [string]>(
               `SELECT rowid AS id FROM f_${field} WHERE f_${field} MATCH ?`
             )
-            .all([...grams].join(" AND "))
+            .all(trigramQuery(points))
             .map((row) => row.id)
         );
       };
@@ -325,11 +348,12 @@ export const openSearchIndex = (filename: string) => {
           title: candidatesFor("title", term),
           description: candidatesFor("description", term),
           content: candidatesFor("content", term),
+          organization: organization.matches(term),
         };
       });
       const rows = db
-        .query<Omit<IndexedRow, "content">, []>(
-          "SELECT slot,id,title,description,content_bytes,summary,created,modified,used,archived,favorite,collection_id,tags FROM search_metadata"
+        .query<SearchMetadata, []>(
+          `SELECT slot,id,title,description,content_bytes,created,modified,used,archived,favorite,collection_id,${input.tagIds?.length ? "tags" : "'[]' AS tags"} FROM search_metadata`
         )
         .all();
       const candidates = orderedCandidates(rows, {
@@ -353,7 +377,9 @@ export const openSearchIndex = (filename: string) => {
         }
         const outstanding = hits.filter(
           (hit) =>
-            !row.title.includes(hit.term) && !row.description.includes(hit.term)
+            !row.title.includes(hit.term) &&
+            !row.description.includes(hit.term) &&
+            !hit.organization.has(row.slot)
         );
         if (outstanding.some((hit) => !hit.content.has(row.slot))) {
           continue;
@@ -389,7 +415,15 @@ export const openSearchIndex = (filename: string) => {
             candidates: candidates.length,
           };
         }
-        matches.push(row.summary);
+        const summary = db
+          .query<{ summary: string }, [number]>(
+            "SELECT summary FROM search_metadata WHERE slot=?"
+          )
+          .get(row.slot);
+        if (!summary) {
+          throw new Error("Missing search summary");
+        }
+        matches.push(summary.summary);
         nextOffset = index + 1;
       }
       return {

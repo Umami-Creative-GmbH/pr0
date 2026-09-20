@@ -24,7 +24,8 @@ export const PromptSearchControls = ({
         onChange={(event) => search.changeQuery(event.target.value)}
       />
       <p id="search-help" className="text-muted-foreground text-sm">
-        Find literal text in titles, descriptions and content.
+        Find literal text in titles, content, descriptions, tags and
+        collections.
       </p>
       {search.error ? (
         <p id="search-error" role="alert">
