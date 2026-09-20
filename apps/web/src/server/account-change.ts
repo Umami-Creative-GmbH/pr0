@@ -139,7 +139,8 @@ const requestChallenge = async (
         `${action} with this code: ${code}\n\nIt expires in five minutes. If you did not request it, ignore this email.`,
         challenge.expires_at,
         reservation,
-        purpose
+        purpose,
+        browser.accountId
       );
       return json(
         { challengeId: id, expiresAt: challenge.expires_at.toISOString() },
@@ -190,7 +191,8 @@ const changeEmail = async (request: Request, browser: BrowserAccount) => {
         `Your pr0 account email was changed to ${destination}. If you did not make this change, contact your instance operator.`,
         new Date(Date.now() + 24 * 60 * 60 * 1000),
         reservation,
-        "notification"
+        "notification",
+        browser.accountId
       );
       await tx`INSERT INTO account_notice(id, account_id) VALUES (${reservation}, ${browser.accountId})`;
       return json({ status: "email_changed", notification: "pending" });

@@ -21,9 +21,7 @@ export default defineConfig(({ command, mode }) => {
     build: {
       rollupOptions: {
         input: {
-          // PROTOTYPE (issue #9): the quick launcher is its own Tauri window.
           main: fileURLToPath(new URL("index.html", import.meta.url)),
-          launcher: fileURLToPath(new URL("launcher.html", import.meta.url)),
         },
       },
     },

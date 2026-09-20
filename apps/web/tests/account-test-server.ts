@@ -21,17 +21,27 @@ export const runAcceptance = async (
     );
   }
 };
-export const accountTestServer = (project: string) => {
-  const compose = [
-    "docker",
-    "compose",
-    "-p",
-    project,
-    "-f",
-    "apps/web/tests/social-compose.yaml",
-  ];
+export const accountTestServer = (
+  project: string,
+  composeFile = "apps/web/tests/social-compose.yaml",
+  prepare?: () => Promise<void>
+) => {
+  const compose = ["docker", "compose", "-p", project, "-f", composeFile];
   let server: ReturnType<typeof Bun.spawn> | undefined;
   let mail: ReturnType<typeof Bun.spawn> | undefined;
+  const stopMail = async () => {
+    mail?.kill();
+    if (mail) {
+      await mail.exited;
+      mail = undefined;
+    }
+  };
+  const startMail = () => {
+    mail = Bun.spawn(
+      ["bun", "--conditions=react-server", "scripts/mail-worker.ts"],
+      { cwd: web, env: process.env, stdout: "inherit", stderr: "inherit" }
+    );
+  };
   const stopServer = async () => {
     if (server) {
       server.kill();
@@ -39,7 +49,11 @@ export const accountTestServer = (project: string) => {
       server = undefined;
     }
   };
-  const startServer = async (extra: Record<string, string> = {}) => {
+  const startServer = async (
+    extra: Record<string, string> = {},
+    ready = true,
+    preloads: string[] = []
+  ) => {
     await stopServer();
     server = Bun.spawn(
       [
@@ -47,10 +61,11 @@ export const accountTestServer = (project: string) => {
         "--bun",
         "--preload",
         path.join(import.meta.dir, "social-provider-preload.ts"),
+        ...preloads.flatMap((file) => ["--preload", file]),
         "node_modules/next/dist/bin/next",
         "start",
         "--port",
-        "30426",
+        new URL(origin).port,
       ],
       {
         cwd: web,
@@ -68,7 +83,7 @@ export const accountTestServer = (project: string) => {
         const response = await fetch(`${origin}/api/v1/ready`, {
           signal: AbortSignal.timeout(2000),
         });
-        if (response.ok) {
+        if (ready ? response.ok : response.status === 503) {
           return;
         }
       } catch {
@@ -86,20 +101,15 @@ export const accountTestServer = (project: string) => {
       "apps/web/scripts/accounts.ts",
       "migrate",
     ]);
+    await prepare?.();
     await runAcceptance(["bun", "run", "--cwd", "apps/web", "build"]);
-    mail = Bun.spawn(
-      ["bun", "--conditions=react-server", "scripts/mail-worker.ts"],
-      { cwd: web, env: process.env, stdout: "inherit", stderr: "inherit" }
-    );
+    startMail();
     await startServer();
   };
   const cleanup = async () => {
     await stopServer();
-    mail?.kill();
-    if (mail) {
-      await mail.exited;
-    }
+    await stopMail();
     await runAcceptance([...compose, "down", "--volumes"]);
   };
-  return { setup, cleanup, startServer };
+  return { setup, cleanup, startServer, stopServer, startMail, stopMail };
 };

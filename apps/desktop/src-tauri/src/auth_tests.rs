@@ -1,0 +1,589 @@
+use super::auth::*;
+use serde_json::json;
+use std::sync::{Arc, Mutex};
+
+fn fixtures() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/device-fixtures.json"
+    ))
+    .unwrap()
+}
+fn approval() -> Arc<Fixture> {
+    let data = fixtures();
+    Arc::new(Fixture(Mutex::new(vec![
+        data["capabilities"].clone(),
+        data["code"].clone(),
+        data["token"].clone(),
+        data["session"].clone(),
+        json!({"success":true}),
+    ])))
+}
+fn view(service: &AuthService) -> serde_json::Value {
+    serde_json::to_value(service.status().unwrap()).unwrap()
+}
+fn sign_in(service: &AuthService) {
+    service.begin("https://instance.example").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1050));
+    service.poll().unwrap();
+    assert_eq!(view(service)["state"], "signed_in");
+    let rendered = serde_json::to_string(&service.status().unwrap()).unwrap();
+    assert!(!rendered.contains("fixture-session-secret-only"));
+    assert!(!rendered.contains("fixture-device-code-only"));
+}
+
+#[test]
+fn persistent_sign_in_reopens_and_missing_credentials_preserve_identity_and_files() {
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    sign_in(&service);
+    drop(service);
+    let restored_transport = Arc::new(Fixture(Mutex::new(vec![fixtures()["session"].clone()])));
+    let reopened = AuthService::new(directory.clone(), restored_transport, vault.clone()).unwrap();
+    assert_eq!(
+        serde_json::to_value(reopened.restore().unwrap()).unwrap()["state"],
+        "signed_in"
+    );
+    // Only the first command checks restoration; subsequent status reads stay local.
+    assert_eq!(
+        serde_json::to_value(reopened.restore().unwrap()).unwrap()["state"],
+        "signed_in"
+    );
+    drop(reopened);
+    vault.delete().unwrap();
+    std::fs::write(directory.join("retained-library.sqlite"), b"retained work").unwrap();
+    let missing = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    assert_eq!(view(&missing)["state"], "authentication_required");
+    assert_eq!(
+        view(&missing)["accountId"],
+        "33333333-3333-4333-8333-333333333333"
+    );
+    assert_eq!(
+        missing.sign_out().err().as_deref(),
+        Some("local_data_requires_review")
+    );
+    assert_eq!(
+        std::fs::read(directory.join("retained-library.sqlite")).unwrap(),
+        b"retained work"
+    );
+    drop(missing);
+    vault.write(b"corrupt").unwrap();
+    let corrupt = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    assert_eq!(view(&corrupt)["state"], "authentication_required");
+    drop(corrupt);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn credential_failure_never_declares_persistent_sign_in() {
+    struct FailingVault;
+    impl Credentials for FailingVault {
+        fn read(&self) -> Result<Option<Vec<u8>>, String> {
+            Err("credential_unavailable".into())
+        }
+        fn write(&self, _: &[u8]) -> Result<(), String> {
+            Err("credential_unavailable".into())
+        }
+        fn delete(&self) -> Result<(), String> {
+            Err("credential_unavailable".into())
+        }
+    }
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let service = AuthService::new(directory.clone(), approval(), Arc::new(FailingVault)).unwrap();
+    service.begin("https://instance.example").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1050));
+    assert_eq!(
+        service.poll().err().as_deref(),
+        Some("credential_unavailable")
+    );
+    assert_eq!(view(&service)["state"], "authentication_required");
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn logout_removes_only_this_desktop_credential_and_can_restart() {
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    sign_in(&service);
+    service.sign_out().unwrap();
+    assert!(vault.read().unwrap().is_none());
+    assert_eq!(view(&service)["state"], "signed_out");
+    drop(service);
+    let reopened = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    assert_eq!(view(&reopened)["state"], "signed_out");
+    drop(reopened);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn malformed_sign_out_responses_never_confirm_remote_revocation() {
+    for response in [
+        json!({}),
+        json!(null),
+        json!({"success":false}),
+        json!({"success":true,"extra":1}),
+    ] {
+        let directory =
+            std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+        let transport = approval();
+        *transport.0.lock().unwrap().last_mut().unwrap() = response;
+        let vault = Arc::new(Vault::default());
+        let service = AuthService::new(directory.clone(), transport, vault.clone()).unwrap();
+        sign_in(&service);
+        service.sign_out().unwrap();
+        assert_eq!(view(&service)["state"], "signed_out");
+        assert!(view(&service)["message"]
+            .as_str()
+            .unwrap()
+            .contains("could not be confirmed"));
+        assert!(vault.read().unwrap().is_none());
+        drop(service);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
+fn expired_saved_session_requests_login_without_discarding_identity() {
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    sign_in(&service);
+    drop(service);
+    let storage = super::auth_storage::Metadata::open(&directory).unwrap();
+    let mut retained = storage.read().unwrap().unwrap();
+    retained.identity.session.expires_at = "2000-01-01T00:00:00.000Z".into();
+    storage.save(&retained).unwrap();
+    drop(storage);
+    let reopened = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    assert_eq!(view(&reopened)["state"], "authentication_required");
+    assert_eq!(
+        view(&reopened)["accountId"],
+        "33333333-3333-4333-8333-333333333333"
+    );
+    drop(reopened);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_credential_survives_new_process() {
+    use super::auth_storage::WindowsCredentials;
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let target = format!("pr0:test:39:{}", uuid::Uuid::new_v4());
+    let vault = Arc::new(WindowsCredentials::new(target.clone()));
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    sign_in(&service);
+    drop(service);
+    let result = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "auth_tests::restart_worker"])
+        .env("PR0_TEST_RESTART_PATH", &directory)
+        .env("PR0_TEST_CREDENTIAL_TARGET", &target)
+        .status();
+    vault.delete().unwrap();
+    std::fs::remove_dir_all(directory).unwrap();
+    assert!(result.unwrap().success());
+}
+
+#[cfg(windows)]
+#[test]
+fn restart_worker() {
+    use super::auth_storage::WindowsCredentials;
+    let Ok(path) = std::env::var("PR0_TEST_RESTART_PATH") else {
+        return;
+    };
+    let target = std::env::var("PR0_TEST_CREDENTIAL_TARGET").unwrap();
+    let service = AuthService::new(
+        path.into(),
+        approval(),
+        Arc::new(WindowsCredentials::new(target)),
+    )
+    .unwrap();
+    assert_eq!(view(&service)["state"], "signed_in");
+}
+
+#[test]
+fn late_redemption_after_cancel_cannot_store_credentials() {
+    struct RacingTransport {
+        entered: std::sync::Barrier,
+        release: std::sync::Barrier,
+    }
+    impl Transport for RacingTransport {
+        fn request(
+            &self,
+            _: &str,
+            endpoint: Endpoint,
+            _: Option<&str>,
+            _: Option<serde_json::Value>,
+        ) -> Result<serde_json::Value, String> {
+            let data = fixtures();
+            Ok(match endpoint {
+                Endpoint::Capabilities => data["capabilities"].clone(),
+                Endpoint::Code => data["code"].clone(),
+                Endpoint::Token => {
+                    self.entered.wait();
+                    self.release.wait();
+                    data["token"].clone()
+                }
+                Endpoint::Session => data["session"].clone(),
+                _ => json!({"success":true}),
+            })
+        }
+        fn open_browser(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let transport = Arc::new(RacingTransport {
+        entered: std::sync::Barrier::new(2),
+        release: std::sync::Barrier::new(2),
+    });
+    let vault = Arc::new(Vault::default());
+    let service =
+        Arc::new(AuthService::new(directory.clone(), transport.clone(), vault.clone()).unwrap());
+    service.begin("https://instance.example").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1050));
+    let pending = service.clone();
+    let worker = std::thread::spawn(move || pending.poll());
+    transport.entered.wait();
+    service.cancel().unwrap();
+    transport.release.wait();
+    assert_eq!(
+        worker.join().unwrap().err().as_deref(),
+        Some("operation_cancelled")
+    );
+    assert_eq!(view(&service)["state"], "signed_out");
+    assert!(vault.read().unwrap().is_none());
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn expired_approval_returns_to_sign_in() {
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let mut data = fixtures();
+    data["code"]["expires_in"] = json!(1);
+    let transport = Arc::new(Fixture(Mutex::new(vec![
+        data["capabilities"].clone(),
+        data["code"].clone(),
+    ])));
+    let service =
+        AuthService::new(directory.clone(), transport, Arc::new(Vault::default())).unwrap();
+    service.begin("https://instance.example").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1050));
+    service.poll().unwrap();
+    assert_eq!(view(&service)["state"], "signed_out");
+    assert!(view(&service)["message"]
+        .as_str()
+        .unwrap()
+        .contains("expired"));
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn reauthentication_rejects_a_different_account_without_replacing_retained_identity() {
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    sign_in(&service);
+    drop(service);
+    vault.delete().unwrap();
+    let mut data = fixtures();
+    data["session"]["account"]["id"] = json!("55555555-5555-4555-8555-555555555555");
+    let transport = Arc::new(Fixture(Mutex::new(vec![
+        data["capabilities"].clone(),
+        data["code"].clone(),
+        data["token"].clone(),
+        data["session"].clone(),
+    ])));
+    let service = AuthService::new(directory.clone(), transport, vault.clone()).unwrap();
+    service.begin("https://instance.example").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1050));
+    assert_eq!(
+        service.poll().err().as_deref(),
+        Some("same_account_required")
+    );
+    assert_eq!(
+        view(&service)["accountId"],
+        "33333333-3333-4333-8333-333333333333"
+    );
+    assert!(vault.read().unwrap().is_none());
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn live_https_worker() {
+    use super::auth_storage::WindowsCredentials;
+    use super::auth_transport::HttpsTransport;
+    use std::io::{BufRead, Write};
+    let Ok(path) = std::env::var("PR0_TEST_LIVE_PATH") else {
+        return;
+    };
+    struct BrowserBoundary(HttpsTransport);
+    impl Transport for BrowserBoundary {
+        fn request(
+            &self,
+            origin: &str,
+            endpoint: Endpoint,
+            token: Option<&str>,
+            body: Option<serde_json::Value>,
+        ) -> Result<serde_json::Value, String> {
+            self.0.request(origin, endpoint, token, body)
+        }
+        fn open_browser(&self, url: &str) -> Result<(), String> {
+            // The external test controller opens this exact URL in isolated Chrome.
+            println!("PR0_BROWSER:{url}");
+            Ok(())
+        }
+    }
+    let target = std::env::var("PR0_TEST_CREDENTIAL_TARGET").unwrap();
+    let certificate = std::fs::read(std::env::var("PR0_TEST_CERTIFICATE").unwrap()).unwrap();
+    let service = AuthService::new(
+        path.into(),
+        Arc::new(BrowserBoundary(
+            HttpsTransport::with_test_root(&certificate).unwrap(),
+        )),
+        Arc::new(WindowsCredentials::new(target)),
+    )
+    .unwrap();
+    for line in std::io::stdin().lock().lines() {
+        let line = line.unwrap();
+        let input: serde_json::Value = serde_json::from_str(&line).unwrap();
+        let command = input["command"].as_str().unwrap();
+        if command == "quit" {
+            break;
+        }
+        let result = match command {
+            "status" => service.restore(),
+            "begin" => service.begin(input["origin"].as_str().unwrap()),
+            "poll" => service.poll(),
+            "sign_out" => service.sign_out(),
+            "refresh" => service.refresh(),
+            _ => Err("unknown_command".into()),
+        };
+        println!("PR0_RESULT:{}", serde_json::to_string(&result).unwrap());
+        std::io::stdout().flush().unwrap();
+    }
+}
+
+#[test]
+fn late_authenticated_response_after_logout_cannot_restore_the_account() {
+    struct RacingSession {
+        sessions: std::sync::atomic::AtomicUsize,
+        entered: std::sync::Barrier,
+        release: std::sync::Barrier,
+    }
+    impl Transport for RacingSession {
+        fn request(
+            &self,
+            _: &str,
+            endpoint: Endpoint,
+            _: Option<&str>,
+            _: Option<serde_json::Value>,
+        ) -> Result<serde_json::Value, String> {
+            let data = fixtures();
+            Ok(match endpoint {
+                Endpoint::Capabilities => data["capabilities"].clone(),
+                Endpoint::Code => data["code"].clone(),
+                Endpoint::Token => data["token"].clone(),
+                Endpoint::Session => {
+                    if self
+                        .sessions
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                        > 0
+                    {
+                        self.entered.wait();
+                        self.release.wait();
+                    }
+                    data["session"].clone()
+                }
+                _ => json!({"success":true}),
+            })
+        }
+        fn open_browser(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let transport = Arc::new(RacingSession {
+        sessions: std::sync::atomic::AtomicUsize::new(0),
+        entered: std::sync::Barrier::new(2),
+        release: std::sync::Barrier::new(2),
+    });
+    let vault = Arc::new(Vault::default());
+    let service =
+        Arc::new(AuthService::new(directory.clone(), transport.clone(), vault.clone()).unwrap());
+    sign_in(&service);
+    let pending = service.clone();
+    let worker = std::thread::spawn(move || pending.refresh());
+    transport.entered.wait();
+    service.sign_out().unwrap();
+    transport.release.wait();
+    assert_eq!(
+        worker.join().unwrap().err().as_deref(),
+        Some("operation_cancelled")
+    );
+    assert_eq!(view(&service)["state"], "signed_out");
+    assert!(vault.read().unwrap().is_none());
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn known_revocation_survives_restart_without_erasing_retained_identity() {
+    struct RevokedTransport;
+    impl Transport for RevokedTransport {
+        fn request(
+            &self,
+            _: &str,
+            _: Endpoint,
+            _: Option<&str>,
+            _: Option<serde_json::Value>,
+        ) -> Result<serde_json::Value, String> {
+            Err("authentication_required".into())
+        }
+        fn open_browser(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    sign_in(&service);
+    drop(service);
+    let service =
+        AuthService::new(directory.clone(), Arc::new(RevokedTransport), vault.clone()).unwrap();
+    assert_eq!(
+        serde_json::to_value(service.restore().unwrap()).unwrap()["state"],
+        "authentication_required"
+    );
+    drop(service);
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    assert_eq!(view(&service)["state"], "authentication_required");
+    assert_eq!(
+        view(&service)["accountId"],
+        "33333333-3333-4333-8333-333333333333"
+    );
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn concurrent_restore_waits_for_the_same_revocation_check() {
+    struct BlockedRevocation {
+        entered: std::sync::Barrier,
+        release: std::sync::Barrier,
+    }
+    impl Transport for BlockedRevocation {
+        fn request(
+            &self,
+            _: &str,
+            _: Endpoint,
+            _: Option<&str>,
+            _: Option<serde_json::Value>,
+        ) -> Result<serde_json::Value, String> {
+            self.entered.wait();
+            self.release.wait();
+            Err("authentication_required".into())
+        }
+        fn open_browser(&self, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    sign_in(&service);
+    drop(service);
+    let transport = Arc::new(BlockedRevocation {
+        entered: std::sync::Barrier::new(2),
+        release: std::sync::Barrier::new(2),
+    });
+    let service = Arc::new(AuthService::new(directory.clone(), transport.clone(), vault).unwrap());
+    let first = service.clone();
+    let first = std::thread::spawn(move || first.restore().unwrap());
+    transport.entered.wait();
+    let second = service.clone();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let second = std::thread::spawn(move || sender.send(second.restore().unwrap()).unwrap());
+    let early = receiver.recv_timeout(std::time::Duration::from_millis(100));
+    transport.release.wait();
+    let second_view = match early {
+        Ok(view) => view,
+        Err(_) => receiver
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap(),
+    };
+    let first_view = first.join().unwrap();
+    second.join().unwrap();
+    assert_eq!(
+        serde_json::to_value(first_view).unwrap()["state"],
+        "authentication_required"
+    );
+    assert_eq!(
+        serde_json::to_value(second_view).unwrap()["state"],
+        "authentication_required"
+    );
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+struct Fixture(Mutex<Vec<serde_json::Value>>);
+impl Transport for Fixture {
+    fn request(
+        &self,
+        _: &str,
+        _: Endpoint,
+        _: Option<&str>,
+        _: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
+        Ok(self.0.lock().unwrap().remove(0))
+    }
+    fn open_browser(&self, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+#[derive(Default)]
+struct Vault(Mutex<Option<Vec<u8>>>);
+impl Credentials for Vault {
+    fn read(&self) -> Result<Option<Vec<u8>>, String> {
+        Ok(self.0.lock().unwrap().clone())
+    }
+    fn write(&self, bytes: &[u8]) -> Result<(), String> {
+        *self.0.lock().unwrap() = Some(bytes.to_vec());
+        Ok(())
+    }
+    fn delete(&self) -> Result<(), String> {
+        *self.0.lock().unwrap() = None;
+        Ok(())
+    }
+}
+
+#[test]
+fn commands_reject_untrusted_instance_urls_without_network_access() {
+    let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
+    let service = AuthService::new(
+        directory.clone(),
+        Arc::new(Fixture(Mutex::new(vec![]))),
+        Arc::new(Vault::default()),
+    )
+    .unwrap();
+    for url in [
+        "http://example.com",
+        "https://user:secret@example.com",
+        "https://example.com/path",
+        "https://example.com/?token=x",
+    ] {
+        assert!(service.begin(url).is_err());
+    }
+    assert_eq!(
+        serde_json::to_value(service.status().unwrap()).unwrap()["state"],
+        json!("signed_out")
+    );
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}

@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./variables": "./src/variables.ts",
+    "./variable-fixtures": "./src/variable-fixtures.json",
+    "./variable-validation-fixtures": "./src/variable-validation-fixtures.json",
+    "./device": "./src/device.ts",
+    "./deletions": "./src/deletions.ts",
     "./prompt-use-fixtures": "./src/prompt-use-fixtures.ts",
     "./search-fixtures": "./src/search-fixtures.ts",
     "./organization": "./src/organization.ts",
@@ -15,6 +20,7 @@
     "./openapi": "./src/openapi.ts"
   },
   "scripts": {
+    "test": "bun test src",
     "typecheck": "bun --bun tsc --noEmit"
   },
   "dependencies": {

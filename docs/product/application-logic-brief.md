@@ -6,8 +6,8 @@ pr0 is a lightweight prompt library for storing, organizing, finding, and quickl
 
 The application should work as both:
 
-* a desktop application for fast daily use
-* a web application for access from other devices
+- a desktop application for fast daily use
+- a web application for access from other devices
 
 Both should use the same user account and synchronized prompt library.
 
@@ -37,27 +37,27 @@ A prompt is the main entity in the application.
 
 A prompt contains:
 
-* title
-* prompt content
-* optional description
-* tags
-* optional collection
-* favorite state
-* creation date
-* modification date
+- title
+- prompt content
+- optional description
+- tags
+- optional collection
+- favorite state
+- creation date
+- modification date
 
 The application should also track enough information to support things like recent prompts and potentially usage statistics later.
 
 Prompts can be:
 
-* created
-* viewed
-* edited
-* copied
-* duplicated
-* favorited
-* archived
-* deleted
+- created
+- viewed
+- edited
+- copied
+- duplicated
+- favorited
+- archived
+- deleted
 
 Archiving should remove a prompt from the normal library without permanently deleting it.
 
@@ -71,19 +71,19 @@ A prompt can optionally belong to a collection.
 
 Examples:
 
-* Development
-* Writing
-* Marketing
-* Image Generation
-* Research
+- Development
+- Writing
+- Marketing
+- Image Generation
+- Research
 
 Users should be able to:
 
-* create collections
-* rename collections
-* delete collections
-* assign prompts to collections
-* move prompts between collections
+- create collections
+- rename collections
+- delete collections
+- assign prompts to collections
+- move prompts between collections
 
 Deleting a collection should not automatically delete its prompts.
 
@@ -109,12 +109,12 @@ The main application view represents the user's prompt library.
 
 The library should support:
 
-* all prompts
-* favorites
-* recent prompts
-* collections
-* tags
-* archived prompts
+- all prompts
+- favorites
+- recent prompts
+- collections
+- tags
+- archived prompts
 
 Selecting any of these changes which prompts are displayed.
 
@@ -128,11 +128,11 @@ Search is one of the central application functions.
 
 Search should find prompts based on:
 
-* title
-* prompt content
-* description
-* tags
-* collection
+- title
+- prompt content
+- description
+- tags
+- collection
 
 Results should update immediately while the user types.
 
@@ -152,10 +152,10 @@ Copying is the primary action in the application.
 
 A user should be able to copy a prompt directly from:
 
-* the prompt list
-* the prompt detail view
-* search results
-* the quick launcher
+- the prompt list
+- the prompt detail view
+- search results
+- the quick launcher
 
 After copying, the application should give lightweight confirmation.
 
@@ -167,16 +167,16 @@ The application should also record that the prompt was used so that recent or fr
 
 Creating a prompt should require only:
 
-* title
-* prompt content
+- title
+- prompt content
 
 Everything else should be optional.
 
 The user should be able to optionally add:
 
-* description
-* tags
-* collection
+- description
+- tags
+- collection
 
 The application should avoid forcing users to organize prompts before they can save them.
 
@@ -218,10 +218,10 @@ Users should be able to duplicate an existing prompt.
 
 The duplicate should contain the same:
 
-* content
-* description
-* tags
-* collection
+- content
+- description
+- tags
+- collection
 
 It should become a separate prompt with its own identity and modification history.
 
@@ -235,9 +235,9 @@ Prompts can be archived instead of deleted.
 
 Archived prompts:
 
-* should disappear from the normal library
-* should remain searchable from the archive
-* can be restored
+- should disappear from the normal library
+- should remain searchable from the archive
+- can be restored
 
 Archive should be useful for prompts that are no longer actively used but may still be needed later.
 
@@ -249,8 +249,8 @@ Deleting a prompt should permanently remove it.
 
 The application should distinguish clearly between:
 
-* archive
-* permanent deletion
+- archive
+- permanent deletion
 
 Accidental permanent deletion should require confirmation.
 
@@ -264,13 +264,13 @@ Changes made on one device should appear on other devices.
 
 This includes:
 
-* new prompts
-* edits
-* deletes
-* favorites
-* collections
-* tags
-* archive state
+- new prompts
+- edits
+- deletes
+- favorites
+- collections
+- tags
+- archive state
 
 Synchronization should happen automatically.
 
@@ -284,11 +284,11 @@ The desktop application should remain useful if there is temporarily no network 
 
 The user should still be able to:
 
-* browse previously synchronized prompts
-* search
-* copy prompts
-* create prompts
-* edit prompts
+- browse previously synchronized prompts
+- search
+- copy prompts
+- create prompts
+- edit prompts
 
 Changes made while offline should synchronize once connectivity is restored.
 
@@ -328,12 +328,12 @@ The application should allow common operations without requiring the mouse.
 
 Important interactions include:
 
-* focus search
-* navigate search results
-* open a prompt
-* copy selected prompt
-* create a prompt
-* close dialogs or launcher
+- focus search
+- navigate search results
+- open a prompt
+- copy selected prompt
+- create a prompt
+- close dialogs or launcher
 
 Keyboard shortcuts should complement the interface rather than be required for basic usage.
 
@@ -361,10 +361,10 @@ The underlying prompt model should therefore not prevent this feature from being
 
 A typical user may use pr0 on:
 
-* desktop workstation
-* laptop
-* another desktop
-* web browser
+- desktop workstation
+- laptop
+- another desktop
+- web browser
 
 All devices should display the same logical library.
 
@@ -378,11 +378,11 @@ Signing into pr0 on a new device should restore the user's prompt library.
 
 Prompt lists should support sensible sorting such as:
 
-* recently used
-* recently modified
-* newest
-* oldest
-* alphabetical
+- recently used
+- recently modified
+- newest
+- oldest
+- alphabetical
 
 A default sort should prioritize finding useful prompts quickly.
 
@@ -392,10 +392,10 @@ A default sort should prioritize finding useful prompts quickly.
 
 The user should be able to combine filters such as:
 
-* collection
-* tag
-* favorite
-* archived/not archived
+- collection
+- tag
+- favorite
+- archived/not archived
 
 Filters should also work together with search.
 
@@ -429,12 +429,12 @@ The first version should primarily behave as a personal prompt library.
 
 However, the application logic should leave room for future concepts such as:
 
-* organizations
-* shared prompts
-* shared collections
-* prompt ownership
-* permissions
-* team libraries
+- organizations
+- shared prompts
+- shared collections
+- prompt ownership
+- permissions
+- team libraries
 
 These features do not need to be implemented initially.
 
@@ -448,9 +448,9 @@ Prompt version history may be added later.
 
 This could allow users to:
 
-* see previous prompt versions
-* compare changes
-* restore an older version
+- see previous prompt versions
+- compare changes
+- restore an older version
 
 Initial implementations do not need to expose version history, but prompt updates should not be designed in a way that makes adding it unnecessarily difficult.
 
@@ -494,24 +494,24 @@ Manage the user's identity and synchronization state.
 
 The first usable version should support:
 
-* user accounts
-* personal prompt library
-* prompt creation
-* prompt editing
-* prompt deletion
-* prompt archive and restore
-* prompt duplication
-* favorites
-* collections
-* tags
-* full-text search
-* filtering
-* sorting
-* recent prompts
-* clipboard copying
-* desktop quick launcher
-* synchronization between desktop and web
-* basic offline desktop access
+- user accounts
+- personal prompt library
+- prompt creation
+- prompt editing
+- prompt deletion
+- prompt archive and restore
+- prompt duplication
+- favorites
+- collections
+- tags
+- full-text search
+- filtering
+- sorting
+- recent prompts
+- clipboard copying
+- desktop quick launcher
+- synchronization between desktop and web
+- basic offline desktop access
 
 The goal of the MVP is not to build an advanced prompt-management platform.
 

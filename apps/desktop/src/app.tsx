@@ -1,118 +1,97 @@
-/**
- * PROTOTYPE (issue #9) — desktop main window.
- *
- * Owns the library and mirrors it into the native launcher window over Tauri
- * events. Throwaway: nothing is persisted and there is no API call.
- */
-
-import type { ClipboardWriter } from "@pr0/prototype-library/domain/copy";
-import { recordUse } from "@pr0/prototype-library/domain/lifecycle";
-import { createSeedLibrary } from "@pr0/prototype-library/domain/seed";
-import type { Library } from "@pr0/prototype-library/domain/types";
-import type { ShortcutStatus } from "@pr0/prototype-library/ui/prototype-shell";
-import { PrototypeShell } from "@pr0/prototype-library/ui/prototype-shell";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-import type { LauncherUsedPayload } from "./prototype-bridge";
-import { PROTOTYPE_EVENTS, relay } from "./prototype-bridge";
-
-import "@pr0/prototype-library/prototype.css";
-
-// Captured once at load so relative dates do not drift during a session.
-const SESSION_NOW = Date.now();
+import { SignInForm, SignOutControl } from "./auth-panels";
+import { useAuthSession } from "./use-auth-session";
 
 export const App = () => {
-  const [library, setLibrary] = useState<Library>(() =>
-    createSeedLibrary(SESSION_NOW)
-  );
-  const [clipboardFails, setClipboardFails] = useState(false);
-  const [shortcutStatus, setShortcutStatus] = useState<ShortcutStatus>({
-    state: "checking",
-  });
-
-  // The relay handlers need the current library without re-subscribing.
-  const libraryRef = useRef(library);
-  useEffect(() => {
-    libraryRef.current = library;
-  }, [library]);
-
-  const update = useCallback((next: Library) => {
-    setLibrary(next);
-    void relay(PROTOTYPE_EVENTS.librarySync, next);
-  }, []);
-
-  useEffect(() => {
-    const loadShortcut = async () => {
-      try {
-        const label = await invoke<string | null>("registered_shortcut");
-        // An unhandled rejection here used to leave the header blank forever,
-        // which read as "no shortcut" during the issue #9 session.
-        setShortcutStatus(
-          label ? { state: "registered", shortcut: label } : { state: "none" }
-        );
-      } catch (error) {
-        setShortcutStatus({
-          state: "error",
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    };
-    void loadShortcut();
-
-    const unlisteners = [
-      listen(PROTOTYPE_EVENTS.libraryRequest, () =>
-        relay(PROTOTYPE_EVENTS.librarySync, libraryRef.current)
-      ),
-      listen<LauncherUsedPayload>(PROTOTYPE_EVENTS.launcherUsed, (event) => {
-        // The launcher already wrote to the clipboard, so this is a use.
-        const next = recordUse(
-          libraryRef.current,
-          event.payload.promptId,
-          event.payload.at
-        );
-        setLibrary(next);
-        void relay(PROTOTYPE_EVENTS.librarySync, next);
-      }),
-    ];
-
-    return () => {
-      for (const pending of unlisteners) {
-        void (async () => {
-          const off = await pending;
-          off();
-        })();
-      }
-    };
-  }, []);
-
-  const clipboard: ClipboardWriter = useMemo(
-    () => async (text: string) => {
-      if (clipboardFails) {
-        throw new Error("clipboard blocked (prototype tool)");
-      }
-      await writeText(text);
-    },
-    [clipboardFails]
-  );
-
+  const { status, busy, error, notice, run } = useAuthSession();
   return (
-    <PrototypeShell
-      clipboard={clipboard}
-      clipboardFails={clipboardFails}
-      fixedSurface
-      initialSurface="desktop"
-      launcherIsNative
-      library={library}
-      now={SESSION_NOW}
-      onClipboardFailureChange={setClipboardFails}
-      onLibraryChange={update}
-      onOpenNativeLauncher={() => {
-        void invoke("open_launcher");
-      }}
-      shortcutStatus={shortcutStatus}
-    />
+    <main className="mx-auto max-w-xl space-y-6 p-8">
+      <h1 className="text-3xl font-semibold">pr0</h1>
+      <p>Your personal prompt library</p>
+      {status?.email ? (
+        <section
+          aria-label="Current account"
+          className="space-y-2 rounded border p-4"
+        >
+          <h2 className="text-lg font-medium">Current account</h2>
+          <p>{status.email}</p>
+          <p className="break-all">Server: {status.origin}</p>
+        </section>
+      ) : null}
+      {status?.state === "signed_in" ? (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">Signed in on this computer</h2>
+          <p>
+            Your sign-in is stored under your Windows account. Library download
+            is not available in this version.
+          </p>
+          <button
+            className="rounded border px-4 py-2"
+            disabled={busy}
+            onClick={() => {
+              void run("auth_refresh");
+            }}
+            type="button"
+          >
+            Check connection
+          </button>
+        </section>
+      ) : null}
+      {status?.state === "signed_out" ||
+      status?.state === "authentication_required" ? (
+        <SignInForm busy={busy} run={run} status={status} />
+      ) : null}
+      {status?.state === "awaiting_approval" ? (
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">Approve the matching code</h2>
+          <p>Server: {status.origin}</p>
+          <p className="font-mono text-3xl tracking-widest">
+            {status.userCode}
+          </p>
+          <p>
+            Sign in and explicitly approve this code in your browser. This
+            window will update automatically.
+          </p>
+          <div className="flex gap-4">
+            <button
+              className="rounded border px-4 py-2"
+              disabled={busy}
+              onClick={() => {
+                void run("auth_open_browser");
+              }}
+              type="button"
+            >
+              Open browser
+            </button>
+            <button
+              className="rounded border px-4 py-2"
+              onClick={() => {
+                void run("auth_cancel");
+              }}
+              type="button"
+            >
+              Cancel approval
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {status && (status.accountId || status.state === "cleanup_required") ? (
+        <SignOutControl busy={busy} run={run} status={status} />
+      ) : null}
+      {status ? null : (
+        <button
+          className="rounded border px-4 py-2"
+          disabled={busy}
+          onClick={() => {
+            void run("auth_status");
+          }}
+          type="button"
+        >
+          Retry loading sign-in
+        </button>
+      )}
+      <p aria-live="polite" ref={notice} tabIndex={-1}>
+        {error || status?.message || (busy ? "Working…" : "")}
+      </p>
+    </main>
   );
 };

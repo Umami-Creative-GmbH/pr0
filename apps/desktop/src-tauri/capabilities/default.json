@@ -1,18 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "PROTOTYPE (issue #9): quick launcher window control, events and clipboard.",
-  "windows": ["main", "launcher"],
+  "description": "Local main-window account commands only. Remote content has no native permissions.",
+  "windows": ["main"],
   "permissions": [
-    "core:default",
-    "core:event:default",
-    "core:window:allow-show",
-    "core:window:allow-hide",
-    "core:window:allow-set-focus",
-    "core:window:allow-set-always-on-top",
-    "core:window:allow-set-size",
-    "core:window:allow-unminimize",
-    "clipboard-manager:allow-write-text",
-    "global-shortcut:default"
+    "allow-auth-status",
+    "allow-auth-begin",
+    "allow-auth-poll",
+    "allow-auth-cancel",
+    "allow-auth-open-browser",
+    "allow-auth-refresh",
+    "allow-auth-sign-out"
   ]
 }

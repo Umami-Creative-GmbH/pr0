@@ -4,6 +4,13 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { database } from "./database";
 
 const issuanceVersion = new AsyncLocalStorage<number>();
+const deviceIssuance = new AsyncLocalStorage<boolean>();
+export const sessionProvenance = () =>
+  deviceIssuance.getStore() ? "device" : "browser";
+export const withDeviceIssuance = <T>(
+  version: number,
+  operation: () => Promise<T>
+) => deviceIssuance.run(true, () => issuanceVersion.run(version, operation));
 
 export const withSessionIssuance = async <T>(
   email: string,

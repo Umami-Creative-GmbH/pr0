@@ -1,3 +1,6 @@
+// oxlint-disable eslint/no-bitwise -- Bitmap membership and seeded PRNGs require exact 32-bit operations.
+// oxlint-disable react-doctor/js-combine-iterations -- Keep the independent reference oracle's filtering and projection separate from the measured search implementation.
+// oxlint-disable eslint/no-nested-ternary -- Ordered expressions preserve the reference ranking and comparison branches used by these recorded experiments.
 import { Database } from "bun:sqlite";
 import { strict as assert } from "node:assert";
 
@@ -36,11 +39,9 @@ db.transaction(() => {
     insert.run(row.id, ...fields.map((field) => row[field]));
   }
 })();
-function phrase(term) {
-  return `"${term.replaceAll('"', '""')}"`;
-}
+const phrase = (term) => `"${term.replaceAll('"', '""')}"`;
 const caseData = await Bun.file(`${root}/native-cases.json`).json();
-const terms = [
+const parityTerms = [
   ...new Set(caseData.flatMap((row) => row.terms)),
   manyTerms,
   "x".repeat(200),
@@ -53,12 +54,13 @@ const next = () => {
   seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0;
   return seed;
 };
-for (let i = 0; i < 200; i++) {
+for (let i = 0; i < 200; i += 1) {
   let term = "";
-  for (let j = 0, count = 3 + (next() % 18); j < count; j++) {
+  const count = 3 + (next() % 18);
+  for (let j = 0; j < count; j += 1) {
     term += chars[next() % chars.length];
   }
-  terms.push(term);
+  parityTerms.push(term);
   const row = {
     id: 1000 + i,
     title: `prefix${term}suffix`,
@@ -72,7 +74,7 @@ for (let i = 0; i < 200; i++) {
   insert.run(row.id, ...fields.map((field) => row[field]));
 }
 let checks = 0;
-for (const term of terms) {
+for (const term of parityTerms) {
   if ([...term].length < 3) {
     continue;
   }
@@ -80,7 +82,7 @@ for (const term of terms) {
     const expected = records
       .filter((row) => row[field].includes(term))
       .map((row) => row.id)
-      .sort((a, b) => a - b);
+      .toSorted((a, b) => a - b);
     const actual = db
       .query(
         "SELECT rowid AS id FROM exact_fields WHERE exact_fields MATCH ? ORDER BY rowid"
@@ -88,7 +90,7 @@ for (const term of terms) {
       .all(`${field}:${phrase(term)}`)
       .map((row) => row.id);
     assert.deepEqual(actual, expected, `${field} ${term}`);
-    checks++;
+    checks += 1;
   }
 }
 const expression = manyTerms
@@ -119,7 +121,7 @@ db.exec(
   "DROP TABLE IF EXISTS bench_fields; CREATE VIRTUAL TABLE bench_fields USING fts5(title,content,content='bench',content_rowid='id',tokenize='trigram case_sensitive 1'); INSERT INTO bench_fields(bench_fields) VALUES ('rebuild')"
 );
 const fieldIndexBuildMs = performance.now() - buildStart;
-function hits(field, term) {
+const hits = (field, term) => {
   if ([...term].length >= 3) {
     return new Set(
       db
@@ -133,13 +135,15 @@ function hits(field, term) {
   const bits = index.get(JSON.stringify([field, term]));
   const ids = new Set();
   if (bits) {
-    for (let slot = 0; slot < metadata.length; slot++) {
-      if (bits[slot >>> 5] & (1 << (slot & 31))) ids.add(metadata[slot].id);
+    for (let slot = 0; slot < metadata.length; slot += 1) {
+      if (bits[slot >>> 5] & (1 << (slot & 31))) {
+        ids.add(metadata[slot].id);
+      }
     }
   }
   return ids;
-}
-function search(query, sort) {
+};
+const search = (query, sort) => {
   const terms = [...new Set(query.split(" ").filter(Boolean))];
   const perTerm = terms.map((term) => ({
     title: hits("title", term),
@@ -151,7 +155,7 @@ function search(query, sort) {
     let eligible = true;
     for (const hit of perTerm) {
       if (hit.title.has(row.id)) {
-        titleCount++;
+        titleCount += 1;
       } else if (!hit.content.has(row.id)) {
         eligible = false;
         break;
@@ -179,7 +183,7 @@ function search(query, sort) {
       a.id - b.id
   );
   return result.slice(0, 50).map((row) => row.id);
-}
+};
 const timings = [];
 for (const query of [
   "🫠",
@@ -195,7 +199,7 @@ for (const query of [
   for (const sort of ["title", "relevance"]) {
     const samples = [];
     let count;
-    for (let run = 0; run < 21; run++) {
+    for (let run = 0; run < 21; run += 1) {
       const start = performance.now();
       count = search(query, sort).length;
       if (run > 0) {

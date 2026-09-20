@@ -1,4 +1,5 @@
 import {
+  deleteAccountSchema,
   accountIdentitySchema,
   linkMethodSchema,
   removeMethodSchema,
@@ -37,7 +38,16 @@ import type {
   PasswordReset,
   SocialProvider,
 } from "@pr0/api-contract/accounts";
+import {
+  deletionHandleSchema,
+  deletionLookupSchema,
+  deletionResultSchema,
+  deletionTrustSchema,
+  deletionVerificationSchema,
+} from "@pr0/api-contract/deletions";
+import { deviceApprovalSchema } from "@pr0/api-contract/device";
 import { healthPath, healthResponseSchema } from "@pr0/api-contract/health";
+import { z } from "zod";
 
 import { createPromptClient } from "./prompts";
 
@@ -102,6 +112,56 @@ export const createApiClient = ({
   };
 
   return {
+    async decideDevice(
+      input: z.infer<typeof deviceApprovalSchema>,
+      approve: boolean,
+      signal?: AbortSignal
+    ) {
+      return z
+        .object({ success: z.literal(true) })
+        .parse(
+          await accountRequest(
+            `/api/auth/device/${approve ? "approve" : "deny"}`,
+            deviceApprovalSchema.parse(input),
+            signal
+          )
+        );
+    },
+    async getDeletionVerification(signal?: AbortSignal) {
+      return deletionVerificationSchema.parse(
+        await accountRequest(
+          "/api/v1/account-deletions/verification",
+          undefined,
+          signal
+        )
+      );
+    },
+    async getDeletionTrust(signal?: AbortSignal) {
+      return deletionTrustSchema.parse(
+        await accountRequest("/api/v1/account/deletion", undefined, signal)
+      );
+    },
+    async deleteAccount(
+      input: AccountIdentity & { confirmation: "delete-account" },
+      signal?: AbortSignal
+    ) {
+      return deletionResultSchema.parse(
+        await accountRequest(
+          "/api/v1/account/deletion",
+          deleteAccountSchema.parse(input),
+          signal
+        )
+      );
+    },
+    async getDeletionReceipt(handle: string, signal?: AbortSignal) {
+      return deletionLookupSchema.parse(
+        await accountRequest(
+          `/api/v1/account-deletions/${deletionHandleSchema.parse(handle)}`,
+          undefined,
+          signal
+        )
+      );
+    },
     ...createPromptClient(normalizedBaseUrl, fetcher),
     baseUrl: normalizedBaseUrl,
     async getLoginMethods(signal?: AbortSignal) {

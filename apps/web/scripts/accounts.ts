@@ -22,6 +22,8 @@ try {
         "012-tags.sql",
         "013-organization-cleanup.sql",
         "014-prompt-use.sql",
+        "015-account-deletion.sql",
+        "016-device.sql",
       ].map(async (name, index) => ({
         version: index + 1,
         source: await Bun.file(
