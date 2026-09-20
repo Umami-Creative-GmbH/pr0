@@ -21,6 +21,8 @@ Before using engineering skills or exploring the codebase, read and follow the [
 
 When using the `implement` skill, claim the ticket before starting implementation by assigning it to the currently authenticated GitHub user (`gh issue edit <number> --add-assignee "@me"`). Verify that the user appears in the ticket's assignees.
 
+When a ticket's acceptance criteria are met and required validation passes, close it as completed (`gh issue close <number> --reason completed`) and verify its closed state before reporting completion.
+
 # Runtime and data access decisions
 
 - Bun is the required JavaScript/TypeScript runtime for development, production servers, scripts and tests. Use `bun run` and `bun x --bun`; keep explicit `bun --bun` on JavaScript CLI entry points. Do not introduce a Node.js runtime requirement or fallback.
