@@ -24,7 +24,8 @@
     "test:social": "bun --env-file=tests/social.env tests/social-runner.ts",
     "test:email-change": "bun --env-file=tests/social.env tests/email-change-runner.ts",
     "test:login-methods": "bun --env-file=tests/social.env tests/login-methods-runner.ts",
-    "test:search": "bun --env-file=tests/social.env tests/search-runner.ts"
+    "test:search": "bun --env-file=tests/social.env tests/search-runner.ts",
+    "test:prompt-use": "bun --env-file=tests/social.env tests/prompt-use-runner.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.5",

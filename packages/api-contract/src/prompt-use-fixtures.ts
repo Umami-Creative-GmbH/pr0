@@ -1,0 +1,14 @@
+// Public outcomes shared with the native command conformance suite when it is added.
+export const promptUseFixtures = {
+  text: "  Hello\n\tworld 🌍\n",
+  old: "2001-01-01T00:00:00.000Z",
+  newer: "2002-01-01T00:00:00.000Z",
+  future: "2099-01-01T00:00:00.000Z",
+  invalidTimes: [
+    "0000-01-01T00:00:00.000Z",
+    "2026-02-30T00:00:00.000Z",
+    "2026-01-01",
+    "2026-01-01T00:00:00Z",
+    "2026-01-01T00:00:00.000+02:00",
+  ],
+} as const;

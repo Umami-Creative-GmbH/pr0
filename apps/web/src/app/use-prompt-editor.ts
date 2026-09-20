@@ -22,6 +22,7 @@ import type {
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { writeClipboard } from "./clipboard";
 import { promptSaveNotice } from "./prompt-save-notice";
 
 type PromptDraft = PromptText & { collectionId: string | null };
@@ -303,7 +304,7 @@ export const usePromptEditor = ({
   };
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(draft.content);
+      await writeClipboard(() => draft.content);
       setCopyMessage("Copied text.");
     } catch {
       setCopyMessage(

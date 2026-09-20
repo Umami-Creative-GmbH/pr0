@@ -65,6 +65,7 @@ const matchesTags = (stored: string, selected: string[]) => {
 const withinScope = (row: SearchMetadata, input: SearchInput) =>
   row.archived === Number(input.view === "archive") &&
   (input.view !== "favorites" || Boolean(row.favorite)) &&
+  (input.view !== "recents" || row.used !== null) &&
   (input.favorite === undefined || row.favorite === Number(input.favorite)) &&
   (!input.viewCollectionId || row.collection_id === input.viewCollectionId) &&
   (!input.collectionId || row.collection_id === input.collectionId);
@@ -324,7 +325,9 @@ export const openSearchIndex = (filename: string) => {
     search(input: SearchInput, offset: number, cancelled: () => void) {
       const query = organizationSearch(input.query);
       const terms = [...new Set(query.split(" ").filter(Boolean))];
-      const sort = input.sort ?? (query ? "relevance" : "recently-modified");
+      const browseDefault =
+        input.view === "recents" ? "recently-used" : "recently-modified";
+      const sort = input.sort ?? (query ? "relevance" : browseDefault);
       const candidatesFor = (field: Field, term: string) => {
         const points = [...term];
         if (points.length < 3) {
