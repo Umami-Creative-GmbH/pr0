@@ -3,6 +3,7 @@ import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type { Prompt, MutationReceipt } from "@pr0/api-contract/prompts";
 import { PromptFields } from "@pr0/ui/components/prompt-fields";
 
+import { PromptOriginal } from "./prompt-original";
 import { usePromptEditor } from "./use-prompt-editor";
 
 const buttonClass =
@@ -60,13 +61,11 @@ export const PromptEditor = ({
       {mappedOriginal ? (
         <div className="my-3 rounded-md border p-3">
           <p>You&apos;re editing the conflict copy.</p>
-          <button
-            className={buttonClass}
-            onClick={() => onOpen(mappedOriginal)}
-            type="button"
-          >
-            Open original
-          </button>
+          <PromptOriginal
+            library={library}
+            id={mappedOriginal}
+            onOpen={onOpen}
+          />
         </div>
       ) : null}
       {state.status === "draft" && state.message ? (

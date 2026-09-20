@@ -138,6 +138,7 @@ test("long conflict titles, tied-revision pages and old receipt replay retain ev
     {
       id: receipt.conflict.noticeId,
       originalId: base.id,
+      originalDeleted: false,
       copyId: copy.id,
       sourceTitle: title,
       revision: receipt.revision,

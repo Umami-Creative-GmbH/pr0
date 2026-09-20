@@ -232,6 +232,10 @@ test("automatic selection follows identity across reordering and checks archive 
         .getByRole("heading", { name: "Selected A", exact: true })
         .count()
     ).toBe(0);
+    // Network idle can precede React committing the newly selected detail.
+    await page
+      .getByRole("heading", { name: "Other B", exact: true })
+      .waitFor({ timeout: 10_000 });
     expect(
       await page.getByRole("heading", { name: "Other B", exact: true }).count()
     ).toBe(1);

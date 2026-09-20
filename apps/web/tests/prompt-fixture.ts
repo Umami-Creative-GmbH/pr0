@@ -5,6 +5,7 @@ import type {
   PromptText,
   Prompt,
   UpdatePrompt,
+  DeletePrompt,
 } from "@pr0/api-contract/prompts";
 import { promptTextFields } from "@pr0/api-contract/prompts";
 
@@ -17,6 +18,15 @@ const defaultText: PromptText = {
   description: "",
   content: "Hello",
 };
+export const promptDeletion = (
+  prompt: Pick<Prompt, "id" | "revision">
+): DeletePrompt => ({
+  kind: "prompt.delete",
+  operationId: crypto.randomUUID(),
+  promptId: prompt.id,
+  baseRevision: prompt.revision,
+  dependsOn: [],
+});
 export const promptOperation = (
   desired: PromptText = defaultText
 ): CreatePrompt => ({

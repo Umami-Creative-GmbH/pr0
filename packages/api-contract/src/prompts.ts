@@ -81,6 +81,7 @@ export const promptSchema = promptSummarySchema.extend({
 export const conflictNoticeSchema = z.strictObject({
   id: promptIdentitySchema,
   originalId: promptIdentitySchema,
+  originalDeleted: z.boolean(),
   copyId: promptIdentitySchema,
   sourceTitle: z.string(),
   createdAt: z.iso.datetime(),
@@ -144,6 +145,12 @@ export const updatePromptSchema = createPromptSchema.extend({
     .max(5),
 });
 export type UpdatePrompt = z.infer<typeof updatePromptSchema>;
+export const deletePromptSchema = createPromptSchema
+  .omit({ desired: true })
+  .extend({
+    kind: z.literal("prompt.delete"),
+  });
+export type DeletePrompt = z.infer<typeof deletePromptSchema>;
 export type Prompt = z.infer<typeof promptSchema>;
 export const mutationEnvelopeSchema = z.strictObject({
   protocolVersion: z.literal(1),
@@ -157,6 +164,7 @@ export const mutationEnvelopeSchema = z.strictObject({
         createPromptSchema,
         updatePromptSchema,
         duplicatePromptSchema,
+        deletePromptSchema,
       ])
     )
     .min(1)

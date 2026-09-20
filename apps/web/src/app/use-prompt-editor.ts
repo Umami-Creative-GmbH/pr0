@@ -16,6 +16,8 @@ import type {
   PromptText,
   Prompt,
   MutationReceipt,
+  CreatePrompt,
+  UpdatePrompt,
 } from "@pr0/api-contract/prompts";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -67,7 +69,12 @@ export const usePromptEditor = ({
   }>({ status: "draft", message: "", fields: {}, uncertain: false });
   const [copyMessage, setCopyMessage] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const pending = useRef<MutationEnvelope | null>(null);
+  const pending = useRef<
+    | (Omit<MutationEnvelope, "operations"> & {
+        operations: (CreatePrompt | UpdatePrompt)[];
+      })
+    | null
+  >(null);
   const inFlight = useRef(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
@@ -105,7 +112,7 @@ export const usePromptEditor = ({
   };
   const accept = (
     result: MutationReceipt,
-    submitted: MutationEnvelope["operations"][number]
+    submitted: CreatePrompt | UpdatePrompt
   ) => {
     const acceptedText = {
       ...submitted.desired,

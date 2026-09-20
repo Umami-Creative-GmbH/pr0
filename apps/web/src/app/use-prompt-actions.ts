@@ -11,7 +11,7 @@ import type {
 } from "@pr0/api-contract/prompts";
 import { useEffect, useRef, useState } from "react";
 
-export type PromptAction = "favorite" | "archived" | "duplicate";
+export type PromptAction = "favorite" | "archived" | "duplicate" | "delete";
 export const usePromptActions = ({
   library,
   onAccepted,
@@ -30,7 +30,6 @@ export const usePromptActions = ({
     envelope: MutationEnvelope;
     action: PromptAction;
     message: string;
-    text: PromptText;
   } | null>(null);
   const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -89,7 +88,7 @@ export const usePromptActions = ({
     }
   };
   const act = async (
-    target: { id: string } | Prompt,
+    target: { id: string; revision: string } | Prompt,
     action: PromptAction,
     value?: boolean
   ) => {
@@ -102,44 +101,58 @@ export const usePromptActions = ({
     setCopyMessage("");
     onDirtyChange(true);
     try {
-      const source =
-        "content" in target
-          ? target
-          : await client.getPrompt(target.id, AbortSignal.timeout(30_000), {
-              instanceId: library.instance.id,
-              accountId: library.account.id,
-            });
-      const text = {
-        title: source.title,
-        description: source.description,
-        content: source.content,
-      };
-      const common = {
-        operationId: crypto.randomUUID(),
-        promptId: source.id,
-        baseRevision: source.revision,
-        dependsOn: [],
-      };
-      const operation: MutationEnvelope["operations"][number] =
-        action === "duplicate"
-          ? {
-              ...common,
-              kind: "prompt.duplicate",
-              promptId: crypto.randomUUID(),
-              sourceId: source.id,
-              desired: text,
-            }
-          : {
-              ...common,
-              kind: "prompt.update",
-              base: { ...text, [action]: source[action] },
-              desired: { ...text, [action]: value },
-              changedFields: source[action] === value ? [] : [action],
-            };
+      let operation: MutationEnvelope["operations"][number];
+      let retained: PromptText | null = null;
+      if (action === "delete") {
+        operation = {
+          kind: "prompt.delete",
+          operationId: crypto.randomUUID(),
+          promptId: target.id,
+          baseRevision: target.revision,
+          dependsOn: [],
+        };
+      } else {
+        const source =
+          "content" in target
+            ? target
+            : await client.getPrompt(target.id, AbortSignal.timeout(30_000), {
+                instanceId: library.instance.id,
+                accountId: library.account.id,
+              });
+        const text = {
+          title: source.title,
+          description: source.description,
+          content: source.content,
+        };
+        const common = {
+          operationId: crypto.randomUUID(),
+          promptId: source.id,
+          baseRevision: source.revision,
+          dependsOn: [],
+        };
+        operation =
+          action === "duplicate"
+            ? {
+                ...common,
+                kind: "prompt.duplicate",
+                promptId: crypto.randomUUID(),
+                sourceId: source.id,
+                desired: text,
+              }
+            : {
+                ...common,
+                kind: "prompt.update",
+                base: { ...text, [action]: source[action] },
+                desired: { ...text, [action]: value },
+                changedFields: source[action] === value ? [] : [action],
+              };
+        retained = action === "duplicate" ? text : null;
+      }
       const messages = {
         favorite: "Favorite updated.",
         archived: value ? "Prompt archived." : "Prompt restored.",
         duplicate: "Prompt duplicated.",
+        delete: "Prompt permanently deleted.",
       };
       pending.current = {
         envelope: {
@@ -152,9 +165,8 @@ export const usePromptActions = ({
         },
         action,
         message: messages[action],
-        text,
       };
-      setRetainedText(action === "duplicate" ? text : null);
+      setRetainedText(retained);
       setCanRetry(true);
       await send();
     } catch (error) {

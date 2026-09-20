@@ -9,6 +9,7 @@ import type {
   MutationReceipt,
   PromptView,
 } from "@pr0/api-contract/prompts";
+import { PromptDeleteDialog } from "@pr0/ui/components/prompt-delete-dialog";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -32,12 +33,14 @@ const PromptDetail = ({
   editing,
   onAction,
   actionsBlocked,
+  onDelete,
 }: {
   detail: ReturnType<typeof usePromptSelection>["detail"];
   onEdit: (prompt: Prompt) => void;
   editing: boolean;
   onAction: (prompt: Prompt, action: PromptAction, value?: boolean) => void;
   actionsBlocked: boolean;
+  onDelete: (prompt: Prompt) => void;
 }) => (
   <section aria-labelledby="detail-heading" className="rounded-lg border p-6">
     <h2 className="text-xl font-semibold break-words" id="detail-heading">
@@ -110,6 +113,18 @@ const PromptDetail = ({
           >
             {detail.data.archived ? "Restore prompt" : "Archive prompt"}
           </button>
+          <button
+            className={buttonClass}
+            type="button"
+            disabled={actionsBlocked}
+            onClick={() => {
+              if (detail.data) {
+                onDelete(detail.data);
+              }
+            }}
+          >
+            Permanently delete prompt
+          </button>
         </div>
         {detail.data.sourceTitle &&
         detail.data.title !== `${detail.data.sourceTitle} (copy)` ? (
@@ -149,14 +164,16 @@ const PromptListRow = ({
   selectedId,
   setSelected,
   actions,
+  onDelete,
 }: {
   prompt: Pick<
     Prompt,
-    "id" | "title" | "description" | "favorite" | "archived"
+    "id" | "title" | "description" | "favorite" | "archived" | "revision"
   >;
   selectedId: string | null;
   setSelected: (id: string) => void;
   actions: ReturnType<typeof usePromptActions>;
+  onDelete: (prompt: Pick<Prompt, "id" | "title" | "revision">) => void;
 }) => (
   <li>
     <button
@@ -207,6 +224,15 @@ const PromptListRow = ({
       >
         {prompt.archived ? "Restore" : "Archive"}
       </button>
+      <button
+        className={buttonClass}
+        type="button"
+        aria-label={`Permanently delete ${prompt.title}`}
+        disabled={actions.blocked}
+        onClick={() => onDelete(prompt)}
+      >
+        Delete
+      </button>
     </div>
   </li>
 );
@@ -231,6 +257,10 @@ export const PromptLibrary = ({
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Prompt | "create" | null>(null);
   const [notice, setNotice] = useState("");
+  const [deleting, setDeleting] = useState<Pick<
+    Prompt,
+    "id" | "title" | "revision"
+  > | null>(null);
   const [view, setView] = useState<PromptView>("all");
   const editorDirty = useRef(false);
   const actionDirty = useRef(false);
@@ -263,8 +293,9 @@ export const PromptLibrary = ({
     retryDelay: promptRetryDelay,
     refetchOnWindowFocus: false,
   });
-  const usage = list.data?.pages[0]?.usage;
-  const prompts = list.data?.pages.flatMap((page) => page.prompts) ?? [];
+  const pages = list.data?.pages ?? [];
+  const usage = pages[0]?.usage;
+  const prompts = pages.flatMap((page) => page.prompts);
   const { selectedId, setSelected, detail } = usePromptSelection({
     library,
     view,
@@ -310,7 +341,17 @@ export const PromptLibrary = ({
     },
     onAccepted: (receipt, action, message) => {
       accepted();
-      setNotice(message);
+      setNotice(
+        receipt.conflict
+          ? `${message} Unseen text was preserved in a conflict copy.`
+          : message
+      );
+      if (action === "delete") {
+        setSelected(receipt.conflict?.copyId ?? null);
+        if (receipt.conflict) {
+          setView("all");
+        }
+      }
       if (action === "duplicate") {
         setView("all");
         setSelected(receipt.promptId);
@@ -318,8 +359,35 @@ export const PromptLibrary = ({
       noticeRef.current?.focus();
     },
   });
+  const openPrompt = async (id: string) => {
+    try {
+      const prompt = await client.getPrompt(id, AbortSignal.timeout(30_000), {
+        instanceId: library.instance.id,
+        accountId: library.account.id,
+      });
+      setView(prompt.archived ? "archive" : "all");
+      setSelected(id);
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? errorMessage(error)
+          : "Could not open this prompt. Try again."
+      );
+      noticeRef.current?.focus();
+    }
+  };
   return (
     <div className="space-y-6">
+      {deleting ? (
+        <PromptDeleteDialog
+          title={deleting.title}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => {
+            setDeleting(null);
+            void actions.act(deleting, "delete");
+          }}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p aria-live="polite" ref={noticeRef} tabIndex={-1}>
           {notice}
@@ -360,7 +428,12 @@ export const PromptLibrary = ({
         ))}
       </nav>
       <PromptActionStatus actions={actions} />
-      <PromptConflicts library={library} onOpen={setSelected} />
+      <PromptConflicts
+        library={library}
+        onOpen={(id) => {
+          void openPrompt(id);
+        }}
+      />
       {usage ? (
         <p className="text-muted-foreground text-sm">
           {usage.promptCount.toLocaleString()} / 10,000 prompts ·{" "}
@@ -377,7 +450,9 @@ export const PromptLibrary = ({
         <PromptEditor
           library={library}
           prompt={editing === "create" ? undefined : editing}
-          onOpen={setSelected}
+          onOpen={(id) => {
+            void openPrompt(id);
+          }}
           onCancel={() => {
             restoreFocus.current = true;
             setEditing(null);
@@ -423,6 +498,7 @@ export const PromptLibrary = ({
               selectedId={selectedId}
               setSelected={setSelected}
               actions={actions}
+              onDelete={setDeleting}
             />
           ))}
         </ul>
@@ -449,6 +525,7 @@ export const PromptLibrary = ({
             setNotice("");
           }}
           actionsBlocked={actions.blocked}
+          onDelete={setDeleting}
           onAction={(prompt, action, value) => {
             void actions.act(prompt, action, value);
           }}

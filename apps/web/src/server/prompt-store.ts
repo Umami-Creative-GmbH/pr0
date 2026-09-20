@@ -10,7 +10,6 @@ import {
   promptTextSchema,
   promptTextFields,
   promptStateFields,
-  conflictCopyTitle,
   duplicatePromptTitle,
   conflictPageSchema,
   trimPromptText,
@@ -30,6 +29,11 @@ import { lockAccount } from "./browser-proof";
 import type { BrowserAccount } from "./browser-proof";
 import { configuration } from "./config";
 import { database } from "./database";
+import { prepareConflictCopy, persistConflictCopy } from "./prompt-conflict";
+import {
+  applyPromptDeletion,
+  preserveDeletedPromptEdit,
+} from "./prompt-deletion";
 import {
   invalidPromptRequest,
   PromptFailureError,
@@ -121,20 +125,16 @@ const applyPromptUpdate = async ({
   desired: PromptText;
   hash: string;
 }) => {
+  const { base, changedFields } = validatedUpdateFields(operation, desired);
   const [current] =
     await savepoint`SELECT title, description, content, favorite, archived, revision::text, title_revision::text, description_revision::text, content_revision::text FROM prompt
         WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${operation.promptId}`;
   if (!current) {
-    throw new PromptFailureError(
-      {
-        code: "not_found",
-        message: "This prompt is not available in your library.",
-        retryable: false,
-      },
-      404
+    return preserveDeletedPromptEdit(
+      { sql: savepoint, envelope, operation, hash },
+      desired
     );
   }
-  const { base, changedFields } = validatedUpdateFields(operation, desired);
   const next = {
     title: current.title,
     description: current.description,
@@ -163,15 +163,12 @@ const applyPromptUpdate = async ({
     favorite !== current.favorite ||
     archived !== current.archived ||
     promptTextFields.some((field) => next[field] !== current[field]);
-  const copyId = conflict ? crypto.randomUUID() : null;
-  const noticeId = conflict ? crypto.randomUUID() : null;
-  const copyTitle = conflictCopyTitle(desired.title);
-  const copyBytes = conflict
-    ? utf8Bytes(copyTitle) +
-      utf8Bytes(desired.description) +
-      utf8Bytes(desired.content) +
-      utf8Bytes(desired.title)
-    : 0;
+  const preserved = conflict ? prepareConflictCopy(desired) : null;
+  const {
+    id: copyId,
+    noticeId,
+    bytes: copyBytes,
+  } = preserved ?? { id: null, noticeId: null, bytes: 0 };
   const delta = promptTextFields.reduce(
     (sum, field) => sum + utf8Bytes(next[field]) - utf8Bytes(current[field]),
     copyBytes
@@ -207,11 +204,16 @@ const applyPromptUpdate = async ({
           revision = ${accepted.revision}, modified_at = GREATEST(${accepted.accepted_at}, modified_at + interval '1 millisecond')
           WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${operation.promptId}`;
   }
-  if (conflict) {
-    await savepoint`INSERT INTO prompt(instance_id, account_id, id, title, description, content, revision, title_revision, description_revision, content_revision, created_at, modified_at)
-          VALUES (${library.instance_id}, ${browser.accountId}, ${copyId}, ${copyTitle}, ${desired.description}, ${desired.content}, ${accepted.revision}, ${accepted.revision}, ${accepted.revision}, ${accepted.revision}, ${accepted.accepted_at}, ${accepted.accepted_at})`;
-    await savepoint`INSERT INTO conflict_notice(instance_id, account_id, id, original_id, copy_id, source_title, revision, created_at)
-          VALUES (${library.instance_id}, ${browser.accountId}, ${noticeId}, ${operation.promptId}, ${copyId}, ${desired.title}, ${accepted.revision}, ${accepted.accepted_at})`;
+  if (preserved) {
+    await persistConflictCopy({
+      sql: savepoint,
+      instanceId: library.instance_id,
+      accountId: browser.accountId,
+      originalId: operation.promptId,
+      revision: accepted.revision,
+      acceptedAt: accepted.accepted_at,
+      copy: preserved,
+    });
   }
   await savepoint`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at, conflict_copy_id, conflict_notice_id)
         VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${envelope.epoch}, ${envelope.installationId}, 1, ${hash}, ${operation.kind}, ${operation.promptId}, ${accepted.revision}, ${accepted.accepted_at}, ${copyId}, ${noticeId})`;
@@ -258,11 +260,14 @@ export const mutatePrompt = (
         409
       );
     }
-    const desired = {
-      title: trimPromptText(operation.desired.title),
-      description: trimPromptText(operation.desired.description),
-      content: operation.desired.content,
-    };
+    const desired =
+      operation.kind === "prompt.delete"
+        ? null
+        : {
+            title: trimPromptText(operation.desired.title),
+            description: trimPromptText(operation.desired.description),
+            content: operation.desired.content,
+          };
     const hash = createHash("sha256")
       .update(
         JSON.stringify([
@@ -277,9 +282,9 @@ export const mutatePrompt = (
           operation.promptId,
           operation.baseRevision,
           operation.dependsOn,
-          desired.title,
-          desired.description,
-          desired.content,
+          ...(desired
+            ? [desired.title, desired.description, desired.content]
+            : []),
           ...(operation.kind === "prompt.duplicate"
             ? [operation.sourceId]
             : []),
@@ -339,7 +344,7 @@ export const mutatePrompt = (
     try {
       return await tx.savepoint(async (savepoint) => {
         const parsed = promptTextSchema.safeParse(desired);
-        if (!parsed.success) {
+        if (desired && !parsed.success) {
           const fields = Object.fromEntries(
             parsed.error.issues.map((issue) => [
               String(issue.path[0]),
@@ -369,6 +374,17 @@ export const mutatePrompt = (
               409
             );
           }
+        }
+        if (operation.kind === "prompt.delete") {
+          return applyPromptDeletion({
+            sql: savepoint,
+            envelope,
+            operation,
+            hash,
+          });
+        }
+        if (!desired) {
+          throw invalidPromptRequest();
         }
         if (operation.kind === "prompt.update") {
           return applyPromptUpdate({
@@ -665,12 +681,14 @@ export const listConflicts = (
       {
         id: string;
         original_id: string;
+        original_deleted: boolean;
         copy_id: string;
         source_title: string;
         revision: string;
         created_at: Date;
       }[]
-    >`SELECT id, original_id, copy_id, source_title, revision::text, created_at FROM conflict_notice
+    >`SELECT id, original_id, copy_id, source_title, revision::text, created_at,
+      EXISTS(SELECT 1 FROM prompt_deletion d WHERE d.instance_id = conflict_notice.instance_id AND d.account_id = conflict_notice.account_id AND d.prompt_id = conflict_notice.original_id) AS original_deleted FROM conflict_notice
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND reviewed_at IS NULL
       AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
     ORDER BY conflict_notice.revision DESC, id LIMIT ${limit + 1}`;
@@ -684,6 +702,7 @@ export const listConflicts = (
       notices: visible.map((row) => ({
         id: row.id,
         originalId: row.original_id,
+        originalDeleted: row.original_deleted,
         copyId: row.copy_id,
         sourceTitle: row.source_title,
         revision: row.revision,

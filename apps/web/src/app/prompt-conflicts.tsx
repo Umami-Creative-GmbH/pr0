@@ -60,8 +60,7 @@ export const PromptConflicts = ({
         Conflicts to review
       </summary>
       <p className="my-3">
-        Competing edits were preserved as independent prompts. Both texts remain
-        available.
+        Unseen or competing edits were preserved as independent prompts.
       </p>
       <ul className="space-y-4">
         {notices.map((notice) => (
@@ -76,13 +75,17 @@ export const PromptConflicts = ({
               </time>
             </p>
             <div className="flex flex-wrap gap-3">
-              <button
-                className={buttonClass}
-                onClick={() => onOpen(notice.originalId)}
-                type="button"
-              >
-                Open original
-              </button>
+              {notice.originalDeleted ? (
+                <p>Original permanently deleted.</p>
+              ) : (
+                <button
+                  className={buttonClass}
+                  onClick={() => onOpen(notice.originalId)}
+                  type="button"
+                >
+                  Open original
+                </button>
+              )}
               <button
                 className={buttonClass}
                 onClick={() => onOpen(notice.copyId)}

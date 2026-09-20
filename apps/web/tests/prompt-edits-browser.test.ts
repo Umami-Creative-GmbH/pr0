@@ -32,40 +32,45 @@ test("two browser sessions preserve a successor draft when a lost save response 
       browser.newContext(),
       browser.newContext(),
     ]);
-    const pages = await Promise.all(
-      contexts.map(async (context, index) => {
-        const Cookie = index === 0 ? account.Cookie : secondCookie;
-        await context.addCookies(
-          Cookie.split("; ").map((cookie) => {
-            const split = cookie.indexOf("=");
-            return {
-              name: cookie.slice(0, split),
-              value: cookie.slice(split + 1),
-              url: origin,
-            };
-          })
-        );
-        const page = await context.newPage();
-        page.on("pageerror", (error) =>
-          process.stderr.write(`Browser error: ${error.message}\n`)
-        );
-        await page.goto(origin);
-        try {
-          await page
-            .getByRole("button", { name: "Reply", exact: true })
-            .click({ timeout: 15_000 });
-        } catch (error) {
-          process.stderr.write(
-            (await page.locator("body").textContent()) ?? "No page text"
-          );
-          throw error;
-        }
+    const pages = [];
+    // Initialize each session before opening the next so setup cannot exhaust
+    // the account's four-request admission limit. Both editors stay open.
+    /* oxlint-disable no-await-in-loop -- Session setup must respect shared account admission. */
+    for (const [index, context] of contexts.entries()) {
+      const Cookie = index === 0 ? account.Cookie : secondCookie;
+      await context.addCookies(
+        Cookie.split("; ").map((cookie) => {
+          const split = cookie.indexOf("=");
+          return {
+            name: cookie.slice(0, split),
+            value: cookie.slice(split + 1),
+            url: origin,
+          };
+        })
+      );
+      const page = await context.newPage();
+      page.on("pageerror", (error) =>
+        process.stderr.write(`Browser error: ${error.message}\n`)
+      );
+      await page.goto(origin);
+      try {
         await page
-          .getByRole("button", { name: "Edit prompt", exact: true })
-          .click({ timeout: 3000 });
-        return page;
-      })
-    );
+          .getByRole("button", { name: "Reply", exact: true })
+          .click({ timeout: 15_000 });
+      } catch (error) {
+        process.stderr.write(
+          (await page.locator("body").textContent()) ?? "No page text"
+        );
+        throw error;
+      }
+      await page
+        .getByRole("button", { name: "Edit prompt", exact: true })
+        // Concurrent sessions may hit admission's five-second Retry-After.
+        .click({ timeout: 15_000 });
+      await page.waitForLoadState("networkidle");
+      pages.push(page);
+    }
+    /* oxlint-enable no-await-in-loop */
     const [a, b] = pages;
     if (!a || !b) {
       throw new Error("Two browser sessions required");
@@ -73,6 +78,7 @@ test("two browser sessions preserve a successor draft when a lost save response 
     await a.getByLabel("Content (required)").fill("A");
     await a.getByRole("button", { name: "Save", exact: true }).click();
     await a.getByText("Saved to server.", { exact: true }).waitFor();
+    await a.waitForLoadState("networkidle");
     await b.getByLabel("Content (required)").fill("B1");
     let release: (() => void) | undefined;
     // oxlint-disable-next-line promise/avoid-new -- Hold an actual committed HTTP reply while the author keeps typing.
@@ -106,7 +112,7 @@ test("two browser sessions preserve a successor draft when a lost save response 
     expect(payloads[0]).toBe(payloads[1]);
     await b
       .getByText("Conflicts to review", { exact: true })
-      .waitFor({ timeout: 3000 });
+      .waitFor({ timeout: 15_000 });
     await b
       .getByRole("button", { name: "Reply (conflict copy)", exact: true })
       .click();

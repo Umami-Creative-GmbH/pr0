@@ -17,6 +17,7 @@
     "test:prompts": "bun --env-file=tests/social.env tests/prompts-runner.ts",
     "test:prompt-edits": "bun --env-file=tests/social.env tests/prompt-edits-runner.ts",
     "test:prompt-lifecycle": "bun --env-file=tests/social.env tests/prompt-lifecycle-runner.ts",
+    "test:prompt-deletion": "bun --env-file=tests/social.env tests/prompt-deletion-runner.ts",
     "test:recovery": "bun --env-file=tests/compose.env test tests/recovery-deployment.test.ts",
     "test:social": "bun --env-file=tests/social.env tests/social-runner.ts",
     "test:email-change": "bun --env-file=tests/social.env tests/email-change-runner.ts",

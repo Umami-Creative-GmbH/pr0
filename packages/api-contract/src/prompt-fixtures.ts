@@ -1,4 +1,17 @@
 // Shared wire-level conformance vectors, usable by REST and later native checks.
+export const deletionConflictFixture = {
+  base: { title: "Reply", description: "Old context", content: "  Original\n" },
+  edited: {
+    title: "Reply",
+    description: "Unseen context",
+    content: "  Original\n",
+  },
+  copy: {
+    title: "Reply (conflict copy)",
+    description: "Unseen context",
+    content: "  Original\n",
+  },
+};
 export const invalidPromptTextFixtures = [
   { field: "title", value: "\u0085\u3000\t", reason: "blank Unicode title" },
   { field: "content", value: "\n\u2007", reason: "blank Unicode content" },
