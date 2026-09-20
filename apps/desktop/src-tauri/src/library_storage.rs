@@ -8,8 +8,15 @@ pub struct LibraryStore {
     instance: String,
     account: String,
 }
-fn io(_: rusqlite::Error) -> String {
-    "storage_unavailable".into()
+fn io(error: rusqlite::Error) -> String {
+    match error.sqlite_error_code() {
+        Some(rusqlite::ErrorCode::DiskFull) => "disk_full",
+        Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked) => {
+            "storage_busy"
+        }
+        _ => "storage_unavailable",
+    }
+    .into()
 }
 pub fn library_path(root: &Path, instance: &str, account: &str) -> Result<PathBuf, String> {
     let instance = uuid::Uuid::parse_str(instance).map_err(|_| "retained_identity_invalid")?;
@@ -32,7 +39,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 1 {
+        if version > 2 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -76,6 +83,24 @@ impl LibraryStore {
             .map_err(io)?;
         if !valid {
             return Err("snapshot_identity_mismatch".into());
+        }
+        if version < 2 {
+            db.execute_batch("BEGIN IMMEDIATE;
+                ALTER TABLE download ADD COLUMN text_bytes INTEGER NOT NULL DEFAULT 0;
+                CREATE TABLE local_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL CHECK(revision>=0), installation TEXT NOT NULL);
+                CREATE TABLE local_prompt(id TEXT PRIMARY KEY,title TEXT NOT NULL,archived INTEGER NOT NULL,record TEXT NOT NULL,text_bytes INTEGER NOT NULL);
+                CREATE TABLE outbox(id TEXT PRIMARY KEY,prompt_id TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('unsent','in_flight','accepted_awaiting_download')),local_revision INTEGER NOT NULL);
+                CREATE INDEX outbox_prompt ON outbox(prompt_id,local_revision);
+                CREATE TABLE local_receipt(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL);
+                CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt);
+                PRAGMA user_version=2;").map_err(io)?;
+            db.execute(
+                "INSERT INTO local_state VALUES(1,0,?1)",
+                [uuid::Uuid::new_v4().to_string()],
+            )
+            .map_err(io)?;
+            super::local_search::migrate(&db).map_err(io)?;
+            db.execute_batch("COMMIT").map_err(io)?;
         }
         Ok(Self {
             db,
@@ -146,6 +171,11 @@ impl LibraryStore {
             return Err("operation_cancelled".into());
         }
         if let Some(org) = records.organization {
+            tx.execute(
+                "UPDATE download SET text_bytes=?2 WHERE id=?1",
+                params![manifest.id, org.text_bytes as i64],
+            )
+            .map_err(io)?;
             for (kind, entries) in [("collection", org.collections), ("tag", org.tags)] {
                 for entry in entries {
                     tx.execute(
@@ -174,7 +204,10 @@ impl LibraryStore {
                     return Err("invalid_response".into());
                 }
             }
-            let bytes = (p.title.len() + p.description.len() + p.content.len()) as i64;
+            let bytes = (p.title.len()
+                + p.description.len()
+                + p.content.len()
+                + p.source_title.as_ref().map_or(0, String::len)) as i64;
             tx.execute(
                 "INSERT INTO prompt VALUES(?1,?2,?3,?4,?5,?6)",
                 params![
@@ -217,17 +250,15 @@ impl LibraryStore {
             tx.execute("DELETE FROM download WHERE id<>?1", [&manifest.id])
                 .map_err(io)?;
         }
+        tx.execute("UPDATE local_state SET revision=revision+1", [])
+            .map_err(io)?;
         tx.commit().map_err(io)
     }
     pub fn status(&self) -> Result<LibraryStatus, String> {
         let row: Option<(String,u32,bool)> = self.db.query_row("SELECT manifest,applied,complete FROM download WHERE id=(SELECT coalesce(staging,active) FROM state)",[], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(io)?;
         let downloaded = self
             .db
-            .query_row(
-                "SELECT count(*) FROM prompt WHERE snapshot=(SELECT active FROM state)",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT count(*) FROM visible_prompt", [], |r| r.get(0))
             .map_err(io)?;
         let mut status = LibraryStatus {
             complete: false,
@@ -238,6 +269,8 @@ impl LibraryStore {
             revision: None,
             account_id: self.account.clone(),
             instance_id: self.instance.clone(),
+            pending_changes: self.pending_count()?,
+            text_bytes: self.known_usage()?.1 as u64,
         };
         if let Some((value, applied, complete)) = row {
             let manifest: Manifest =
@@ -251,10 +284,13 @@ impl LibraryStore {
         Ok(status)
     }
     pub fn browse(&self, offset: u32) -> Result<Vec<Summary>, String> {
-        if offset > 10000 {
+        if offset > 20000 {
             return Err("invalid_input".into());
         }
-        let mut statement = self.db.prepare("SELECT id,title,archived FROM prompt WHERE snapshot=(SELECT active FROM state) ORDER BY id LIMIT 50 OFFSET ?1").map_err(io)?;
+        let mut statement = self
+            .db
+            .prepare("SELECT id,title,archived FROM visible_prompt ORDER BY id LIMIT 50 OFFSET ?1")
+            .map_err(io)?;
         let result = statement
             .query_map([offset], |r| {
                 Ok(Summary {
@@ -274,14 +310,13 @@ impl LibraryStore {
         }
         let value: Option<String> = self
             .db
-            .query_row(
-                "SELECT record FROM prompt WHERE snapshot=(SELECT active FROM state) AND id=?1",
-                [id],
-                |r| r.get(0),
-            )
+            .query_row("SELECT record FROM visible_prompt WHERE id=?1", [id], |r| {
+                r.get(0)
+            })
             .optional()
             .map_err(io)?;
         serde_json::from_str(&value.ok_or("prompt_unavailable")?)
             .map_err(|_| "storage_unavailable".into())
     }
 }
+include!("local_storage.rs");

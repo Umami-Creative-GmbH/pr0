@@ -63,6 +63,19 @@ export const SignInForm = ({ busy, status, run }: PanelProps) => {
 };
 export const SignOutControl = ({ busy, status, run }: PanelProps) => {
   const [confirm, setConfirm] = useState(false);
+  if (status.accountId && status.state !== "cleanup_required") {
+    return (
+      <section>
+        <button disabled type="button">
+          Sign out or change server
+        </button>
+        <p>
+          Account changes are unavailable in this version while local work may
+          be retained. Your prompts and drafts stay on this device.
+        </p>
+      </section>
+    );
+  }
   return (
     <section className="space-y-3">
       {confirm ? (

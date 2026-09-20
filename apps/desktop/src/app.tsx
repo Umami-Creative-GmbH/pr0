@@ -14,6 +14,7 @@ const RetainedLibrary = ({
     <DownloadedLibrary
       key={`${status.instanceId}:${status.accountId}`}
       signedIn={status.state === "signed_in"}
+      account={status}
       refreshAuth={refreshAuth}
     />
   ) : null;

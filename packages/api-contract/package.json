@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./local-prompts": "./src/local-prompts.ts",
     "./variables": "./src/variables.ts",
     "./variable-fixtures": "./src/variable-fixtures.json",
     "./variable-validation-fixtures": "./src/variable-validation-fixtures.json",

@@ -9,11 +9,18 @@ test("partial desktop download remains browsable with honest offline progress an
   try {
     const page = await browser.newPage();
     await page.addInitScript(({ manifest, pages }) => {
+      Object.defineProperty(window, "__TAURI_EVENT_PLUGIN_INTERNALS__", {
+        value: { unregisterListener: () => {} },
+      });
       let downloaded = 0;
       const [prompt] = JSON.parse(pages[0]?.payload ?? "{}").prompts;
       Object.defineProperty(window, "__TAURI_INTERNALS__", {
         value: {
+          transformCallback: () => 1,
           invoke: (command: string) => {
+            if (command.startsWith("plugin:event|")) {
+              return Promise.resolve(1);
+            }
             if (command === "auth_status") {
               return Promise.resolve({
                 state: "signed_in",
@@ -40,6 +47,8 @@ test("partial desktop download remains browsable with honest offline progress an
             ) {
               return Promise.resolve({
                 complete: false,
+                pendingChanges: 0,
+                textBytes: 0,
                 downloaded,
                 total: 2,
                 appliedPages: downloaded,
@@ -58,6 +67,13 @@ test("partial desktop download remains browsable with honest offline progress an
             }
             if (command === "library_detail") {
               return Promise.resolve(prompt);
+            }
+            if (command === "library_editor") {
+              return Promise.resolve({
+                prompt,
+                localRevision: "0",
+                pending: false,
+              });
             }
             return Promise.reject(new Error("unexpected_command"));
           },

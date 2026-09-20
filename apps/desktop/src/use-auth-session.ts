@@ -31,6 +31,8 @@ export type Command =
 const command = async (name: Command, origin?: string) =>
   statusSchema.parse(await invoke(name, origin ? { origin } : undefined));
 const errors = {
+  pending_work:
+    "Changes are waiting to sync. Sign-out is unavailable; your local work is retained.",
   invalid_instance:
     "Enter a trusted HTTPS server address without a path, username, or query.",
   incompatible_instance:
@@ -52,6 +54,7 @@ const errors = {
 };
 const errorCodeSchema = z.keyof(
   z.object({
+    pending_work: z.string(),
     invalid_instance: z.string(),
     incompatible_instance: z.string(),
     instance_identity_changed: z.string(),

@@ -1,10 +1,17 @@
+import {
+  localPromptSchema,
+  localSaveSchema,
+} from "@pr0/api-contract/local-prompts";
+import type { LocalSave } from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
 const statusSchema = z.strictObject({
+  pendingChanges: z.number().int().nonnegative(),
+  textBytes: z.number().int().nonnegative(),
   complete: z.boolean(),
-  downloaded: z.number().int().min(0).max(10_000),
+  downloaded: z.number().int().min(0),
   total: z.number().int().min(0).max(10_000),
   appliedPages: z.number().int().min(0).max(1024),
   totalPages: z.number().int().min(0).max(1024),
@@ -20,6 +27,36 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  editor: async (id: string) =>
+    localPromptSchema.parse(await invoke("library_editor", { id })),
+  save: async (request: LocalSave) => {
+    const input = localSaveSchema.parse(request);
+    const result = localPromptSchema.parse(
+      await invoke(
+        input.expectedLocalRevision === null
+          ? "library_create"
+          : "library_edit",
+        { request: input }
+      )
+    );
+    if (
+      result.prompt.id !== input.promptId ||
+      result.prompt.accountId !== input.accountId ||
+      result.prompt.instanceId !== input.instanceId
+    ) {
+      throw new Error("invalid_native_response");
+    }
+    return result;
+  },
+  copyDraft: async (request: LocalSave) => {
+    // Copy recovery accepts even an invalid/oversized save draft within a bounded native limit.
+    await invoke("library_copy_draft", {
+      instanceId: request.instanceId,
+      accountId: request.accountId,
+      generation: request.generation,
+      text: request.desired.content,
+    });
+  },
   status: async () => statusSchema.parse(await invoke("library_status")),
   download: async () => statusSchema.parse(await invoke("library_download")),
   browse: async (offset: number) =>

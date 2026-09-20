@@ -12,6 +12,10 @@ fn main() {
             "library_download",
             "library_browse",
             "library_detail",
+            "library_editor",
+            "library_create",
+            "library_edit",
+            "library_copy_draft",
         ]),
     ))
     .expect("could not build native permissions");

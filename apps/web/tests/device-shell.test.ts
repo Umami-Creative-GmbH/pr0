@@ -69,6 +69,10 @@ test("built Tauri shell exposes typed account/library commands and denies remote
         "window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('library_browse', {offset:0}).then(() => false, () => true) : true"
       );
       expect(libraryDenied).toBe(true);
+      const savesDenied = await page.evaluate(
+        "window.__TAURI_INTERNALS__ ? Promise.all(['library_create','library_edit','library_editor','library_copy_draft'].map(command => window.__TAURI_INTERNALS__.invoke(command, {}).then(() => false, () => true))) : [true,true,true,true]"
+      );
+      expect(savesDenied).toEqual([true, true, true, true]);
     } finally {
       await browser.close();
     }

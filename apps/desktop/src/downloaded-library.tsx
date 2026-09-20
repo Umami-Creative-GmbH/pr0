@@ -1,21 +1,30 @@
-import type { Prompt } from "@pr0/api-contract/prompts";
+import type { LocalPrompt } from "@pr0/api-contract/local-prompts";
+import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadedSummary, DownloadStatus } from "./library-client";
+import { LocalLibraryStatus } from "./local-library-status";
+import { LocalPromptDetail } from "./local-prompt-detail";
+import { LocalPromptEditor } from "./local-prompt-editor";
+import type { Status } from "./use-auth-session";
 
 export const DownloadedLibrary = ({
   signedIn,
   refreshAuth,
+  account,
 }: {
+  account: Status;
   signedIn: boolean;
   refreshAuth: (command: "auth_status") => Promise<void>;
 }) => {
   const [status, setStatus] = useState<DownloadStatus>();
   const [rows, setRows] = useState<DownloadedSummary[]>([]);
-  const [detail, setDetail] = useState<Prompt>();
+  const [localDetail, setLocalDetail] = useState<LocalPrompt>();
+  const [editor, setEditor] = useState<{ initial?: LocalPrompt }>();
   const [offset, setOffset] = useState(0);
   const [errorText, setErrorText] = useState("");
+  const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const alive = useRef(true);
@@ -26,6 +35,30 @@ export const DownloadedLibrary = ({
     alive.current = true;
     return () => {
       alive.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    const refresh = () => setRetry((value) => value + 1);
+    const subscribe = async () => {
+      try {
+        const unlisten = await listen("library-changed", refresh);
+        if (disposed) {
+          unlisten();
+        } else {
+          stop = unlisten;
+        }
+      } catch {
+        // Focus and explicit retry still refresh authoritative state if event registration fails.
+      }
+    };
+    void subscribe();
+    window.addEventListener("focus", refresh);
+    return () => {
+      disposed = true;
+      stop?.();
+      window.removeEventListener("focus", refresh);
     };
   }, []);
   useEffect(() => {
@@ -62,6 +95,7 @@ export const DownloadedLibrary = ({
       } catch (error) {
         if (!cancelled) {
           setErrorText(downloadError(error));
+          setOffline(error === "network_unavailable");
           if (error === "authentication_required") {
             await refreshAuth("auth_status");
           }
@@ -97,9 +131,9 @@ export const DownloadedLibrary = ({
     selection.current += 1;
     const request = selection.current;
     try {
-      const prompt = await libraryClient.detail(id);
+      const value = await libraryClient.editor(id);
       if (alive.current && request === selection.current) {
-        setDetail(prompt);
+        setLocalDetail(value);
       }
     } catch (error) {
       if (alive.current) {
@@ -110,6 +144,31 @@ export const DownloadedLibrary = ({
   return (
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
+      <LocalLibraryStatus
+        status={status}
+        signedIn={signedIn}
+        offline={offline}
+      />
+      <button
+        type="button"
+        className="rounded border px-4 py-2"
+        disabled={Boolean(editor)}
+        onClick={() => setEditor({})}
+      >
+        New prompt
+      </button>
+      {editor ? (
+        <LocalPromptEditor
+          initial={editor.initial}
+          account={account}
+          onCancel={() => setEditor(undefined)}
+          onSaved={(value) => {
+            setEditor(undefined);
+            setLocalDetail(value);
+            setRetry((count) => count + 1);
+          }}
+        />
+      ) : null}
       <output className="block">
         {status?.complete
           ? `Library downloaded at revision ${status.revision}. Available offline.`
@@ -179,25 +238,12 @@ export const DownloadedLibrary = ({
           Next
         </button>
       </nav>
-      {detail ? (
-        <article
-          aria-label="Prompt detail"
-          className="space-y-3 rounded border p-4"
-        >
-          <h3 className="text-lg font-semibold">{detail.title}</h3>
-          {detail.description ? (
-            <p className="whitespace-pre-wrap">{detail.description}</p>
-          ) : null}
-          <label className="block" htmlFor="downloaded-content">
-            Prompt content
-          </label>
-          <textarea
-            className="min-h-48 w-full rounded border p-3"
-            id="downloaded-content"
-            readOnly
-            value={detail.content}
-          />
-        </article>
+      {localDetail ? (
+        <LocalPromptDetail
+          value={localDetail}
+          editing={Boolean(editor)}
+          onEdit={() => setEditor({ initial: localDetail })}
+        />
       ) : null}
     </section>
   );

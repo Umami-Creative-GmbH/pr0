@@ -1,0 +1,30 @@
+[
+  { "field": "title", "value": "\u0085\u3000\t", "repeat": 1, "valid": false },
+  { "field": "title", "value": "🌍", "repeat": 200, "valid": true },
+  { "field": "title", "value": "🌍", "repeat": 201, "valid": false },
+  { "field": "description", "value": "🌍", "repeat": 2000, "valid": true },
+  { "field": "description", "value": "🌍", "repeat": 2001, "valid": false },
+  { "field": "content", "value": "🌍", "repeat": 65536, "valid": true },
+  { "field": "content", "value": "🌍", "repeat": 65537, "valid": false },
+  { "field": "content", "value": "\n\u2007", "repeat": 1, "valid": false },
+  {
+    "field": "content",
+    "value": "before\u0000after",
+    "repeat": 1,
+    "valid": false
+  },
+  { "field": "content", "value": "\uFEFF", "repeat": 1, "valid": true },
+  {
+    "field": "content",
+    "value": "  Exact\n\ttext  ",
+    "repeat": 1,
+    "valid": true
+  },
+  {
+    "field": "title",
+    "value": "",
+    "invalidScalar": 55296,
+    "repeat": 1,
+    "valid": false
+  }
+]

@@ -1,5 +1,29 @@
 // Included in auth's module so the active identity/connection share its generation lock.
 impl AuthService {
+    pub fn copy_draft(
+        &self,
+        instance: &str,
+        account: &str,
+        generation: u64,
+        text: &str,
+        write: impl FnOnce(&str) -> Result<(), String>,
+    ) -> Result<(), String> {
+        // No queued overlapping writes, and account transitions cannot race this short OS call.
+        let state = self.state.try_lock().map_err(|_| "clipboard_busy")?;
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if state.clearing
+            || retained.cleanup_pending
+            || generation != state.generation
+            || retained.identity.instance.id != instance
+            || retained.identity.account.id != account
+        {
+            return Err("operation_cancelled".into());
+        }
+        if text.len() > 4_194_304 || text.contains('\0') {
+            return Err("copy_text_too_large".into());
+        }
+        write(text)
+    }
     fn library_cleanup_paths(&self, state: &State) -> Result<Vec<PathBuf>, String> {
         let Some(retained) = &state.retained else {
             return Ok(vec![]);
@@ -44,7 +68,7 @@ impl AuthService {
                 return Err("local_data_requires_review".into());
             }
         }
-        // Version 1 contains downloaded data only. Unknown newer schemas may own pending edits.
+        // Pending work must survive until account-transition controls can resolve it.
         if paths.first().is_some_and(|path| path.exists()) {
             let retained = state.retained.as_ref().ok_or("authentication_required")?;
             if state.library.is_none() {
@@ -53,6 +77,15 @@ impl AuthService {
                     &retained.identity.instance.id,
                     &retained.identity.account.id,
                 )?);
+            }
+            if state
+                .library
+                .as_ref()
+                .ok_or("storage_unavailable")?
+                .pending_count()?
+                > 0
+            {
+                return Err("pending_work".into());
             }
         }
         Ok(())
@@ -80,6 +113,46 @@ impl AuthService {
     pub fn library_status(&self) -> Result<LibraryStatus, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
         self.library(&mut state)?.status()
+    }
+    pub fn library_create(
+        &self,
+        request: super::local_contract::SaveRequest,
+    ) -> Result<super::local_contract::LocalPrompt, String> {
+        self.save_prompt(request, true)
+    }
+    pub fn library_edit(
+        &self,
+        request: super::local_contract::SaveRequest,
+    ) -> Result<super::local_contract::LocalPrompt, String> {
+        self.save_prompt(request, false)
+    }
+    pub fn library_editor(&self, id: &str) -> Result<super::local_contract::LocalPrompt, String> {
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        self.library(&mut state)?.local_detail(id)
+    }
+    #[cfg(test)]
+    pub fn library_pending(&self) -> Result<Vec<super::local_contract::PendingChange>, String> {
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        self.library(&mut state)?.pending_changes()
+    }
+    fn save_prompt(
+        &self,
+        request: super::local_contract::SaveRequest,
+        create: bool,
+    ) -> Result<super::local_contract::LocalPrompt, String> {
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if state.generation != request.generation
+            || retained.identity.instance.id != request.instance_id
+            || retained.identity.account.id != request.account_id
+        {
+            return Err("operation_cancelled".into());
+        }
+        let result = self.library(&mut state)?.save(request, create);
+        if result.is_err() {
+            state.library = None;
+        }
+        result
     }
     pub fn library_browse(&self, offset: u32) -> Result<Vec<Summary>, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;

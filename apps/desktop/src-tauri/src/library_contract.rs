@@ -85,6 +85,8 @@ pub struct Summary {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryStatus {
+    pub text_bytes: u64,
+    pub pending_changes: u32,
     pub complete: bool,
     pub downloaded: u32,
     pub total: u32,

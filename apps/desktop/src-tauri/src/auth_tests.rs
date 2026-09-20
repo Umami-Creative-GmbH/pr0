@@ -1,6 +1,7 @@
 use super::auth::*;
 use serde_json::json;
 use std::sync::{Arc, Mutex};
+include!("local_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     serde_json::from_str(include_str!(
@@ -29,6 +30,94 @@ fn sign_in(service: &AuthService) {
     let rendered = serde_json::to_string(&service.status().unwrap()).unwrap();
     assert!(!rendered.contains("fixture-session-secret-only"));
     assert!(!rendered.contains("fixture-device-code-only"));
+}
+
+#[test]
+fn offline_save_reopens_exact_text_and_pending_work_and_prevents_sign_out() {
+    let directory = std::env::temp_dir().join(format!("pr0-save-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    sign_in(&service);
+    let request: super::local_contract::SaveRequest = serde_json::from_value(json!({
+        "instanceId": fixtures()["session"]["instance"]["id"],
+        "accountId": fixtures()["session"]["account"]["id"],
+        "generation": view(&service)["generation"],
+        "operationId": "77777777-7777-4777-8777-777777777777",
+        "promptId": "88888888-8888-4888-8888-888888888888",
+        "expectedLocalRevision": null,
+        "desired": {"title":"  Offline  ", "description":"  Notes  ", "content":"  My complete draft\n"}
+    })).unwrap();
+    let saved = service.library_create(request.clone()).unwrap();
+    assert_eq!(saved.prompt.title, "Offline");
+    assert_eq!(saved.prompt.content, "  My complete draft\n");
+    assert_eq!(
+        service.library_create(request).unwrap().local_revision,
+        saved.local_revision
+    );
+    assert_eq!(service.sign_out().err().as_deref(), Some("pending_work"));
+    drop(service);
+    let reopened = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    assert_eq!(
+        reopened.library_detail(&saved.prompt.id).unwrap().content,
+        "  My complete draft\n"
+    );
+    assert_eq!(reopened.library_status().unwrap().pending_changes, 1);
+    assert_eq!(reopened.library_browse(0).unwrap()[0].title, "Offline");
+    drop(reopened);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn offline_edit_rejects_stale_window_and_unchanged_save_keeps_dates() {
+    use super::local_contract::{PromptText, SaveRequest};
+    let directory = std::env::temp_dir().join(format!("pr0-edit-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    sign_in(&service);
+    let mut request = SaveRequest {
+        instance_id: "11111111-1111-4111-8111-111111111111".into(),
+        account_id: "33333333-3333-4333-8333-333333333333".into(),
+        generation: view(&service)["generation"].as_u64().unwrap(),
+        operation_id: uuid::Uuid::new_v4().to_string(),
+        prompt_id: uuid::Uuid::new_v4().to_string(),
+        expected_local_revision: None,
+        desired: PromptText {
+            title: "Draft".into(),
+            description: "".into(),
+            content: "First".into(),
+        },
+    };
+    let first = service.library_create(request.clone()).unwrap();
+    request.expected_local_revision = Some(first.local_revision.clone());
+    request.operation_id = uuid::Uuid::new_v4().to_string();
+    let unchanged = service.library_edit(request.clone()).unwrap();
+    assert_eq!(unchanged.local_revision, first.local_revision);
+    assert_eq!(unchanged.prompt.modified_at, first.prompt.modified_at);
+    request.operation_id = uuid::Uuid::new_v4().to_string();
+    request.desired.content = "Second".into();
+    let changed = service.library_edit(request.clone()).unwrap();
+    assert_ne!(changed.local_revision, first.local_revision);
+    let mut stale = request.clone();
+    stale.operation_id = uuid::Uuid::new_v4().to_string();
+    stale.desired.content = "Other window complete draft".into();
+    assert_eq!(
+        service.library_edit(stale).err().as_deref(),
+        Some("local_revision_conflict")
+    );
+    assert_eq!(
+        service
+            .library_editor(&request.prompt_id)
+            .unwrap()
+            .prompt
+            .content,
+        "Second"
+    );
+    assert_eq!(service.library_status().unwrap().pending_changes, 1);
+    let pending = service.library_pending().unwrap();
+    assert_eq!(pending[0].payload["kind"], "prompt.create");
+    assert_eq!(pending[0].payload["desired"]["content"], "Second");
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
 }
 
 #[test]
