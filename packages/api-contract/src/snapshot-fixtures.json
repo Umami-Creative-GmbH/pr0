@@ -1,0 +1,35 @@
+{
+  "manifest": {
+    "instanceId": "11111111-1111-4111-8111-111111111111",
+    "accountId": "33333333-3333-4333-8333-333333333333",
+    "version": 1,
+    "normalization": "pr0-search-v1-ucd17",
+    "id": "55555555-5555-4555-8555-555555555555",
+    "epoch": "88888888-8888-4888-8888-888888888888",
+    "revision": "2",
+    "expiresAt": "2099-01-01T00:15:00.000Z",
+    "promptCount": 2,
+    "pages": [
+      {
+        "digest": "0e7cc08841f0693a5a639b39ac7e8beb612c38e3f273a2885dba47da1c360aa1",
+        "bytes": 612
+      },
+      {
+        "digest": "14a4a1dbdac7aeeaa1c90bc86d253f8266247c140e7cc7b4f4f49fdb6d6429a7",
+        "bytes": 456
+      }
+    ]
+  },
+  "pages": [
+    {
+      "id": "55555555-5555-4555-8555-555555555555",
+      "page": 0,
+      "payload": "{\"organization\":{\"instanceId\":\"11111111-1111-4111-8111-111111111111\",\"accountId\":\"33333333-3333-4333-8333-333333333333\",\"revision\":\"2\",\"textBytes\":30,\"collections\":[],\"tags\":[]},\"prompts\":[{\"instanceId\":\"11111111-1111-4111-8111-111111111111\",\"accountId\":\"33333333-3333-4333-8333-333333333333\",\"id\":\"66666666-6666-4666-8666-666666666666\",\"title\":\"First\",\"description\":\"\",\"content\":\"  Hello offline\\n\",\"revision\":\"1\",\"createdAt\":\"2026-09-20T10:00:00.000Z\",\"modifiedAt\":\"2026-09-20T10:00:00.000Z\",\"favorite\":false,\"archived\":false,\"collectionId\":null,\"tagIds\":[],\"useCount\":0,\"lastUsedAt\":null,\"sourceTitle\":null}]}"
+    },
+    {
+      "id": "55555555-5555-4555-8555-555555555555",
+      "page": 1,
+      "payload": "{\"organization\":null,\"prompts\":[{\"instanceId\":\"11111111-1111-4111-8111-111111111111\",\"accountId\":\"33333333-3333-4333-8333-333333333333\",\"id\":\"77777777-7777-4777-8777-777777777777\",\"title\":\"Second\",\"description\":\"\",\"content\":\"  Hello offline\\n\",\"revision\":\"1\",\"createdAt\":\"2026-09-20T10:00:00.000Z\",\"modifiedAt\":\"2026-09-20T10:00:00.000Z\",\"favorite\":false,\"archived\":false,\"collectionId\":null,\"tagIds\":[],\"useCount\":0,\"lastUsedAt\":null,\"sourceTitle\":null}]}"
+    }
+  ]
+}

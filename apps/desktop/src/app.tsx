@@ -1,5 +1,22 @@
 import { SignInForm, SignOutControl } from "./auth-panels";
+import { DownloadedLibrary } from "./downloaded-library";
+import type { Status } from "./use-auth-session";
 import { useAuthSession } from "./use-auth-session";
+
+const RetainedLibrary = ({
+  status,
+  refreshAuth,
+}: {
+  status?: Status;
+  refreshAuth: (command: "auth_status") => Promise<void>;
+}) =>
+  status?.accountId && status.state !== "cleanup_required" ? (
+    <DownloadedLibrary
+      key={`${status.instanceId}:${status.accountId}`}
+      signedIn={status.state === "signed_in"}
+      refreshAuth={refreshAuth}
+    />
+  ) : null;
 
 export const App = () => {
   const { status, busy, error, notice, run } = useAuthSession();
@@ -20,10 +37,7 @@ export const App = () => {
       {status?.state === "signed_in" ? (
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">Signed in on this computer</h2>
-          <p>
-            Your sign-in is stored under your Windows account. Library download
-            is not available in this version.
-          </p>
+          <p>Your sign-in is stored under your Windows account.</p>
           <button
             className="rounded border px-4 py-2"
             disabled={busy}
@@ -36,6 +50,7 @@ export const App = () => {
           </button>
         </section>
       ) : null}
+      <RetainedLibrary status={status} refreshAuth={run} />
       {status?.state === "signed_out" ||
       status?.state === "authentication_required" ? (
         <SignInForm busy={busy} run={run} status={status} />

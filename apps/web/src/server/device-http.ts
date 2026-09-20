@@ -37,7 +37,7 @@ const response = (body: unknown, status = 200, headers = new Headers()) => {
   headers.set("Referrer-Policy", "no-referrer");
   return Response.json(body, { status, headers });
 };
-const nativeOrigin = (request: Request) => {
+export const nativeOrigin = (request: Request) => {
   // Native callers do not have browser cookies or Fetch Metadata. A bearer in a
   // cookie never grants native or browser-only authority.
   if (

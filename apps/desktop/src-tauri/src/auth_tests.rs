@@ -32,6 +32,79 @@ fn sign_in(service: &AuthService) {
 }
 
 #[test]
+fn partial_library_survives_restart_and_completes_through_native_commands() {
+    let data: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/snapshot-fixtures.json"
+    ))
+    .unwrap();
+    let directory = std::env::temp_dir().join(format!("pr0-library-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let transport = approval();
+    transport.0.lock().unwrap().pop();
+    transport
+        .0
+        .lock()
+        .unwrap()
+        .extend([data["manifest"].clone(), data["pages"][0].clone()]);
+    let service = AuthService::new(directory.clone(), transport, vault.clone()).unwrap();
+    sign_in(&service);
+    let status = service.library_download().unwrap();
+    assert!(!status.complete);
+    assert_eq!(status.downloaded, 1);
+    drop(service);
+    let transport = Arc::new(Fixture(Mutex::new(vec![data["pages"][1].clone()])));
+    let reopened = AuthService::new(directory.clone(), transport, vault).unwrap();
+    assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
+    assert_eq!(
+        reopened
+            .library_detail("66666666-6666-4666-8666-666666666666")
+            .unwrap()
+            .content,
+        "  Hello offline\n"
+    );
+    assert!(reopened.library_download().unwrap().complete);
+    assert_eq!(reopened.library_browse(0).unwrap().len(), 2);
+    drop(reopened);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn invalid_page_preserves_downloaded_prompts_and_sign_out_cleans_only_its_partition() {
+    let data: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/snapshot-fixtures.json"
+    ))
+    .unwrap();
+    let directory = std::env::temp_dir().join(format!("pr0-library-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let transport = approval();
+    transport.0.lock().unwrap().pop();
+    let mut corrupt = data["pages"][1].clone();
+    corrupt["payload"] = json!("tampered");
+    transport.0.lock().unwrap().extend([
+        data["manifest"].clone(),
+        data["pages"][0].clone(),
+        corrupt,
+        json!({"success":true}),
+    ]);
+    let service = AuthService::new(directory.clone(), transport, vault.clone()).unwrap();
+    sign_in(&service);
+    service.library_download().unwrap();
+    assert_eq!(
+        service.library_download().err().as_deref(),
+        Some("snapshot_digest_mismatch")
+    );
+    assert_eq!(service.library_browse(0).unwrap().len(), 1);
+    assert!(!service.library_status().unwrap().complete);
+    service.sign_out().unwrap();
+    assert!(service.library_browse(0).is_err());
+    drop(service);
+    let reopened = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    assert_eq!(view(&reopened)["state"], "signed_out");
+    drop(reopened);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn persistent_sign_in_reopens_and_missing_credentials_preserve_identity_and_files() {
     let directory = std::env::temp_dir().join(format!("pr0-auth-test-{}", uuid::Uuid::new_v4()));
     let vault = Arc::new(Vault::default());
@@ -358,11 +431,21 @@ fn live_https_worker() {
             break;
         }
         let result = match command {
-            "status" => service.restore(),
-            "begin" => service.begin(input["origin"].as_str().unwrap()),
-            "poll" => service.poll(),
-            "sign_out" => service.sign_out(),
-            "refresh" => service.refresh(),
+            "status" => service.restore().map(|value| json!(value)),
+            "begin" => service
+                .begin(input["origin"].as_str().unwrap())
+                .map(|value| json!(value)),
+            "poll" => service.poll().map(|value| json!(value)),
+            "sign_out" => service.sign_out().map(|value| json!(value)),
+            "refresh" => service.refresh().map(|value| json!(value)),
+            "library_status" => service.library_status().map(|value| json!(value)),
+            "library_download" => service.library_download().map(|value| json!(value)),
+            "library_browse" => service
+                .library_browse(input["offset"].as_u64().unwrap_or(0) as u32)
+                .map(|value| json!(value)),
+            "library_detail" => service
+                .library_detail(input["id"].as_str().unwrap())
+                .map(|value| json!(value)),
             _ => Err("unknown_command".into()),
         };
         println!("PR0_RESULT:{}", serde_json::to_string(&result).unwrap());
@@ -533,6 +616,165 @@ fn concurrent_restore_waits_for_the_same_revocation_check() {
 }
 
 struct Fixture(Mutex<Vec<serde_json::Value>>);
+
+#[test]
+fn manifest_authorization_failure_requires_sign_in_without_erasing_identity() {
+    let directory = std::env::temp_dir().join(format!("pr0-library-test-{}", uuid::Uuid::new_v4()));
+    let transport = approval();
+    transport.0.lock().unwrap().pop();
+    transport
+        .0
+        .lock()
+        .unwrap()
+        .push(json!({"fixtureFailure":"authentication_required"}));
+    let service =
+        AuthService::new(directory.clone(), transport, Arc::new(Vault::default())).unwrap();
+    sign_in(&service);
+    assert_eq!(
+        service.library_download().err().as_deref(),
+        Some("authentication_required")
+    );
+    assert_eq!(view(&service)["state"], "authentication_required");
+    assert_eq!(service.library_status().unwrap().downloaded, 0);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn expiry_and_offline_restart_preserve_the_prior_usable_download() {
+    let data: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/snapshot-fixtures.json"
+    ))
+    .unwrap();
+    let directory = std::env::temp_dir().join(format!("pr0-library-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let transport = approval();
+    transport.0.lock().unwrap().pop();
+    transport.0.lock().unwrap().extend([
+        data["manifest"].clone(),
+        data["pages"][0].clone(),
+        json!({"fixtureFailure":"network_unavailable"}),
+    ]);
+    let service = AuthService::new(directory.clone(), transport, vault.clone()).unwrap();
+    sign_in(&service);
+    service.library_download().unwrap();
+    assert_eq!(
+        service.library_download().err().as_deref(),
+        Some("network_unavailable")
+    );
+    drop(service);
+    let mut fresh = data["manifest"].clone();
+    fresh["id"] = json!("99999999-9999-4999-8999-999999999999");
+    let mut first = data["pages"][0].clone();
+    first["id"] = fresh["id"].clone();
+    let mut second = data["pages"][1].clone();
+    second["id"] = fresh["id"].clone();
+    let transport = Arc::new(Fixture(Mutex::new(vec![
+        json!({"fixtureFailure":"snapshot_expired"}),
+        fresh,
+        first,
+        second,
+    ])));
+    let reopened = AuthService::new(directory.clone(), transport, vault).unwrap();
+    assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
+    assert_eq!(
+        reopened.library_download().err().as_deref(),
+        Some("snapshot_expired")
+    );
+    assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
+    assert!(!reopened.library_download().unwrap().complete);
+    assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
+    assert!(reopened.library_download().unwrap().complete);
+    assert_eq!(reopened.library_browse(0).unwrap().len(), 2);
+    drop(reopened);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn missing_credentials_and_another_accounts_manifest_cannot_replace_local_prompts() {
+    let data: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/snapshot-fixtures.json"
+    ))
+    .unwrap();
+    let directory = std::env::temp_dir().join(format!("pr0-library-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let transport = approval();
+    transport.0.lock().unwrap().pop();
+    let mut foreign = data["manifest"].clone();
+    foreign["accountId"] = json!("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    transport.0.lock().unwrap().extend([
+        foreign,
+        data["manifest"].clone(),
+        data["pages"][0].clone(),
+    ]);
+    let service = AuthService::new(directory.clone(), transport, vault.clone()).unwrap();
+    sign_in(&service);
+    assert_eq!(
+        service.library_download().err().as_deref(),
+        Some("invalid_response")
+    );
+    assert!(service.library_browse(0).unwrap().is_empty());
+    service.library_download().unwrap();
+    drop(service);
+    vault.delete().unwrap();
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    assert_eq!(view(&service)["state"], "authentication_required");
+    assert_eq!(service.library_browse(0).unwrap().len(), 1);
+    assert_eq!(
+        service.library_download().err().as_deref(),
+        Some("authentication_required")
+    );
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn local_io_failure_does_not_acknowledge_a_page_or_erase_prior_prompts() {
+    let data: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/snapshot-fixtures.json"
+    ))
+    .unwrap();
+    let directory = std::env::temp_dir().join(format!("pr0-library-test-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let transport = approval();
+    transport.0.lock().unwrap().pop();
+    transport
+        .0
+        .lock()
+        .unwrap()
+        .extend([data["manifest"].clone(), data["pages"][0].clone()]);
+    let service = AuthService::new(directory.clone(), transport, vault.clone()).unwrap();
+    sign_in(&service);
+    service.library_download().unwrap();
+    drop(service);
+    // Inject a real filesystem write failure at the native storage boundary.
+    let path = super::library_storage::library_path(
+        &directory,
+        "11111111-1111-4111-8111-111111111111",
+        "33333333-3333-4333-8333-333333333333",
+    )
+    .unwrap();
+    let original = std::fs::metadata(&path).unwrap().permissions();
+    let mut blocked = original.clone();
+    blocked.set_readonly(true);
+    std::fs::set_permissions(&path, blocked).unwrap();
+    let service = AuthService::new(directory.clone(), approval(), vault.clone()).unwrap();
+    let failed = service.library_download();
+    drop(service);
+    std::fs::set_permissions(&path, original).unwrap();
+    assert!(failed.is_err());
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    assert_eq!(service.library_status().unwrap().applied_pages, 1);
+    assert_eq!(
+        service
+            .library_detail("66666666-6666-4666-8666-666666666666")
+            .unwrap()
+            .content,
+        "  Hello offline\n"
+    );
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
 impl Transport for Fixture {
     fn request(
         &self,
@@ -541,7 +783,14 @@ impl Transport for Fixture {
         _: Option<&str>,
         _: Option<serde_json::Value>,
     ) -> Result<serde_json::Value, String> {
-        Ok(self.0.lock().unwrap().remove(0))
+        let value = self.0.lock().unwrap().remove(0);
+        if let Some(error) = value
+            .get("fixtureFailure")
+            .and_then(serde_json::Value::as_str)
+        {
+            return Err(error.into());
+        }
+        Ok(value)
     }
     fn open_browser(&self, _: &str) -> Result<(), String> {
         Ok(())

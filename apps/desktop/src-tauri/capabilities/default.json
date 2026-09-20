@@ -10,6 +10,10 @@
     "allow-auth-cancel",
     "allow-auth-open-browser",
     "allow-auth-refresh",
-    "allow-auth-sign-out"
+    "allow-auth-sign-out",
+    "allow-library-status",
+    "allow-library-download",
+    "allow-library-browse",
+    "allow-library-detail"
   ]
 }
