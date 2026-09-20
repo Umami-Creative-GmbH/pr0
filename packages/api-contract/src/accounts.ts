@@ -7,6 +7,48 @@ export const credentialsSchema = z.strictObject({
 });
 export const emailRequestSchema = z.strictObject({ email: emailSchema });
 export const emptyRequestSchema = z.strictObject({});
+export const accountIdentitySchema = z.strictObject({
+  accountId: z.uuid(),
+  emailVersion: z.number().int().nonnegative(),
+});
+export const passwordReauthenticationSchema = accountIdentitySchema.extend({
+  password: z.string().min(12).max(128),
+});
+export const challengeVerificationSchema = accountIdentitySchema.extend({
+  challengeId: z.uuid(),
+  code: z.string().regex(/^\d{8}$/u),
+});
+export const reauthenticationSchema = z.union([
+  passwordReauthenticationSchema,
+  challengeVerificationSchema,
+]);
+export const accountChallengeSchema = z.strictObject({
+  challengeId: z.uuid(),
+  expiresAt: z.iso.datetime(),
+});
+export const emailChangeSchema = accountIdentitySchema.extend({
+  email: emailSchema,
+});
+export const notificationStateSchema = z.enum(["pending", "sent", "failed"]);
+export const accountSettingsSchema = accountIdentitySchema.extend({
+  email: emailSchema,
+  reauthentication: z.enum(["password", "email"]),
+  freshUntil: z.iso.datetime().nullable(),
+  notification: notificationStateSchema.nullable(),
+});
+export const emailChangedSchema = z.strictObject({
+  status: z.literal("email_changed"),
+  notification: notificationStateSchema,
+});
+export type AccountIdentity = z.infer<typeof accountIdentitySchema>;
+export type Reauthentication = z.infer<typeof reauthenticationSchema>;
+export type EmailChange = z.infer<typeof emailChangeSchema>;
+export type ChallengeVerification = z.infer<typeof challengeVerificationSchema>;
+export type AccountSettings = z.infer<typeof accountSettingsSchema>;
+export const freshAuthenticationSchema = z.strictObject({
+  status: z.literal("fresh"),
+  expiresAt: z.iso.datetime(),
+});
 export const socialProviderSchema = z.enum(["google", "github"]);
 export type SocialProvider = z.infer<typeof socialProviderSchema>;
 export const socialSignInSchema = z.strictObject({
@@ -51,6 +93,9 @@ export const sessionsSchema = z.strictObject({
   ),
 });
 export const accountRequestSchema = z.union([
+  emailChangeSchema,
+  accountIdentitySchema,
+  reauthenticationSchema,
   credentialsSchema,
   emailRequestSchema,
   emptyRequestSchema,
@@ -75,6 +120,10 @@ export const accountErrorSchema = z.strictObject({
     "invalid_recovery",
     "invalid_social",
     "account_not_linked",
+    "account_changed",
+    "fresh_auth_required",
+    "invalid_challenge",
+    "email_change_unavailable",
   ]),
   retryAfter: z.number().int().positive().optional(),
 });
@@ -104,6 +153,10 @@ export const librarySchema = z.strictObject({
 export type PrivateLibrary = z.infer<typeof librarySchema>;
 export type Credentials = z.infer<typeof credentialsSchema>;
 export type AccountResponse =
+  | z.infer<typeof accountSettingsSchema>
+  | z.infer<typeof emailChangedSchema>
+  | z.infer<typeof accountChallengeSchema>
+  | z.infer<typeof freshAuthenticationSchema>
   | z.infer<typeof accountErrorSchema>
   | z.infer<typeof verificationRequiredSchema>
   | z.infer<typeof successSchema>

@@ -1,10 +1,81 @@
+// oxlint-disable eslint/no-await-in-loop -- Public client operations are verified sequentially for attributable failures.
 import { expect, mock, test } from "bun:test";
 
 import { QueryClient } from "@tanstack/react-query";
 import { ZodError } from "zod";
 
 import { ApiError, createApiClient } from "./client";
+import type { ApiClient } from "./client";
 import { healthQueryOptions } from "./query-options";
+
+test("account-change client validates every response, typed failure, input and cancellation", async () => {
+  const identity = {
+    accountId: "00000000-0000-4000-8000-000000000001",
+    emailVersion: 0,
+  };
+  const verification = {
+    ...identity,
+    challengeId: "00000000-0000-4000-8000-000000000002",
+    code: "01234567",
+  };
+  const controller = new AbortController();
+  controller.abort(new DOMException("Cancelled", "AbortError"));
+  const operations = [
+    (client: ApiClient) => client.getAccountSettings(controller.signal),
+    (client: ApiClient) =>
+      client.requestReauthentication(identity, controller.signal),
+    (client: ApiClient) =>
+      client.reauthenticate(verification, controller.signal),
+    (client: ApiClient) =>
+      client.requestEmailChange(
+        { ...identity, email: "new@example.test" },
+        controller.signal
+      ),
+    (client: ApiClient) =>
+      client.verifyEmailChange(verification, controller.signal),
+  ];
+  const invalid = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ status: "ok" })),
+  });
+  const denied = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({ code: "fresh_auth_required" }, { status: 403 })
+      ),
+  });
+  const cancelled = createApiClient({
+    fetcher: (_url, init) => Promise.reject(init.signal?.reason),
+  });
+  for (const operation of operations) {
+    await expect(operation(invalid)).rejects.toBeInstanceOf(ZodError);
+    await expect(operation(denied)).rejects.toMatchObject({
+      status: 403,
+      code: "fresh_auth_required",
+    });
+    await expect(operation(cancelled)).rejects.toBe(controller.signal.reason);
+  }
+  const fetcher = mock((_url: string, _init: RequestInit) =>
+    Promise.resolve(
+      Response.json({ status: "email_changed", notification: "pending" })
+    )
+  );
+  const client = createApiClient({ fetcher });
+  await expect(
+    client.verifyEmailChange({ ...verification, code: "123" })
+  ).rejects.toBeInstanceOf(ZodError);
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(await client.verifyEmailChange(verification)).toEqual({
+    status: "email_changed",
+    notification: "pending",
+  });
+  const [, request] = fetcher.mock.calls[0] ?? [];
+  expect(request).toMatchObject({
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    body: JSON.stringify(verification),
+  });
+});
 
 // oxlint-disable eslint/no-await-in-loop -- Sequential contract assertions keep each failure attributable to its public operation.
 // oxlint-disable eslint/no-script-url -- A hostile redirect is deliberate negative test input.

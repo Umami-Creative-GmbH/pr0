@@ -14,6 +14,7 @@ import type {
   AccountRequest,
   AccountResponse,
 } from "@pr0/api-contract/accounts";
+import { z } from "zod";
 
 import {
   AccountFailureError,
@@ -257,6 +258,52 @@ const handleSocialRequest = async (
   return null;
 };
 
+const signupVerificationClaims = z.object({
+  updateTo: z.never().optional(),
+  requestType: z.never().optional(),
+});
+const isSignupVerification = (token: string) => {
+  try {
+    // Restrict the allowed route's purpose; Better Auth still verifies signature and expiry.
+    return signupVerificationClaims.safeParse(
+      JSON.parse(
+        Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf-8")
+      )
+    ).success;
+  } catch {
+    return false;
+  }
+};
+
+const handleEmailVerification = async (request: Request) => {
+  const url = new URL(request.url);
+  const token = url.searchParams.get("token");
+  if (!token || token.length > 2048) {
+    return json({ code: "invalid_verification" }, 400);
+  }
+  if (!isSignupVerification(token)) {
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: `${configuration().origin}/?verification=invalid`,
+      },
+    });
+  }
+  const target = authRequest(
+    request,
+    `verify-email?token=${encodeURIComponent(token)}`
+  );
+  const response = await authentication().handler(target);
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: `${configuration().origin}/?${response.ok ? "verified=1" : "verification=invalid"}`,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    },
+  });
+};
+
 const processAuth = async (request: Request) => {
   try {
     const path = new URL(request.url).pathname.slice("/api/auth/".length);
@@ -287,24 +334,7 @@ const processAuth = async (request: Request) => {
       return socialResponse;
     }
     if (path === "verify-email") {
-      const url = new URL(request.url);
-      const token = url.searchParams.get("token");
-      if (!token || token.length > 2048) {
-        return json({ code: "invalid_verification" }, 400);
-      }
-      const target = authRequest(
-        request,
-        `verify-email?token=${encodeURIComponent(token)}`
-      );
-      const response = await authentication().handler(target);
-      return new Response(null, {
-        status: 303,
-        headers: {
-          Location: `${configuration().origin}/?${response.ok ? "verified=1" : "verification=invalid"}`,
-          "Cache-Control": "no-store",
-          "Referrer-Policy": "no-referrer",
-        },
-      });
+      return await handleEmailVerification(request);
     }
     const body = await readBody(request);
     if (path === "reset-password") {
@@ -438,7 +468,7 @@ export const handleReadiness = async () => {
     validateMailConfiguration();
     const sql = database();
     const ready =
-      await sql`SELECT i.id FROM instance i WHERE schema_version = 5 AND EXISTS
+      await sql`SELECT i.id FROM instance i WHERE schema_version = 6 AND EXISTS
       (SELECT 1 FROM worker_health WHERE name = 'mail' AND heartbeat_at > now() - interval '30 seconds')`;
     return json(
       { status: ready.length ? "ready" : "unavailable" },

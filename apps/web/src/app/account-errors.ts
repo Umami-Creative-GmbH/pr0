@@ -2,6 +2,18 @@ import { ApiError } from "@pr0/api-client/client";
 
 export const accountErrorMessage = (error: Error) => {
   if (error instanceof ApiError) {
+    if (error.code === "fresh_auth_required") {
+      return "Confirm your identity again before changing your email. Your account email has not changed.";
+    }
+    if (error.code === "account_changed") {
+      return "The account or email changed during this request. Reload settings and start again for the current account.";
+    }
+    if (error.code === "invalid_challenge") {
+      return "This code is incorrect, expired, replaced, or already used. After three wrong attempts, request another code. Your account email has not changed.";
+    }
+    if (error.code === "email_change_unavailable") {
+      return "This email change could not be completed. Your current email remains active. Request a new code for another address.";
+    }
     if (error.code === "account_not_linked") {
       return "This provider is not linked to your existing account. Use your original sign-in method or recover access with your verified email below.";
     }

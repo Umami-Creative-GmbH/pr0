@@ -164,13 +164,15 @@ test("forged origins, malformed bodies, client provenance, and direct auth bypas
     "change-password",
     "delete-user",
     "link-social",
-    "sign-in/social",
     "device/token",
     "get-session",
   ]) {
     const response = await post(`/api/auth/${path}`, {});
     expect(response.status).toBe(404);
   }
+  const malformedSocial = await post("/api/auth/sign-in/social", {});
+  expect(malformedSocial.status).toBe(400);
+  expect(await malformedSocial.json()).toEqual({ code: "invalid_input" });
   const forgedCookie = await fetch(`${origin}/api/v1/library`, {
     headers: {
       Cookie: "better-auth.session_token=forged",

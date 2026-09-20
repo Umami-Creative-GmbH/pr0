@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { accountErrorMessage } from "./account-errors";
+import { EmailSettings } from "./email-settings";
 import { RecoveryForm } from "./recovery-form";
 import { SessionSettings } from "./session-settings";
 import { SocialSignIn } from "./social-sign-in";
@@ -161,6 +162,10 @@ export const AccountScreen = ({
             </button>
           </section>
           <SessionSettings accountId={library.data.account.id} />
+          <EmailSettings
+            key={library.data.account.id}
+            accountId={library.data.account.id}
+          />
           <section
             aria-labelledby="empty-title"
             className="rounded-lg border p-6"

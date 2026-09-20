@@ -1,4 +1,12 @@
 import {
+  accountIdentitySchema,
+  reauthenticationSchema,
+  emailChangeSchema,
+  challengeVerificationSchema,
+  accountSettingsSchema,
+  accountChallengeSchema,
+  freshAuthenticationSchema,
+  emailChangedSchema,
   accountErrorSchema,
   credentialsSchema,
   emailRequestSchema,
@@ -15,6 +23,10 @@ import {
   socialVerificationSchema,
 } from "@pr0/api-contract/accounts";
 import type {
+  AccountIdentity,
+  Reauthentication,
+  EmailChange,
+  ChallengeVerification,
   Credentials,
   AccountRequest,
   PasswordReset,
@@ -84,6 +96,53 @@ export const createApiClient = ({
 
   return {
     baseUrl: normalizedBaseUrl,
+    async getAccountSettings(signal?: AbortSignal) {
+      return accountSettingsSchema.parse(
+        await accountRequest("/api/v1/account", undefined, signal)
+      );
+    },
+    async requestReauthentication(
+      input: AccountIdentity,
+      signal?: AbortSignal
+    ) {
+      return accountChallengeSchema.parse(
+        await accountRequest(
+          "/api/v1/account/reauth/challenges",
+          accountIdentitySchema.parse(input),
+          signal
+        )
+      );
+    },
+    async reauthenticate(input: Reauthentication, signal?: AbortSignal) {
+      return freshAuthenticationSchema.parse(
+        await accountRequest(
+          "/api/v1/account/reauth/verify",
+          reauthenticationSchema.parse(input),
+          signal
+        )
+      );
+    },
+    async requestEmailChange(input: EmailChange, signal?: AbortSignal) {
+      return accountChallengeSchema.parse(
+        await accountRequest(
+          "/api/v1/account/email/challenges",
+          emailChangeSchema.parse(input),
+          signal
+        )
+      );
+    },
+    async verifyEmailChange(
+      input: ChallengeVerification,
+      signal?: AbortSignal
+    ) {
+      return emailChangedSchema.parse(
+        await accountRequest(
+          "/api/v1/account/email/verify",
+          challengeVerificationSchema.parse(input),
+          signal
+        )
+      );
+    },
     async getSocialProviders(signal?: AbortSignal) {
       return socialProvidersSchema.parse(
         await accountRequest("/api/auth/providers", undefined, signal)

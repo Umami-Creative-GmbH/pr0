@@ -7,6 +7,11 @@ import { configuration, secret } from "./config";
 import { database } from "./database";
 
 type FailureCode =
+  | "invalid_credentials"
+  | "account_changed"
+  | "fresh_auth_required"
+  | "invalid_challenge"
+  | "email_change_unavailable"
   | "forbidden"
   | "registration_closed"
   | "rate_limited"

@@ -6,6 +6,7 @@ import {
   randomBytes,
 } from "node:crypto";
 
+import type { TransactionSQL } from "bun";
 import { createTransport } from "nodemailer";
 import { z } from "zod";
 
@@ -20,17 +21,16 @@ const key = () => {
   return createHash("sha256").update(value).digest();
 };
 
-const enqueueMail = async (
-  email: string,
-  url: string,
+const storeMail = async (
+  tx: TransactionSQL,
+  message: { email: string; text?: string; url?: string; purpose: string },
   expiresAt: Date,
-  reservation: string,
-  purpose: "verification" | "recovery"
+  reservation: string
 ) => {
   const nonce = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(), nonce);
   const payload = Buffer.concat([
-    cipher.update(JSON.stringify({ email, url, purpose }), "utf-8"),
+    cipher.update(JSON.stringify(message), "utf-8"),
     cipher.final(),
   ]);
   const encrypted = Buffer.concat([
@@ -38,17 +38,36 @@ const enqueueMail = async (
     cipher.getAuthTag(),
     payload,
   ]).toString("base64");
+  await tx`SELECT pg_advisory_xact_lock(24004)`;
+  const held =
+    await tx`SELECT id FROM mail_reservation WHERE id = ${reservation} AND expires_at > now() FOR UPDATE`;
+  if (!held.length) {
+    throw new Error("Email admission expired");
+  }
+  await tx`INSERT INTO mail_job(id, payload, expires_at) VALUES (${reservation}, ${encrypted}, ${expiresAt})`;
+  await tx`DELETE FROM mail_reservation WHERE id = ${reservation}`;
+};
+
+export const enqueueAccountMail = (
+  tx: TransactionSQL,
+  email: string,
+  text: string,
+  expiresAt: Date,
+  reservation: string,
+  purpose: "reauth" | "email" | "notification"
+) => storeMail(tx, { email, text, purpose }, expiresAt, reservation);
+
+const enqueueMail = async (
+  email: string,
+  url: string,
+  expiresAt: Date,
+  reservation: string,
+  purpose: "verification" | "recovery"
+) => {
   const sql = database();
-  await sql.begin(async (tx) => {
-    await tx`SELECT pg_advisory_xact_lock(24004)`;
-    const held =
-      await tx`SELECT id FROM mail_reservation WHERE id = ${reservation} AND expires_at > now() FOR UPDATE`;
-    if (!held.length) {
-      throw new Error("Email admission expired");
-    }
-    await tx`INSERT INTO mail_job(id, payload, expires_at) VALUES (${reservation}, ${encrypted}, ${expiresAt})`;
-    await tx`DELETE FROM mail_reservation WHERE id = ${reservation}`;
-  });
+  await sql.begin((tx) =>
+    storeMail(tx, { email, url, purpose }, expiresAt, reservation)
+  );
 };
 
 export const enqueueVerification = async (
@@ -190,15 +209,21 @@ export const deliverMail = async () => {
           decipher.final(),
         ]).toString("utf-8")
       );
+      let subject =
+        decoded.purpose === "recovery"
+          ? "Reset your pr0 password"
+          : "Verify your pr0 email";
+      if (decoded.text) {
+        subject = "Your pr0 account update";
+      }
       await smtp.sendMail({
         from: process.env.SMTP_FROM,
         to: decoded.email,
         messageId: `<${job.id}@pr0.local>`,
-        subject:
-          decoded.purpose === "recovery"
-            ? "Reset your pr0 password"
-            : "Verify your pr0 email",
-        text: `${decoded.purpose === "recovery" ? "Reset your password to recover your pr0 account" : "Verify your email to access your private pr0 library"}:\n\n${decoded.url}\n\nThis link expires one hour after it was requested. If you did not request it, ignore this email.`,
+        subject,
+        text:
+          decoded.text ??
+          `${decoded.purpose === "recovery" ? "Reset your password to recover your pr0 account" : "Verify your email to access your private pr0 library"}:\n\n${decoded.url}\n\nThis link expires one hour after it was requested. If you did not request it, ignore this email.`,
       });
       await sql`UPDATE mail_job SET state = 'sent', payload = NULL, completed_at = now() WHERE id = ${job.id}`;
     } catch {
@@ -216,6 +241,8 @@ export const deliverMail = async () => {
   await sql`UPDATE mail_job SET state = CASE WHEN attempts >= 5 THEN 'failed' ELSE 'expired' END,
     payload = NULL, completed_at = now() WHERE state = 'pending' AND
     (expires_at <= now() + interval '30 seconds' OR (attempts >= 5 AND next_attempt_at <= now()))`;
+  await sql`UPDATE account_notice n SET state = CASE WHEN j.state = 'sent' THEN 'sent' ELSE 'failed' END
+    FROM mail_job j WHERE n.id = j.id AND n.state = 'pending' AND j.state <> 'pending'`;
   await sql`DELETE FROM mail_job WHERE completed_at < now() - interval '7 days'`;
   try {
     await smtp.verify();

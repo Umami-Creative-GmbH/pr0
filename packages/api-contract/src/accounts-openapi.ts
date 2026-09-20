@@ -2,6 +2,14 @@ import type { OpenAPIV3_1 } from "openapi-types";
 import { z } from "zod";
 
 import {
+  accountIdentitySchema,
+  reauthenticationSchema,
+  emailChangeSchema,
+  challengeVerificationSchema,
+  accountSettingsSchema,
+  accountChallengeSchema,
+  freshAuthenticationSchema,
+  emailChangedSchema,
   accountErrorSchema,
   credentialsSchema,
   emailRequestSchema,
@@ -25,7 +33,7 @@ const jsonResponse = (schema: string, description: string) => ({
   },
 });
 const errors = Object.fromEntries(
-  [400, 401, 403, 404, 413, 429, 503].map((status) => [
+  [400, 401, 403, 404, 409, 413, 429, 503].map((status) => [
     String(status),
     {
       ...jsonResponse(
@@ -70,6 +78,51 @@ const post = (
 });
 
 export const accountPaths = {
+  "/api/v1/account": {
+    get: {
+      operationId: "getAccountSettings",
+      tags: ["Accounts"],
+      security: [{ BrowserSession: [] }],
+      description:
+        "Verified browser session only. Returns current email/version, required reauthentication method, server-owned proof expiry, and latest old-address notification state. Sent means SMTP accepted, not confirmed inbox delivery. Failed is retained after mail-job cleanup. Device provenance is refused even in a browser cookie.",
+      responses: {
+        "200": jsonResponse("AccountSettings", "Current account settings"),
+        ...errors,
+      },
+    },
+  },
+  "/api/v1/account/reauth/challenges": post(
+    "requestReauthentication",
+    "AccountIdentity",
+    "AccountChallenge",
+    "202",
+    "Social-only accounts: queues an eight-digit code to the current verified address. Bound to instance/account/browser session/email version; five-minute expiry, three wrong attempts, keyed digest, atomic one-time consumption, resend invalidation and shared email limits. Password accounts must re-enter their password.",
+    true
+  ),
+  "/api/v1/account/reauth/verify": post(
+    "reauthenticate",
+    "Reauthentication",
+    "FreshAuthentication",
+    "200",
+    "Verifies current password or the browser-bound social-only code and creates a server-owned ten-minute proof. Expected account and email version must still match. Session renewal, generic OTP, provider callback and device approval do not create proofs.",
+    true
+  ),
+  "/api/v1/account/email/challenges": post(
+    "requestEmailChange",
+    "EmailChange",
+    "AccountChallenge",
+    "202",
+    "Requires fresh authentication; queues a five-minute code to the replacement address. Resend invalidates the preceding replacement challenge in this browser. The current email remains unchanged.",
+    true
+  ),
+  "/api/v1/account/email/verify": post(
+    "verifyEmailChange",
+    "ChallengeVerification",
+    "EmailChanged",
+    "200",
+    "Rechecks freshness, identity/version, browser provenance and the one-time replacement code. Atomically changes email and queues the mandatory old-address notice (five delivery attempts, maximum 24 hours). Invalidates all account proofs/challenges and outstanding recovery tokens. Failure leaves the old email intact; pending is not proof of delivery. Notification state remains visible in account settings.",
+    true
+  ),
   "/api/auth/providers": {
     get: {
       operationId: "getSocialProviders",
@@ -277,6 +330,14 @@ export const accountPaths = {
 } satisfies OpenAPIV3_1.PathsObject;
 
 const schemas = {
+  AccountIdentity: accountIdentitySchema,
+  Reauthentication: reauthenticationSchema,
+  EmailChange: emailChangeSchema,
+  ChallengeVerification: challengeVerificationSchema,
+  AccountSettings: accountSettingsSchema,
+  AccountChallenge: accountChallengeSchema,
+  FreshAuthentication: freshAuthenticationSchema,
+  EmailChanged: emailChangedSchema,
   SocialProviders: socialProvidersSchema,
   SocialRedirect: socialRedirectSchema,
   SocialSignIn: socialSignInSchema,
