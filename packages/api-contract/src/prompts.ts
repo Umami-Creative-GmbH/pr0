@@ -107,12 +107,7 @@ export const promptListInputSchema = z.strictObject({
   cursor: z.string().max(2048).optional(),
   limit: z.number().int().min(1).max(100).default(50),
 });
-export const promptViewSchema = z.enum([
-  "all",
-  "favorites",
-  "archive",
-  "recents",
-]);
+export const promptViewSchema = z.enum(["all", "favorites", "archive"]);
 export type PromptView = z.infer<typeof promptViewSchema>;
 export const promptBrowseInputSchema = promptListInputSchema.extend({
   view: promptViewSchema.default("all"),

@@ -4,7 +4,12 @@ import { chromium } from "playwright";
 
 import { origin } from "./http-fixture";
 import { seedCapacity } from "./prompt-capacity-fixture";
-import { promptBrowser, promptClient, promptOperation } from "./prompt-fixture";
+import {
+  promptBrowser,
+  promptClient,
+  promptOperation,
+  promptState,
+} from "./prompt-fixture";
 
 test("keyboard lifecycle controls retain archived edits and retry a lost duplicate acknowledgement", async () => {
   const account = await promptBrowser();
@@ -107,6 +112,134 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
       archived: false,
       content: "Retained archive edit",
     });
+  } finally {
+    await browser.close();
+  }
+}, 60_000);
+
+test("multiple externally archived selections refresh stale rows without cycling", async () => {
+  const account = await promptBrowser();
+  const client = promptClient(account.Cookie);
+  const a = promptOperation({
+    title: "External A",
+    description: "",
+    content: "A",
+  });
+  const b = promptOperation({
+    title: "External B",
+    description: "",
+    content: "B",
+  });
+  await account.mutate([a, b]);
+  const sources = await Promise.all([
+    client.getPrompt(a.promptId),
+    client.getPrompt(b.promptId),
+  ]);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const context = await browser.newContext();
+    await context.addCookies(
+      account.Cookie.split("; ").map((cookie) => {
+        const split = cookie.indexOf("=");
+        return {
+          name: cookie.slice(0, split),
+          value: cookie.slice(split + 1),
+          url: origin,
+        };
+      })
+    );
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(origin);
+    await page
+      .getByRole("heading", { name: "External B", exact: true })
+      .waitFor();
+    await page.waitForLoadState("networkidle");
+    await account.mutate(
+      sources.map((source) => promptState(source, "archived", true))
+    );
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("visibilitychange"))
+    );
+    await page
+      .getByRole("heading", { name: "Your library is empty", exact: true })
+      .waitFor();
+    expect(await page.getByLabel("Saved content").count()).toBe(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await browser.close();
+  }
+}, 60_000);
+
+test("automatic selection follows identity across reordering and checks archive eligibility before the last page", async () => {
+  const account = await promptBrowser();
+  const client = promptClient(account.Cookie);
+  const first = promptOperation({
+    title: "Selected A",
+    description: "",
+    content: "A",
+  });
+  const second = promptOperation({
+    title: "Other B",
+    description: "",
+    content: "B",
+  });
+  await account.mutate([
+    ...Array.from({ length: 50 }, () => promptOperation()),
+    second,
+    first,
+  ]);
+  const source = await client.getPrompt(first.promptId);
+  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  try {
+    const context = await browser.newContext();
+    await context.addCookies(
+      account.Cookie.split("; ").map((cookie) => {
+        const split = cookie.indexOf("=");
+        return {
+          name: cookie.slice(0, split),
+          value: cookie.slice(split + 1),
+          url: origin,
+        };
+      })
+    );
+    const page = await context.newPage();
+    await page.goto(origin);
+    await page
+      .getByRole("heading", { name: "Selected A", exact: true })
+      .waitFor();
+    await page
+      .getByRole("button", { name: "Favorite Other B", exact: true })
+      .click();
+    await page.getByText("Favorite updated.", { exact: true }).waitFor();
+    await page.waitForLoadState("networkidle");
+    expect(
+      await page
+        .getByRole("heading", { name: "Selected A", exact: true })
+        .count()
+    ).toBe(1);
+    await account.mutate([promptState(source, "archived", true)]);
+    await page
+      .getByRole("button", { name: "Unfavorite Other B", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Favorite Other B", exact: true })
+      .waitFor();
+    await page.waitForLoadState("networkidle");
+    expect(
+      await page
+        .getByRole("heading", { name: "Selected A", exact: true })
+        .count()
+    ).toBe(0);
+    expect(
+      await page.getByRole("heading", { name: "Other B", exact: true }).count()
+    ).toBe(1);
+    expect(
+      await page
+        .getByRole("button", { name: "Load more prompts", exact: true })
+        .count()
+    ).toBe(1);
   } finally {
     await browser.close();
   }

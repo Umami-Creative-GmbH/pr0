@@ -63,14 +63,14 @@ export const promptPaths = {
       tags: ["Prompts"],
       security: [{ BrowserSession: [] }],
       description:
-        "View is all (default), favorites, archive or recents. All active views exclude archived prompts; archive contains only archived prompts, favorites additionally requires favorite, and recents additionally requires usage. Restoring preserves retained state eligibility. Newest first by numeric library revision, then ascending UUID. Summaries omit content. Cursors retain both sort keys and are integrity protected and bound to library, recovery epoch, version, view, page limit and revision. Changed revisions return results_changed; restart the list while preserving selection and drafts.",
+        "View is all (default), favorites or archive. All active views exclude archived prompts; archive contains only archived prompts, favorites additionally requires favorite. Restoring preserves retained state eligibility. Newest first by numeric library revision, then ascending UUID. Summaries omit content. Cursors retain both sort keys and are integrity protected and bound to library, recovery epoch, version, view, page limit and revision. Changed revisions return results_changed; restart the list while preserving selection and drafts.",
       parameters: [
         {
           name: "view",
           in: "query",
           schema: {
             type: "string",
-            enum: ["all", "favorites", "archive", "recents"],
+            enum: ["all", "favorites", "archive"],
             default: "all",
           },
         },

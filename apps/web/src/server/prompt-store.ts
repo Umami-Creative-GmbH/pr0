@@ -598,7 +598,6 @@ export const listPrompts = (
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId}
       AND archived = ${view === "archive"}
       AND (${view !== "favorites"} OR favorite = true)
-      AND (${view !== "recents"} OR use_count > 0)
       AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
     ORDER BY prompt.revision DESC, id LIMIT ${limit + 1}`;
     const visible = rows.slice(0, limit);

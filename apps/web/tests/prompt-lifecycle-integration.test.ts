@@ -362,7 +362,7 @@ test("foreign source and target identities are refused without leaking library d
   );
 });
 
-test("archive retains usage, duplication resets it, and restore makes the original eligible for Recents", async () => {
+test("archive retains usage, duplication resets it, and restore returns retained usage to the active library", async () => {
   const account = await promptBrowser();
   const client = promptClient(account.Cookie);
   const create = promptOperation();
@@ -370,7 +370,7 @@ test("archive retains usage, duplication resets it, and restore makes the origin
   await seedPromptUsage(account.identity, create.promptId);
   const source = await client.getPrompt(create.promptId);
   await account.mutate([promptState(source, "archived", true)]);
-  expect(await client.getPrompts({ view: "recents" })).toMatchObject({
+  expect(await client.getPrompts()).toMatchObject({
     prompts: [],
   });
   const archived = await client.getPrompt(source.id);
@@ -388,7 +388,7 @@ test("archive retains usage, duplication resets it, and restore makes the origin
     useCount: 0,
     lastUsedAt: null,
   });
-  expect(await client.getPrompts({ view: "recents" })).toMatchObject({
-    prompts: [{ id: source.id }],
+  expect(await client.getPrompts()).toMatchObject({
+    prompts: [{ id: source.id }, { id: duplicate.promptId }],
   });
 });

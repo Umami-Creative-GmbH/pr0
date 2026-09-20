@@ -9,11 +9,7 @@ import type {
   MutationReceipt,
   PromptView,
 } from "@pr0/api-contract/prompts";
-import {
-  useInfiniteQuery,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { PromptActionStatus } from "./prompt-action-status";
@@ -22,6 +18,7 @@ import { PromptEditor } from "./prompt-editor";
 import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 import { usePromptActions } from "./use-prompt-actions";
 import type { PromptAction } from "./use-prompt-actions";
+import { usePromptSelection } from "./use-prompt-selection";
 
 const buttonClass =
   "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
@@ -30,145 +27,123 @@ const errorMessage = (error: Error) =>
     ? error.message
     : "Could not load prompts. Try again.";
 const PromptDetail = ({
-  id,
-  library,
+  detail,
   onEdit,
   editing,
   onAction,
   actionsBlocked,
 }: {
-  id: string;
-  library: PrivateLibrary;
+  detail: ReturnType<typeof usePromptSelection>["detail"];
   onEdit: (prompt: Prompt) => void;
   editing: boolean;
   onAction: (prompt: Prompt, action: PromptAction, value?: boolean) => void;
   actionsBlocked: boolean;
-}) => {
-  const client = useApiClient();
-  const detail = useQuery({
-    queryKey: [
-      "prompt",
-      client.baseUrl,
-      library.instance.id,
-      library.account.id,
-      id,
-    ],
-    queryFn: ({ signal }) =>
-      client.getPrompt(id, signal, {
-        instanceId: library.instance.id,
-        accountId: library.account.id,
-      }),
-    retry: retryPromptRead,
-    retryDelay: promptRetryDelay,
-  });
-
-  return (
-    <section aria-labelledby="detail-heading" className="rounded-lg border p-6">
-      <h2 className="text-xl font-semibold break-words" id="detail-heading">
-        {detail.data?.title ?? "Prompt detail"}
-      </h2>
-      {detail.isPending ? <output>Loading prompt…</output> : null}
-      {detail.isError ? (
-        <div role="alert">
-          <p>{errorMessage(detail.error)}</p>
+}) => (
+  <section aria-labelledby="detail-heading" className="rounded-lg border p-6">
+    <h2 className="text-xl font-semibold break-words" id="detail-heading">
+      {detail.data?.title ?? "Prompt detail"}
+    </h2>
+    {detail.isPending ? <output>Loading prompt…</output> : null}
+    {detail.isError ? (
+      <div role="alert">
+        <p>{errorMessage(detail.error)}</p>
+        <button
+          className={buttonClass}
+          onClick={() => {
+            void detail.refetch();
+          }}
+          type="button"
+        >
+          Retry detail
+        </button>
+      </div>
+    ) : null}
+    {detail.data ? (
+      <>
+        <button
+          className={`${buttonClass} mt-3`}
+          disabled={editing}
+          onClick={() => {
+            if (detail.data) {
+              onEdit(detail.data);
+            }
+          }}
+          type="button"
+        >
+          Edit prompt
+        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
           <button
             className={buttonClass}
-            onClick={() => {
-              void detail.refetch();
-            }}
             type="button"
-          >
-            Retry detail
-          </button>
-        </div>
-      ) : null}
-      {detail.data ? (
-        <>
-          <button
-            className={`${buttonClass} mt-3`}
-            disabled={editing}
+            aria-pressed={detail.data.favorite}
+            disabled={actionsBlocked}
             onClick={() => {
               if (detail.data) {
-                onEdit(detail.data);
+                onAction(detail.data, "favorite", !detail.data.favorite);
               }
             }}
-            type="button"
           >
-            Edit prompt
+            {detail.data.favorite ? "Unfavorite prompt" : "Favorite prompt"}
           </button>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              className={buttonClass}
-              type="button"
-              aria-pressed={detail.data.favorite}
-              disabled={actionsBlocked}
-              onClick={() => {
-                if (detail.data) {
-                  onAction(detail.data, "favorite", !detail.data.favorite);
-                }
-              }}
-            >
-              {detail.data.favorite ? "Unfavorite prompt" : "Favorite prompt"}
-            </button>
-            <button
-              className={buttonClass}
-              type="button"
-              disabled={actionsBlocked}
-              onClick={() => {
-                if (detail.data) {
-                  onAction(detail.data, "duplicate");
-                }
-              }}
-            >
-              Duplicate prompt
-            </button>
-            <button
-              className={buttonClass}
-              type="button"
-              disabled={actionsBlocked}
-              onClick={() => {
-                if (detail.data) {
-                  onAction(detail.data, "archived", !detail.data.archived);
-                }
-              }}
-            >
-              {detail.data.archived ? "Restore prompt" : "Archive prompt"}
-            </button>
-          </div>
-          {detail.data.sourceTitle &&
-          detail.data.title !== `${detail.data.sourceTitle} (copy)` ? (
-            <p className="mt-3 break-words">
-              Original title: {detail.data.sourceTitle}
-            </p>
-          ) : null}
-          {detail.data.description ? (
-            <p className="mt-3 break-words whitespace-pre-wrap">
-              {detail.data.description}
-            </p>
-          ) : null}
-          <h3 className="mt-4 font-medium">Content</h3>
-          <textarea
-            aria-label="Saved content"
-            className="bg-background mt-2 max-h-96 w-full rounded-md border p-3 font-mono text-sm"
-            readOnly
-            rows={10}
-            value={detail.data.content}
-          />
-          <p className="text-muted-foreground mt-3 text-sm">
-            Created{" "}
-            <time dateTime={detail.data.createdAt}>
-              {new Date(detail.data.createdAt).toLocaleString()}
-            </time>{" "}
-            · Modified{" "}
-            <time dateTime={detail.data.modifiedAt}>
-              {new Date(detail.data.modifiedAt).toLocaleString()}
-            </time>
+          <button
+            className={buttonClass}
+            type="button"
+            disabled={actionsBlocked}
+            onClick={() => {
+              if (detail.data) {
+                onAction(detail.data, "duplicate");
+              }
+            }}
+          >
+            Duplicate prompt
+          </button>
+          <button
+            className={buttonClass}
+            type="button"
+            disabled={actionsBlocked}
+            onClick={() => {
+              if (detail.data) {
+                onAction(detail.data, "archived", !detail.data.archived);
+              }
+            }}
+          >
+            {detail.data.archived ? "Restore prompt" : "Archive prompt"}
+          </button>
+        </div>
+        {detail.data.sourceTitle &&
+        detail.data.title !== `${detail.data.sourceTitle} (copy)` ? (
+          <p className="mt-3 break-words">
+            Original title: {detail.data.sourceTitle}
           </p>
-        </>
-      ) : null}
-    </section>
-  );
-};
+        ) : null}
+        {detail.data.description ? (
+          <p className="mt-3 break-words whitespace-pre-wrap">
+            {detail.data.description}
+          </p>
+        ) : null}
+        <h3 className="mt-4 font-medium">Content</h3>
+        <textarea
+          aria-label="Saved content"
+          className="bg-background mt-2 max-h-96 w-full rounded-md border p-3 font-mono text-sm"
+          readOnly
+          rows={10}
+          value={detail.data.content}
+        />
+        <p className="text-muted-foreground mt-3 text-sm">
+          Created{" "}
+          <time dateTime={detail.data.createdAt}>
+            {new Date(detail.data.createdAt).toLocaleString()}
+          </time>{" "}
+          · Modified{" "}
+          <time dateTime={detail.data.modifiedAt}>
+            {new Date(detail.data.modifiedAt).toLocaleString()}
+          </time>
+        </p>
+      </>
+    ) : null}
+  </section>
+);
 const PromptListRow = ({
   prompt,
   selectedId,
@@ -241,14 +216,6 @@ const nearingCapacity = (usage?: { promptCount: number; textBytes: number }) =>
     (usage.promptCount >= promptLimits.promptCount * 0.9 ||
       usage.textBytes >= promptLimits.libraryBytes * 0.9)
   );
-const selectionInPage = (
-  selected: string | null,
-  prompts: { id: string }[],
-  incomplete: boolean
-) =>
-  selected && (incomplete || prompts.some((prompt) => prompt.id === selected))
-    ? selected
-    : (prompts[0]?.id ?? null);
 const emptyViewMessage = (view: PromptView) =>
   view === "all"
     ? "Create your first prompt with a title and content."
@@ -263,7 +230,6 @@ export const PromptLibrary = ({
   const client = useApiClient();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Prompt | "create" | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<PromptView>("all");
   const editorDirty = useRef(false);
@@ -299,11 +265,13 @@ export const PromptLibrary = ({
   });
   const usage = list.data?.pages[0]?.usage;
   const prompts = list.data?.pages.flatMap((page) => page.prompts) ?? [];
-  const selectedId = selectionInPage(
-    selected,
+  const { selectedId, setSelected, detail } = usePromptSelection({
+    library,
+    view,
     prompts,
-    list.isFetching || list.hasNextPage
-  );
+    incomplete: list.isFetching || list.hasNextPage,
+    loading: list.isPending,
+  });
   const empty = list.isSuccess && !prompts.length;
   const saved = (receipt: MutationReceipt) => {
     restoreFocus.current = true;
@@ -346,11 +314,6 @@ export const PromptLibrary = ({
       if (action === "duplicate") {
         setView("all");
         setSelected(receipt.promptId);
-      } else if (
-        receipt.promptId === selectedId &&
-        (action === "archived" || view === "favorites")
-      ) {
-        setSelected(null);
       }
       noticeRef.current?.focus();
     },
@@ -478,9 +441,8 @@ export const PromptLibrary = ({
       </section>
       {selectedId ? (
         <PromptDetail
-          id={selectedId}
+          detail={detail}
           key={selectedId}
-          library={library}
           editing={Boolean(editing)}
           onEdit={(prompt) => {
             setEditing(prompt);
