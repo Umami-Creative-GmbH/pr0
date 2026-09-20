@@ -251,7 +251,13 @@ test("moving and unassigning are idempotent; concurrent assignments explain supe
   ).toEqual(receipt);
   const moved = await client.getPrompt(base.id);
   await account.mutate([assignCollection(moved, b.collectionId)]);
-  expect(await client.getPrompt(base.id)).toEqual(moved);
+  expect(await client.getPrompt(base.id)).toEqual({
+    ...moved,
+    // Acknowledging a no-op advances the library snapshot, not the prompt.
+    libraryRevision: String(
+      BigInt(moved.libraryRevision ?? moved.revision) + 1n
+    ),
+  });
   const edit = promptEdit(moved, {
     title: moved.title,
     description: "",

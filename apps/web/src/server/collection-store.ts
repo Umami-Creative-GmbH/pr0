@@ -20,6 +20,7 @@ import type {
 import type { SQL } from "bun";
 
 import { PromptFailureError } from "./prompt-errors";
+import { readTags } from "./tag-store";
 
 export const validateCollectionReference = async (
   sql: SQL,
@@ -187,6 +188,7 @@ export const readOrganization = async (
     GROUP BY c.instance_id, c.account_id, c.id`;
   const snapshot = organizationSnapshotSchema.parse({
     ...scope,
+    tags: await readTags(sql, scope),
     collections: rows.map(
       (row: {
         id: string;

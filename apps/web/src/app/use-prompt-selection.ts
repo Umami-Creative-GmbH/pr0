@@ -12,8 +12,10 @@ import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 const eligible = (
   prompt: Prompt,
   view: PromptView,
-  collectionId: string | null
+  collectionId: string | null,
+  tagIds: string[]
 ) =>
+  tagIds.every((id) => new Set(prompt.tagIds).has(id)) &&
   (!collectionId || prompt.collectionId === collectionId) &&
   prompt.archived === (view === "archive") &&
   (view !== "favorites" || prompt.favorite);
@@ -22,6 +24,7 @@ export const usePromptSelection = ({
   library,
   view,
   collectionId,
+  tagIds,
   prompts,
   incomplete,
   loading,
@@ -29,6 +32,7 @@ export const usePromptSelection = ({
   library: PrivateLibrary;
   view: PromptView;
   collectionId: string | null;
+  tagIds: string[];
   prompts: { id: string; revision: string }[];
   incomplete: boolean;
   loading: boolean;
@@ -68,7 +72,7 @@ export const usePromptSelection = ({
     return Boolean(
       state?.data &&
       BigInt(state.data.revision) >= BigInt(revision) &&
-      !eligible(state.data, view, collectionId)
+      !eligible(state.data, view, collectionId, tagIds)
     );
   };
   const excluded = cachedExcludes(

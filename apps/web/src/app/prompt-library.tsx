@@ -6,6 +6,7 @@ import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { promptLimits } from "@pr0/api-contract/prompts";
 import type {
   Collection,
+  Tag,
   Prompt,
   MutationReceipt,
   PromptView,
@@ -25,6 +26,8 @@ import { PromptEditor } from "./prompt-editor";
 import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 import { PromptResults, PromptViewNavigation } from "./prompt-results";
 import { promptSaveNotice } from "./prompt-save-notice";
+import { PromptTags } from "./prompt-tags";
+import { useLibraryDrafts } from "./use-library-drafts";
 import { usePromptActions } from "./use-prompt-actions";
 import type { PromptAction } from "./use-prompt-actions";
 import { usePromptSelection } from "./use-prompt-selection";
@@ -38,6 +41,8 @@ const errorMessage = (error: Error) =>
 const PromptDetail = ({
   detail,
   collections,
+  tags,
+  onTags,
   onEdit,
   editing,
   onAction,
@@ -45,6 +50,8 @@ const PromptDetail = ({
   onDelete,
 }: {
   collections: Collection[];
+  tags: Tag[];
+  onTags: (prompt: Prompt) => void;
   detail: ReturnType<typeof usePromptSelection>["detail"];
   onEdit: (prompt: Prompt) => void;
   editing: boolean;
@@ -137,6 +144,26 @@ const PromptDetail = ({
           </button>
         </div>
         <p className="mt-3">
+          Tags:{" "}
+          {detail.data.tagIds
+            .map(
+              (id) => tags.find((tag) => tag.id === id)?.name ?? "Unavailable"
+            )
+            .join(", ") || "None"}
+        </p>
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={editing}
+          onClick={() => {
+            if (detail.data) {
+              onTags(detail.data);
+            }
+          }}
+        >
+          Edit tags
+        </button>
+        <p className="mt-3">
           Collection:{" "}
           {collections.find((entry) => entry.id === detail.data?.collectionId)
             ?.name ?? (detail.data.collectionId ? "Unavailable" : "None")}
@@ -188,6 +215,7 @@ export const PromptLibrary = ({
   onDirtyChange: (dirty: boolean) => void;
 }) => {
   const client = useApiClient();
+  const markDraft = useLibraryDrafts(onDirtyChange);
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Prompt | "create" | null>(null);
   const [notice, setNotice] = useState("");
@@ -197,7 +225,8 @@ export const PromptLibrary = ({
   > | null>(null);
   const [view, setView] = useState<PromptView>("all");
   const [collectionId, setCollectionId] = useState<string | null>(null);
-  const organizationDirty = useRef(false);
+  const [tagEditing, setTagEditing] = useState<Prompt | null>(null);
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const organizationKey = [
     "organization",
     client.baseUrl,
@@ -215,8 +244,7 @@ export const PromptLibrary = ({
     retryDelay: promptRetryDelay,
   });
   const collections = organization.data?.collections ?? [];
-  const editorDirty = useRef(false);
-  const actionDirty = useRef(false);
+  const tags = organization.data?.tags ?? [];
   const noticeRef = useRef<HTMLParagraphElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
@@ -233,6 +261,7 @@ export const PromptLibrary = ({
     library.account.id,
     view,
     collectionId,
+    tagIds,
   ];
   const list = useInfiniteQuery({
     queryKey,
@@ -243,6 +272,7 @@ export const PromptLibrary = ({
           cursor: pageParam || undefined,
           view,
           collectionId: collectionId ?? undefined,
+          tagIds,
         },
         signal,
         {
@@ -262,6 +292,7 @@ export const PromptLibrary = ({
     library,
     view,
     collectionId,
+    tagIds,
     prompts,
     incomplete: list.isFetching || list.hasNextPage,
     loading: list.isPending,
@@ -272,10 +303,10 @@ export const PromptLibrary = ({
     setSelected(receipt.conflict?.copyId ?? receipt.promptId);
     setNotice(promptSaveNotice(receipt));
   };
-  const accepted = () => {
-    void queryClient.invalidateQueries({ queryKey: organizationKey });
-    void queryClient.resetQueries({ queryKey: queryKey.slice(0, 4) });
-    void queryClient.invalidateQueries({
+  const detailUnavailable = detail.isFetching || detail.isError;
+  const accepted = async () => {
+    // Refresh the selected snapshot before resetting lists can change selection.
+    await queryClient.invalidateQueries({
       queryKey: [
         "prompt",
         client.baseUrl,
@@ -283,7 +314,9 @@ export const PromptLibrary = ({
         library.account.id,
       ],
     });
-    void queryClient.resetQueries({
+    await queryClient.resetQueries({ queryKey: queryKey.slice(0, 4) });
+    await queryClient.invalidateQueries({ queryKey: organizationKey });
+    await queryClient.resetQueries({
       queryKey: [
         "conflicts",
         client.baseUrl,
@@ -294,12 +327,9 @@ export const PromptLibrary = ({
   };
   const actions = usePromptActions({
     library,
-    onDirtyChange: (dirty) => {
-      actionDirty.current = dirty;
-      onDirtyChange(dirty || editorDirty.current || organizationDirty.current);
-    },
-    onAccepted: (receipt, action, message) => {
-      accepted();
+    onDirtyChange: (dirty) => markDraft("action", dirty),
+    onAccepted: async (receipt, action, message) => {
+      await accepted();
       setNotice(
         receipt.conflict
           ? `${message} Unseen text was preserved in a conflict copy.`
@@ -314,6 +344,7 @@ export const PromptLibrary = ({
       if (action === "duplicate") {
         setView("all");
         setCollectionId(null);
+        setTagIds([]);
         setSelected(receipt.promptId);
       }
       noticeRef.current?.focus();
@@ -327,6 +358,7 @@ export const PromptLibrary = ({
       });
       setView(prompt.archived ? "archive" : "all");
       setCollectionId(null);
+      setTagIds([]);
       setSelected(id);
     } catch (error) {
       setNotice(
@@ -371,23 +403,38 @@ export const PromptLibrary = ({
         onChange={(value) => {
           setView(value);
           setCollectionId(null);
+          setTagIds([]);
           setSelected(null);
         }}
       />
       <CollectionControls
+        tagIds={tagIds}
+        onTagsChange={(ids) => {
+          setTagIds(ids);
+          setSelected(null);
+        }}
         library={library}
         organization={organization}
-        onAccepted={accepted}
+        onAccepted={() =>
+          queryClient.invalidateQueries({ queryKey: organizationKey })
+        }
         collectionId={collectionId}
         onSelect={(id) => {
           setCollectionId(id);
           setSelected(null);
         }}
-        onDirtyChange={(dirty) => {
-          organizationDirty.current = dirty;
-          onDirtyChange(dirty || editorDirty.current || actionDirty.current);
-        }}
+        onDirtyChange={(dirty) => markDraft("organization", dirty)}
       />
+      {tagEditing ? (
+        <PromptTags
+          library={library}
+          prompt={tagEditing}
+          tags={tags}
+          onAccepted={accepted}
+          onDirtyChange={(dirty) => markDraft("tags", dirty)}
+          onClose={() => setTagEditing(null)}
+        />
+      ) : null}
       <PromptActionStatus actions={actions} />
       <PromptConflicts
         library={library}
@@ -411,6 +458,7 @@ export const PromptLibrary = ({
         <PromptEditor
           library={library}
           collections={collections}
+          tags={tags}
           prompt={editing === "create" ? undefined : editing}
           onOpen={(id) => {
             void openPrompt(id);
@@ -419,12 +467,7 @@ export const PromptLibrary = ({
             restoreFocus.current = true;
             setEditing(null);
           }}
-          onDirtyChange={(dirty) => {
-            editorDirty.current = dirty;
-            onDirtyChange(
-              dirty || actionDirty.current || organizationDirty.current
-            );
-          }}
+          onDirtyChange={(dirty) => markDraft("editor", dirty)}
           onSaved={saved}
           onAccepted={accepted}
         />
@@ -447,12 +490,14 @@ export const PromptLibrary = ({
           detail={detail}
           collections={collections}
           key={selectedId}
-          editing={Boolean(editing)}
+          editing={Boolean(editing || tagEditing) || detailUnavailable}
+          tags={tags}
+          onTags={setTagEditing}
           onEdit={(prompt) => {
             setEditing(prompt);
             setNotice("");
           }}
-          actionsBlocked={actions.blocked}
+          actionsBlocked={actions.blocked || detailUnavailable}
           onDelete={setDeleting}
           onAction={(prompt, action, value) => {
             void actions.act(prompt, action, value);

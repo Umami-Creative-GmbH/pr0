@@ -49,11 +49,12 @@ export const usePromptEditor = ({
   library: PrivateLibrary;
   prompt?: Prompt;
   onSaved: (receipt: MutationReceipt) => void;
-  onAccepted: () => void;
+  onAccepted: () => void | Promise<void>;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
   const client = useApiClient();
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<PromptDraft>(
     prompt
       ? textOf(prompt)
@@ -91,7 +92,11 @@ export const usePromptEditor = ({
   const dirty = baseline
     ? !sameText(draft, baseline.text)
     : Boolean(
-        draft.title || draft.description || draft.content || draft.collectionId
+        draft.title ||
+        draft.description ||
+        draft.content ||
+        draft.collectionId ||
+        tagIds.length
       );
   useEffect(() => {
     titleRef.current?.focus();
@@ -124,7 +129,8 @@ export const usePromptEditor = ({
               value.title ||
               value.description ||
               value.content ||
-              value.collectionId
+              value.collectionId ||
+              tagIds.length
             ))
     );
     setState((previous) =>
@@ -134,10 +140,11 @@ export const usePromptEditor = ({
     );
     setCopyMessage("");
   };
-  const accept = (
+  const accept = async (
     result: MutationReceipt,
     submitted: CreatePrompt | UpdatePrompt
   ) => {
+    await onAccepted();
     const acceptedText = {
       ...textOf(submitted.desired),
       title: result.conflict
@@ -154,7 +161,6 @@ export const usePromptEditor = ({
       setMappedOriginal(result.promptId);
     }
     pending.current = null;
-    onAccepted();
     if (successor) {
       const retained = { ...latestDraft.current };
       for (const field of promptTextFields) {
@@ -237,7 +243,7 @@ export const usePromptEditor = ({
             promptId: crypto.randomUUID(),
             baseRevision: library.revision,
             dependsOn: [],
-            desired,
+            desired: { ...desired, tagIds },
           };
       pending.current = {
         protocolVersion: 1,
@@ -262,7 +268,7 @@ export const usePromptEditor = ({
         if (!submitted) {
           return;
         }
-        accept(result, submitted);
+        await accept(result, submitted);
       } else if (result?.status === "rejected") {
         // Only failures reached after receipt lookup establish that this operation did not commit.
         const uncertain = ![
@@ -325,6 +331,19 @@ export const usePromptEditor = ({
     statusText = `Not saved. ${state.message}`;
   }
   return {
+    tagIds,
+    changeTags: (ids: string[]) => {
+      setTagIds(ids);
+      onDirtyChange(
+        Boolean(
+          ids.length ||
+          draft.title ||
+          draft.description ||
+          draft.content ||
+          draft.collectionId
+        )
+      );
+    },
     draft,
     state,
     mappedOriginal,

@@ -3,7 +3,9 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import {
+  sortedTagIds,
   mutationReceiptSchema,
+  mutationResultSchema,
   collectionReceiptSchema,
   promptLimits,
   promptPageSchema,
@@ -19,6 +21,8 @@ import {
 } from "@pr0/api-contract/prompts";
 import type {
   MutationEnvelope,
+  CreatePrompt,
+  DuplicatePrompt,
   UpdatePrompt,
   PromptText,
   promptBrowseInputSchema,
@@ -47,6 +51,12 @@ import {
   PromptFailureError,
   promptFailure,
 } from "./prompt-errors";
+import {
+  initializePromptTags,
+  applyTagAssignments,
+  promptTagIds,
+} from "./tag-membership";
+import { applyTag } from "./tag-store";
 
 interface LibraryRow {
   instance_id: string;
@@ -70,14 +80,28 @@ const receiptColumns = z.object({
   operation_id: z.string(),
   prompt_id: z.string().nullable(),
   collection_id: z.string().nullable().optional(),
+  tag_id: z.string().nullable().optional(),
+  resolved_tag_id: z.string().nullable().optional(),
+  tag_outcome: z.string().nullable().optional(),
   revision: z.string(),
   accepted_at: z.date(),
   organization_notice: z.string().nullable().optional(),
   conflict_copy_id: z.string().nullable().optional(),
   conflict_notice_id: z.string().nullable().optional(),
 });
-const receiptFrom = (row: z.infer<typeof receiptColumns>) =>
-  row.collection_id
+const receiptFrom = (row: z.infer<typeof receiptColumns>) => {
+  if (row.tag_id) {
+    return mutationResultSchema.parse({
+      status: "accepted",
+      operationId: row.operation_id,
+      tagId: row.tag_id,
+      resolvedTagId: row.resolved_tag_id,
+      outcome: row.tag_outcome,
+      revision: row.revision,
+      acceptedAt: row.accepted_at.toISOString(),
+    });
+  }
+  return row.collection_id
     ? collectionReceiptSchema.parse({
         status: "accepted",
         operationId: row.operation_id,
@@ -99,6 +123,7 @@ const receiptFrom = (row: z.infer<typeof receiptColumns>) =>
             }
           : undefined,
       });
+};
 const validatedUpdateFields = (
   operation: UpdatePrompt,
   desired: PromptText
@@ -260,6 +285,108 @@ const applyPromptUpdate = async ({
     })
   );
 };
+const applyPromptCreation = async ({
+  savepoint,
+  browser,
+  library,
+  envelope,
+  operation,
+  desired,
+  hash,
+}: {
+  savepoint: SQL;
+  browser: BrowserAccount;
+  library: LibraryRow;
+  envelope: MutationEnvelope;
+  operation: CreatePrompt | DuplicatePrompt;
+  desired: PromptText;
+  hash: string;
+}) => {
+  const collectionId = operation.desired.collectionId ?? null;
+  await validateCollectionReference(savepoint, envelope, collectionId);
+  const sourceTitle =
+    operation.kind === "prompt.duplicate" ? desired.title : null;
+  if (operation.kind === "prompt.duplicate") {
+    const [source] =
+      await savepoint`SELECT id FROM prompt WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${operation.sourceId}
+            UNION ALL SELECT prompt_id FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND (prompt_id = ${operation.sourceId} OR conflict_copy_id = ${operation.sourceId}) LIMIT 1`;
+    if (!source) {
+      throw new PromptFailureError(
+        {
+          code: "not_found",
+          message: "This source is not available in your library.",
+          retryable: false,
+        },
+        404
+      );
+    }
+    desired.title = duplicatePromptTitle(desired.title);
+  }
+  const used =
+    await savepoint`SELECT prompt_id FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND (prompt_id = ${operation.promptId} OR conflict_copy_id = ${operation.promptId})`;
+  if (used.length) {
+    throw new PromptFailureError(
+      {
+        code: "identity_unavailable",
+        message: "This prompt identity has already been used.",
+        retryable: false,
+      },
+      409
+    );
+  }
+  const bytes =
+    utf8Bytes(desired.title) +
+    utf8Bytes(desired.description) +
+    utf8Bytes(desired.content) +
+    utf8Bytes(sourceTitle ?? "");
+  const usage = {
+    promptCount: library.prompt_count,
+    textBytes: Number(library.text_bytes),
+  };
+  const resource =
+    usage.promptCount >= promptLimits.promptCount ? "promptCount" : "textBytes";
+  if (
+    usage.promptCount >= promptLimits.promptCount ||
+    usage.textBytes + bytes > promptLimits.libraryBytes
+  ) {
+    throw new PromptFailureError({
+      code: "quota_exceeded",
+      message:
+        resource === "promptCount"
+          ? "Your library has reached 10,000 prompts. Archiving does not free capacity."
+          : "This prompt would exceed the library's 100 MiB text capacity. Archiving does not free capacity.",
+      retryable: true,
+      resource,
+      usage,
+    });
+  }
+  const [updated] =
+    await savepoint`UPDATE library SET revision = revision + 1, prompt_count = prompt_count + 1, text_bytes = text_bytes + ${bytes}
+    WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} RETURNING revision::text, date_trunc('milliseconds', clock_timestamp()) AS accepted_at`;
+  const revision = String(updated.revision);
+  const acceptedAt: Date = updated.accepted_at;
+  await savepoint`INSERT INTO prompt(instance_id, account_id, id, title, description, content, source_title, revision, title_revision, description_revision, content_revision, created_at, modified_at, collection_id, collection_revision)
+    VALUES (${library.instance_id}, ${browser.accountId}, ${operation.promptId}, ${desired.title}, ${desired.description}, ${desired.content}, ${sourceTitle}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt}, ${collectionId}, ${revision})`;
+  const initialTags = operation.desired.tagIds ?? [];
+  await initializePromptTags(
+    savepoint,
+    envelope,
+    operation.promptId,
+    initialTags,
+    revision
+  );
+  await savepoint`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at)
+    VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${envelope.epoch}, ${envelope.installationId}, 1, ${hash}, ${operation.kind}, ${operation.promptId}, ${revision}, ${acceptedAt})`;
+  await savepoint`INSERT INTO library_change(instance_id, account_id, revision, operation_id, kind, prompt_id, accepted_at)
+    VALUES (${library.instance_id}, ${browser.accountId}, ${revision}, ${operation.operationId}, ${operation.kind}, ${operation.promptId}, ${acceptedAt})`;
+  return mutationReceiptSchema.parse({
+    status: "accepted",
+    operationId: operation.operationId,
+    promptId: operation.promptId,
+    revision,
+    acceptedAt: acceptedAt.toISOString(),
+  });
+};
 export const mutatePrompt = (
   browser: BrowserAccount,
   envelope: MutationEnvelope,
@@ -292,7 +419,10 @@ export const mutatePrompt = (
       );
     }
     const desired =
-      operation.kind === "prompt.delete" || "collectionId" in operation
+      operation.kind === "prompt.delete" ||
+      operation.kind === "prompt.tags" ||
+      "collectionId" in operation ||
+      "tagId" in operation
         ? null
         : {
             title: trimPromptText(operation.desired.title),
@@ -301,7 +431,7 @@ export const mutatePrompt = (
           };
     const hash = operationFingerprint(envelope, operation, desired);
     const [existing] =
-      await tx`SELECT operation_id, prompt_id, collection_id, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation
+      await tx`SELECT operation_id, prompt_id, collection_id, tag_id, resolved_tag_id, tag_outcome, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id = ${operation.operationId}`;
     if (existing) {
       if (existing.request_hash !== hash) {
@@ -369,6 +499,12 @@ export const mutatePrompt = (
         if ("collectionId" in operation) {
           return applyCollection(savepoint, envelope, operation, hash);
         }
+        if ("tagId" in operation) {
+          return applyTag(savepoint, envelope, operation, hash);
+        }
+        if (operation.kind === "prompt.tags") {
+          return applyTagAssignments(savepoint, envelope, operation, hash);
+        }
         if (operation.kind === "prompt.delete") {
           return applyPromptDeletion({
             sql: savepoint,
@@ -391,83 +527,14 @@ export const mutatePrompt = (
             hash,
           });
         }
-        const collectionId = operation.desired.collectionId ?? null;
-        await validateCollectionReference(savepoint, envelope, collectionId);
-        const sourceTitle =
-          operation.kind === "prompt.duplicate" ? desired.title : null;
-        if (operation.kind === "prompt.duplicate") {
-          const [source] =
-            await savepoint`SELECT id FROM prompt WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${operation.sourceId}
-            UNION ALL SELECT prompt_id FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND (prompt_id = ${operation.sourceId} OR conflict_copy_id = ${operation.sourceId}) LIMIT 1`;
-          if (!source) {
-            throw new PromptFailureError(
-              {
-                code: "not_found",
-                message: "This source is not available in your library.",
-                retryable: false,
-              },
-              404
-            );
-          }
-          desired.title = duplicatePromptTitle(desired.title);
-        }
-        const used =
-          await savepoint`SELECT prompt_id FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND (prompt_id = ${operation.promptId} OR conflict_copy_id = ${operation.promptId})`;
-        if (used.length) {
-          throw new PromptFailureError(
-            {
-              code: "identity_unavailable",
-              message: "This prompt identity has already been used.",
-              retryable: false,
-            },
-            409
-          );
-        }
-        const bytes =
-          utf8Bytes(desired.title) +
-          utf8Bytes(desired.description) +
-          utf8Bytes(desired.content) +
-          utf8Bytes(sourceTitle ?? "");
-        const usage = {
-          promptCount: library.prompt_count,
-          textBytes: Number(library.text_bytes),
-        };
-        const resource =
-          usage.promptCount >= promptLimits.promptCount
-            ? "promptCount"
-            : "textBytes";
-        if (
-          usage.promptCount >= promptLimits.promptCount ||
-          usage.textBytes + bytes > promptLimits.libraryBytes
-        ) {
-          throw new PromptFailureError({
-            code: "quota_exceeded",
-            message:
-              resource === "promptCount"
-                ? "Your library has reached 10,000 prompts. Archiving does not free capacity."
-                : "This prompt would exceed the library's 100 MiB text capacity. Archiving does not free capacity.",
-            retryable: true,
-            resource,
-            usage,
-          });
-        }
-        const [updated] =
-          await savepoint`UPDATE library SET revision = revision + 1, prompt_count = prompt_count + 1, text_bytes = text_bytes + ${bytes}
-    WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} RETURNING revision::text, date_trunc('milliseconds', clock_timestamp()) AS accepted_at`;
-        const revision = String(updated.revision);
-        const acceptedAt: Date = updated.accepted_at;
-        await savepoint`INSERT INTO prompt(instance_id, account_id, id, title, description, content, source_title, revision, title_revision, description_revision, content_revision, created_at, modified_at, collection_id, collection_revision)
-    VALUES (${library.instance_id}, ${browser.accountId}, ${operation.promptId}, ${desired.title}, ${desired.description}, ${desired.content}, ${sourceTitle}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt}, ${collectionId}, ${revision})`;
-        await savepoint`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at)
-    VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${envelope.epoch}, ${envelope.installationId}, 1, ${hash}, ${operation.kind}, ${operation.promptId}, ${revision}, ${acceptedAt})`;
-        await savepoint`INSERT INTO library_change(instance_id, account_id, revision, operation_id, kind, prompt_id, accepted_at)
-    VALUES (${library.instance_id}, ${browser.accountId}, ${revision}, ${operation.operationId}, ${operation.kind}, ${operation.promptId}, ${acceptedAt})`;
-        return mutationReceiptSchema.parse({
-          status: "accepted",
-          operationId: operation.operationId,
-          promptId: operation.promptId,
-          revision,
-          acceptedAt: acceptedAt.toISOString(),
+        return applyPromptCreation({
+          savepoint,
+          browser,
+          library,
+          envelope,
+          operation,
+          desired,
+          hash,
         });
       });
     } catch (error) {
@@ -495,6 +562,7 @@ const cursorSchema = z.strictObject({
   limit: z.number(),
   view: promptViewSchema.optional(),
   collectionId: z.uuidv4().optional(),
+  tagFilter: z.string().optional(),
 });
 const signature = (payload: string) =>
   createHmac("sha256", configuration().authSecret)
@@ -527,6 +595,7 @@ type PageScope = Pick<
   | "limit"
   | "view"
   | "collectionId"
+  | "tagFilter"
 >;
 const scopedCursor = (cursor: string | undefined, scope: PageScope) => {
   if (!cursor) {
@@ -540,7 +609,8 @@ const scopedCursor = (cursor: string | undefined, scope: PageScope) => {
     page.kind !== scope.kind ||
     page.limit !== scope.limit ||
     page.view !== scope.view ||
-    page.collectionId !== scope.collectionId
+    page.collectionId !== scope.collectionId ||
+    page.tagFilter !== scope.tagFilter
   ) {
     throw invalidPromptRequest();
   }
@@ -587,6 +657,7 @@ interface PromptRow {
   last_used_at: Date | null;
   source_title: string | null;
   collection_id: string | null;
+  tag_ids?: string[];
 }
 const summaryFrom = (row: PromptRow) => ({
   id: row.id,
@@ -598,10 +669,17 @@ const summaryFrom = (row: PromptRow) => ({
   favorite: row.favorite,
   archived: row.archived,
   collectionId: row.collection_id,
+  tagIds: row.tag_ids ?? [],
 });
 export const listPrompts = (
   browser: BrowserAccount,
-  { limit, cursor, view, collectionId }: z.infer<typeof promptBrowseInputSchema>
+  {
+    limit,
+    cursor,
+    view,
+    collectionId,
+    tagIds = [],
+  }: z.infer<typeof promptBrowseInputSchema>
 ) =>
   database().begin(async (tx) => {
     const library = await lockLibrary(tx, browser);
@@ -613,14 +691,19 @@ export const listPrompts = (
       kind: "prompts",
       view,
       collectionId,
+      tagFilter: tagIds.length
+        ? signature(sortedTagIds(tagIds).join(","))
+        : undefined,
       limit,
     } as const;
     const page = scopedCursor(cursor, scope);
     const rows = await tx<
       PromptRow[]
-    >`SELECT id, title, description, favorite, archived, collection_id, revision::text, created_at, modified_at FROM prompt
+    >`SELECT id, title, description, favorite, archived, collection_id, revision::text, created_at, modified_at,
+      to_json(ARRAY(SELECT m.tag_id FROM prompt_tag m WHERE m.instance_id = prompt.instance_id AND m.account_id = prompt.account_id AND m.prompt_id = prompt.id AND m.add_revision > m.remove_revision ORDER BY m.tag_id)) AS tag_ids FROM prompt
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId}
       AND (${collectionId === undefined} OR collection_id = ${collectionId ?? null}::uuid)
+      AND NOT EXISTS(SELECT 1 FROM unnest(string_to_array(${tagIds.join(",")}, ',')::uuid[]) requested(id) WHERE NOT EXISTS(SELECT 1 FROM prompt_tag m WHERE m.instance_id = prompt.instance_id AND m.account_id = prompt.account_id AND m.prompt_id = prompt.id AND m.tag_id = requested.id AND m.add_revision > m.remove_revision))
       AND archived = ${view === "archive"}
       AND (${view !== "favorites"} OR favorite = true)
       AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
@@ -659,6 +742,12 @@ export const getPrompt = (browser: BrowserAccount, id: string) =>
     }
     return promptSchema.parse({
       ...summaryFrom(row),
+      libraryRevision: library.revision,
+      tagIds: await promptTagIds(
+        tx,
+        { instanceId: library.instance_id, accountId: browser.accountId },
+        id
+      ),
       content: row.content,
       instanceId: library.instance_id,
       accountId: browser.accountId,

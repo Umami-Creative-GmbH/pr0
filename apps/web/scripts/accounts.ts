@@ -19,6 +19,7 @@ try {
         "009-prompt-lifecycle.sql",
         "010-prompt-deletion.sql",
         "011-collections.sql",
+        "012-tags.sql",
       ].map(async (name, index) => ({
         version: index + 1,
         source: await Bun.file(

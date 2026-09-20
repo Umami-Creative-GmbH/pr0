@@ -75,7 +75,10 @@ test("unchanged and equal desired saves preserve modification time; genuine edit
     ...account.identity,
     operations: [promptEdit(base, create.desired)],
   });
-  expect(await a.getPrompt(base.id)).toEqual(base);
+  expect(await a.getPrompt(base.id)).toEqual({
+    ...base,
+    libraryRevision: String(BigInt(base.libraryRevision ?? base.revision) + 1n),
+  });
   const desired = { ...create.desired, content: "same desired" };
   await a.mutatePrompts({
     ...account.identity,
@@ -89,7 +92,12 @@ test("unchanged and equal desired saves preserve modification time; genuine edit
     ...account.identity,
     operations: [promptEdit(base, desired)],
   });
-  expect(await b.getPrompt(base.id)).toEqual(changed);
+  expect(await b.getPrompt(base.id)).toEqual({
+    ...changed,
+    libraryRevision: String(
+      BigInt(changed.libraryRevision ?? changed.revision) + 1n
+    ),
+  });
   const notices = await b.getConflicts();
   expect(notices.notices).toEqual([]);
 });

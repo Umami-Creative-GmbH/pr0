@@ -83,6 +83,9 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
     await page.keyboard.press("Enter");
     await page.getByText("Prompt duplicated.", { exact: true }).waitFor();
     expect(payloads[0]).toBe(payloads[1]);
+    expect(JSON.parse(payloads[0] ?? "null")).toMatchObject({
+      operations: [{ desired: { content: "Retained archive edit" } }],
+    });
     await page
       .getByRole("heading", { name: "Writing helper (copy)", exact: true })
       .waitFor();
@@ -91,9 +94,13 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
     );
     await page.getByRole("button", { name: "Archive", exact: true }).click();
     await row.click();
-    await detail
-      .getByRole("button", { name: "Restore prompt", exact: true })
-      .focus();
+    const restore = detail.getByRole("button", {
+      name: "Restore prompt",
+      exact: true,
+    });
+    // A cached archive row may render before its canonical detail refresh finishes.
+    await restore.click({ trial: true });
+    await restore.focus();
     await page.keyboard.press("Enter");
     await page.getByText("Prompt restored.", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Favorites", exact: true }).click();

@@ -7,6 +7,8 @@ export const promptLimits = {
   libraryBytes: 104_857_600,
   promptCount: 10_000,
   collectionCount: 200,
+  tagCount: 1000,
+  tagsPerPrompt: 20,
   organizationName: 60,
   warningRatio: 0.9,
 } as const;
@@ -57,6 +59,11 @@ export const revisionSchema = z
   .regex(/^(?:0|[1-9]\d{0,18})$/u)
   .refine((value) => BigInt(value) <= 9_223_372_036_854_775_807n);
 export const promptIdentitySchema = z.uuidv4();
+export const sortedTagIds = (ids: string[]) => {
+  const ordered = [...new Set(ids)];
+  ordered.sort();
+  return ordered;
+};
 export const libraryScopeSchema = z.strictObject({
   instanceId: z.uuid(),
   accountId: z.uuid(),
@@ -72,8 +79,13 @@ export const promptSummarySchema = z.strictObject({
   favorite: z.boolean(),
   archived: z.boolean(),
   collectionId: promptIdentitySchema.nullable(),
+  tagIds: z
+    .array(promptIdentitySchema)
+    .max(promptLimits.tagsPerPrompt)
+    .default([]),
 });
 export const promptSchema = promptSummarySchema.extend({
+  libraryRevision: revisionSchema.optional(),
   content: promptTextSchema.shape.content,
   ...libraryScopeSchema.shape,
   favorite: z.boolean(),
@@ -117,6 +129,7 @@ export type PromptView = z.infer<typeof promptViewSchema>;
 export const promptBrowseInputSchema = promptListInputSchema.extend({
   view: promptViewSchema.default("all"),
   collectionId: promptIdentitySchema.optional(),
+  tagIds: z.array(promptIdentitySchema).max(promptLimits.tagCount).optional(),
 });
 export const createPromptSchema = z.strictObject({
   operationId: promptIdentitySchema,
@@ -129,6 +142,10 @@ export const createPromptSchema = z.strictObject({
     description: z.string(),
     content: z.string(),
     collectionId: promptIdentitySchema.nullable().optional(),
+    tagIds: z
+      .array(promptIdentitySchema)
+      .max(promptLimits.tagsPerPrompt)
+      .optional(),
   }),
 });
 export const createCollectionSchema = z.strictObject({
@@ -154,10 +171,24 @@ export const collectionSchema = z.strictObject({
   totalCount: z.number().int().nonnegative(),
 });
 export type Collection = z.infer<typeof collectionSchema>;
+export const createTagSchema = createCollectionSchema
+  .omit({ collectionId: true })
+  .extend({
+    kind: z.literal("tag.create"),
+    tagId: promptIdentitySchema,
+  });
+export const renameTagSchema = createTagSchema.extend({
+  kind: z.literal("tag.rename"),
+});
+export type TagOperation =
+  | z.infer<typeof createTagSchema>
+  | z.infer<typeof renameTagSchema>;
+export type Tag = z.infer<typeof collectionSchema>;
 export const organizationSnapshotSchema = z.strictObject({
   ...libraryScopeSchema.shape,
   revision: revisionSchema,
   collections: z.array(collectionSchema).max(promptLimits.collectionCount),
+  tags: z.array(collectionSchema).max(promptLimits.tagCount),
   textBytes: z.number().int().nonnegative(),
 });
 export const promptTextFields = ["title", "description", "content"] as const;
@@ -171,10 +202,12 @@ export const promptStateFields = [
   "archived",
   "collectionId",
 ] as const;
-const editablePromptSchema = createPromptSchema.shape.desired.extend({
-  favorite: z.boolean().optional(),
-  archived: z.boolean().optional(),
-});
+const editablePromptSchema = createPromptSchema.shape.desired
+  .omit({ tagIds: true })
+  .extend({
+    favorite: z.boolean().optional(),
+    archived: z.boolean().optional(),
+  });
 export const updatePromptSchema = createPromptSchema.extend({
   kind: z.literal("prompt.update"),
   base: editablePromptSchema,
@@ -190,6 +223,12 @@ export const deletePromptSchema = createPromptSchema
     kind: z.literal("prompt.delete"),
   });
 export type DeletePrompt = z.infer<typeof deletePromptSchema>;
+export const assignTagsSchema = deletePromptSchema.extend({
+  kind: z.literal("prompt.tags"),
+  add: z.array(promptIdentitySchema).max(promptLimits.tagsPerPrompt),
+  remove: z.array(promptIdentitySchema).max(promptLimits.tagsPerPrompt),
+});
+export type AssignTags = z.infer<typeof assignTagsSchema>;
 export type Prompt = z.infer<typeof promptSchema>;
 export const mutationEnvelopeSchema = z.strictObject({
   protocolVersion: z.literal(1),
@@ -206,6 +245,9 @@ export const mutationEnvelopeSchema = z.strictObject({
         deletePromptSchema,
         createCollectionSchema,
         renameCollectionSchema,
+        createTagSchema,
+        renameTagSchema,
+        assignTagsSchema,
       ])
     )
     .min(1)
@@ -235,7 +277,15 @@ export const promptErrorSchema = z.strictObject({
   operationId: promptIdentitySchema.optional(),
   retryAfter: z.number().int().positive().optional(),
   fields: z.record(z.string(), z.string()).optional(),
-  resource: z.enum(["promptCount", "textBytes", "collectionCount"]).optional(),
+  resource: z
+    .enum([
+      "promptCount",
+      "textBytes",
+      "collectionCount",
+      "tagCount",
+      "tagsPerPrompt",
+    ])
+    .optional(),
   usage: libraryUsageSchema.optional(),
 });
 export type PromptError = z.infer<typeof promptErrorSchema>;
@@ -260,6 +310,15 @@ export const collectionReceiptSchema = mutationReceiptSchema
 export const mutationResultSchema = z.union([
   mutationReceiptSchema,
   collectionReceiptSchema,
+  z.strictObject({
+    status: z.literal("accepted"),
+    operationId: promptIdentitySchema,
+    tagId: promptIdentitySchema,
+    resolvedTagId: promptIdentitySchema,
+    outcome: z.enum(["created", "existing", "renamed"]),
+    revision: revisionSchema,
+    acceptedAt: z.iso.datetime(),
+  }),
   z.strictObject({ status: z.literal("rejected"), error: promptErrorSchema }),
 ]);
 export const mutationResponseSchema = z.strictObject({

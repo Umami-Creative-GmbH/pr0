@@ -144,15 +144,18 @@ export const handlePrompts = async (
         body = await getPrompt(browser, target.id);
       } else {
         const entries = Object.fromEntries(url.searchParams);
-        const input = (
-          target.kind === "conflicts"
-            ? promptListInputSchema
-            : promptBrowseInputSchema
-        ).safeParse({
+        const fields = {
           ...entries,
           limit:
             entries.limit === undefined ? undefined : Number(entries.limit),
-        });
+        };
+        const input =
+          target.kind === "conflicts"
+            ? promptListInputSchema.safeParse(fields)
+            : promptBrowseInputSchema.safeParse({
+                ...fields,
+                tagIds: entries.tagIds?.split(","),
+              });
         if (
           !input.success ||
           [...url.searchParams.keys()].length !== Object.keys(entries).length

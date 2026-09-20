@@ -2,11 +2,13 @@
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type {
   Collection,
+  Tag,
   Prompt,
   MutationReceipt,
 } from "@pr0/api-contract/prompts";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
 import { PromptFields } from "@pr0/ui/components/prompt-fields";
+import { TagPicker } from "@pr0/ui/components/tag-picker";
 
 import { collectionMatches } from "./collection-query";
 import { PromptOriginal } from "./prompt-original";
@@ -17,6 +19,7 @@ const buttonClass =
 export const PromptEditor = ({
   library,
   collections,
+  tags,
   prompt,
   onSaved,
   onAccepted,
@@ -26,14 +29,17 @@ export const PromptEditor = ({
 }: {
   library: PrivateLibrary;
   collections: Collection[];
+  tags: Tag[];
   prompt?: Prompt;
   onSaved: (receipt: MutationReceipt) => void;
-  onAccepted: () => void;
+  onAccepted: () => void | Promise<void>;
   onOpen: (id: string) => void;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
   const {
+    tagIds,
+    changeTags,
     draft,
     state,
     mappedOriginal,
@@ -120,10 +126,24 @@ export const PromptEditor = ({
         {state.fields.collectionId ? (
           <p role="alert">{state.fields.collectionId}</p>
         ) : null}
+        {prompt ? null : (
+          <TagPicker
+            label="Tags (optional)"
+            tags={tags}
+            value={tagIds}
+            onChange={changeTags}
+            search={collectionMatches}
+            disabled={state.status === "saving" || state.uncertain}
+          />
+        )}
+        {tagIds.length > 20 ? (
+          <p role="alert">Choose at most 20 tags.</p>
+        ) : null}
+        {state.fields.tagIds ? <p role="alert">{state.fields.tagIds}</p> : null}
         <div className="flex flex-wrap gap-3">
           <button
             className={buttonClass}
-            disabled={state.status === "saving"}
+            disabled={state.status === "saving" || tagIds.length > 20}
             type="submit"
           >
             {state.status === "failed" ? "Retry" : "Save"}

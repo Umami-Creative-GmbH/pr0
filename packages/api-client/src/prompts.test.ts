@@ -1,8 +1,58 @@
 import { expect, test } from "bun:test";
 
-import type { MutationEnvelope } from "@pr0/api-contract/prompts";
+import type {
+  MutationEnvelope,
+  MutationResult,
+} from "@pr0/api-contract/prompts";
 
 import { createApiClient } from "./client";
+
+test("tag receipts accept equivalent mappings but reject mismatched identities and outcomes", async () => {
+  const operation = {
+    kind: "tag.create" as const,
+    operationId: crypto.randomUUID(),
+    tagId: crypto.randomUUID(),
+    name: "Writing",
+    baseRevision: "0",
+    dependsOn: [],
+  };
+  const envelope: MutationEnvelope = {
+    protocolVersion: 1,
+    instanceId: crypto.randomUUID(),
+    accountId: crypto.randomUUID(),
+    epoch: crypto.randomUUID(),
+    installationId: crypto.randomUUID(),
+    operations: [operation],
+  };
+  const receipt: Extract<MutationResult, { tagId: string }> = {
+    status: "accepted",
+    operationId: operation.operationId,
+    tagId: operation.tagId,
+    resolvedTagId: crypto.randomUUID(),
+    outcome: "existing",
+    revision: "1",
+    acceptedAt: "2026-09-20T12:00:00.000Z",
+  };
+  const client = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ results: [receipt] })),
+  });
+  expect(await client.mutatePrompts(envelope)).toEqual({ results: [receipt] });
+  receipt.outcome = "created";
+  await expect(client.mutatePrompts(envelope)).rejects.toThrow(
+    "does not match"
+  );
+  receipt.outcome = "existing";
+  await expect(
+    client.mutatePrompts({
+      ...envelope,
+      operations: [{ ...operation, kind: "tag.rename" }],
+    })
+  ).rejects.toThrow("does not match");
+  receipt.tagId = crypto.randomUUID();
+  await expect(client.mutatePrompts(envelope)).rejects.toThrow(
+    "does not match"
+  );
+});
 
 test("organization reads validate scope, payloads, HTTP errors and cancellation", async () => {
   const scope = {
@@ -19,6 +69,7 @@ test("organization reads validate scope, payloads, HTTP errors and cancellation"
           ...scope,
           revision: "0",
           collections: [],
+          tags: [],
           textBytes: 0,
         })
       );

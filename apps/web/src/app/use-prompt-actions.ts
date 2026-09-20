@@ -22,7 +22,7 @@ export const usePromptActions = ({
     receipt: MutationReceipt,
     action: PromptAction,
     message: string
-  ) => void;
+  ) => void | Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
   const client = useApiClient();
@@ -66,7 +66,7 @@ export const usePromptActions = ({
         setCanRetry(false);
         setRetainedText(null);
         onDirtyChange(false);
-        onAccepted(result, request.action, request.message);
+        await onAccepted(result, request.action, request.message);
       } else if (result?.status === "rejected") {
         setActionError(result.error.message);
         setKnownRejected(
@@ -137,7 +137,11 @@ export const usePromptActions = ({
                 kind: "prompt.duplicate",
                 promptId: crypto.randomUUID(),
                 sourceId: source.id,
-                desired: { ...text, collectionId: source.collectionId },
+                desired: {
+                  ...text,
+                  collectionId: source.collectionId,
+                  tagIds: source.tagIds,
+                },
               }
             : {
                 ...common,

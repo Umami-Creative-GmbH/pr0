@@ -4,6 +4,17 @@ import { trimOrganizationName } from "@pr0/api-contract/organization";
 import type { MutationEnvelope, PromptText } from "@pr0/api-contract/prompts";
 import { promptStateFields } from "@pr0/api-contract/prompts";
 
+const operationEntityId = (
+  operation: MutationEnvelope["operations"][number]
+) => {
+  if ("tagId" in operation) {
+    return operation.tagId;
+  }
+  if ("collectionId" in operation) {
+    return operation.collectionId;
+  }
+  return operation.promptId;
+};
 // Fixed-order canonical v1 payload; preserve existing prompt fingerprints for replay.
 export const operationFingerprint = (
   envelope: MutationEnvelope,
@@ -21,12 +32,13 @@ export const operationFingerprint = (
         envelope.installationId,
         operation.operationId,
         operation.kind,
-        "collectionId" in operation
-          ? operation.collectionId
-          : operation.promptId,
+        operationEntityId(operation),
         operation.baseRevision,
         operation.dependsOn,
-        ...("collectionId" in operation
+        ...(operation.kind === "prompt.tags"
+          ? [operation.add, operation.remove]
+          : []),
+        ...("collectionId" in operation || "tagId" in operation
           ? [trimOrganizationName(operation.name)]
           : []),
         ...(desired
@@ -37,6 +49,11 @@ export const operationFingerprint = (
           ? [operation.desired.collectionId]
           : []),
         ...(operation.kind === "prompt.duplicate" ? [operation.sourceId] : []),
+        ...((operation.kind === "prompt.create" ||
+          operation.kind === "prompt.duplicate") &&
+        operation.desired.tagIds !== undefined
+          ? [operation.desired.tagIds]
+          : []),
         ...(operation.kind === "prompt.update"
           ? [
               operation.base.title,

@@ -6,9 +6,50 @@ import { organizationNameSchema } from "@pr0/api-contract/organization";
 import type { MutationEnvelope } from "@pr0/api-contract/prompts";
 import { useRef, useState } from "react";
 
-export const useCollectionSave = (
+const nameOperation = (
+  entity: "collection" | "tag",
+  id: string | null,
+  name: string,
+  revision: string
+): MutationEnvelope["operations"][number] => {
+  const common = {
+    operationId: crypto.randomUUID(),
+    name,
+    baseRevision: revision,
+    dependsOn: [],
+  };
+  if (entity === "tag") {
+    return {
+      ...common,
+      kind: id ? "tag.rename" : "tag.create",
+      tagId: id ?? crypto.randomUUID(),
+    };
+  }
+  return {
+    ...common,
+    kind: id ? "collection.rename" : "collection.create",
+    collectionId: id ?? crypto.randomUUID(),
+  };
+};
+const existingTagMessage = async (
+  client: ReturnType<typeof useApiClient>,
   library: PrivateLibrary,
-  onAccepted: () => void
+  resolvedTagId: string
+) => {
+  const snapshot = await client.getOrganization(AbortSignal.timeout(30_000), {
+    accountId: library.account.id,
+    instanceId: library.instance.id,
+  });
+  const existing = snapshot.tags.find((tag) => tag.id === resolvedTagId);
+  if (!existing) {
+    throw new Error("The resolved tag is missing from the library snapshot.");
+  }
+  return `Tag “${existing.name}” already exists. No prompts were assigned.`;
+};
+export const useOrganizationNameSave = (
+  library: PrivateLibrary,
+  onAccepted: () => void | Promise<void>,
+  entity: "collection" | "tag" = "collection"
 ) => {
   const client = useApiClient();
   const pending = useRef<MutationEnvelope | null>(null);
@@ -19,7 +60,7 @@ export const useCollectionSave = (
     message: "",
     error: "",
   });
-  const save = async (name: string, collectionId: string | null) => {
+  const save = async (name: string, entityId: string | null) => {
     if (inFlight.current) {
       return false;
     }
@@ -40,16 +81,7 @@ export const useCollectionSave = (
         accountId: library.account.id,
         epoch: library.epoch,
         installationId: crypto.randomUUID(),
-        operations: [
-          {
-            kind: collectionId ? "collection.rename" : "collection.create",
-            operationId: crypto.randomUUID(),
-            collectionId: collectionId ?? crypto.randomUUID(),
-            name,
-            baseRevision: library.revision,
-            dependsOn: [],
-          },
-        ],
+        operations: [nameOperation(entity, entityId, name, library.revision)],
       };
     }
     inFlight.current = true;
@@ -61,15 +93,26 @@ export const useCollectionSave = (
         AbortSignal.timeout(30_000)
       );
       const [result] = response.results;
-      if (result?.status === "accepted" && "collectionId" in result) {
+      if (
+        result?.status === "accepted" &&
+        ("collectionId" in result || "tagId" in result)
+      ) {
+        let message = "Saved to server.";
+        if ("tagId" in result && result.outcome === "existing") {
+          message = await existingTagMessage(
+            client,
+            library,
+            result.resolvedTagId
+          );
+        }
+        await onAccepted();
         pending.current = null;
         setState({
           busy: false,
           uncertain: false,
-          message: "Saved to server.",
+          message,
           error: "",
         });
-        onAccepted();
         accepted = true;
       }
       if (result?.status === "rejected") {

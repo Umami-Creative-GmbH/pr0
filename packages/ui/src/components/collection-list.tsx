@@ -10,7 +10,9 @@ export const CollectionList = ({
   search,
   disabled,
   onRename,
+  label = "Collections",
 }: {
+  label?: "Collections" | "Tags";
   collections: CollectionOption[];
   search: (name: string, query: string) => boolean;
   disabled: boolean;
@@ -24,7 +26,7 @@ export const CollectionList = ({
   return (
     <>
       <label className="block" htmlFor="collection-search">
-        Search collections
+        Search {label.toLowerCase()}
       </label>
       <input
         id="collection-search"
@@ -40,10 +42,7 @@ export const CollectionList = ({
         />
         Unused
       </label>
-      <ul
-        aria-label="Collections"
-        className="max-h-72 space-y-2 overflow-y-auto p-1"
-      >
+      <ul aria-label={label} className="max-h-72 space-y-2 overflow-y-auto p-1">
         {visible.map((entry) => (
           <li
             key={entry.id}
@@ -68,7 +67,7 @@ export const CollectionList = ({
           </li>
         ))}
       </ul>
-      {visible.length ? null : <p>No matching collections.</p>}
+      {visible.length ? null : <p>No matching {label.toLowerCase()}.</p>}
     </>
   );
 };

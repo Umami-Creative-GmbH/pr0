@@ -1,4 +1,5 @@
 import {
+  sortedTagIds,
   mutationEnvelopeSchema,
   organizationSnapshotSchema,
   mutationResponseSchema,
@@ -15,6 +16,7 @@ import type {
   MutationEnvelope,
   PromptError,
   PromptView,
+  MutationResult,
 } from "@pr0/api-contract/prompts";
 
 export class PromptApiError extends Error {
@@ -30,6 +32,41 @@ export class PromptApiError extends Error {
     this.detail = detail;
   }
 }
+const receiptMatches = (
+  entry: MutationResult,
+  operation: MutationEnvelope["operations"][number] | undefined
+) => {
+  if (!operation) {
+    return false;
+  }
+  if (entry.status === "rejected") {
+    return entry.error.operationId === operation.operationId;
+  }
+  if (entry.operationId !== operation.operationId) {
+    return false;
+  }
+  if ("tagId" in entry) {
+    if (!("tagId" in operation) || entry.tagId !== operation.tagId) {
+      return false;
+    }
+    if (operation.kind === "tag.rename") {
+      return (
+        entry.resolvedTagId === operation.tagId && entry.outcome === "renamed"
+      );
+    }
+    return (
+      entry.outcome === "existing" ||
+      (entry.outcome === "created" && entry.resolvedTagId === operation.tagId)
+    );
+  }
+  if ("collectionId" in entry) {
+    return (
+      "collectionId" in operation &&
+      entry.collectionId === operation.collectionId
+    );
+  }
+  return "promptId" in operation && entry.promptId === operation.promptId;
+};
 export const createPromptClient = (
   baseUrl: string,
   fetcher: (input: string, init: RequestInit) => Promise<Response>
@@ -111,6 +148,7 @@ export const createPromptClient = (
         limit?: number;
         view?: PromptView;
         collectionId?: string;
+        tagIds?: string[];
       } = {},
       signal?: AbortSignal,
       scope?: LibraryScope
@@ -125,6 +163,9 @@ export const createPromptClient = (
       }
       if (parsed.collectionId) {
         params.set("collectionId", parsed.collectionId);
+      }
+      if (parsed.tagIds?.length) {
+        params.set("tagIds", sortedTagIds(parsed.tagIds).join(","));
       }
       const result = promptPageSchema.parse(
         await request(`library/prompts?${params}`, signal)
@@ -154,17 +195,9 @@ export const createPromptClient = (
       );
       if (
         result.results.length !== envelope.operations.length ||
-        result.results.some((entry, index) => {
-          const operation = envelope.operations[index];
-          return entry.status === "accepted"
-            ? entry.operationId !== operation?.operationId ||
-                ("collectionId" in entry
-                  ? !("collectionId" in operation) ||
-                    entry.collectionId !== operation.collectionId
-                  : !("promptId" in operation) ||
-                    entry.promptId !== operation.promptId)
-            : entry.error.operationId !== operation?.operationId;
-        })
+        result.results.some(
+          (entry, index) => !receiptMatches(entry, envelope.operations[index])
+        )
       ) {
         throw new Error(
           "The server response does not match these operations. Retry to confirm saving."
