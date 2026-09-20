@@ -26,6 +26,7 @@ The acceptance runner starts isolated PostgreSQL/SMTP containers, migrates, buil
 ## Observed results
 
 - 21 REST/browser acceptance tests passed (148 assertions), followed by one restart test (4 assertions).
+- After review fixes, all 9 issue #30 REST/browser tests passed again (55 assertions), with a fresh production build, typecheck and scoped lint. The added regression proves B1's accepted copy and notice become visible immediately while B2 remains unsaved in the editor.
 - Workspace test task passed: 66 prototype tests, 17 API client tests and 7 web tests. Unchanged workspace tasks may be served from Turbo's cache.
 - Workspace typecheck and production build passed.
 - Scoped Ultracite checks passed for changed code and the web source tree, including the repository's React Doctor rules.
@@ -35,5 +36,7 @@ The acceptance runner starts isolated PostgreSQL/SMTP containers, migrates, buil
 Coverage includes two authenticated browser sessions, independent and competing edits, unchanged saves, equal desired text, response loss and replay, successor drafts, full long-title retention, tied-revision pagination, foreign-account isolation, both quota limits, correction at capacity, injected storage failure with atomic rollback, incoming-data draft retention, real clipboard recovery, and server restart.
 
 Concurrent browser page loads can reach the existing four-active-requests-per-account admission limit. Read queries use bounded retries respecting server retry guidance; save retries remain explicit. Tests finish the browser journey before issuing separate verification reads.
+
+The implement workflow's parallel reviews found one specification gap (accepted changes did not refresh queries while a successor draft stayed open) and one low-priority standards smell (duplicated cursor validation/signing). Both were corrected and re-reviewed: Standards 0 remaining findings; Spec 0 remaining findings.
 
 Screenshots: [preserved copy and persistent notice](../evidence/issue-30-conflict-copy.png), [quota refusal retaining the draft](../evidence/issue-30-quota-draft.png). These are local production-build checks, not deployment, native/offline, deletion-conflict, or complete MVP release certification.

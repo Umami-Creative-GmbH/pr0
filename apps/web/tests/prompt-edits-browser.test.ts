@@ -104,6 +104,15 @@ test("two browser sessions preserve a successor draft when a lost save response 
       "Reply (conflict copy)"
     );
     expect(payloads[0]).toBe(payloads[1]);
+    await b
+      .getByText("Conflicts to review", { exact: true })
+      .waitFor({ timeout: 3000 });
+    await b
+      .getByRole("button", { name: "Reply (conflict copy)", exact: true })
+      .click();
+    await b.getByLabel("Saved content").waitFor();
+    expect(await b.getByLabel("Saved content").inputValue()).toBe("B1");
+    expect(await b.getByLabel("Content (required)").inputValue()).toBe("B2");
     await b.getByText("Unsaved changes", { exact: true }).waitFor();
     await b.getByRole("button", { name: "Save", exact: true }).click();
     await b.getByText("Saved to server.", { exact: true }).waitFor();

@@ -31,13 +31,14 @@ export const usePromptEditor = ({
   library,
   prompt,
   onSaved,
+  onAccepted,
   onCancel,
   onDirtyChange,
 }: {
   library: PrivateLibrary;
   prompt?: Prompt;
   onSaved: (receipt: MutationReceipt) => void;
-  onOpen: (id: string) => void;
+  onAccepted: () => void;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
@@ -122,6 +123,7 @@ export const usePromptEditor = ({
       setMappedOriginal(result.promptId);
     }
     pending.current = null;
+    onAccepted();
     if (successor) {
       const retained = { ...latestDraft.current };
       for (const field of promptTextFields) {

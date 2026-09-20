@@ -441,6 +441,53 @@ const readCursor = (cursor: string) => {
     throw invalidPromptRequest();
   }
 };
+type PageScope = Pick<
+  z.infer<typeof cursorSchema>,
+  "account" | "instance" | "epoch" | "revision" | "kind" | "limit"
+>;
+const scopedCursor = (cursor: string | undefined, scope: PageScope) => {
+  if (!cursor) {
+    return;
+  }
+  const page = readCursor(cursor);
+  if (
+    page.account !== scope.account ||
+    page.instance !== scope.instance ||
+    page.epoch !== scope.epoch ||
+    page.kind !== scope.kind ||
+    page.limit !== scope.limit
+  ) {
+    throw invalidPromptRequest();
+  }
+  if (page.revision !== scope.revision) {
+    throw new PromptFailureError(
+      {
+        code: "results_changed",
+        message: "Your library changed. Refresh the list to continue.",
+        retryable: true,
+      },
+      409
+    );
+  }
+  return page;
+};
+const signCursor = (
+  scope: PageScope,
+  last: { id: string; revision: string } | undefined
+) => {
+  if (!last) {
+    throw new Error("Missing page boundary");
+  }
+  const payload = Buffer.from(
+    JSON.stringify({
+      ...scope,
+      version: 2,
+      after: last.revision,
+      afterId: last.id,
+    })
+  ).toString("base64url");
+  return `${payload}.${signature(payload)}`;
+};
 interface PromptRow {
   id: string;
   title: string;
@@ -469,27 +516,15 @@ export const listPrompts = (
 ) =>
   database().begin(async (tx) => {
     const library = await lockLibrary(tx, browser);
-    const page = cursor ? readCursor(cursor) : undefined;
-    if (
-      page &&
-      (page.account !== browser.accountId ||
-        page.instance !== library.instance_id ||
-        page.epoch !== library.recovery_epoch ||
-        page.kind !== "prompts" ||
-        page.limit !== limit)
-    ) {
-      throw invalidPromptRequest();
-    }
-    if (page && page.revision !== library.revision) {
-      throw new PromptFailureError(
-        {
-          code: "results_changed",
-          message: "Your library changed. Refresh the list to continue.",
-          retryable: true,
-        },
-        409
-      );
-    }
+    const scope = {
+      account: browser.accountId,
+      instance: library.instance_id,
+      epoch: library.recovery_epoch,
+      revision: library.revision,
+      kind: "prompts",
+      limit,
+    } as const;
+    const page = scopedCursor(cursor, scope);
     const rows = await tx<
       PromptRow[]
     >`SELECT id, title, description, revision::text, created_at, modified_at FROM prompt
@@ -497,23 +532,8 @@ export const listPrompts = (
       AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
     ORDER BY prompt.revision DESC, id LIMIT ${limit + 1}`;
     const visible = rows.slice(0, limit);
-    let nextCursor: string | null = null;
-    if (rows.length > limit) {
-      const payload = Buffer.from(
-        JSON.stringify({
-          account: browser.accountId,
-          instance: library.instance_id,
-          epoch: library.recovery_epoch,
-          version: 2,
-          kind: "prompts",
-          revision: library.revision,
-          after: visible.at(-1)?.revision,
-          afterId: visible.at(-1)?.id,
-          limit,
-        })
-      ).toString("base64url");
-      nextCursor = `${payload}.${signature(payload)}`;
-    }
+    const nextCursor =
+      rows.length > limit ? signCursor(scope, visible.at(-1)) : null;
     return promptPageSchema.parse({
       instanceId: library.instance_id,
       accountId: browser.accountId,
@@ -562,27 +582,15 @@ export const listConflicts = (
 ) =>
   database().begin(async (tx) => {
     const library = await lockLibrary(tx, browser);
-    const page = cursor ? readCursor(cursor) : undefined;
-    if (
-      page &&
-      (page.account !== browser.accountId ||
-        page.instance !== library.instance_id ||
-        page.epoch !== library.recovery_epoch ||
-        page.kind !== "conflicts" ||
-        page.limit !== limit)
-    ) {
-      throw invalidPromptRequest();
-    }
-    if (page && page.revision !== library.revision) {
-      throw new PromptFailureError(
-        {
-          code: "results_changed",
-          message: "Your library changed. Refresh conflicts to continue.",
-          retryable: true,
-        },
-        409
-      );
-    }
+    const scope = {
+      account: browser.accountId,
+      instance: library.instance_id,
+      epoch: library.recovery_epoch,
+      revision: library.revision,
+      kind: "conflicts",
+      limit,
+    } as const;
+    const page = scopedCursor(cursor, scope);
     const rows = await tx<
       {
         id: string;
@@ -597,23 +605,8 @@ export const listConflicts = (
       AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
     ORDER BY conflict_notice.revision DESC, id LIMIT ${limit + 1}`;
     const visible = rows.slice(0, limit);
-    let nextCursor: string | null = null;
-    if (rows.length > limit) {
-      const payload = Buffer.from(
-        JSON.stringify({
-          account: browser.accountId,
-          instance: library.instance_id,
-          epoch: library.recovery_epoch,
-          version: 2,
-          kind: "conflicts",
-          revision: library.revision,
-          after: visible.at(-1)?.revision,
-          afterId: visible.at(-1)?.id,
-          limit,
-        })
-      ).toString("base64url");
-      nextCursor = `${payload}.${signature(payload)}`;
-    }
+    const nextCursor =
+      rows.length > limit ? signCursor(scope, visible.at(-1)) : null;
     return conflictPageSchema.parse({
       instanceId: library.instance_id,
       accountId: browser.accountId,

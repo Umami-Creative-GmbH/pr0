@@ -11,6 +11,7 @@ export const PromptEditor = ({
   library,
   prompt,
   onSaved,
+  onAccepted,
   onOpen,
   onCancel,
   onDirtyChange,
@@ -18,6 +19,7 @@ export const PromptEditor = ({
   library: PrivateLibrary;
   prompt?: Prompt;
   onSaved: (receipt: MutationReceipt) => void;
+  onAccepted: () => void;
   onOpen: (id: string) => void;
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -42,7 +44,7 @@ export const PromptEditor = ({
     library,
     prompt,
     onSaved,
-    onOpen,
+    onAccepted,
     onCancel,
     onDirtyChange,
   });

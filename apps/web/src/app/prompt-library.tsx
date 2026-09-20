@@ -169,6 +169,8 @@ export const PromptLibrary = ({
         ? "Saved to server. Competing text was preserved in an independent conflict copy."
         : "Saved to server."
     );
+  };
+  const accepted = () => {
     void queryClient.resetQueries({ queryKey });
     void queryClient.invalidateQueries({
       queryKey: [
@@ -228,6 +230,7 @@ export const PromptLibrary = ({
           }}
           onDirtyChange={onDirtyChange}
           onSaved={saved}
+          onAccepted={accepted}
         />
       ) : null}
       <section
