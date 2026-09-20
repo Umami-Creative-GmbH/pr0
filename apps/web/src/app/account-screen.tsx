@@ -2,15 +2,46 @@
 
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
+import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { accountErrorMessage, methodResultMessage } from "./account-errors";
 import { EmailSettings } from "./email-settings";
+import { PromptLibrary } from "./prompt-library";
 import { RecoveryForm } from "./recovery-form";
 import { SessionSettings } from "./session-settings";
+import { SignOutControl } from "./sign-out-control";
 import { SocialSignIn } from "./social-sign-in";
+
+const changedLibrary = (
+  draft: PrivateLibrary | null,
+  current?: PrivateLibrary
+) =>
+  Boolean(
+    draft &&
+    current &&
+    (draft.account.id !== current.account.id ||
+      draft.instance.id !== current.instance.id)
+  );
+const accountStatus = (
+  error: string,
+  message: string,
+  signedIn?: PrivateLibrary,
+  methodResult?: string
+) => error || message || (!signedIn && methodResultMessage(methodResult));
+const initialError = (verification?: string, socialError?: string) => {
+  if (socialError === "rate_limited") {
+    return "Too many account creation attempts. Wait up to one hour before trying again. Existing accounts can still sign in.";
+  }
+  if (socialError) {
+    return accountErrorMessage(new ApiError(400, socialError));
+  }
+  return verification === "invalid"
+    ? "This verification link is invalid or expired. Request another email below."
+    : "";
+};
 
 export const AccountScreen = ({
   verification,
@@ -25,20 +56,14 @@ export const AccountScreen = ({
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [busy, setBusy] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [draftLibrary, setDraftLibrary] = useState<PrivateLibrary | null>(null);
   const [message, setMessage] = useState(
     verification === "ok" ? "Email verified. Sign in to open your library." : ""
   );
-  const [errorText, setErrorText] = useState(() => {
-    if (socialError === "rate_limited") {
-      return "Too many account creation attempts. Wait up to one hour before trying again. Existing accounts can still sign in.";
-    }
-    if (socialError) {
-      return accountErrorMessage(new ApiError(400, socialError));
-    }
-    return verification === "invalid"
-      ? "This verification link is invalid or expired. Request another email below."
-      : "";
-  });
+  const [errorText, setErrorText] = useState(() =>
+    initialError(verification, socialError)
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const library = useQuery({
@@ -112,13 +137,22 @@ export const AccountScreen = ({
     void run(async () => {
       await queryClient.cancelQueries();
       await client.signOut();
+      setDraftOpen(false);
+      setDraftLibrary(null);
       queryClient.clear();
       await library.refetch();
       setMessage("Signed out.");
     });
   };
 
-  const signedIn = library.data && !library.isError;
+  const signedIn = draftLibrary ?? library.data;
+  const retainDraft = (dirty: boolean) => {
+    setDraftOpen(dirty);
+    setDraftLibrary((current) =>
+      dirty ? (current ?? library.data ?? null) : null
+    );
+  };
+  const accountChanged = changedLibrary(draftLibrary, library.data);
   const submitLabel = mode === "login" ? "Sign in" : "Create account";
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-12">
@@ -131,57 +165,56 @@ export const AccountScreen = ({
         </h1>
       </header>
       <p aria-live="polite" className="text-sm" ref={statusRef} tabIndex={-1}>
-        {errorText ||
-          message ||
-          (!signedIn && methodResultMessage(methodResult))}
+        {accountStatus(errorText, message, signedIn, methodResult)}
       </p>
       {library.isPending ? <output>Checking your session…</output> : null}
       {signedIn ? (
         <>
-          <section
-            aria-labelledby="account-title"
-            className="rounded-lg border p-6"
-          >
-            <h2 className="font-semibold" id="account-title">
-              Account and instance
-            </h2>
-            <dl className="mt-3 space-y-2 text-sm break-all">
-              <dt className="font-medium">Account</dt>
-              <dd>{library.data.account.email}</dd>
-              <dt className="font-medium">Instance</dt>
-              <dd>{library.data.instance.origin}</dd>
-              <dt className="font-medium">Instance identity</dt>
-              <dd>{library.data.instance.id}</dd>
-            </dl>
-            <p className="text-muted-foreground mt-4 text-sm">
-              No pending work.
-            </p>
-            <button
-              className="mt-3 rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-              disabled={busy}
-              onClick={logout}
-              type="button"
-            >
-              Sign out
-            </button>
-          </section>
-          <SessionSettings accountId={library.data.account.id} />
-          <EmailSettings
-            key={library.data.account.id}
-            accountId={library.data.account.id}
-            methodResult={methodResult}
+          <PromptLibrary
+            key={`${signedIn.instance.id}:${signedIn.account.id}`}
+            library={signedIn}
+            onDirtyChange={retainDraft}
           />
-          <section
-            aria-labelledby="empty-title"
-            className="rounded-lg border p-6"
-          >
-            <h2 className="text-xl font-medium" id="empty-title">
-              Your library is empty
-            </h2>
-            <p className="text-muted-foreground mt-2">
-              You are signed in to your private library.
+          {accountChanged ? (
+            <p role="alert">
+              Your browser is now signed in to a different account. This draft
+              belongs to {signedIn.account.email}. Return to that account to
+              save, or copy your text before discarding the draft.
             </p>
-          </section>
+          ) : (
+            <>
+              <section
+                aria-labelledby="account-title"
+                className="rounded-lg border p-6"
+              >
+                <h2 className="font-semibold" id="account-title">
+                  Account and instance
+                </h2>
+                <dl className="mt-3 space-y-2 text-sm break-all">
+                  <dt className="font-medium">Account</dt>
+                  <dd>{signedIn.account.email}</dd>
+                  <dt className="font-medium">Instance</dt>
+                  <dd>{signedIn.instance.origin}</dd>
+                  <dt className="font-medium">Instance identity</dt>
+                  <dd>{signedIn.instance.id}</dd>
+                </dl>
+                <p className="text-muted-foreground mt-4 text-sm">
+                  {draftOpen ? "Unsaved prompt in this tab." : "No open draft."}
+                </p>
+                <SignOutControl
+                  busy={busy}
+                  dirty={draftOpen}
+                  onSignOut={logout}
+                />
+              </section>
+              <SessionSettings accountId={signedIn.account.id} />
+              <EmailSettings
+                key={signedIn.account.id}
+                accountId={signedIn.account.id}
+                methodResult={methodResult}
+              />
+            </>
+          )}
         </>
       ) : (
         <section aria-labelledby="form-title" className="rounded-lg border p-6">

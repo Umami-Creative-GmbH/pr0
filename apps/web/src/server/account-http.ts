@@ -435,7 +435,7 @@ export const handleLibrary = async (request: Request) => {
       await admit([{ key: `api:${user.id}`, max: 120, seconds: 60 }]);
       const sql = database();
       const rows =
-        await sql`SELECT instance_id, revision::text FROM library WHERE account_id = ${user.id}`;
+        await sql`SELECT instance_id, revision::text, recovery_epoch FROM library JOIN instance ON instance.id = library.instance_id WHERE account_id = ${user.id}`;
       if (!rows.length) {
         throw new AccountFailureError("unavailable", 503, 30);
       }
@@ -449,6 +449,7 @@ export const handleLibrary = async (request: Request) => {
             provenance: "browser",
           },
           revision: rows[0].revision,
+          epoch: rows[0].recovery_epoch,
           prompts: [],
         }),
         200,

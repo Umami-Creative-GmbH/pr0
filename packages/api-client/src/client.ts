@@ -39,6 +39,8 @@ import type {
 } from "@pr0/api-contract/accounts";
 import { healthPath, healthResponseSchema } from "@pr0/api-contract/health";
 
+import { createPromptClient } from "./prompts";
+
 const trailingSlashes = /\/+$/u;
 
 export class ApiError extends Error {
@@ -100,6 +102,7 @@ export const createApiClient = ({
   };
 
   return {
+    ...createPromptClient(normalizedBaseUrl, fetcher),
     baseUrl: normalizedBaseUrl,
     async getLoginMethods(signal?: AbortSignal) {
       return loginMethodsSchema.parse(

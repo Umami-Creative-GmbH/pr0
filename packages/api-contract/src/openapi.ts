@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { accountPaths, accountSchemas } from "./accounts-openapi";
 import { healthPath, healthResponseSchema } from "./health";
+import { promptPaths, promptSchemas } from "./prompts-openapi";
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -16,9 +17,11 @@ export const openApiDocument = {
   tags: [
     { name: "System", description: "Service availability" },
     { name: "Accounts", description: "Verified account access" },
+    { name: "Prompts", description: "Owned prompt creation and retrieval" },
   ],
   paths: {
     ...accountPaths,
+    ...promptPaths,
     [healthPath]: {
       get: {
         operationId: "getHealth",
@@ -50,6 +53,7 @@ export const openApiDocument = {
     },
     schemas: {
       ...accountSchemas,
+      ...promptSchemas,
       // SAFETY: Zod emits valid JSON Schema 2020-12, supported by OpenAPI 3.1 but typed more narrowly by openapi-types.
       HealthResponse: z.toJSONSchema(
         healthResponseSchema

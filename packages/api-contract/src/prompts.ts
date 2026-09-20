@@ -1,0 +1,146 @@
+import { z } from "zod";
+
+export const promptLimits = {
+  title: 200,
+  description: 2000,
+  contentBytes: 262_144,
+  libraryBytes: 104_857_600,
+  promptCount: 10_000,
+} as const;
+// Unicode White_Space (stable since Unicode 6.3); deliberately excludes BOM.
+const outerWhitespace =
+  // oxlint-disable-next-line eslint/no-control-regex -- This is the pinned Unicode White_Space set, including whitespace control characters.
+  /^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+|[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+$/gu;
+export const trimPromptText = (value: string) =>
+  value.replace(outerWhitespace, "");
+export const utf8Bytes = (value: string) =>
+  new TextEncoder().encode(value).byteLength;
+// oxlint-disable-next-line eslint/no-control-regex -- NUL and unpaired surrogates must be rejected before PostgreSQL storage.
+const invalidScalar = /[\uD800-\uDFFF\u0000]/u;
+const scalarText = z
+  .string()
+  .refine(
+    (value) => !invalidScalar.test(value),
+    "Use valid Unicode text without NUL characters."
+  );
+export const promptTextSchema = z.strictObject({
+  title: scalarText
+    .refine((value) => trimPromptText(value).length > 0, "Enter a title.")
+    .refine(
+      (value) => [...trimPromptText(value)].length <= promptLimits.title,
+      "Title must be at most 200 Unicode code points."
+    ),
+  description: scalarText.refine(
+    (value) => [...trimPromptText(value)].length <= promptLimits.description,
+    "Description must be at most 2,000 Unicode code points."
+  ),
+  content: scalarText
+    .refine(
+      (value) => trimPromptText(value).length > 0,
+      "Enter nonblank content."
+    )
+    .refine(
+      (value) => utf8Bytes(value) <= promptLimits.contentBytes,
+      "Content must be at most 256 KiB of UTF-8 text."
+    ),
+});
+export type PromptText = z.infer<typeof promptTextSchema>;
+export const revisionSchema = z
+  .string()
+  .regex(/^(?:0|[1-9]\d{0,18})$/u)
+  .refine((value) => BigInt(value) <= 9_223_372_036_854_775_807n);
+export const promptIdentitySchema = z.uuidv4();
+export const libraryScopeSchema = z.strictObject({
+  instanceId: z.uuid(),
+  accountId: z.uuid(),
+});
+export type LibraryScope = z.infer<typeof libraryScopeSchema>;
+export const promptSummarySchema = z.strictObject({
+  id: promptIdentitySchema,
+  title: z.string(),
+  description: z.string(),
+  revision: revisionSchema,
+  createdAt: z.iso.datetime(),
+  modifiedAt: z.iso.datetime(),
+});
+export const promptSchema = promptSummarySchema.extend({
+  content: promptTextSchema.shape.content,
+  ...libraryScopeSchema.shape,
+});
+export const libraryUsageSchema = z.strictObject({
+  promptCount: z.number().int().nonnegative(),
+  textBytes: z.number().int().nonnegative(),
+});
+export const promptPageSchema = z.strictObject({
+  ...libraryScopeSchema.shape,
+  revision: revisionSchema,
+  prompts: z.array(promptSummarySchema).max(100),
+  nextCursor: z.string().nullable(),
+  usage: libraryUsageSchema,
+});
+export const promptListInputSchema = z.strictObject({
+  cursor: z.string().max(2048).optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+});
+export const createPromptSchema = z.strictObject({
+  operationId: promptIdentitySchema,
+  kind: z.literal("prompt.create"),
+  promptId: promptIdentitySchema,
+  baseRevision: revisionSchema,
+  dependsOn: z.array(promptIdentitySchema).max(100),
+  desired: z.strictObject({
+    title: z.string(),
+    description: z.string(),
+    content: z.string(),
+  }),
+});
+export const mutationEnvelopeSchema = z.strictObject({
+  protocolVersion: z.literal(1),
+  instanceId: z.uuid(),
+  accountId: z.uuid(),
+  epoch: z.uuid(),
+  installationId: promptIdentitySchema,
+  operations: z.array(createPromptSchema).min(1).max(100),
+});
+export type MutationEnvelope = z.infer<typeof mutationEnvelopeSchema>;
+export type CreatePrompt = z.infer<typeof createPromptSchema>;
+export const promptErrorSchema = z.strictObject({
+  code: z.enum([
+    "validation_failed",
+    "quota_exceeded",
+    "operation_identity_reused",
+    "identity_unavailable",
+    "dependency_blocked",
+    "authentication_required",
+    "forbidden",
+    "not_found",
+    "update_required",
+    "snapshot_required",
+    "results_changed",
+    "rate_limited",
+    "temporarily_unavailable",
+  ]),
+  message: z.string(),
+  retryable: z.boolean(),
+  operationId: promptIdentitySchema.optional(),
+  retryAfter: z.number().int().positive().optional(),
+  fields: z.record(z.string(), z.string()).optional(),
+  resource: z.enum(["promptCount", "textBytes"]).optional(),
+  usage: libraryUsageSchema.optional(),
+});
+export type PromptError = z.infer<typeof promptErrorSchema>;
+export const mutationReceiptSchema = z.strictObject({
+  status: z.literal("accepted"),
+  operationId: promptIdentitySchema,
+  promptId: promptIdentitySchema,
+  revision: revisionSchema,
+  acceptedAt: z.iso.datetime(),
+});
+export const mutationResultSchema = z.discriminatedUnion("status", [
+  mutationReceiptSchema,
+  z.strictObject({ status: z.literal("rejected"), error: promptErrorSchema }),
+]);
+export const mutationResponseSchema = z.strictObject({
+  results: z.array(mutationResultSchema).min(1).max(100),
+});
+export type MutationResult = z.infer<typeof mutationResultSchema>;

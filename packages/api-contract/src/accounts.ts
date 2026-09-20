@@ -181,6 +181,7 @@ export const librarySchema = z.strictObject({
     provenance: z.literal("browser"),
   }),
   revision: z.string().regex(/^\d+$/u),
+  epoch: z.uuid(),
   prompts: z.array(z.never()),
 });
 export type PrivateLibrary = z.infer<typeof librarySchema>;

@@ -14,6 +14,7 @@
     "typecheck": "bun --bun next typegen && bun --bun tsc --noEmit",
     "test": "bun test src",
     "test:accounts": "bun --env-file=tests/compose.env test tests/deployment-integration.test.ts",
+    "test:prompts": "bun --env-file=tests/social.env tests/prompts-runner.ts",
     "test:recovery": "bun --env-file=tests/compose.env test tests/recovery-deployment.test.ts",
     "test:social": "bun --env-file=tests/social.env tests/social-runner.ts",
     "test:email-change": "bun --env-file=tests/social.env tests/email-change-runner.ts",
@@ -44,6 +45,7 @@
     "@types/nodemailer": "7.0.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "playwright": "^1.63.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

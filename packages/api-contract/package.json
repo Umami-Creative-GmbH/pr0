@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./prompts": "./src/prompts.ts",
+    "./prompt-fixtures": "./src/prompt-fixtures.ts",
     "./accounts": "./src/accounts.ts",
     "./health": "./src/health.ts",
     "./openapi": "./src/openapi.ts"
