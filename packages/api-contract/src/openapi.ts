@@ -2,6 +2,7 @@ import type { OpenAPIV3_1 } from "openapi-types";
 import { z } from "zod";
 
 import { accountPaths, accountSchemas } from "./accounts-openapi";
+import { deletionPaths, deletionSchemas } from "./deletions-openapi";
 import { healthPath, healthResponseSchema } from "./health";
 import { promptPaths, promptSchemas } from "./prompts-openapi";
 
@@ -21,6 +22,7 @@ export const openApiDocument = {
   ],
   paths: {
     ...accountPaths,
+    ...deletionPaths,
     ...promptPaths,
     [healthPath]: {
       get: {
@@ -53,6 +55,7 @@ export const openApiDocument = {
     },
     schemas: {
       ...accountSchemas,
+      ...deletionSchemas,
       ...promptSchemas,
       // SAFETY: Zod emits valid JSON Schema 2020-12, supported by OpenAPI 3.1 but typed more narrowly by openapi-types.
       HealthResponse: z.toJSONSchema(

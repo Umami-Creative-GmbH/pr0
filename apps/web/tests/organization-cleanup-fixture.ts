@@ -4,7 +4,10 @@ import { SQL } from "bun";
 
 const fixtureDatabase = () => {
   const url = process.env.DATABASE_URL;
-  if (url !== "postgres://pr0:local-social-test-only@localhost:55426/pr0") {
+  if (
+    url !== "postgres://pr0:local-social-test-only@localhost:55426/pr0" &&
+    url !== "postgres://pr0:local-deletion-test-only@localhost:55456/pr0"
+  ) {
     throw new Error("Organization fixture requires the isolated test database");
   }
   return new SQL(url);

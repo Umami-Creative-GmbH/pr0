@@ -4,7 +4,10 @@ import { SQL } from "bun";
 // Seed pre-existing usage at the external database boundary; observe retention through REST.
 export const seedPromptUsage = async (scope: LibraryScope, id: string) => {
   const url = process.env.DATABASE_URL;
-  if (url !== "postgres://pr0:local-social-test-only@localhost:55426/pr0") {
+  if (
+    url !== "postgres://pr0:local-social-test-only@localhost:55426/pr0" &&
+    url !== "postgres://pr0:local-deletion-test-only@localhost:55456/pr0"
+  ) {
     throw new Error("Usage fixture requires the isolated local test database");
   }
   const sql = new SQL(url);

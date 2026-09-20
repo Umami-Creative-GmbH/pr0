@@ -2,10 +2,12 @@
 import "server-only";
 import { AccountFailureError } from "./admission";
 import { workDatabase } from "./database";
+import { ensureDeletionRecovery } from "./deletion-recovery";
 
 export const withRequestWork = async (
   operation: (claimOwner: (owner: string) => Promise<void>) => Promise<Response>
 ) => {
+  await ensureDeletionRecovery();
   const sql = workDatabase();
   const id = crypto.randomUUID();
   const deadline = Date.now() + 5000;
@@ -60,6 +62,11 @@ export const withRequestWork = async (
         throw new AccountFailureError("unavailable", 503, 5);
       }
       await sql.begin(async (tx) => {
+        const [account] =
+          await tx`SELECT id FROM "user" WHERE id=${owner} AND NOT deletion_pending`;
+        if (!account) {
+          throw new AccountFailureError("unauthenticated", 401);
+        }
         await tx`SELECT pg_advisory_xact_lock(24005)`;
         const [counts] =
           await tx`SELECT count(*)::int AS count FROM request_work WHERE active AND owner = ${owner}`;

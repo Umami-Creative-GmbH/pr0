@@ -2,6 +2,10 @@ x-account-environment: &account-environment
   PR0_ORIGIN: "${PR0_ORIGIN:-http://localhost:3000}"
   DATABASE_URL: "${DATABASE_URL:-}"
   DATABASE_URL_FILE: "${DATABASE_URL_FILE:-}"
+  PR0_LEDGER_A_URL: "${PR0_LEDGER_A_URL:-}"
+  PR0_LEDGER_A_URL_FILE: "${PR0_LEDGER_A_URL_FILE:-}"
+  PR0_LEDGER_B_URL: "${PR0_LEDGER_B_URL:-}"
+  PR0_LEDGER_B_URL_FILE: "${PR0_LEDGER_B_URL_FILE:-}"
   BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:-}"
   BETTER_AUTH_SECRET_FILE: "${BETTER_AUTH_SECRET_FILE:-}"
   PR0_MAIL_SECRET: "${PR0_MAIL_SECRET:-}"
@@ -58,6 +62,21 @@ services:
     command: ["bun", "--bun", "apps/web/.operations/mail-worker.js"]
     restart: unless-stopped
     init: true
+    depends_on:
+      database:
+        condition: service_healthy
+  deletions:
+    image: pr0-local
+    build:
+      context: .
+    profiles: ["operations"]
+    environment:
+      <<: *account-environment
+      PR0_SEARCH_DIRECTORY: /var/lib/pr0-search
+    volumes:
+      - search-data:/var/lib/pr0-search
+    entrypoint: ["bun", "--bun", "apps/web/.operations/deletions.js"]
+    command: ["replay"]
     depends_on:
       database:
         condition: service_healthy

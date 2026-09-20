@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./deletions": "./src/deletions.ts",
     "./prompt-use-fixtures": "./src/prompt-use-fixtures.ts",
     "./search-fixtures": "./src/search-fixtures.ts",
     "./organization": "./src/organization.ts",

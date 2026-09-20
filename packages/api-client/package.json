@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./deletions": "./src/deletions.ts",
     "./prompts": "./src/prompts.ts",
     "./client": "./src/client.ts",
     "./health": "./src/health.ts",
