@@ -46,6 +46,50 @@ test("device approval client validates requests, responses, HTTP failures and ca
   expect(await client.decideDevice(input, true)).toEqual({ success: true });
 });
 
+test("deletion client validates responses, HTTP failures, invalid handles and cancellation", async () => {
+  const controller = new AbortController();
+  controller.abort(new DOMException("Cancelled", "AbortError"));
+  const identity = {
+    accountId: "00000000-0000-4000-8000-000000000001",
+    emailVersion: 0,
+    confirmation: "delete-account" as const,
+  };
+  const operations = [
+    (client: ApiClient) => client.getDeletionTrust(controller.signal),
+    (client: ApiClient) => client.getDeletionVerification(controller.signal),
+    (client: ApiClient) => client.deleteAccount(identity, controller.signal),
+    (client: ApiClient) =>
+      client.getDeletionReceipt(
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        controller.signal
+      ),
+  ];
+  const invalid = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({})),
+  });
+  const unavailable = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({ code: "unavailable", retryAfter: 5 }, { status: 503 })
+      ),
+  });
+  const cancelled = createApiClient({
+    fetcher: (_url, init) => Promise.reject(init.signal?.reason),
+  });
+  for (const operation of operations) {
+    await expect(operation(invalid)).rejects.toBeInstanceOf(ZodError);
+    await expect(operation(unavailable)).rejects.toMatchObject({
+      status: 503,
+      code: "unavailable",
+      retryAfter: 5,
+    });
+    await expect(operation(cancelled)).rejects.toBe(controller.signal.reason);
+  }
+  await expect(
+    invalid.getDeletionReceipt("../../account")
+  ).rejects.toBeInstanceOf(ZodError);
+});
+
 test("login-method client validates responses, typed errors, inputs and cancellation", async () => {
   const identity = {
     accountId: "00000000-0000-4000-8000-000000000001",

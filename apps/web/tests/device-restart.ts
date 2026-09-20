@@ -32,7 +32,9 @@ export const verifyDeviceRestart = async (
   const clock = path
     .join(import.meta.dir, "device-clock-preload.ts")
     .replaceAll("\\", "/");
-  await server.startServer({ PR0_TEST_TIME_OFFSET_MS: "660000" }, [clock]);
+  await server.startServer({ PR0_TEST_TIME_OFFSET_MS: "660000" }, true, [
+    clock,
+  ]);
   const rejection = await redeem(expired.device_code);
   expect(await rejection.json()).toEqual({ error: "expired_token" });
   const after = await readDesktop(token.access_token);

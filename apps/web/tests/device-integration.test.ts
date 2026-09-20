@@ -1,12 +1,15 @@
 import { expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
 
+import { verifyDeletionReceipt } from "@pr0/api-client/deletions";
+import { deletionTrustSchema } from "@pr0/api-contract/deletions";
 import {
   capabilitiesSchema,
   deviceCodeSchema,
   deviceTokenSchema,
   desktopSessionSchema,
 } from "@pr0/api-contract/device";
+import { SQL } from "bun";
 
 import fixtures from "../../../packages/api-contract/src/device-fixtures.json";
 import {
@@ -17,6 +20,7 @@ import {
   tokenFrom,
   verifiedBrowser,
 } from "./device-fixture";
+import { freshSocialBrowser } from "./email-change-fixture";
 import { origin, post, cookieFrom } from "./http-fixture";
 import { githubLogin } from "./social-fixture";
 
@@ -50,6 +54,15 @@ test("explicit browser approval creates an independent desktop session", async (
   expect(desktop.account.id).toBe(library.account.id);
   expect(desktop.session.id).not.toBe(library.session.id);
   expect(desktop.session.provenance).toBe("device");
+  const trustResponse = await fetch(`${origin}/api/v1/account/deletion`, {
+    headers: { Cookie: browser, Origin: origin },
+  });
+  expect(trustResponse.status).toBe(200);
+  const trust = deletionTrustSchema.parse(await trustResponse.json());
+  const discovery = await fetch(`${origin}/api/v1/capabilities`);
+  const capabilities = capabilitiesSchema.parse(await discovery.json());
+  expect(capabilities.deletionKey).toEqual(trust.anchor);
+  expect(desktop.deletionHandle).toBe(trust.handle);
   const logout = await post("/api/v1/desktop/sign-out", {}, headers);
   expect(logout.status).toBe(200);
   const expired = await fetch(`${origin}/api/v1/desktop/session`, { headers });
@@ -185,4 +198,53 @@ test("enabled social login approves through the identical browser path", async (
   const credential = await tokenFrom(await redeem(code.device_code));
   const desktop = await readDesktop(credential.access_token);
   expect(desktop.account.id).toBe(library.account.id);
+});
+
+test("account deletion revokes desktop access, purges approval codes and signs the retained lookup handle", async () => {
+  const browser = await freshSocialBrowser();
+  const code = await startDevice();
+  await approveDevice(
+    code.user_code,
+    browser.identity.accountId,
+    browser.Cookie
+  );
+  const token = await tokenFrom(await redeem(code.device_code));
+  const session = await readDesktop(token.access_token);
+  const pending = await startDevice();
+  await approveDevice(
+    pending.user_code,
+    browser.identity.accountId,
+    browser.Cookie
+  );
+  const discovery = await fetch(`${origin}/api/v1/capabilities`);
+  const capabilities = capabilitiesSchema.parse(await discovery.json());
+  const deletion = await post(
+    "/api/v1/account/deletion",
+    { ...browser.identity, confirmation: "delete-account" },
+    { Cookie: browser.Cookie }
+  );
+  expect(deletion.status).toBe(200);
+  const result = await deletion.json();
+  const claims = await verifyDeletionReceipt(result.receipt, {
+    instanceId: session.instance.id,
+    accountId: session.account.id,
+    handle: session.deletionHandle,
+    anchor: capabilities.deletionKey,
+    rotations: [],
+  });
+  expect(claims.accountId).toBe(browser.identity.accountId);
+  const rejected = await fetch(`${origin}/api/v1/desktop/session`, {
+    headers: { Authorization: `Bearer ${token.access_token}` },
+  });
+  expect(rejected.status).toBe(401);
+  const cancelled = await redeem(pending.device_code);
+  expect(cancelled.ok).toBe(false);
+  const sql = new SQL(process.env.DATABASE_URL ?? "");
+  try {
+    const codes =
+      await sql`SELECT id FROM device_code WHERE user_id=${browser.identity.accountId}`;
+    expect(codes).toHaveLength(0);
+  } finally {
+    await sql.close();
+  }
 });

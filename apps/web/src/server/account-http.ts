@@ -28,6 +28,7 @@ import {
 import { authentication } from "./auth";
 import { configuration } from "./config";
 import { database } from "./database";
+import { ensureDeletionRecovery } from "./deletion-recovery";
 import { validateMailConfiguration, withMailReservation } from "./mail";
 import { resetPassword } from "./recovery";
 import { withRequestWork } from "./request-work";
@@ -465,13 +466,13 @@ export const handleLibrary = async (request: Request) => {
 
 export const handleReadiness = async () => {
   try {
+    await ensureDeletionRecovery();
     configuration();
     validateMailConfiguration();
     const sql = database();
     const ready =
       await sql`SELECT i.id FROM instance i WHERE schema_version = 6 AND EXISTS
-      (SELECT 1 FROM worker_health WHERE name = 'mail' AND heartbeat_at > now() - interval '30 seconds')
-      AND EXISTS (SELECT 1 FROM instance_deletion_key k WHERE k.instance_id = i.id)`;
+      (SELECT 1 FROM worker_health WHERE name = 'mail' AND heartbeat_at > now() - interval '30 seconds')`;
     return json(
       { status: ready.length ? "ready" : "unavailable" },
       ready.length ? 200 : 503

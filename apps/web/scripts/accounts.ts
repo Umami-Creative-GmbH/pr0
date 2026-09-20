@@ -1,5 +1,3 @@
-import { generateKeyPairSync } from "node:crypto";
-
 import { configuration } from "../src/server/config";
 import { database } from "../src/server/database";
 
@@ -24,7 +22,8 @@ try {
         "012-tags.sql",
         "013-organization-cleanup.sql",
         "014-prompt-use.sql",
-        "015-device.sql",
+        "015-account-deletion.sql",
+        "016-device.sql",
       ].map(async (name, index) => ({
         version: index + 1,
         source: await Bun.file(
@@ -55,13 +54,6 @@ try {
         }
       }
     });
-    const keys = generateKeyPairSync("ed25519");
-    const publicKey = keys.publicKey.export({ format: "jwk" }).x;
-    const privateKey = keys.privateKey
-      .export({ format: "pem", type: "pkcs8" })
-      .toString();
-    await sql`INSERT INTO instance_deletion_key(instance_id, kid, public_key, private_key)
-      SELECT id, ${crypto.randomUUID()}, ${publicKey}, ${privateKey} FROM instance ON CONFLICT DO NOTHING`;
     process.stdout.write(
       "Account schema ready; immutable instance identity retained.\n"
     );

@@ -25,6 +25,8 @@ import {
 import { authentication } from "./auth";
 import { configuration } from "./config";
 import { database } from "./database";
+import { deletionInstance } from "./deletion-coordinator";
+import { signingKeys } from "./deletion-signing";
 import { withRequestWork } from "./request-work";
 import { withDeviceIssuance } from "./session-issuance";
 
@@ -105,7 +107,7 @@ const approve = async (request: Request, path: string) => {
     }
     await tx`SELECT pg_advisory_xact_lock(hashtextextended(${code.device_code}, 39))`;
     const [owner] =
-      await tx`SELECT authentication_version FROM "user" WHERE id = ${input.accountId} AND email_verified FOR SHARE`;
+      await tx`SELECT authentication_version FROM "user" WHERE id = ${input.accountId} AND email_verified AND NOT deletion_pending FOR SHARE`;
     const active =
       await tx`SELECT id FROM session WHERE id = ${browser.session.id} AND user_id = ${input.accountId}
       AND provenance = 'browser' AND expires_at > clock_timestamp()`;
@@ -204,22 +206,16 @@ export const handleCapabilities = async (request: Request) => {
       await admit([
         { key: `discovery:${clientBucket(request)}`, max: 60, seconds: 60 },
       ]);
-      const sql = database();
-      const [key] =
-        await sql`SELECT instance_id, kid, public_key FROM instance_deletion_key`;
+      const instanceId = await deletionInstance();
+      const keys = await signingKeys(instanceId);
       return response(
         capabilitiesSchema.parse({
-          instanceId: key.instance_id,
+          instanceId,
           origin: configuration().origin,
           protocols: [1],
           normalization: "pr0-search-v1-ucd17",
           deviceAuthorization: true,
-          deletionKey: {
-            kid: key.kid,
-            kty: "OKP",
-            crv: "Ed25519",
-            x: key.public_key,
-          },
+          deletionKey: keys.anchor,
           limits: { credentialBytes: 2560, responseBytes: 16_384 },
         })
       );
@@ -261,12 +257,8 @@ export const handleDesktopSession = async (request: Request) => {
         await sql`DELETE FROM session WHERE id = ${result.session.id} AND provenance = 'device'`;
         return response({ success: true });
       }
-      const handle = Buffer.from(
-        crypto.getRandomValues(new Uint8Array(32))
-      ).toString("base64url");
-      await sql`INSERT INTO account_deletion_handle(account_id, handle) VALUES (${result.user.id}, ${handle}) ON CONFLICT DO NOTHING`;
       const [row] =
-        await sql`SELECT i.id, h.handle FROM instance i CROSS JOIN account_deletion_handle h WHERE h.account_id = ${result.user.id}`;
+        await sql`SELECT i.id, l.deletion_handle FROM instance i CROSS JOIN library l WHERE l.account_id = ${result.user.id}`;
       return response(
         desktopSessionSchema.parse({
           instance: { id: row.id, origin: configuration().origin },
@@ -280,7 +272,7 @@ export const handleDesktopSession = async (request: Request) => {
             expiresAt: result.session.expiresAt.toISOString(),
             provenance: "device",
           },
-          deletionHandle: row.handle,
+          deletionHandle: row.deletion_handle,
         })
       );
     });

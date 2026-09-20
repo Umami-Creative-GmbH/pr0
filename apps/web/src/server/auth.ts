@@ -61,7 +61,12 @@ const createAuth = () => {
         if (!reservation) {
           throw new Error("Missing email admission");
         }
-        await enqueueRecovery(recipient.email, token, reservation);
+        await enqueueRecovery(
+          recipient.email,
+          token,
+          reservation,
+          recipient.id
+        );
       },
     },
     emailVerification: {
@@ -77,7 +82,16 @@ const createAuth = () => {
         if (!reservation) {
           throw new Error("Missing email admission");
         }
-        await enqueueVerification(recipient.email, url, token, reservation);
+        await enqueueVerification(
+          recipient.email,
+          url,
+          token,
+          reservation,
+          recipient.id,
+          Boolean(
+            request && new URL(request.url).pathname.endsWith("/sign-up/email")
+          )
+        );
       },
     },
     account: { accountLinking: { enabled: false } },
