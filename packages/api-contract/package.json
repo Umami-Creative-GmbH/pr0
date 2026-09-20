@@ -7,6 +7,7 @@
     "./variables": "./src/variables.ts",
     "./variable-fixtures": "./src/variable-fixtures.json",
     "./variable-validation-fixtures": "./src/variable-validation-fixtures.json",
+    "./device": "./src/device.ts",
     "./deletions": "./src/deletions.ts",
     "./prompt-use-fixtures": "./src/prompt-use-fixtures.ts",
     "./search-fixtures": "./src/search-fixtures.ts",

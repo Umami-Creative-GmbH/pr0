@@ -8,6 +8,44 @@ import { ApiError, createApiClient } from "./client";
 import type { ApiClient } from "./client";
 import { healthQueryOptions } from "./query-options";
 
+test("device approval client validates requests, responses, HTTP failures and cancellation", async () => {
+  const input = {
+    userCode: "ABCD2345",
+    accountId: "33333333-3333-4333-8333-333333333333",
+  };
+  const invalid = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ success: "yes" })),
+  });
+  await expect(invalid.decideDevice(input, true)).rejects.toBeInstanceOf(
+    ZodError
+  );
+  const denied = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({ code: "account_changed" }, { status: 409 })
+      ),
+  });
+  await expect(denied.decideDevice(input, false)).rejects.toMatchObject({
+    status: 409,
+    code: "account_changed",
+  });
+  const controller = new AbortController();
+  controller.abort(new DOMException("Cancelled", "AbortError"));
+  const cancelled = createApiClient({
+    fetcher: (_url, init) => Promise.reject(init.signal?.reason),
+  });
+  await expect(
+    cancelled.decideDevice(input, true, controller.signal)
+  ).rejects.toBe(controller.signal.reason);
+  const fetcher = mock(() => Promise.resolve(Response.json({ success: true })));
+  const client = createApiClient({ fetcher });
+  await expect(
+    client.decideDevice({ ...input, userCode: "bad" }, true)
+  ).rejects.toBeInstanceOf(ZodError);
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(await client.decideDevice(input, true)).toEqual({ success: true });
+});
+
 test("deletion client validates responses, HTTP failures, invalid handles and cancellation", async () => {
   const controller = new AbortController();
   controller.abort(new DOMException("Cancelled", "AbortError"));

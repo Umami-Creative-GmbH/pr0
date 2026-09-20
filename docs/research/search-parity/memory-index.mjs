@@ -1,3 +1,5 @@
+// oxlint-disable eslint/no-bitwise -- Bitmap membership and seeded PRNGs require exact 32-bit operations.
+// oxlint-disable eslint/no-nested-ternary -- Ordered expressions preserve the reference ranking and comparison branches used by these recorded experiments.
 import { Database } from "bun:sqlite";
 import { strict as assert } from "node:assert";
 
@@ -8,7 +10,7 @@ const rows = db.query("SELECT id,title,content FROM bench ORDER BY id").all();
 const hydrateMs = performance.now() - start;
 const words = Math.ceil(rows.length / 32);
 const index = { title: new Map(), content: new Map() };
-function grams(text) {
+const grams = (text) => {
   const result = new Set();
   let previous = "";
   for (const point of text) {
@@ -19,17 +21,17 @@ function grams(text) {
     previous = point;
   }
   return result;
-}
-function add(map, gram, id) {
+};
+const add = (map, gram, id) => {
   let bits = map.get(gram);
   if (!bits) {
     bits = new Uint32Array(words);
     map.set(gram, bits);
   }
   bits[id >>> 5] |= 1 << (id & 31);
-}
+};
 const buildStart = performance.now();
-for (let i = 0; i < rows.length; i++) {
+for (let i = 0; i < rows.length; i += 1) {
   for (const field of ["title", "content"]) {
     for (const gram of grams(rows[i][field])) {
       add(index[field], gram, i);
@@ -40,10 +42,9 @@ const buildMs = performance.now() - buildStart;
 const after = process.memoryUsage();
 const encoder = new TextEncoder();
 const titleKeys = rows.map((row) => encoder.encode(row.title));
-function present(bits, id) {
-  return bits ? Boolean(bits[id >>> 5] & (1 << (id & 31))) : false;
-}
-function search(query, sort) {
+const present = (bits, id) =>
+  bits ? Boolean(bits[id >>> 5] & (1 << (id & 31))) : false;
+const search = (query, sort) => {
   const terms = query.split(" ").filter(Boolean);
   const fieldHits = terms.map((term) => ({
     term,
@@ -52,7 +53,7 @@ function search(query, sort) {
     content: index.content.get(term),
   }));
   const result = [];
-  for (let i = 0; i < rows.length; i++) {
+  for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     let titleCount = 0;
     let matches = true;
@@ -70,7 +71,7 @@ function search(query, sort) {
         break;
       }
       if (titleMatch) {
-        titleCount++;
+        titleCount += 1;
       }
     }
     if (matches) {
@@ -92,7 +93,7 @@ function search(query, sort) {
       a.id - b.id
   );
   return result.slice(0, 50).map((row) => row.id);
-}
+};
 const timings = [];
 for (const query of [
   "🫠",
@@ -107,7 +108,7 @@ for (const query of [
   for (const sort of ["title", "relevance"]) {
     const samples = [];
     let result;
-    for (let run = 0; run < 21; run++) {
+    for (let run = 0; run < 21; run += 1) {
       const begin = performance.now();
       result = search(query, sort);
       const ms = performance.now() - begin;
@@ -138,10 +139,10 @@ for (const query of ["🫠", "🫠x", "a", "ab", "common", "zzzzzz"]) {
   assert.deepEqual(search(query, "title"), expected);
 }
 const huge = `common ${"abcdefghijklmnopqrstuvwxyz"
-  .repeat(10083)
+  .repeat(10_083)
   .slice(0, 256 * 1024 - 7)}`;
 const saveSamples = [];
-for (let run = 0; run < 21; run++) {
+for (let run = 0; run < 21; run += 1) {
   const begin = performance.now();
   const old = grams(rows[0].content);
   const replacement = grams(huge);

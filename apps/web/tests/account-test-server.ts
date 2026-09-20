@@ -51,7 +51,8 @@ export const accountTestServer = (
   };
   const startServer = async (
     extra: Record<string, string> = {},
-    ready = true
+    ready = true,
+    preloads: string[] = []
   ) => {
     await stopServer();
     server = Bun.spawn(
@@ -60,6 +61,7 @@ export const accountTestServer = (
         "--bun",
         "--preload",
         path.join(import.meta.dir, "social-provider-preload.ts"),
+        ...preloads.flatMap((file) => ["--preload", file]),
         "node_modules/next/dist/bin/next",
         "start",
         "--port",

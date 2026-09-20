@@ -1,3 +1,7 @@
+// oxlint-disable eslint/no-bitwise -- Bitmap membership and seeded PRNGs require exact 32-bit operations.
+// oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Samples and corpus writes run sequentially to avoid contaminating benchmark measurements.
+// oxlint-disable react-doctor/js-combine-iterations -- Keep the independent reference oracle's filtering and projection separate from the measured search implementation.
+// oxlint-disable eslint/no-nested-ternary -- Ordered expressions preserve the reference ranking and comparison branches used by these recorded experiments.
 import { Database } from "bun:sqlite";
 import { strict as assert } from "node:assert";
 
@@ -15,7 +19,8 @@ if (!(await foldFile.exists())) {
   await Bun.write(foldFile, await response.text());
 }
 const folding = new Map();
-for (const line of (await foldFile.text()).split("\n")) {
+const foldingText = await foldFile.text();
+for (const line of foldingText.split("\n")) {
   const [point, status, mapping] = line.split(";").map((part) => part.trim());
   if (status === "C" || status === "F") {
     folding.set(
@@ -32,7 +37,7 @@ const diacritics = /\p{Diacritic}/u;
 const whitespace = /\p{White_Space}+/gu;
 const escapes = /[\\%_]/gu;
 const quotes = /"/gu;
-function normalize(value) {
+const normalize = (value) => {
   if (!value.isWellFormed() || value.includes("\0")) {
     throw new Error("Invalid scalar text or NUL");
   }
@@ -48,17 +53,13 @@ function normalize(value) {
     .join("")
     .replace(whitespace, " ")
     .replaceAll(/^ +| +$/gu, "");
-}
-function termsOf(query) {
+};
+const termsOf = (query) => {
   const normalized = normalize(query);
   return normalized ? [...new Set(normalized.split(" "))] : [];
-}
-function phrase(term) {
-  return `"${term.replace(quotes, '""')}"`;
-}
-function pattern(term) {
-  return `%${term.replace(escapes, "\\$&")}%`;
-}
+};
+const phrase = (term) => `"${term.replace(quotes, '""')}"`;
+const pattern = (term) => `%${term.replace(escapes, "\\$&")}%`;
 const fields = [
   "title",
   "content",
@@ -67,7 +68,7 @@ const fields = [
   "tag2",
   "collection",
 ];
-function make(
+const make = (
   id,
   title,
   content = "",
@@ -75,9 +76,7 @@ function make(
   tag1 = "",
   tag2 = "",
   collection = ""
-) {
-  return { id, title, content, description, tag1, tag2, collection };
-}
+) => ({ id, title, content, description, tag1, tag2, collection });
 const raw = [
   make(
     1,
@@ -205,12 +204,11 @@ for (const query of queries) {
     const exactIndex = params.length;
     return `(search_text LIKE $${patternIndex} ESCAPE '\\' AND (${fields.map((field) => `strpos(${field}, $${exactIndex}) > 0`).join(" OR ")}))`;
   });
-  const pgIds = (
-    await pg.unsafe(
-      `SELECT id FROM prompts WHERE ${pgParts.join(" AND ") || "true"} ORDER BY id`,
-      params
-    )
-  ).map((row) => row.id);
+  const pgMatches = await pg.unsafe(
+    `SELECT id FROM prompts WHERE ${pgParts.join(" AND ") || "true"} ORDER BY id`,
+    params
+  );
+  const pgIds = pgMatches.map((row) => row.id);
   assert.deepEqual(sqliteIds, expected, `SQLite ${query}`);
   assert.deepEqual(pgIds, expected, `PostgreSQL ${query}`);
   results.push({
@@ -221,8 +219,8 @@ for (const query of queries) {
     postgres: pgIds,
   });
 }
-const scalarOrder = [...fixtures]
-  .sort(
+const scalarOrder = fixtures
+  .toSorted(
     (a, b) =>
       Buffer.compare(Buffer.from(a.title), Buffer.from(b.title)) || a.id - b.id
   )
@@ -231,13 +229,13 @@ const sqliteOrder = db
   .query("SELECT id FROM prompts ORDER BY title COLLATE BINARY, id")
   .all()
   .map((row) => row.id);
-const pgOrder = (
-  await pg`SELECT id FROM prompts ORDER BY title COLLATE "C", id`
-).map((row) => row.id);
+const orderedPgRows =
+  await pg`SELECT id FROM prompts ORDER BY title COLLATE "C", id`;
+const pgOrder = orderedPgRows.map((row) => row.id);
 assert.deepEqual(sqliteOrder, scalarOrder);
 assert.deepEqual(pgOrder, scalarOrder);
-const utf16Order = [...fixtures]
-  .sort(
+const utf16Order = fixtures
+  .toSorted(
     (a, b) =>
       (a.title < b.title ? -1 : a.title > b.title ? 1 : 0) || a.id - b.id
   )
@@ -306,6 +304,10 @@ await Bun.write(
 process.stdout.write(
   `Passed ${results.length} PostgreSQL/SQLite parity cases; scalar ordering; NUL rejection.\n`
 );
+const stats = (values) => {
+  const sorted = values.toSorted((a, b) => a - b);
+  return { min: sorted[0], p50: sorted[9], p95: sorted[18], max: sorted[19] };
+};
 if (process.env.SEARCH_BENCH === "1") {
   await pg`DROP TABLE IF EXISTS bench`;
   await pg`CREATE TABLE bench(id integer PRIMARY KEY, title text COLLATE "C", content text, search_text text)`;
@@ -316,19 +318,19 @@ if (process.env.SEARCH_BENCH === "1") {
   const totalBytes = 100 * 1024 * 1024;
   let remaining = totalBytes;
   let state = 1729;
-  function noise(length) {
+  const noise = (length) => {
     let value = "";
-    for (let i = 0; i < length; i++) {
+    for (let i = 0; i < length; i += 1) {
       state ^= state << 13;
       state ^= state >>> 17;
       state ^= state << 5;
-      value += String.fromCharCode(97 + ((state >>> 0) % 26));
+      value += String.fromCodePoint(97 + ((state >>> 0) % 26));
     }
     return value;
-  }
+  };
   for (let start = 1; start <= 10_000; start += 100) {
     const batch = [];
-    for (let id = start; id < start + 100; id++) {
+    for (let id = start; id < start + 100; id += 1) {
       const title = `prompt ${String(id).padStart(5, "0")}`;
       const allowance = Math.floor(remaining / (10_001 - id));
       const content = `common ${noise(allowance - title.length - 7)}`;
@@ -361,7 +363,7 @@ if (process.env.SEARCH_BENCH === "1") {
     const local = [];
     const remote = [];
     let ids;
-    for (let run = 0; run < 21; run++) {
+    for (let run = 0; run < 21; run += 1) {
       let before = performance.now();
       const sqlRows = statement.all(...args);
       const localMs = performance.now() - before;
@@ -378,15 +380,6 @@ if (process.env.SEARCH_BENCH === "1") {
         local.push(localMs);
         remote.push(pgMs);
       }
-    }
-    function stats(values) {
-      const sorted = [...values].sort((a, b) => a - b);
-      return {
-        min: sorted[0],
-        p50: sorted[9],
-        p95: sorted[18],
-        max: sorted[19],
-      };
     }
     const plan =
       await pg`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT id FROM bench WHERE search_text LIKE ${like} ESCAPE '\\' AND (strpos(title,${query})>0 OR strpos(content,${query})>0) ORDER BY title COLLATE "C",id LIMIT 50`;

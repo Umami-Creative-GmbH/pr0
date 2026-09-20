@@ -1,3 +1,5 @@
+// oxlint-disable eslint/no-bitwise -- Bitmap membership and seeded PRNGs require exact 32-bit operations.
+// oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Samples and corpus writes run sequentially to avoid contaminating benchmark measurements.
 import { Database } from "bun:sqlite";
 import { strict as assert } from "node:assert";
 
@@ -8,7 +10,7 @@ const rows = source
   .all();
 const wordCount = Math.ceil(rows.length / 32);
 const postings = new Map();
-function grams(text) {
+const grams = (text) => {
   const all = new Set();
   let prev = "";
   for (const point of text) {
@@ -19,9 +21,9 @@ function grams(text) {
     prev = point;
   }
   return all;
-}
+};
 const build = performance.now();
-for (let slot = 0; slot < rows.length; slot++) {
+for (let slot = 0; slot < rows.length; slot += 1) {
   for (const field of ["title", "content"]) {
     for (const gram of grams(rows[slot][field])) {
       const key = JSON.stringify([field, gram]);
@@ -48,7 +50,7 @@ const payload = JSON.stringify({
 await Bun.write(`${root}/bitmap-cache.json`, payload);
 const persistMs = performance.now() - serializeStart;
 const restoreSamples = [];
-for (let run = 0; run < 21; run++) {
+for (let run = 0; run < 21; run += 1) {
   const begin = performance.now();
   const saved = await Bun.file(`${root}/bitmap-cache.json`).json();
   const restored = new Map(
@@ -76,10 +78,11 @@ let previous = "abcdefghijklmnopqrstuvwxyz".repeat(10_083).slice(0, 256 * 1024);
 db.query("INSERT INTO prompt VALUES(1,?)").run(previous);
 db.exec("INSERT INTO prompt_fts(prompt_fts) VALUES ('rebuild')");
 const saves = [];
-for (let run = 0; run < 21; run++) {
+for (let run = 0; run < 21; run += 1) {
   const next = previous.slice(0, -1) + (run % 2 ? "x" : "y");
   const begin = performance.now();
   const touched = new Set([...grams(previous), ...grams(next)]);
+  // oxlint-disable-next-line eslint/no-loop-func -- SQLite invokes this transaction synchronously before previous or run can change.
   db.transaction(() => {
     db.query(
       "INSERT INTO prompt_fts(prompt_fts,rowid,content) VALUES ('delete',1,?)"
