@@ -4,6 +4,8 @@ mod auth_storage;
 #[cfg(test)]
 mod auth_tests;
 mod auth_transport;
+mod library_contract;
+mod library_storage;
 
 use auth::{AuthService, AuthView};
 use auth_storage::WindowsCredentials;
@@ -24,11 +26,11 @@ fn authorize(window: &tauri::WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
-async fn dispatch(
+async fn dispatch<T: Send + 'static>(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, ManagedAuth>,
-    operation: impl FnOnce(&AuthService) -> Result<AuthView, String> + Send + 'static,
-) -> Result<AuthView, String> {
+    operation: impl FnOnce(&AuthService) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
     authorize(&window)?;
     let service = state.inner().clone()?;
     tauri::async_runtime::spawn_blocking(move || operation(&service))
@@ -103,7 +105,11 @@ pub fn run() {
             auth_cancel,
             auth_open_browser,
             auth_refresh,
-            auth_sign_out
+            auth_sign_out,
+            library_status,
+            library_download,
+            library_browse,
+            library_detail
         ])
         .setup(|app| {
             let service: ManagedAuth = (|| {
@@ -123,4 +129,35 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("pr0 could not start");
+}
+
+#[tauri::command]
+async fn library_status(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<library_contract::LibraryStatus, String> {
+    dispatch(window, state, AuthService::library_status).await
+}
+#[tauri::command]
+async fn library_download(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<library_contract::LibraryStatus, String> {
+    dispatch(window, state, AuthService::library_download).await
+}
+#[tauri::command]
+async fn library_browse(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    offset: u32,
+) -> Result<Vec<library_contract::Summary>, String> {
+    dispatch(window, state, move |service| service.library_browse(offset)).await
+}
+#[tauri::command]
+async fn library_detail(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    id: String,
+) -> Result<library_contract::Prompt, String> {
+    dispatch(window, state, move |service| service.library_detail(&id)).await
 }

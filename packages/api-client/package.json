@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./snapshots": "./src/snapshots.ts",
     "./deletions": "./src/deletions.ts",
     "./prompts": "./src/prompts.ts",
     "./client": "./src/client.ts",

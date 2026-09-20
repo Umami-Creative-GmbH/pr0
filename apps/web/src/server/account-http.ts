@@ -68,7 +68,10 @@ export const failure = (error: Error) => {
 };
 
 // oxlint-disable eslint/no-await-in-loop -- A bounded request stream must be consumed sequentially and cancelled at its byte limit.
-export const readBody = async (request: Request): Promise<AccountRequest> => {
+export const readRequestJson = async <T>(
+  request: Request,
+  schema: z.ZodType<T>
+): Promise<T> => {
   if (
     request.headers.has("content-encoding") ||
     !request.headers.get("content-type")?.startsWith("application/json")
@@ -106,14 +109,15 @@ export const readBody = async (request: Request): Promise<AccountRequest> => {
     clearTimeout(timer);
   }
   try {
-    return accountRequestSchema.parse(
-      JSON.parse(Buffer.concat(chunks).toString("utf-8"))
-    );
+    return schema.parse(JSON.parse(Buffer.concat(chunks).toString("utf-8")));
   } catch {
     throw new AccountFailureError("invalid_input", 400);
   }
 };
 // oxlint-enable eslint/no-await-in-loop
+
+export const readBody = (request: Request): Promise<AccountRequest> =>
+  readRequestJson(request, accountRequestSchema);
 
 const authRequest = (
   request: Request,

@@ -3,6 +3,8 @@ pub use super::auth_storage::Credentials;
 use super::auth_storage::Metadata;
 use super::auth_transport::canonical_origin;
 pub use super::auth_transport::{Endpoint, Transport};
+use super::library_contract::{LibraryStatus, Manifest, Page, Prompt, Summary};
+use super::library_storage::LibraryStore;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -30,6 +32,7 @@ struct Attempt {
     polling: bool,
 }
 struct State {
+    library: Option<LibraryStore>,
     generation: u64,
     retained: Option<Retained>,
     credential: Option<Envelope>,
@@ -40,6 +43,7 @@ struct State {
     restore_pending: bool,
 }
 pub struct AuthService {
+    download: Mutex<()>,
     state: Mutex<State>,
     restoration: Mutex<()>,
     transport: Arc<dyn Transport>,
@@ -50,6 +54,7 @@ pub struct AuthService {
 fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, String> {
     serde_json::from_value(value).map_err(|_| "invalid_response".into())
 }
+include!("library_commands.rs");
 impl State {
     fn view(&self) -> AuthView {
         let identity = self.retained.as_ref().map(|r| &r.identity);
@@ -129,8 +134,10 @@ impl AuthService {
             String::new()
         };
         Ok(Self {
+            download: Mutex::new(()),
             restoration: Mutex::new(()),
             state: Mutex::new(State {
+                library: None,
                 generation: 1,
                 retained,
                 restore_pending: credential.is_some(),
@@ -304,7 +311,7 @@ impl AuthService {
                 }
                 self.credentials.write(&bytes)?;
                 state.credential = Some(envelope);
-                state.message = "Signed in on this computer. Library download is not available in this version.".into();
+                state.message = "Signed in on this computer.".into();
             }
             Err(error) => {
                 state.attempt = None;
@@ -421,8 +428,7 @@ impl AuthService {
                 };
                 state.storage.save(&retained)?;
                 state.retained = Some(retained);
-                state.message =
-                    "Session checked. Library download is not available in this version.".into();
+                state.message = "Session checked.".into();
             }
             Err(error) => {
                 if error == "authentication_required" {
@@ -443,24 +449,7 @@ impl AuthService {
     pub fn sign_out(&self) -> Result<AuthView, String> {
         let (generation, envelope) = {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
-            // This slice has no library data. Never erase files introduced by a
-            // newer slice without that slice's pending-work decision boundary.
-            if std::fs::read_dir(&self.directory)
-                .map_err(|_| "storage_unavailable")?
-                .any(|entry| {
-                    entry.ok().is_some_and(|e| {
-                        ![
-                            "session-state.sqlite",
-                            "session-state.sqlite-journal",
-                            "session-state.sqlite-wal",
-                            "session-state.sqlite-shm",
-                        ]
-                        .contains(&e.file_name().to_string_lossy().as_ref())
-                    })
-                })
-            {
-                return Err("local_data_requires_review".into());
-            }
+            self.review_library_cleanup(&mut state)?;
             state.generation += 1;
             state.clearing = true;
             state.attempt = None;
@@ -488,6 +477,14 @@ impl AuthService {
             return Err("operation_cancelled".into());
         }
         self.credentials.delete()?;
+        state.library = None;
+        for path in self.library_cleanup_paths(&state)? {
+            match std::fs::remove_file(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(_) => return Err("storage_unavailable".into()),
+            }
+        }
         state.storage.clear()?;
         state.retained = None;
         state.clearing = false;

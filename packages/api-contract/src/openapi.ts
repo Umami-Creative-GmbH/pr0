@@ -6,6 +6,7 @@ import { deletionPaths, deletionSchemas } from "./deletions-openapi";
 import { devicePaths, deviceSchemas } from "./device-openapi";
 import { healthPath, healthResponseSchema } from "./health";
 import { promptPaths, promptSchemas } from "./prompts-openapi";
+import { snapshotPaths, snapshotSchemas } from "./snapshots-openapi";
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -22,6 +23,7 @@ export const openApiDocument = {
     { name: "Prompts", description: "Owned prompt creation and retrieval" },
   ],
   paths: {
+    ...snapshotPaths,
     ...devicePaths,
     ...accountPaths,
     ...deletionPaths,
@@ -62,6 +64,7 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      ...snapshotSchemas,
       ...deviceSchemas,
       ...accountSchemas,
       ...deletionSchemas,
