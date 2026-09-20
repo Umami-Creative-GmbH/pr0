@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { accountErrorMessage } from "./account-errors";
+import { LoginMethodSettings } from "./login-method-settings";
 
 const inputClass =
   "bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
@@ -20,7 +21,13 @@ const notificationMessages = {
     "Your email changed, but the notification to your old address could not be delivered. Automatic retries have ended. Your new address remains active. Contact your instance operator if you need help.",
 };
 
-export const EmailSettings = ({ accountId }: { accountId: string }) => {
+export const EmailSettings = ({
+  accountId,
+  methodResult,
+}: {
+  accountId: string;
+  methodResult?: string;
+}) => {
   const client = useApiClient();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -44,7 +51,7 @@ export const EmailSettings = ({ accountId }: { accountId: string }) => {
     staleTime: 0,
     gcTime: 0,
     refetchInterval: (query) =>
-      query.state.data?.notification === "pending" ? 2000 : false,
+      query.state.data?.notification === "pending" ? 2000 : 15_000,
   });
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -112,14 +119,14 @@ export const EmailSettings = ({ accountId }: { accountId: string }) => {
         } else {
           await client.reauthenticate(input);
           setMessage(
-            "Identity confirmed for ten minutes. Enter your replacement email."
+            "Identity confirmed for ten minutes. You can change your email or manage login methods."
           );
         }
         setChallenge(null);
       } else if (password) {
         await client.reauthenticate({ ...identity, password });
         setMessage(
-          "Identity confirmed for ten minutes. Enter your replacement email."
+          "Identity confirmed for ten minutes. You can change your email or manage login methods."
         );
       } else {
         const result = await client.requestEmailChange({ ...identity, email });
@@ -142,11 +149,12 @@ export const EmailSettings = ({ accountId }: { accountId: string }) => {
       className="rounded-lg border p-6"
     >
       <h2 className="text-xl font-medium" id="email-settings-title">
-        Change account email
+        Account security
       </h2>
       <p className="mt-2 text-sm">
-        Confirm your identity, then verify the replacement address. Your current
-        address stays active until verification succeeds.
+        Confirm your identity to manage login methods or change your account
+        email. A replacement email must be verified before your current address
+        changes.
       </p>
       <p
         aria-live="polite"
@@ -281,6 +289,14 @@ export const EmailSettings = ({ accountId }: { accountId: string }) => {
             ) : null}
             {busy ? <output>Working…</output> : null}
           </fieldset>
+          <LoginMethodSettings
+            identity={{ accountId, emailVersion: settings.data.emailVersion }}
+            fresh={fresh}
+            result={methodResult}
+            refreshAccount={async () => {
+              await settings.refetch();
+            }}
+          />
         </form>
       ) : null}
     </section>

@@ -16,7 +16,8 @@
     "test:accounts": "bun --env-file=tests/compose.env test tests/deployment-integration.test.ts",
     "test:recovery": "bun --env-file=tests/compose.env test tests/recovery-deployment.test.ts",
     "test:social": "bun --env-file=tests/social.env tests/social-runner.ts",
-    "test:email-change": "bun --env-file=tests/social.env tests/email-change-runner.ts"
+    "test:email-change": "bun --env-file=tests/social.env tests/email-change-runner.ts",
+    "test:login-methods": "bun --env-file=tests/social.env tests/login-methods-runner.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.5",

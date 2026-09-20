@@ -230,6 +230,7 @@ Version the application REST API under `/api/v1`. The concrete operation familie
 | `POST /sync/snapshots`, `GET /sync/snapshots/{id}/pages/{page}` | Consistent, account-isolated download manifests/pages |
 | `GET /account/sessions`, `POST /account/sessions/{id}/revoke` | Independent session visibility/revocation |
 | `POST /account/reauth/challenges`, `POST /account/reauth/verify` | Browser-only explicit fresh-authentication proof |
+| `GET /account/methods`, `POST /account/methods/link`, `POST /account/methods/remove` | Browser-only login methods; linking and removal require fresh authentication and preserve account/library ownership |
 | `GET /account-deletions/{handle}` | Minimal signed deletion receipt, usable without an ordinary session |
 
 Better Auth's own login/device/recovery/provider routes remain under their configured auth prefix, with application guards on sensitive endpoints. Account deletion/email/provider changes have explicit browser-only application flows. Published OpenAPI and validators must be generated/updated together with implementation; this proposal is not a claim those routes currently exist.

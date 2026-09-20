@@ -34,6 +34,16 @@ export const cookieFrom = (response: Response) =>
     .getSetCookie()
     .map((value) => value.split(";")[0])
     .join("; ");
+export const mergeCookies = (...cookies: string[]) => {
+  const jar = new Map<string, string>();
+  for (const cookie of cookies.flatMap((value) => value.split("; "))) {
+    const separator = cookie.indexOf("=");
+    if (separator > 0) {
+      jar.set(cookie.slice(0, separator), cookie.slice(separator + 1));
+    }
+  }
+  return [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
+};
 export const accountEmailLink = async (
   email: string,
   subject?: string,

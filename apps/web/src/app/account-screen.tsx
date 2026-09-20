@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { accountErrorMessage } from "./account-errors";
+import { accountErrorMessage, methodResultMessage } from "./account-errors";
 import { EmailSettings } from "./email-settings";
 import { RecoveryForm } from "./recovery-form";
 import { SessionSettings } from "./session-settings";
@@ -15,9 +15,11 @@ import { SocialSignIn } from "./social-sign-in";
 export const AccountScreen = ({
   verification,
   socialError,
+  methodResult,
 }: {
   verification?: string;
   socialError?: string;
+  methodResult?: string;
 }) => {
   const client = useApiClient();
   const queryClient = useQueryClient();
@@ -129,7 +131,9 @@ export const AccountScreen = ({
         </h1>
       </header>
       <p aria-live="polite" className="text-sm" ref={statusRef} tabIndex={-1}>
-        {errorText || message}
+        {errorText ||
+          message ||
+          (!signedIn && methodResultMessage(methodResult))}
       </p>
       {library.isPending ? <output>Checking your session…</output> : null}
       {signedIn ? (
@@ -165,6 +169,7 @@ export const AccountScreen = ({
           <EmailSettings
             key={library.data.account.id}
             accountId={library.data.account.id}
+            methodResult={methodResult}
           />
           <section
             aria-labelledby="empty-title"

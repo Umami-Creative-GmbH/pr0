@@ -8,10 +8,12 @@ import {
   emailChangeSchema,
   challengeVerificationSchema,
   accountSettingsSchema,
+  linkMethodSchema,
+  removeMethodSchema,
+  accountErrorSchema,
 } from "@pr0/api-contract/accounts";
 import { verifyPassword } from "better-auth/crypto";
 import type { TransactionSQL } from "bun";
-import type { z } from "zod";
 
 import { failure, json, readBody } from "./account-http";
 import {
@@ -22,36 +24,18 @@ import {
   clientBucket,
 } from "./admission";
 import { authentication } from "./auth";
+import {
+  lockAccount,
+  assertIdentity,
+  proofExpiry,
+  requireProof,
+} from "./browser-proof";
+import type { BrowserAccount, AccountState } from "./browser-proof";
 import { configuration } from "./config";
 import { database } from "./database";
+import { listLoginMethods, removeLoginMethod } from "./login-methods";
 import { enqueueAccountMail, withMailReservation } from "./mail";
 import { withRequestWork } from "./request-work";
-
-interface BrowserAccount {
-  accountId: string;
-  sessionId: string;
-}
-interface AccountState {
-  email: string;
-  email_version: number;
-  instance_id: string;
-  password: string | null;
-}
-
-const lockAccount = async (tx: TransactionSQL, browser: BrowserAccount) => {
-  const [owner] = await tx<
-    AccountState[]
-  >`SELECT u.email, u.email_version, i.id AS instance_id,
-    (SELECT password FROM account WHERE user_id = u.id AND provider_id = 'credential' LIMIT 1) AS password
-    FROM "user" u CROSS JOIN instance i WHERE u.id = ${browser.accountId} AND u.email_verified FOR UPDATE OF u`;
-  const active =
-    await tx`SELECT id FROM session WHERE id = ${browser.sessionId} AND user_id = ${browser.accountId}
-    AND provenance = 'browser' AND expires_at > clock_timestamp() FOR UPDATE`;
-  if (!owner || !active.length) {
-    throw new AccountFailureError("unauthenticated", 401);
-  }
-  return owner;
-};
 
 const mintProof = async (
   tx: TransactionSQL,
@@ -70,41 +54,6 @@ const codeDigest = (id: string, code: string) =>
   createHmac("sha256", configuration().authSecret)
     .update(`account-challenge:${id}:${code}`)
     .digest("hex");
-
-const assertIdentity = (
-  browser: BrowserAccount,
-  owner: AccountState,
-  input: z.infer<typeof accountIdentitySchema>
-) => {
-  if (
-    browser.accountId !== input.accountId ||
-    owner.email_version !== input.emailVersion
-  ) {
-    throw new AccountFailureError("account_changed", 409);
-  }
-};
-
-const proofExpiry = async (
-  tx: TransactionSQL,
-  browser: BrowserAccount,
-  owner: AccountState
-) => {
-  const [proof] =
-    await tx`SELECT expires_at FROM fresh_auth WHERE session_id = ${browser.sessionId}
-    AND account_id = ${browser.accountId} AND instance_id = ${owner.instance_id} AND email_version = ${owner.email_version}
-    AND expires_at > clock_timestamp()`;
-  return proof?.expires_at?.toISOString() ?? null;
-};
-
-const requireProof = async (
-  tx: TransactionSQL,
-  browser: BrowserAccount,
-  owner: AccountState
-) => {
-  if (!(await proofExpiry(tx, browser, owner))) {
-    throw new AccountFailureError("fresh_auth_required", 403);
-  }
-};
 
 const consumeChallenge = async (
   tx: TransactionSQL,
@@ -332,11 +281,56 @@ const reauthenticate = async (request: Request, browser: BrowserAccount) => {
   });
 };
 
-const routeAccountChange = (request: Request, browser: BrowserAccount) => {
+const startMethodLink = async (request: Request) => {
+  const input = linkMethodSchema.safeParse(await readBody(request));
+  if (!input.success) {
+    throw new AccountFailureError("invalid_input", 400);
+  }
+  const response = await authentication().handler(
+    new Request(`${configuration().origin}/api/auth/social/link`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: configuration().origin,
+        Cookie: request.headers.get("cookie") ?? "",
+      },
+      body: JSON.stringify(input.data),
+    })
+  );
+  if (!response.ok) {
+    const error = accountErrorSchema.strip().safeParse(await response.json());
+    return json(
+      error.success ? error.data : { code: "unavailable", retryAfter: 30 },
+      response.status,
+      new Headers(response.headers)
+    );
+  }
+  return response;
+};
+
+const routeAccountChange = async (
+  request: Request,
+  browser: BrowserAccount
+) => {
+  const path = new URL(request.url).pathname;
+  if (path === "/api/v1/account/methods" && request.method === "GET") {
+    return json(await listLoginMethods(browser));
+  }
   if (request.method === "GET") {
     return accountSettings(browser);
   }
-  switch (new URL(request.url).pathname) {
+  switch (path) {
+    case "/api/v1/account/methods/remove": {
+      const input = removeMethodSchema.safeParse(await readBody(request));
+      if (!input.success) {
+        throw new AccountFailureError("invalid_input", 400);
+      }
+      await removeLoginMethod(input.data, browser);
+      return json({ status: "ok" });
+    }
+    case "/api/v1/account/methods/link": {
+      return startMethodLink(request);
+    }
     case "/api/v1/account/reauth/challenges": {
       return requestChallenge(request, browser, "reauth");
     }
@@ -372,6 +366,8 @@ export const handleAccountChange = async (request: Request) => {
       await admit([{ key: `api:${user.id}`, max: 120, seconds: 60 }]);
       const browser = { accountId: user.id, sessionId: session.id };
       const response = await routeAccountChange(request, browser);
+      response.headers.set("Cache-Control", "no-store");
+      response.headers.set("Referrer-Policy", "no-referrer");
       for (const cookie of result.headers.getSetCookie()) {
         response.headers.append("set-cookie", cookie);
       }

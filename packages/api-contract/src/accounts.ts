@@ -54,6 +54,34 @@ export type SocialProvider = z.infer<typeof socialProviderSchema>;
 export const socialSignInSchema = z.strictObject({
   provider: socialProviderSchema,
 });
+export const linkMethodSchema = accountIdentitySchema.extend({
+  provider: socialProviderSchema,
+});
+export type LinkMethod = z.infer<typeof linkMethodSchema>;
+export const methodLinkResultSchema = z.enum([
+  "linked",
+  "invalid",
+  "provider_owned",
+  "method_already_linked",
+  "fresh_auth_required",
+  "account_changed",
+  "unauthenticated",
+]);
+export const removeMethodSchema = accountIdentitySchema.extend({
+  methodId: z.uuid(),
+});
+export type RemoveMethod = z.infer<typeof removeMethodSchema>;
+export const loginMethodsSchema = z.strictObject({
+  accountId: z.uuid(),
+  methods: z.array(
+    z.strictObject({
+      id: z.uuid(),
+      provider: z.enum(["credential", "google", "github"]),
+      usable: z.boolean(),
+    })
+  ),
+  providers: z.array(socialProviderSchema),
+});
 export const socialProvidersSchema = z.strictObject({
   providers: z.array(socialProviderSchema),
 });
@@ -93,6 +121,8 @@ export const sessionsSchema = z.strictObject({
   ),
 });
 export const accountRequestSchema = z.union([
+  linkMethodSchema,
+  removeMethodSchema,
   emailChangeSchema,
   accountIdentitySchema,
   reauthenticationSchema,
@@ -124,6 +154,9 @@ export const accountErrorSchema = z.strictObject({
     "fresh_auth_required",
     "invalid_challenge",
     "email_change_unavailable",
+    "provider_owned",
+    "last_login_method",
+    "method_already_linked",
   ]),
   retryAfter: z.number().int().positive().optional(),
 });
@@ -153,6 +186,7 @@ export const librarySchema = z.strictObject({
 export type PrivateLibrary = z.infer<typeof librarySchema>;
 export type Credentials = z.infer<typeof credentialsSchema>;
 export type AccountResponse =
+  | z.infer<typeof loginMethodsSchema>
   | z.infer<typeof accountSettingsSchema>
   | z.infer<typeof emailChangedSchema>
   | z.infer<typeof accountChallengeSchema>

@@ -1,3 +1,5 @@
+import { methodLinkResultSchema } from "@pr0/api-contract/accounts";
+
 import { AccountScreen } from "./account-screen";
 
 const Home = async ({
@@ -25,7 +27,11 @@ const Home = async ({
     socialError = params.social;
   }
   return (
-    <AccountScreen verification={verification} socialError={socialError} />
+    <AccountScreen
+      verification={verification}
+      socialError={socialError}
+      methodResult={methodLinkResultSchema.safeParse(params.methods).data}
+    />
   );
 };
 

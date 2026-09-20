@@ -3,6 +3,9 @@ import { z } from "zod";
 
 import {
   accountIdentitySchema,
+  linkMethodSchema,
+  removeMethodSchema,
+  loginMethodsSchema,
   reauthenticationSchema,
   emailChangeSchema,
   challengeVerificationSchema,
@@ -78,6 +81,35 @@ const post = (
 });
 
 export const accountPaths = {
+  "/api/v1/account/methods": {
+    get: {
+      operationId: "getLoginMethods",
+      tags: ["Accounts"],
+      security: [{ BrowserSession: [] }],
+      description:
+        "Verified browser only. Lists owned login methods and current usability. Disabled providers do not count as usable. No provider tokens or passwords are returned.",
+      responses: {
+        "200": jsonResponse("LoginMethods", "Owned login methods"),
+        ...errors,
+      },
+    },
+  },
+  "/api/v1/account/methods/link": post(
+    "linkLoginMethod",
+    "LinkMethod",
+    "SocialRedirect",
+    "200",
+    "Requires the server-owned fresh browser proof. Starts explicit Google/GitHub linking with single-use state bound to the initiating instance, account, browser session and email version. The provider callback rechecks provenance, identity and freshness before committing. One identity per provider; owned identities cannot merge accounts. Provider email need not match or replace the verified account email. Cancellation/failure preserves all methods. Direct Better Auth link and unlink routes remain disabled.",
+    true
+  ),
+  "/api/v1/account/methods/remove": post(
+    "removeLoginMethod",
+    "RemoveMethod",
+    "AccountSuccess",
+    "200",
+    "Rechecks browser provenance, account/email version and fresh proof. Serializes removal under the account lock and refuses last_login_method unless another usable credential or enabled provider remains. In-flight issuance against removed credentials is invalidated. Existing sessions and immutable library ownership are retained.",
+    true
+  ),
   "/api/v1/account": {
     get: {
       operationId: "getAccountSettings",
@@ -330,6 +362,9 @@ export const accountPaths = {
 } satisfies OpenAPIV3_1.PathsObject;
 
 const schemas = {
+  LinkMethod: linkMethodSchema,
+  RemoveMethod: removeMethodSchema,
+  LoginMethods: loginMethodsSchema,
   AccountIdentity: accountIdentitySchema,
   Reauthentication: reauthenticationSchema,
   EmailChange: emailChangeSchema,

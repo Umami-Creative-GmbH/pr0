@@ -1,5 +1,8 @@
 import {
   accountIdentitySchema,
+  linkMethodSchema,
+  removeMethodSchema,
+  loginMethodsSchema,
   reauthenticationSchema,
   emailChangeSchema,
   challengeVerificationSchema,
@@ -24,6 +27,8 @@ import {
 } from "@pr0/api-contract/accounts";
 import type {
   AccountIdentity,
+  LinkMethod,
+  RemoveMethod,
   Reauthentication,
   EmailChange,
   ChallengeVerification,
@@ -96,6 +101,29 @@ export const createApiClient = ({
 
   return {
     baseUrl: normalizedBaseUrl,
+    async getLoginMethods(signal?: AbortSignal) {
+      return loginMethodsSchema.parse(
+        await accountRequest("/api/v1/account/methods", undefined, signal)
+      );
+    },
+    async linkLoginMethod(input: LinkMethod, signal?: AbortSignal) {
+      return socialRedirectSchema.parse(
+        await accountRequest(
+          "/api/v1/account/methods/link",
+          linkMethodSchema.parse(input),
+          signal
+        )
+      );
+    },
+    async removeLoginMethod(input: RemoveMethod, signal?: AbortSignal) {
+      return successSchema.parse(
+        await accountRequest(
+          "/api/v1/account/methods/remove",
+          removeMethodSchema.parse(input),
+          signal
+        )
+      );
+    },
     async getAccountSettings(signal?: AbortSignal) {
       return accountSettingsSchema.parse(
         await accountRequest("/api/v1/account", undefined, signal)

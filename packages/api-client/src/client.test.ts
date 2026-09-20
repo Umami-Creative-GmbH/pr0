@@ -8,6 +8,67 @@ import { ApiError, createApiClient } from "./client";
 import type { ApiClient } from "./client";
 import { healthQueryOptions } from "./query-options";
 
+test("login-method client validates responses, typed errors, inputs and cancellation", async () => {
+  const identity = {
+    accountId: "00000000-0000-4000-8000-000000000001",
+    emailVersion: 0,
+  };
+  const controller = new AbortController();
+  controller.abort(new DOMException("Cancelled", "AbortError"));
+  const operations = [
+    (client: ApiClient) => client.getLoginMethods(controller.signal),
+    (client: ApiClient) =>
+      client.linkLoginMethod(
+        { ...identity, provider: "google" },
+        controller.signal
+      ),
+    (client: ApiClient) =>
+      client.removeLoginMethod(
+        { ...identity, methodId: identity.accountId },
+        controller.signal
+      ),
+  ];
+  const invalid = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({})),
+  });
+  const denied = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({ code: "last_login_method" }, { status: 409 })
+      ),
+  });
+  const cancelled = createApiClient({
+    fetcher: (_url, init) => Promise.reject(init.signal?.reason),
+  });
+  for (const operation of operations) {
+    await expect(operation(invalid)).rejects.toBeInstanceOf(ZodError);
+    await expect(operation(denied)).rejects.toMatchObject({
+      status: 409,
+      code: "last_login_method",
+    });
+    await expect(operation(cancelled)).rejects.toBe(controller.signal.reason);
+  }
+  const fetcher = mock(() => Promise.resolve(Response.json({ status: "ok" })));
+  const client = createApiClient({ fetcher });
+  await expect(
+    client.removeLoginMethod({ ...identity, methodId: "bad" })
+  ).rejects.toBeInstanceOf(ZodError);
+  await expect(
+    client.linkLoginMethod({
+      ...identity,
+      accountId: "bad",
+      provider: "google",
+    })
+  ).rejects.toBeInstanceOf(ZodError);
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(
+    await client.removeLoginMethod({
+      ...identity,
+      methodId: identity.accountId,
+    })
+  ).toEqual({ status: "ok" });
+});
+
 test("account-change client validates every response, typed failure, input and cancellation", async () => {
   const identity = {
     accountId: "00000000-0000-4000-8000-000000000001",

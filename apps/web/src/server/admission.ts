@@ -7,6 +7,9 @@ import { configuration, secret } from "./config";
 import { database } from "./database";
 
 type FailureCode =
+  | "provider_owned"
+  | "last_login_method"
+  | "method_already_linked"
   | "invalid_credentials"
   | "account_changed"
   | "fresh_auth_required"

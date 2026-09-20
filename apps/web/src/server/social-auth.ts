@@ -5,6 +5,8 @@ import {
   socialProviderSchema,
   socialSignInSchema,
   socialVerificationSchema,
+  linkMethodSchema,
+  methodLinkResultSchema,
 } from "@pr0/api-contract/accounts";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
@@ -19,6 +21,11 @@ import { z } from "zod";
 import { AccountFailureError, admit, assertRegistration } from "./admission";
 import { configuration } from "./config";
 import { database } from "./database";
+import {
+  beginMethodLink,
+  finishMethodLink,
+  linkStateSchema,
+} from "./login-methods";
 import { enqueueSocialVerification } from "./mail";
 import { withSessionIssuance } from "./session-issuance";
 import { socialProvider } from "./social-config";
@@ -124,13 +131,13 @@ const finishSocial = async (
 
 const providerIdentity = async (
   ctx: SocialContext,
-  providerId: "google" | "github"
+  providerId: "google" | "github",
+  state: Awaited<ReturnType<typeof parseState>>
 ) => {
   const provider = socialProvider(providerId);
   if (!provider) {
     throw invalidSocial();
   }
-  const state = await parseState(ctx);
   if (state.provider !== providerId || !ctx.query?.state) {
     throw invalidSocial();
   }
@@ -187,6 +194,45 @@ const providerIdentity = async (
 export const socialAuthentication = () => ({
   id: "pr0-social",
   endpoints: {
+    linkSocial: createAuthEndpoint(
+      "/social/link",
+      { method: "POST", body: linkMethodSchema },
+      async (ctx) => {
+        const provider = socialProvider(ctx.body.provider);
+        if (!provider) {
+          throw new APIError("NOT_FOUND", { code: "not_found" });
+        }
+        let methodLink;
+        try {
+          methodLink = await beginMethodLink(ctx, ctx.body);
+        } catch (error) {
+          if (error instanceof AccountFailureError) {
+            ctx.setStatus(
+              z
+                .union([z.literal(401), z.literal(403), z.literal(409)])
+                .parse(error.status)
+            );
+            return ctx.json({ code: error.code });
+          }
+          throw error;
+        }
+        const idTokenNonce = crypto.randomUUID();
+        const { state, codeVerifier } = await generateState(ctx, {
+          idTokenNonce,
+          additionalData: { provider: provider.id, methodLink },
+        });
+        await reserveSocialAttempt(state);
+        const url = await provider.createAuthorizationURL({
+          state,
+          codeVerifier,
+          redirectURI: callbackURI(provider.id),
+        });
+        if (provider.id === "google") {
+          url.searchParams.set("nonce", idTokenNonce);
+        }
+        return ctx.json({ url: url.toString() });
+      }
+    ),
     startSocial: createAuthEndpoint(
       "/social/start",
       {
@@ -227,9 +273,26 @@ export const socialAuthentication = () => ({
       },
       async (ctx) => {
         let destination = "/";
+        let linking = false;
         try {
           const provider = socialProviderSchema.parse(ctx.params.provider);
-          const identity = await providerIdentity(ctx, provider);
+          const state = await parseState(ctx);
+          linking = state.methodLink !== undefined;
+          const identity = await providerIdentity(ctx, provider, state);
+          if (linking) {
+            await finishMethodLink(
+              ctx,
+              linkStateSchema.parse(state.methodLink),
+              provider,
+              identity.subject
+            );
+            ctx.setStatus(303);
+            ctx.setHeader(
+              "Location",
+              `${configuration().origin}/?methods=linked`
+            );
+            return ctx.json({ status: "ok" });
+          }
           const owner = await socialAccountOwner(provider, identity.subject);
           if (
             owner?.email_verified ||
@@ -254,10 +317,21 @@ export const socialAuthentication = () => ({
             destination = "/social-email";
           }
         } catch (error) {
-          const code = error instanceof APIError ? error.body?.code : undefined;
+          let code: string | undefined;
+          if (error instanceof AccountFailureError) {
+            ({ code } = error);
+          }
+          if (error instanceof APIError) {
+            code = error.body?.code;
+          }
           destination = `/?social=${code === "account_not_linked" || code === "registration_closed" ? code : "invalid"}`;
           if (code === "rate_limited") {
             destination = "/?social=rate_limited";
+          }
+          if (linking) {
+            const reason =
+              methodLinkResultSchema.safeParse(code).data ?? "invalid";
+            destination = `/?methods=${reason}`;
           }
         }
         ctx.setStatus(303);
