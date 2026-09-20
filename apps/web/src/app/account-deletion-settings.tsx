@@ -7,6 +7,7 @@ import type { DeletionTrust } from "@pr0/api-contract/deletions";
 import { useRef, useState } from "react";
 
 import { accountErrorMessage } from "./account-errors";
+import { useDeletionRecovery } from "./use-deletion-recovery";
 
 const buttonClass =
   "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
@@ -15,13 +16,15 @@ export const AccountDeletionSettings = ({
   onDeleted,
 }: {
   accountId?: string;
-  onDeleted: () => Promise<void>;
+  onDeleted: (identity: DeletionTrust) => Promise<void>;
 }) => {
   const client = useApiClient();
-  const [trust, setTrust] = useState<DeletionTrust | null>(null);
+  const [prepared, setPrepared] = useState<DeletionTrust | null>(null);
+  const recovery = useDeletionRecovery(client.baseUrl);
+  const trust = recovery.pending ?? prepared;
+  const pending = Boolean(recovery.pending);
   const emailVersion = useRef(0);
   const [confirmed, setConfirmed] = useState(false);
-  const [pending, setPending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState("");
   const [message, setMessage] = useState("");
@@ -34,7 +37,7 @@ export const AccountDeletionSettings = ({
     } catch (error) {
       setMessage(
         pending
-          ? "Deletion is still pending. Completion could not be verified. Keep this page open and retry."
+          ? "Deletion is still pending. Completion could not be verified. Retry checking its status."
           : accountErrorMessage(
               error instanceof Error ? error : new Error("Deletion unavailable")
             )
@@ -62,7 +65,7 @@ export const AccountDeletionSettings = ({
       if (setup.accountId !== accountId) {
         throw new Error("Account changed");
       }
-      setTrust(setup);
+      setPrepared(setup);
       emailVersion.current = settings.emailVersion;
       setConfirmed(false);
       setMessage("");
@@ -74,12 +77,12 @@ export const AccountDeletionSettings = ({
     }
     const continued = { ...pinned, rotations: verification.rotations };
     await verifyDeletionReceipt(value, continued);
-    setTrust(continued);
+    setPrepared(continued);
     setReceipt(value);
     setMessage(
       "Your account and library have been deleted. The signed receipt has been verified."
     );
-    await onDeleted();
+    await onDeleted(pinned);
   };
   const remove = () =>
     run(async () => {
@@ -87,9 +90,9 @@ export const AccountDeletionSettings = ({
         return;
       }
       // Pin the key before confirmation; a replacement server key is never accepted.
-      setPending(true);
+      recovery.persist(trust);
       setMessage(
-        "Deletion is pending. Completion has not yet been confirmed. Keep this page open and check again."
+        "Deletion is pending. Completion has not yet been confirmed. Check again shortly."
       );
       try {
         const result = await client.deleteAccount({
@@ -106,8 +109,8 @@ export const AccountDeletionSettings = ({
           error.status >= 400 &&
           error.status < 500
         ) {
-          setPending(false);
-          setTrust(null);
+          recovery.persist(null);
+          setPrepared(null);
         }
         throw error;
       }
@@ -150,12 +153,29 @@ export const AccountDeletionSettings = ({
         Delete account
       </h2>
       <p ref={status} aria-live="polite" tabIndex={-1}>
-        {message}
+        {message ||
+          (pending
+            ? "Deletion is pending. Check its status to verify completion."
+            : "")}
       </p>
       {receipt ? (
-        <button type="button" className={buttonClass} onClick={download}>
-          Download deletion receipt
-        </button>
+        <div className="flex gap-3">
+          <button type="button" className={buttonClass} onClick={download}>
+            Download deletion receipt
+          </button>
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => {
+              recovery.persist(null);
+              setPrepared(null);
+              setReceipt("");
+              setMessage("");
+            }}
+          >
+            Finish
+          </button>
+        </div>
       ) : null}
       {pending && !receipt ? (
         <button
@@ -218,7 +238,7 @@ export const AccountDeletionSettings = ({
               className={buttonClass}
               disabled={busy}
               onClick={() => {
-                setTrust(null);
+                setPrepared(null);
                 setConfirmed(false);
                 requestAnimationFrame(() => opener.current?.focus());
               }}

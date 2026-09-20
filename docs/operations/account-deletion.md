@@ -4,6 +4,8 @@ Issue #56 adds browser confirmation, an account/library barrier, live-data purge
 
 The coordinator commits these boundaries in order: local deletion barrier and recovery work; intent in ledger A; identical intent in ledger B; live canonical-data purge; search-worker exclusion and exact index-file removal; signed completion in A; identical completion in B. It then removes local recovery work and returns success. Failure after the barrier returns retryable `pending`. Recovery does not require a session. A pending intent or an unsigned absence can never authorize desktop cleanup.
 
+Before submission, the browser stores the minimal immutable identities, opaque handle and pinned verification material in origin-local storage, separately from the session. Reloading restores a status check that requires no account access. Browser cleanup uses the verified account/instance identity, so a late completion cannot clear another account's cache or unsaved draft. The receipt can be downloaded before dismissing the completed flow.
+
 ## Independent storage configuration
 
 Supply **two PostgreSQL 17 databases on independently durable hosts/storage failure domains**, separate from the service database and each other. This is the concrete provider-neutral ledger implementation. Two containers or volumes on the application host do not satisfy the deployment requirement. The local acceptance Compose uses separate disposable containers only to exercise failure boundaries; it makes no production durability claim.
@@ -49,3 +51,5 @@ Run `docker compose run --rm deletions rotate` to append a new key signed by its
 ## Validation
 
 Run `bun run --cwd apps/web test:account-deletion` for isolated real-PostgreSQL, independent-ledger and served-browser acceptance checks. The suite uses ports 30456, 55456–55458, 11456 and 18456 and owns only the `pr0-deletion-56` Compose project. It checks confirmation/freshness/provenance/identity, concurrent mutations, same-email recreation, unsigned absence, ledger failure, independent signature verification, rotation and recovery at the durable boundaries. Client conformance runs with the normal Bun test suite. Production retention and host-loss rehearsal evidence must come from the actual deployed independent storage.
+
+Recorded results, the ordinary-database restore rehearsal and tool limitations are in [issue 56 validation evidence](../evidence/issue-56-account-deletion.md).

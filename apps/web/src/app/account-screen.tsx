@@ -9,6 +9,10 @@ import type { FormEvent } from "react";
 
 import { AccountDeletionSettings } from "./account-deletion-settings";
 import { accountErrorMessage, methodResultMessage } from "./account-errors";
+import {
+  clearDeletedAccountCache,
+  deletedPartition,
+} from "./deleted-account-cache";
 import { EmailSettings } from "./email-settings";
 import { PromptLibrary } from "./prompt-library";
 import { RecoveryForm } from "./recovery-form";
@@ -57,8 +61,8 @@ export const AccountScreen = ({
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [busy, setBusy] = useState(false);
-  const [draftOpen, setDraftOpen] = useState(false);
   const [draftLibrary, setDraftLibrary] = useState<PrivateLibrary | null>(null);
+  const draftOpen = Boolean(draftLibrary);
   const [message, setMessage] = useState(
     verification === "ok" ? "Email verified. Sign in to open your library." : ""
   );
@@ -138,7 +142,6 @@ export const AccountScreen = ({
     void run(async () => {
       await queryClient.cancelQueries();
       await client.signOut();
-      setDraftOpen(false);
       setDraftLibrary(null);
       queryClient.clear();
       await library.refetch();
@@ -148,7 +151,6 @@ export const AccountScreen = ({
 
   const signedIn = draftLibrary ?? library.data;
   const retainDraft = (dirty: boolean) => {
-    setDraftOpen(dirty);
     setDraftLibrary((current) =>
       dirty ? (current ?? library.data ?? null) : null
     );
@@ -171,12 +173,19 @@ export const AccountScreen = ({
       {library.isPending ? <output>Checking your session…</output> : null}
       <AccountDeletionSettings
         accountId={signedIn?.account.id}
-        onDeleted={async () => {
-          await queryClient.cancelQueries();
-          setDraftOpen(false);
-          setDraftLibrary(null);
-          queryClient.clear();
-          await library.refetch();
+        onDeleted={async (identity) => {
+          setDraftLibrary((current) =>
+            deletedPartition(current, identity) ? null : current
+          );
+          if (
+            await clearDeletedAccountCache(
+              queryClient,
+              client.baseUrl,
+              identity
+            )
+          ) {
+            await library.refetch();
+          }
         }}
       />
       {signedIn ? (

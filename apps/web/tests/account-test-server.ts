@@ -29,6 +29,19 @@ export const accountTestServer = (
   const compose = ["docker", "compose", "-p", project, "-f", composeFile];
   let server: ReturnType<typeof Bun.spawn> | undefined;
   let mail: ReturnType<typeof Bun.spawn> | undefined;
+  const stopMail = async () => {
+    mail?.kill();
+    if (mail) {
+      await mail.exited;
+      mail = undefined;
+    }
+  };
+  const startMail = () => {
+    mail = Bun.spawn(
+      ["bun", "--conditions=react-server", "scripts/mail-worker.ts"],
+      { cwd: web, env: process.env, stdout: "inherit", stderr: "inherit" }
+    );
+  };
   const stopServer = async () => {
     if (server) {
       server.kill();
@@ -36,7 +49,10 @@ export const accountTestServer = (
       server = undefined;
     }
   };
-  const startServer = async (extra: Record<string, string> = {}) => {
+  const startServer = async (
+    extra: Record<string, string> = {},
+    ready = true
+  ) => {
     await stopServer();
     server = Bun.spawn(
       [
@@ -65,7 +81,7 @@ export const accountTestServer = (
         const response = await fetch(`${origin}/api/v1/ready`, {
           signal: AbortSignal.timeout(2000),
         });
-        if (response.ok) {
+        if (ready ? response.ok : response.status === 503) {
           return;
         }
       } catch {
@@ -85,19 +101,13 @@ export const accountTestServer = (
     ]);
     await prepare?.();
     await runAcceptance(["bun", "run", "--cwd", "apps/web", "build"]);
-    mail = Bun.spawn(
-      ["bun", "--conditions=react-server", "scripts/mail-worker.ts"],
-      { cwd: web, env: process.env, stdout: "inherit", stderr: "inherit" }
-    );
+    startMail();
     await startServer();
   };
   const cleanup = async () => {
     await stopServer();
-    mail?.kill();
-    if (mail) {
-      await mail.exited;
-    }
+    await stopMail();
     await runAcceptance([...compose, "down", "--volumes"]);
   };
-  return { setup, cleanup, startServer, stopServer };
+  return { setup, cleanup, startServer, stopServer, startMail, stopMail };
 };
