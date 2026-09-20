@@ -207,7 +207,7 @@ test("an account change in another tab preserves this draft and never saves it i
   }
 }, 60_000);
 
-test("browser reaches later pages and keeps an unsaved draft when a changed library requires refreshing", async () => {
+test("browser reaches later pages and keeps an unsaved draft when a changed library restarts results", async () => {
   const account = await promptBrowser();
   await account.mutate(
     Array.from({ length: 51 }, (_, index) =>
@@ -250,8 +250,11 @@ test("browser reaches later pages and keeps an unsaved draft when a changed libr
       .getByRole("button", { name: "Load more prompts", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "Refresh list", exact: true })
-      .click();
+      .getByText(
+        "Your library changed. Results restarted from the first page.",
+        { exact: true }
+      )
+      .waitFor();
     await page
       .getByRole("button", { name: "Writing helper", exact: true })
       .waitFor();

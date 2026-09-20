@@ -3,12 +3,10 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import {
-  sortedTagIds,
   mutationReceiptSchema,
   mutationResultSchema,
   collectionReceiptSchema,
   promptLimits,
-  promptPageSchema,
   promptSchema,
   promptTextSchema,
   promptTextFields,
@@ -26,7 +24,6 @@ import type {
   DuplicatePrompt,
   UpdatePrompt,
   PromptText,
-  promptBrowseInputSchema,
 } from "@pr0/api-contract/prompts";
 import type { TransactionSQL, SQL } from "bun";
 import { z } from "zod";
@@ -704,58 +701,6 @@ export const summaryFrom = (row: PromptRow) => ({
   collectionId: row.collection_id,
   tagIds: row.tag_ids ?? [],
 });
-export const listPrompts = (
-  browser: BrowserAccount,
-  {
-    limit,
-    cursor,
-    view,
-    collectionId,
-    tagIds = [],
-  }: z.infer<typeof promptBrowseInputSchema>
-) =>
-  database().begin(async (tx) => {
-    const library = await lockLibrary(tx, browser);
-    const scope = {
-      account: browser.accountId,
-      instance: library.instance_id,
-      epoch: library.recovery_epoch,
-      revision: library.revision,
-      kind: "prompts",
-      view,
-      collectionId,
-      tagFilter: tagIds.length
-        ? signature(sortedTagIds(tagIds).join(","))
-        : undefined,
-      limit,
-    } as const;
-    const page = scopedCursor(cursor, scope);
-    const rows = await tx<
-      PromptRow[]
-    >`SELECT id, title, description, favorite, archived, collection_id, revision::text, created_at, modified_at,
-      to_json(ARRAY(SELECT m.tag_id FROM prompt_tag m WHERE m.instance_id = prompt.instance_id AND m.account_id = prompt.account_id AND m.prompt_id = prompt.id AND m.add_revision > m.remove_revision ORDER BY m.tag_id)) AS tag_ids FROM prompt
-    WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId}
-      AND (${collectionId === undefined} OR collection_id = ${collectionId ?? null}::uuid)
-      AND NOT EXISTS(SELECT 1 FROM unnest(string_to_array(${tagIds.join(",")}, ',')::uuid[]) requested(id) WHERE NOT EXISTS(SELECT 1 FROM prompt_tag m WHERE m.instance_id = prompt.instance_id AND m.account_id = prompt.account_id AND m.prompt_id = prompt.id AND m.tag_id = requested.id AND m.add_revision > m.remove_revision))
-      AND archived = ${view === "archive"}
-      AND (${view !== "favorites"} OR favorite = true)
-      AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
-    ORDER BY prompt.revision DESC, id LIMIT ${limit + 1}`;
-    const visible = rows.slice(0, limit);
-    const nextCursor =
-      rows.length > limit ? signCursor(scope, visible.at(-1)) : null;
-    return promptPageSchema.parse({
-      instanceId: library.instance_id,
-      accountId: browser.accountId,
-      revision: library.revision,
-      prompts: visible.map(summaryFrom),
-      nextCursor,
-      usage: {
-        promptCount: library.prompt_count,
-        textBytes: Number(library.text_bytes),
-      },
-    });
-  });
 export const getPrompt = (browser: BrowserAccount, id: string) =>
   database().begin(async (tx) => {
     const library = await lockLibrary(tx, browser);

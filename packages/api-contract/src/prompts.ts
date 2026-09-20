@@ -126,7 +126,23 @@ export const promptListInputSchema = z.strictObject({
 });
 export const promptViewSchema = z.enum(["all", "favorites", "archive"]);
 export type PromptView = z.infer<typeof promptViewSchema>;
+export const searchNormalizationVersion = "pr0-search-v1-ucd17";
+export const promptQuerySchema = scalarText.refine(
+  (value) => [...value].length <= 200,
+  "Search must be at most 200 Unicode code points."
+);
+export const promptSortSchema = z.enum([
+  "relevance",
+  "recently-modified",
+  "recently-used",
+  "newest",
+  "oldest",
+  "title",
+]);
+export type PromptSort = z.infer<typeof promptSortSchema>;
 export const promptBrowseInputSchema = promptListInputSchema.extend({
+  query: promptQuerySchema.default(""),
+  sort: promptSortSchema.optional(),
   view: promptViewSchema.default("all"),
   collectionId: promptIdentitySchema.optional(),
   tagIds: z.array(promptIdentitySchema).max(promptLimits.tagCount).optional(),
@@ -344,6 +360,7 @@ export const promptErrorSchema = z.strictObject({
     "update_required",
     "snapshot_required",
     "results_changed",
+    "search_preparing",
     "rate_limited",
     "temporarily_unavailable",
   ]),

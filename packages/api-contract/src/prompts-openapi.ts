@@ -174,8 +174,30 @@ export const promptPaths = {
       tags: ["Prompts"],
       security: [{ BrowserSession: [] }],
       description:
-        "Optional tagIds is a comma-separated list of library-owned UUIDs (up to 1,000); all selected tags combine by AND, including with view and collectionId. The complete tag set is bound into the signed cursor. Unavailable identities produce no matches. Optional collectionId filters by library-owned identity with AND and is included in the signed cursor scope; absent or foreign identities produce no matches. View is all (default), favorites or archive. All active views exclude archived prompts; archive contains only archived prompts, favorites additionally requires favorite. Restoring preserves retained state eligibility. Newest first by numeric library revision, then ascending UUID. Summaries omit content. Cursors retain both sort keys and are integrity protected and bound to library, recovery epoch, version, view, page limit and revision. Changed revisions return results_changed; restart the list while preserving selection and drafts.",
+        "Optional tagIds is a comma-separated list of library-owned UUIDs (up to 1,000); all selected tags combine by AND, including with view and collectionId. The complete tag set is bound into the signed cursor. Unavailable identities produce no matches. Optional collectionId filters by library-owned identity with AND and is included in the signed cursor scope; absent or foreign identities produce no matches. View is all (default), favorites or archive. All active views exclude archived prompts; archive contains only archived prompts, favorites additionally requires favorite. Restoring preserves retained state eligibility. Search title, description and content using pr0-search-v1-ucd17: Unicode 17 NFD, full default casefold, NFD, removal of Diacritic Marks, and collapsed White_Space. Whitespace-separated terms combine by AND across fields. Punctuation is literal; no operators, stemming or fuzzy matching. Validate at most 200 Unicode code points before normalization; reject NUL, unpaired surrogates and malformed UTF-8 URL encoding. Nonblank queries default to relevance (exact title, all terms in title, any title term, description, content); ties use latest use descending, modification descending, Unicode-scalar title and UUID bytes. Empty queries default to recently-modified. Explicit sorts override ranking, retain eligibility and break ties by scalar title then UUID; recently-used places never-used last by modification descending. Summaries omit content. Signed cursors bind all query/filter/sort values, library, recovery epoch, normalization version, page limit and consistent index revision. search_preparing (503 with Retry-After) means the SQLite projection of durable PostgreSQL changes is not ready; stale success is never returned. Changed revisions return results_changed; restart the list while preserving selection and drafts.",
       parameters: [
+        {
+          name: "query",
+          in: "query",
+          description:
+            "Literal text query, at most 200 Unicode code points before normalization.",
+          schema: { type: "string", maxLength: 200, default: "" },
+        },
+        {
+          name: "sort",
+          in: "query",
+          schema: {
+            type: "string",
+            enum: [
+              "relevance",
+              "recently-modified",
+              "recently-used",
+              "newest",
+              "oldest",
+              "title",
+            ],
+          },
+        },
         {
           name: "tagIds",
           in: "query",

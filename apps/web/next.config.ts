@@ -9,6 +9,7 @@ if (!process.versions.bun) {
 }
 
 const nextConfig: NextConfig = {
+  skipProxyUrlNormalize: true,
   output: "standalone",
   logging: { incomingRequests: false },
   outputFileTracingRoot: path.resolve(import.meta.dirname, "../.."),

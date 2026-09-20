@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run docs:prepare && bun --bun next dev --port 3000",
+    "dev": "bun run docs:prepare && bun run ops:build && bun --bun next dev --port 3000",
     "build": "bun run docs:prepare && bun run ops:build && bun --bun next build",
-    "ops:build": "bun build scripts/accounts.ts scripts/mail-worker.ts --target=bun --conditions=react-server --outdir=.operations",
+    "ops:build": "bun build scripts/accounts.ts scripts/mail-worker.ts scripts/search-worker.ts --target=bun --conditions=react-server --outdir=.operations",
     "accounts": "bun --conditions=react-server scripts/accounts.ts",
     "mail:worker": "bun --conditions=react-server scripts/mail-worker.ts",
     "docs:prepare": "bun scripts/prepare-docs.ts",
@@ -23,7 +23,8 @@
     "test:recovery": "bun --env-file=tests/compose.env test tests/recovery-deployment.test.ts",
     "test:social": "bun --env-file=tests/social.env tests/social-runner.ts",
     "test:email-change": "bun --env-file=tests/social.env tests/email-change-runner.ts",
-    "test:login-methods": "bun --env-file=tests/social.env tests/login-methods-runner.ts"
+    "test:login-methods": "bun --env-file=tests/social.env tests/login-methods-runner.ts",
+    "test:search": "bun --env-file=tests/social.env tests/search-runner.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.5",

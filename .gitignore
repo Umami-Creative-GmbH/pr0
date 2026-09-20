@@ -25,3 +25,4 @@ next-env.d.ts
 *.log
 # Bundled Bun operational entry points
 **/.operations/
+**/.data/search/

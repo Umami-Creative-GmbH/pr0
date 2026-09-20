@@ -101,6 +101,8 @@ const emptyViewMessage = (view: PromptView) =>
     ? "Create your first prompt with a title and content."
     : `No prompts in ${view === "archive" ? "the archive" : "favorites"}.`;
 export const PromptResults = ({
+  restricted,
+  pendingSearch,
   view,
   collectionId,
   list,
@@ -111,6 +113,8 @@ export const PromptResults = ({
   onDelete,
   onRefresh,
 }: {
+  restricted: boolean;
+  pendingSearch: boolean;
   view: PromptView;
   collectionId: string | null;
   list: UseInfiniteQueryResult<
@@ -124,24 +128,37 @@ export const PromptResults = ({
   onDelete: (prompt: Pick<Prompt, "id" | "title" | "revision">) => void;
   onRefresh: () => void;
 }) => {
-  const empty = list.isSuccess && !prompts.length;
+  let emptyMessage = emptyViewMessage(view);
+  if (collectionId) {
+    emptyMessage =
+      "No prompts in this collection for the selected view. Remove the collection filter to see other prompts.";
+  }
+  if (restricted) {
+    emptyMessage = "No matching prompts";
+  }
+  const empty = list.isSuccess && !prompts.length && !pendingSearch;
   return (
     <section
       aria-labelledby="prompts-heading"
       className="rounded-lg border p-6"
     >
       <h2 className="text-xl font-semibold" id="prompts-heading">
-        {empty && view === "all" && !collectionId
+        {empty && view === "all" && !collectionId && !restricted
           ? "Your library is empty"
           : "Saved prompts"}
       </h2>
       {list.isPending ? <output>Loading your library…</output> : null}
+      {list.failureReason instanceof PromptApiError &&
+      list.failureReason.detail?.code === "search_preparing" ? (
+        <output>Search is preparing your latest library…</output>
+      ) : null}
+      <output className="sr-only">
+        {list.isSuccess && !pendingSearch
+          ? `${prompts.length} prompts shown.`
+          : ""}
+      </output>
       {empty ? (
-        <p className="text-muted-foreground mt-2">
-          {collectionId
-            ? "No prompts in this collection for the selected view. Remove the collection filter to see other prompts."
-            : emptyViewMessage(view)}
-        </p>
+        <p className="text-muted-foreground mt-2">{emptyMessage}</p>
       ) : null}
       {list.isError ? (
         <div role="alert">

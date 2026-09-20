@@ -1,0 +1,156 @@
+{
+  "measuredAt": "2026-09-20T15:54:35.287Z",
+  "runtime": "1.4.2",
+  "platform": "win32",
+  "cpu": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S      ",
+  "logicalCpus": 32,
+  "memoryBytes": 102838435840,
+  "fixture": "Synthetic repeated prose, 10000 prompts, exactly 100 MiB of canonical text; text fields only; local loopback production build.",
+  "coldMs": 42619.5308,
+  "indexBytes": 129347584,
+  "rest": [
+    {
+      "query": "a",
+      "samples": [
+        63.42919999999867, 57.1076999999932, 56.103900000001886,
+        52.08919999998761, 51.83659999999509, 49.72619999999006,
+        54.88300000000163, 50.748099999997066, 50.76949999999488,
+        49.57249999999476
+      ],
+      "server": [
+        "search-index;dur=3.23, search-query;dur=26.27, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=2.93, search-query;dur=19.42, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=4.31, search-query;dur=21.06, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.04, search-query;dur=21.66, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.11, search-query;dur=21.74, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.27, search-query;dur=19.22, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.44, search-query;dur=22.99, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.31, search-query;dur=20.07, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.26, search-query;dur=20.02, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=2.84, search-query;dur=19.28, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\""
+      ]
+    },
+    {
+      "query": "C++",
+      "samples": [
+        51.58890000000247, 53.46929999999702, 52.271099999998114,
+        50.10930000001099, 52.54859999999462, 51.62849999999162,
+        48.74210000000312, 51.007299999997485, 53.00329999999667,
+        54.65820000000531
+      ],
+      "server": [
+        "search-index;dur=2.90, search-query;dur=20.87, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.04, search-query;dur=22.47, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=2.93, search-query;dur=21.27, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=4.34, search-query;dur=19.66, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.96, search-query;dur=21.60, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.75, search-query;dur=21.06, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.17, search-query;dur=19.20, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=2.94, search-query;dur=21.42, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=3.24, search-query;dur=21.90, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\"",
+        "search-index;dur=4.30, search-query;dur=21.91, search-updates;desc=\"0\", search-bodies;desc=\"0\", search-bytes;desc=\"0\""
+      ]
+    },
+    {
+      "query": "common",
+      "samples": [
+        53.08310000000347, 50.999199999991106, 50.05019999999786,
+        51.638200000001234, 53.10869999999704, 50.64549999999872,
+        53.478999999992084, 49.70690000000468, 55.69439999999304,
+        49.4939999999915
+      ],
+      "server": [
+        "search-index;dur=3.11, search-query;dur=23.18, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.97, search-query;dur=20.14, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.34, search-query;dur=20.48, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.01, search-query;dur=22.96, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=5.63, search-query;dur=21.45, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.89, search-query;dur=21.13, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.97, search-query;dur=24.85, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.97, search-query;dur=20.80, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.64, search-query;dur=24.70, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.00, search-query;dur=19.90, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\""
+      ]
+    },
+    {
+      "query": "abcd",
+      "samples": [
+        223.61130000000412, 226.3125, 218.79940000000352, 217.86510000001,
+        221.09940000000643, 226.86629999999423, 217.23949999999604,
+        221.08809999999357, 217.47230000000854, 222.1185000000114
+      ],
+      "server": [
+        "search-index;dur=2.88, search-query;dur=187.44, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=2.90, search-query;dur=187.76, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=2.85, search-query;dur=183.41, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=3.00, search-query;dur=182.29, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=4.60, search-query;dur=183.19, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=2.71, search-query;dur=187.49, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=3.35, search-query;dur=180.51, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=3.01, search-query;dur=184.78, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=2.87, search-query;dur=181.53, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\"",
+        "search-index;dur=3.04, search-query;dur=184.62, search-updates;desc=\"0\", search-bodies;desc=\"10000\", search-bytes;desc=\"104737600\""
+      ]
+    },
+    {
+      "query": "prompt common",
+      "samples": [
+        60.58400000000256, 53.16569999999774, 53.57949999999255,
+        54.458399999988615, 53.06910000000789, 52.24539999999979,
+        50.8518999999942, 56.27580000000307, 49.68019999998796, 55.3689999999915
+      ],
+      "server": [
+        "search-index;dur=3.15, search-query;dur=29.50, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.01, search-query;dur=23.95, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.99, search-query;dur=25.33, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.91, search-query;dur=23.26, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.75, search-query;dur=24.79, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.90, search-query;dur=24.34, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.79, search-query;dur=21.90, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.81, search-query;dur=27.22, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.04, search-query;dur=21.80, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.92, search-query;dur=26.40, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\""
+      ]
+    },
+    {
+      "query": "write concise answer useful examples clear steps review following document identify important changes explain reasoning preserve exact names punctuation summarize meeting notes actions owners dates",
+      "samples": [
+        109.4094000000041, 118.04039999999804, 105.16890000000421,
+        105.52300000000105, 100.91680000000633, 99.99350000001141,
+        96.84990000000107, 97.08169999999518, 99.82760000000417,
+        98.57880000000296
+      ],
+      "server": [
+        "search-index;dur=2.86, search-query;dur=78.36, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.08, search-query;dur=79.80, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.28, search-query;dur=70.88, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.90, search-query;dur=72.00, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.19, search-query;dur=69.03, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=3.34, search-query;dur=68.49, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.77, search-query;dur=66.77, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.94, search-query;dur=66.53, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=2.81, search-query;dur=69.70, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\"",
+        "search-index;dur=5.25, search-query;dur=66.15, search-updates;desc=\"0\", search-bodies;desc=\"51\", search-bytes;desc=\"670336\""
+      ]
+    }
+  ],
+  "rendering": [
+    {
+      "query": "common",
+      "duration": 110.89999999850988
+    },
+    {
+      "query": "abcd",
+      "duration": 264.80000000074506
+    },
+    {
+      "query": "C++",
+      "duration": 123.90000000223517
+    },
+    {
+      "query": "a",
+      "duration": 116
+    }
+  ],
+  "releaseGate": "The final all-field 150 ms end-to-end gate on supported hardware remains required; these local text-only measurements do not certify release."
+}

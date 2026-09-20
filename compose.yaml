@@ -70,6 +70,8 @@ services:
     environment:
       <<: *account-environment
       API_ALLOWED_ORIGINS: "${API_ALLOWED_ORIGINS:-}"
+    volumes:
+      - search-data:/var/lib/pr0-search
     depends_on:
       database:
         condition: service_healthy
@@ -95,3 +97,4 @@ services:
 
 volumes:
   postgres-data:
+  search-data:

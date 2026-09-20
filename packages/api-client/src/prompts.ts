@@ -20,6 +20,7 @@ import type {
   MutationEnvelope,
   PromptError,
   PromptView,
+  PromptSort,
   MutationResult,
 } from "@pr0/api-contract/prompts";
 
@@ -249,6 +250,8 @@ export const createPromptClient = (
     },
     async getPrompts(
       input: {
+        query?: string;
+        sort?: PromptSort;
         cursor?: string;
         limit?: number;
         view?: PromptView;
@@ -263,6 +266,12 @@ export const createPromptClient = (
         limit: String(parsed.limit),
         view: parsed.view,
       });
+      if (parsed.query) {
+        params.set("query", parsed.query);
+      }
+      if (parsed.sort) {
+        params.set("sort", parsed.sort);
+      }
       if (parsed.cursor) {
         params.set("cursor", parsed.cursor);
       }

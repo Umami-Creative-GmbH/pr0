@@ -7,7 +7,7 @@ import type {
   UpdatePrompt,
   DeletePrompt,
 } from "@pr0/api-contract/prompts";
-import { promptTextFields } from "@pr0/api-contract/prompts";
+import { promptTextFields, promptErrorSchema } from "@pr0/api-contract/prompts";
 
 import { socialBrowser } from "./email-change-fixture";
 import { origin, post } from "./http-fixture";
@@ -64,11 +64,30 @@ export const promptBrowser = async () => {
 };
 
 export const promptClient = (Cookie: string) =>
-  createPromptClient(origin, (url, init) => {
+  createPromptClient(origin, async (url, init) => {
     const headers = new Headers(init.headers);
     headers.set("Cookie", Cookie);
     headers.set("Origin", origin);
-    return fetch(url, { ...init, headers });
+    const deadline = Date.now() + 120_000;
+    // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Capacity fixtures must await the explicit search preparation state before asserting results.
+    while (true) {
+      const response = await fetch(url, { ...init, headers });
+      if (
+        response.status !== 503 ||
+        init.method !== "GET" ||
+        Date.now() >= deadline
+      ) {
+        return response;
+      }
+      const failure = promptErrorSchema.safeParse(
+        await response.clone().json()
+      );
+      if (!failure.success || failure.data.code !== "search_preparing") {
+        return response;
+      }
+      await Bun.sleep((failure.data.retryAfter ?? 1) * 1000);
+    }
+    // oxlint-enable eslint/no-await-in-loop, react-doctor/async-await-in-loop
   });
 export const promptEdit = (
   base: Prompt,

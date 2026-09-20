@@ -1,0 +1,22 @@
+// Shared observable conformance vectors for REST and future native command tests.
+export const textSearchFixtures = [
+  { query: "  CAFE  ", text: "Café", matches: true },
+  { query: "cafe", text: "Cafe\u0301", matches: true },
+  { query: "uber", text: "Über", matches: true },
+  { query: "ueber", text: "Über", matches: false },
+  { query: "strasse", text: "Straße", matches: true },
+  { query: "C++", text: "C++", matches: true },
+  { query: "C++", text: "C", matches: false },
+  { query: '"hello"', text: "hello", matches: false },
+  { query: "OR", text: "ordinary", matches: true },
+  { query: "a b", text: "a\u0085\u2003b", matches: true },
+  { query: "summ", text: "summarize", matches: true },
+  { query: "sumamrize", text: "summarize", matches: false },
+  { query: "🫠", text: "one 🫠 face", matches: true },
+  { query: "𐐨", text: "𐐀", matches: true },
+  { query: "🫠a", text: "🫠a", matches: true },
+  { query: "a🫠b", text: "a🫠b", matches: true },
+  { query: "abcd", text: "abc bcd", matches: false },
+  { query: "☀️", text: "☀", matches: false },
+  { query: "\uFEFFa", text: "a", matches: false },
+] as const;

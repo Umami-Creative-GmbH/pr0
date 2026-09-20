@@ -27,10 +27,10 @@ import {
   mutatePrompt,
   getOrganization,
   getPrompt,
-  listPrompts,
   listConflicts,
 } from "./prompt-store";
 import { withRequestWork } from "./request-work";
+import { searchPrompts } from "./search-service";
 
 const readMutation = async (request: Request) => {
   if (
@@ -109,6 +109,33 @@ type LibraryRequestTarget =
   | { kind: "prompts" | "conflicts" | "organization" | "mutations" }
   | { kind: "prompt" | "organization-review"; id: string }
   | { kind: "organization-impact" | "organization-states" };
+const readListInput = (url: URL, kind: "conflicts" | "prompts") => {
+  try {
+    decodeURIComponent(url.search.replaceAll("+", " "));
+  } catch {
+    throw invalidPromptRequest();
+  }
+  const entries = Object.fromEntries(url.searchParams);
+  const fields = {
+    ...entries,
+    limit: entries.limit === undefined ? undefined : Number(entries.limit),
+  };
+  const input =
+    kind === "conflicts"
+      ? promptListInputSchema.safeParse(fields)
+      : promptBrowseInputSchema.safeParse({
+          ...fields,
+          tagIds: entries.tagIds?.split(","),
+        });
+  if (
+    !input.success ||
+    [...url.searchParams.keys()].length !== Object.keys(entries).length
+  ) {
+    throw invalidPromptRequest();
+  }
+
+  return input;
+};
 const promptIdRequestValid = (url: URL, id: string) =>
   !url.search && promptIdentitySchema.safeParse(id).success;
 export const handlePrompts = async (
@@ -135,6 +162,7 @@ export const handlePrompts = async (
       const browser = { accountId: user.id, sessionId: session.id };
       const url = new URL(request.url);
       let body;
+      let searchTiming: string | undefined;
       if (target.kind === "mutations") {
         if (url.search) {
           throw invalidPromptRequest();
@@ -157,36 +185,29 @@ export const handlePrompts = async (
         }
         body = await getPrompt(browser, target.id);
       } else {
-        const entries = Object.fromEntries(url.searchParams);
-        const fields = {
-          ...entries,
-          limit:
-            entries.limit === undefined ? undefined : Number(entries.limit),
-        };
-        const input =
-          target.kind === "conflicts"
-            ? promptListInputSchema.safeParse(fields)
-            : promptBrowseInputSchema.safeParse({
-                ...fields,
-                tagIds: entries.tagIds?.split(","),
-              });
-        if (
-          !input.success ||
-          [...url.searchParams.keys()].length !== Object.keys(entries).length
-        ) {
-          throw invalidPromptRequest();
+        const input = readListInput(url, target.kind);
+        if (target.kind === "conflicts") {
+          body = await listConflicts(
+            browser,
+            input.data.limit,
+            input.data.cursor
+          );
+        } else {
+          const search = await searchPrompts(
+            browser,
+            promptBrowseInputSchema.parse(input.data),
+            request.signal
+          );
+          body = search.page;
+          searchTiming = search.timing;
         }
-        body =
-          target.kind === "conflicts"
-            ? await listConflicts(browser, input.data.limit, input.data.cursor)
-            : await listPrompts(
-                browser,
-                promptBrowseInputSchema.parse(input.data)
-              );
       }
       const headers = new Headers(result.headers);
       headers.set("Cache-Control", "no-store");
       headers.set("Referrer-Policy", "no-referrer");
+      if (searchTiming) {
+        headers.set("Server-Timing", searchTiming);
+      }
       return Response.json(body, { headers });
     });
   } catch (error) {

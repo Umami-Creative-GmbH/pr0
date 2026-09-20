@@ -1,0 +1,9 @@
+{
+  "verifiedAt": "2026-09-20T15:54:49.005Z",
+  "committedMutationSurvivesIndexFailure": true,
+  "identicalReceiptReplay": true,
+  "explicitPreparationState": true,
+  "persistedCheckpointCatchUp": true,
+  "compatibleRestartIndexesZeroRows": true,
+  "corruptionRebuildPreservesCanonicalText": true
+}

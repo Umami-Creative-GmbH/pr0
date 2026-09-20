@@ -10,26 +10,26 @@ import type {
   Prompt,
   MutationReceipt,
   PromptView,
-  promptPageSchema,
 } from "@pr0/api-contract/prompts";
 import { PromptDeleteDialog } from "@pr0/ui/components/prompt-delete-dialog";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import type { z } from "zod";
 
 import { CollectionControls } from "./collection-controls";
 import { PromptActionStatus } from "./prompt-action-status";
 import { PromptConflicts } from "./prompt-conflicts";
 import { PromptEditor } from "./prompt-editor";
-import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 import { PromptResults, PromptViewNavigation } from "./prompt-results";
 import { promptSaveNotice } from "./prompt-save-notice";
+import { PromptSearchControls } from "./prompt-search-controls";
 import { PromptTags } from "./prompt-tags";
 import { useLibraryDrafts } from "./use-library-drafts";
+import { useLibraryResults } from "./use-library-results";
 import { useOrganization } from "./use-organization";
 import { usePromptActions } from "./use-prompt-actions";
 import type { PromptAction } from "./use-prompt-actions";
-import { usePromptSelection } from "./use-prompt-selection";
+import { usePromptSearch } from "./use-prompt-search";
+import type { usePromptSelection } from "./use-prompt-selection";
 
 const buttonClass =
   "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
@@ -206,28 +206,6 @@ const nearingCapacity = (usage?: { promptCount: number; textBytes: number }) =>
     (usage.promptCount >= promptLimits.promptCount * 0.9 ||
       usage.textBytes >= promptLimits.libraryBytes * 0.9)
   );
-const matchingOrganization = (
-  prompts: z.infer<typeof promptPageSchema>["prompts"],
-  organization: { collections: Collection[]; tags: Tag[] } | undefined,
-  collectionId: string | null,
-  tagIds: string[],
-  incomplete: boolean
-) => {
-  if (!organization) {
-    return { prompts, incomplete };
-  }
-  const availableTags = new Set(organization.tags.map((tag) => tag.id));
-  if (
-    (collectionId &&
-      !organization.collections.some(
-        (collection) => collection.id === collectionId
-      )) ||
-    tagIds.some((id) => !availableTags.has(id))
-  ) {
-    return { prompts: [], incomplete: false };
-  }
-  return { prompts, incomplete };
-};
 export const PromptLibrary = ({
   library,
   onDirtyChange,
@@ -248,9 +226,14 @@ export const PromptLibrary = ({
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [tagEditing, setTagEditing] = useState<Prompt | null>(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const search = usePromptSearch(
+    `${library.instance.id}:${library.account.id}:${view}:${collectionId ?? ""}`
+  );
   const { organization, organizationKey } = useOrganization(library);
-  const collections = organization.data?.collections ?? [];
-  const tags = organization.data?.tags ?? [];
+  const { collections, tags } = organization.data ?? {
+    collections: [],
+    tags: [],
+  };
   const noticeRef = useRef<HTMLParagraphElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
@@ -260,54 +243,23 @@ export const PromptLibrary = ({
       restoreFocus.current = false;
     }
   }, [editing]);
-  const queryKey = [
-    "prompts",
-    client.baseUrl,
-    library.instance.id,
-    library.account.id,
-    view,
-    collectionId,
-    tagIds,
-  ];
-  const list = useInfiniteQuery({
+  const {
+    list,
     queryKey,
-    initialPageParam: "",
-    queryFn: ({ pageParam, signal }) =>
-      client.getPrompts(
-        {
-          cursor: pageParam || undefined,
-          view,
-          collectionId: collectionId ?? undefined,
-          tagIds,
-        },
-        signal,
-        {
-          instanceId: library.instance.id,
-          accountId: library.account.id,
-        }
-      ),
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
-    retry: retryPromptRead,
-    retryDelay: promptRetryDelay,
-    refetchOnWindowFocus: false,
-  });
-  const pages = list.data?.pages ?? [];
-  const usage = pages[0]?.usage;
-  const { prompts, incomplete } = matchingOrganization(
-    pages.flatMap((page) => page.prompts),
-    organization.data,
-    collectionId,
-    tagIds,
-    list.isFetching || list.hasNextPage
-  );
-  const { selectedId, setSelected, detail } = usePromptSelection({
+    restarted,
+    searchBlocked,
+    usage,
+    prompts,
+    selectedId,
+    setSelected,
+    detail,
+  } = useLibraryResults({
     library,
     view,
     collectionId,
     tagIds,
-    prompts,
-    incomplete,
-    loading: list.isPending,
+    search,
+    organization: organization.data,
   });
   const saved = (receipt: MutationReceipt) => {
     restoreFocus.current = true;
@@ -316,6 +268,7 @@ export const PromptLibrary = ({
     setNotice(promptSaveNotice(receipt));
   };
   const changeView = (value: PromptView) => {
+    search.clear();
     setView(value);
     setCollectionId(null);
     setTagIds([]);
@@ -360,6 +313,7 @@ export const PromptLibrary = ({
         }
       }
       if (action === "duplicate") {
+        search.clear();
         setView("all");
         setCollectionId(null);
         setTagIds([]);
@@ -375,6 +329,7 @@ export const PromptLibrary = ({
         accountId: library.account.id,
       });
       setView(prompt.archived ? "archive" : "all");
+      search.clear();
       setCollectionId(null);
       setTagIds([]);
       setSelected(id);
@@ -417,6 +372,12 @@ export const PromptLibrary = ({
         </button>
       </div>
       <PromptViewNavigation view={view} onChange={changeView} />
+      <PromptSearchControls search={search} />
+      {restarted ? (
+        <output>
+          Your library changed. Results restarted from the first page.
+        </output>
+      ) : null}
       <CollectionControls
         tagIds={tagIds}
         onTagsChange={(ids) => {
@@ -429,6 +390,7 @@ export const PromptLibrary = ({
         onAllPrompts={() => changeView("all")}
         collectionId={collectionId}
         onSelect={(id) => {
+          search.clear();
           setCollectionId(id);
           setSelected(null);
         }}
@@ -482,6 +444,8 @@ export const PromptLibrary = ({
         />
       ) : null}
       <PromptResults
+        restricted={search.searching || tagIds.length > 0}
+        pendingSearch={search.pending || Boolean(search.error)}
         view={view}
         collectionId={collectionId}
         list={list}
@@ -494,7 +458,7 @@ export const PromptLibrary = ({
           void queryClient.resetQueries({ queryKey });
         }}
       />
-      {selectedId ? (
+      {selectedId && !searchBlocked ? (
         <PromptDetail
           detail={detail}
           collections={collections}

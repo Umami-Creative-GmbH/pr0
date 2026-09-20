@@ -27,6 +27,7 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
     PORT=3000
+ENV PR0_SEARCH_DIRECTORY=/var/lib/pr0-search
 
 COPY --from=build --chown=bun:bun /app/apps/web/.next/standalone ./
 COPY --from=build --chown=bun:bun /app/apps/web/.next/static ./apps/web/.next/static
@@ -34,6 +35,7 @@ COPY --from=build --chown=bun:bun /app/apps/web/public ./apps/web/public
 COPY --from=build --chown=bun:bun /app/apps/web/.operations ./apps/web/.operations
 COPY --from=build --chown=bun:bun /app/apps/web/migrations ./apps/web/migrations
 
+RUN mkdir -p /var/lib/pr0-search && chown bun:bun /var/lib/pr0-search
 USER bun
 EXPOSE 3000
 CMD ["bun", "--bun", "apps/web/server.js"]
