@@ -11,6 +11,9 @@ export const accountIdentitySchema = z.strictObject({
   accountId: z.uuid(),
   emailVersion: z.number().int().nonnegative(),
 });
+export const deleteAccountSchema = accountIdentitySchema.extend({
+  confirmation: z.literal("delete-account"),
+});
 export const passwordReauthenticationSchema = accountIdentitySchema.extend({
   password: z.string().min(12).max(128),
 });
@@ -121,6 +124,7 @@ export const sessionsSchema = z.strictObject({
   ),
 });
 export const accountRequestSchema = z.union([
+  deleteAccountSchema,
   linkMethodSchema,
   removeMethodSchema,
   emailChangeSchema,

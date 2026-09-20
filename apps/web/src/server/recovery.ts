@@ -13,7 +13,7 @@ export const resetPassword = async ({ token, newPassword }: PasswordReset) => {
   await sql.begin(async (tx) => {
     const [owner] =
       await tx`SELECT u.id FROM "user" u JOIN verification v ON v.value = u.id
-      WHERE v.identifier = ${identifier} AND v.expires_at > clock_timestamp() AND u.email_verified
+      WHERE v.identifier = ${identifier} AND v.expires_at > clock_timestamp() AND u.email_verified AND NOT u.deletion_pending
       FOR UPDATE OF u`;
     if (!owner) {
       throw new AccountFailureError("invalid_recovery", 400);

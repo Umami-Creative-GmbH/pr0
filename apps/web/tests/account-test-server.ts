@@ -21,15 +21,12 @@ export const runAcceptance = async (
     );
   }
 };
-export const accountTestServer = (project: string) => {
-  const compose = [
-    "docker",
-    "compose",
-    "-p",
-    project,
-    "-f",
-    "apps/web/tests/social-compose.yaml",
-  ];
+export const accountTestServer = (
+  project: string,
+  composeFile = "apps/web/tests/social-compose.yaml",
+  prepare?: () => Promise<void>
+) => {
+  const compose = ["docker", "compose", "-p", project, "-f", composeFile];
   let server: ReturnType<typeof Bun.spawn> | undefined;
   let mail: ReturnType<typeof Bun.spawn> | undefined;
   const stopServer = async () => {
@@ -50,7 +47,7 @@ export const accountTestServer = (project: string) => {
         "node_modules/next/dist/bin/next",
         "start",
         "--port",
-        "30426",
+        new URL(origin).port,
       ],
       {
         cwd: web,
@@ -86,6 +83,7 @@ export const accountTestServer = (project: string) => {
       "apps/web/scripts/accounts.ts",
       "migrate",
     ]);
+    await prepare?.();
     await runAcceptance(["bun", "run", "--cwd", "apps/web", "build"]);
     mail = Bun.spawn(
       ["bun", "--conditions=react-server", "scripts/mail-worker.ts"],
@@ -101,5 +99,5 @@ export const accountTestServer = (project: string) => {
     }
     await runAcceptance([...compose, "down", "--volumes"]);
   };
-  return { setup, cleanup, startServer };
+  return { setup, cleanup, startServer, stopServer };
 };

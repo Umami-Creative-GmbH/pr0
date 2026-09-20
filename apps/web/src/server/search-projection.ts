@@ -38,7 +38,7 @@ const indexVersion = `4:${searchNormalizationVersion}`;
 export const searchDirectory = () =>
   path.resolve(process.env.PR0_SEARCH_DIRECTORY ?? ".data/search");
 const invalidIndexes = new Set<string>();
-export const searchProjection = async (job: SearchJob) => {
+const projectSearch = async (job: SearchJob) => {
   const directory = searchDirectory();
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const key = `${job.scope.instance}-${job.scope.account}`;
@@ -207,3 +207,15 @@ export const searchProjection = async (job: SearchJob) => {
     index?.db.close();
   }
 };
+
+export const searchProjection = (job: SearchJob) =>
+  database().begin(async (tx) => {
+    // Cross-process exclusion covers the complete lifetime of the derived files.
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${job.scope.account},56))`;
+    const [owner] =
+      await tx`SELECT id FROM "user" WHERE id=${job.scope.account} AND NOT deletion_pending`;
+    if (!owner) {
+      throw new Error("Search partition changed");
+    }
+    return projectSearch(job);
+  });

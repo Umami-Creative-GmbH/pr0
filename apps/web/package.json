@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "bun run docs:prepare && bun run ops:build && bun --bun next dev --port 3000",
     "build": "bun run docs:prepare && bun run ops:build && bun --bun next build",
-    "ops:build": "bun build scripts/accounts.ts scripts/mail-worker.ts scripts/search-worker.ts --target=bun --conditions=react-server --outdir=.operations",
+    "ops:build": "bun build scripts/accounts.ts scripts/deletions.ts scripts/mail-worker.ts scripts/search-worker.ts --target=bun --conditions=react-server --outdir=.operations",
+    "deletions": "bun --conditions=react-server scripts/deletions.ts",
+    "test:account-deletion": "bun --env-file=tests/account-deletion.env tests/account-deletion-runner.ts",
     "accounts": "bun --conditions=react-server scripts/accounts.ts",
     "mail:worker": "bun --conditions=react-server scripts/mail-worker.ts",
     "docs:prepare": "bun scripts/prepare-docs.ts",

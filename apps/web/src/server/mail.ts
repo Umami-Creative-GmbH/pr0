@@ -25,8 +25,17 @@ const storeMail = async (
   tx: TransactionSQL,
   message: { email: string; text?: string; url?: string; purpose: string },
   expiresAt: Date,
-  reservation: string
+  reservation: string,
+  accountId?: string,
+  uncommittedSignup = false
 ) => {
+  if (accountId) {
+    const [owner] =
+      await tx`SELECT id FROM "user" WHERE id=${accountId} AND NOT deletion_pending FOR SHARE`;
+    if (!owner && !uncommittedSignup) {
+      throw new Error("Account unavailable for mail");
+    }
+  }
   const nonce = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key(), nonce);
   const payload = Buffer.concat([
@@ -45,7 +54,40 @@ const storeMail = async (
     throw new Error("Email admission expired");
   }
   await tx`INSERT INTO mail_job(id, payload, expires_at) VALUES (${reservation}, ${encrypted}, ${expiresAt})`;
+  await tx`UPDATE mail_job SET account_id=${accountId ?? null} WHERE id=${reservation}`;
   await tx`DELETE FROM mail_reservation WHERE id = ${reservation}`;
+};
+
+export const purgeAccountMail = async (
+  tx: TransactionSQL,
+  accountId: string,
+  email: string
+) => {
+  await tx`SELECT pg_advisory_xact_lock(24004)`;
+  // Backfill-era jobs have encrypted recipients but no owner column. Decode only
+  // inside the server, discard immediately, and never log message contents.
+  const jobs =
+    await tx`SELECT id,payload FROM mail_job WHERE payload IS NOT NULL FOR UPDATE`;
+  for (const job of jobs) {
+    const encrypted = Buffer.from(job.payload, "base64");
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      key(),
+      encrypted.subarray(0, 12)
+    );
+    decipher.setAuthTag(encrypted.subarray(12, 28));
+    const decoded = JSON.parse(
+      Buffer.concat([
+        decipher.update(encrypted.subarray(28)),
+        decipher.final(),
+      ]).toString("utf-8")
+    );
+    if (decoded.email === email) {
+      // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Remove each matching encrypted legacy record under the purge transaction.
+      await tx`DELETE FROM mail_job WHERE id=${job.id}`;
+    }
+  }
+  await tx`DELETE FROM mail_job WHERE account_id=${accountId} OR id IN (SELECT id FROM account_notice WHERE account_id=${accountId})`;
 };
 
 export const enqueueAccountMail = (
@@ -54,19 +96,29 @@ export const enqueueAccountMail = (
   text: string,
   expiresAt: Date,
   reservation: string,
-  purpose: "reauth" | "email" | "notification"
-) => storeMail(tx, { email, text, purpose }, expiresAt, reservation);
+  purpose: "reauth" | "email" | "notification",
+  accountId: string
+) => storeMail(tx, { email, text, purpose }, expiresAt, reservation, accountId);
 
 const enqueueMail = async (
   email: string,
   url: string,
   expiresAt: Date,
   reservation: string,
-  purpose: "verification" | "recovery"
+  purpose: "verification" | "recovery",
+  accountId?: string,
+  uncommittedSignup = false
 ) => {
   const sql = database();
   await sql.begin((tx) =>
-    storeMail(tx, { email, url, purpose }, expiresAt, reservation)
+    storeMail(
+      tx,
+      { email, url, purpose },
+      expiresAt,
+      reservation,
+      accountId,
+      uncommittedSignup
+    )
   );
 };
 
@@ -74,7 +126,9 @@ export const enqueueVerification = async (
   email: string,
   url: string,
   token: string,
-  reservation: string
+  reservation: string,
+  accountId: string,
+  uncommittedSignup = false
 ) => {
   const claims = z
     .object({ exp: z.number().int().positive() })
@@ -88,14 +142,17 @@ export const enqueueVerification = async (
     url,
     new Date(claims.exp * 1000),
     reservation,
-    "verification"
+    "verification",
+    accountId,
+    uncommittedSignup
   );
 };
 
 export const enqueueRecovery = async (
   email: string,
   token: string,
-  reservation: string
+  reservation: string,
+  accountId: string
 ) => {
   const sql = database();
   const [record] =
@@ -105,7 +162,14 @@ export const enqueueRecovery = async (
   }
   // A fragment keeps the token out of HTTP request URLs, access logs and referrers.
   const url = `${configuration().origin}/reset-password#token=${encodeURIComponent(token)}`;
-  await enqueueMail(email, url, record.expires_at, reservation, "recovery");
+  await enqueueMail(
+    email,
+    url,
+    record.expires_at,
+    reservation,
+    "recovery",
+    accountId
+  );
 };
 
 export const enqueueSocialVerification = (
@@ -185,13 +249,14 @@ export const withMailReservation = async (
 };
 
 // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- The claim returns at most one job; sending and acknowledging it are dependent operations.
-export const deliverMail = async () => {
+const deliverQueuedMail = async () => {
   const sql = database();
   key();
   const smtp = transport();
   const jobs =
     await sql`UPDATE mail_job SET attempts = attempts + 1, next_attempt_at = now() + interval '60 seconds'
     WHERE id = (SELECT id FROM mail_job WHERE state = 'pending' AND attempts < 5 AND next_attempt_at <= now()
+      AND (account_id IS NULL OR EXISTS (SELECT 1 FROM "user" u WHERE u.id=mail_job.account_id AND NOT u.deletion_pending))
       AND expires_at > now() + interval '30 seconds' ORDER BY next_attempt_at FOR UPDATE SKIP LOCKED LIMIT 1)
     RETURNING id, payload, attempts, expires_at`;
   for (const job of jobs) {
@@ -244,6 +309,8 @@ export const deliverMail = async () => {
   await sql`UPDATE account_notice n SET state = CASE WHEN j.state = 'sent' THEN 'sent' ELSE 'failed' END
     FROM mail_job j WHERE n.id = j.id AND n.state = 'pending' AND j.state <> 'pending'`;
   await sql`DELETE FROM mail_job WHERE completed_at < now() - interval '7 days'`;
+  await sql`DELETE FROM mail_job WHERE account_id IS NOT NULL AND created_at < now() - interval '30 seconds'
+    AND NOT EXISTS (SELECT 1 FROM "user" u WHERE u.id=mail_job.account_id)`;
   try {
     await smtp.verify();
   } finally {
@@ -251,3 +318,9 @@ export const deliverMail = async () => {
   }
   await sql`INSERT INTO worker_health(name, heartbeat_at) VALUES ('mail', now()) ON CONFLICT(name) DO UPDATE SET heartbeat_at = now()`;
 };
+
+export const deliverMail = () =>
+  database().begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(24004)`;
+    await deliverQueuedMail();
+  });

@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { AccountDeletionSettings } from "./account-deletion-settings";
 import { accountErrorMessage, methodResultMessage } from "./account-errors";
 import { EmailSettings } from "./email-settings";
 import { PromptLibrary } from "./prompt-library";
@@ -168,6 +169,16 @@ export const AccountScreen = ({
         {accountStatus(errorText, message, signedIn, methodResult)}
       </p>
       {library.isPending ? <output>Checking your session…</output> : null}
+      <AccountDeletionSettings
+        accountId={signedIn?.account.id}
+        onDeleted={async () => {
+          await queryClient.cancelQueries();
+          setDraftOpen(false);
+          setDraftLibrary(null);
+          queryClient.clear();
+          await library.refetch();
+        }}
+      />
       {signedIn ? (
         <>
           <PromptLibrary
