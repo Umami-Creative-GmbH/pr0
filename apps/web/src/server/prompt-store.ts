@@ -1,9 +1,10 @@
 // oxlint-disable react-doctor/server-sequential-independent-await -- Reads and writes depend on the same locked library transaction.
 import "server-only";
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 import {
   mutationReceiptSchema,
+  collectionReceiptSchema,
   promptLimits,
   promptPageSchema,
   promptSchema,
@@ -27,8 +28,15 @@ import { z } from "zod";
 
 import { lockAccount } from "./browser-proof";
 import type { BrowserAccount } from "./browser-proof";
+import {
+  applyCollection,
+  readOrganization,
+  validateCollectionReference,
+  reconcileCollectionAssignment,
+} from "./collection-store";
 import { configuration } from "./config";
 import { database } from "./database";
+import { operationFingerprint } from "./operation-fingerprint";
 import { prepareConflictCopy, persistConflictCopy } from "./prompt-conflict";
 import {
   applyPromptDeletion,
@@ -60,26 +68,37 @@ const lockLibrary = async (tx: TransactionSQL, browser: BrowserAccount) => {
 };
 const receiptColumns = z.object({
   operation_id: z.string(),
-  prompt_id: z.string(),
+  prompt_id: z.string().nullable(),
+  collection_id: z.string().nullable().optional(),
   revision: z.string(),
   accepted_at: z.date(),
+  organization_notice: z.string().nullable().optional(),
   conflict_copy_id: z.string().nullable().optional(),
   conflict_notice_id: z.string().nullable().optional(),
 });
 const receiptFrom = (row: z.infer<typeof receiptColumns>) =>
-  mutationReceiptSchema.parse({
-    status: "accepted",
-    operationId: row.operation_id,
-    promptId: row.prompt_id,
-    revision: row.revision,
-    acceptedAt: row.accepted_at.toISOString(),
-    conflict: row.conflict_copy_id
-      ? {
-          copyId: row.conflict_copy_id,
-          noticeId: row.conflict_notice_id,
-        }
-      : undefined,
-  });
+  row.collection_id
+    ? collectionReceiptSchema.parse({
+        status: "accepted",
+        operationId: row.operation_id,
+        collectionId: row.collection_id,
+        revision: row.revision,
+        acceptedAt: row.accepted_at.toISOString(),
+      })
+    : mutationReceiptSchema.parse({
+        status: "accepted",
+        operationId: row.operation_id,
+        promptId: row.prompt_id,
+        revision: row.revision,
+        acceptedAt: row.accepted_at.toISOString(),
+        organizationNotice: row.organization_notice ?? undefined,
+        conflict: row.conflict_copy_id
+          ? {
+              copyId: row.conflict_copy_id,
+              noticeId: row.conflict_notice_id,
+            }
+          : undefined,
+      });
 const validatedUpdateFields = (
   operation: UpdatePrompt,
   desired: PromptText
@@ -127,7 +146,7 @@ const applyPromptUpdate = async ({
 }) => {
   const { base, changedFields } = validatedUpdateFields(operation, desired);
   const [current] =
-    await savepoint`SELECT title, description, content, favorite, archived, revision::text, title_revision::text, description_revision::text, content_revision::text FROM prompt
+    await savepoint`SELECT title, description, content, favorite, archived, collection_id, collection_revision::text, revision::text, title_revision::text, description_revision::text, content_revision::text FROM prompt
         WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${operation.promptId}`;
   if (!current) {
     return preserveDeletedPromptEdit(
@@ -159,7 +178,15 @@ const applyPromptUpdate = async ({
   const archived = changedFields.has("archived")
     ? operation.desired.archived
     : current.archived;
+  const { collectionId, copyCollectionId, organizationNotice } =
+    await reconcileCollectionAssignment(
+      savepoint,
+      envelope,
+      operation,
+      current
+    );
   const changed =
+    collectionId !== current.collection_id ||
     favorite !== current.favorite ||
     archived !== current.archived ||
     promptTextFields.some((field) => next[field] !== current[field]);
@@ -198,6 +225,8 @@ const applyPromptUpdate = async ({
           favorite_revision = CASE WHEN favorite <> ${favorite} THEN ${accepted.revision}::bigint ELSE favorite_revision END,
           archived_revision = CASE WHEN archived <> ${archived} THEN ${accepted.revision}::bigint ELSE archived_revision END,
           favorite = ${favorite}, archived = ${archived},
+          collection_revision = CASE WHEN collection_id IS DISTINCT FROM ${collectionId}::uuid THEN ${accepted.revision}::bigint ELSE collection_revision END,
+          collection_id = ${collectionId},
           title_revision = CASE WHEN title <> ${next.title} THEN ${accepted.revision}::bigint ELSE title_revision END,
           description_revision = CASE WHEN description <> ${next.description} THEN ${accepted.revision}::bigint ELSE description_revision END,
           content_revision = CASE WHEN content <> ${next.content} THEN ${accepted.revision}::bigint ELSE content_revision END,
@@ -213,10 +242,11 @@ const applyPromptUpdate = async ({
       revision: accepted.revision,
       acceptedAt: accepted.accepted_at,
       copy: preserved,
+      collectionId: copyCollectionId,
     });
   }
-  await savepoint`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at, conflict_copy_id, conflict_notice_id)
-        VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${envelope.epoch}, ${envelope.installationId}, 1, ${hash}, ${operation.kind}, ${operation.promptId}, ${accepted.revision}, ${accepted.accepted_at}, ${copyId}, ${noticeId})`;
+  await savepoint`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at, conflict_copy_id, conflict_notice_id, organization_notice)
+        VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${envelope.epoch}, ${envelope.installationId}, 1, ${hash}, ${operation.kind}, ${operation.promptId}, ${accepted.revision}, ${accepted.accepted_at}, ${copyId}, ${noticeId}, ${organizationNotice})`;
   await savepoint`INSERT INTO library_change(instance_id, account_id, revision, operation_id, kind, prompt_id, accepted_at)
         VALUES (${library.instance_id}, ${browser.accountId}, ${accepted.revision}, ${operation.operationId}, ${operation.kind}, ${operation.promptId}, ${accepted.accepted_at})`;
   return receiptFrom(
@@ -224,6 +254,7 @@ const applyPromptUpdate = async ({
       ...accepted,
       operation_id: operation.operationId,
       prompt_id: operation.promptId,
+      organization_notice: organizationNotice,
       conflict_copy_id: copyId,
       conflict_notice_id: noticeId,
     })
@@ -261,56 +292,16 @@ export const mutatePrompt = (
       );
     }
     const desired =
-      operation.kind === "prompt.delete"
+      operation.kind === "prompt.delete" || "collectionId" in operation
         ? null
         : {
             title: trimPromptText(operation.desired.title),
             description: trimPromptText(operation.desired.description),
             content: operation.desired.content,
           };
-    const hash = createHash("sha256")
-      .update(
-        JSON.stringify([
-          1,
-          envelope.protocolVersion,
-          envelope.instanceId,
-          envelope.accountId,
-          envelope.epoch,
-          envelope.installationId,
-          operation.operationId,
-          operation.kind,
-          operation.promptId,
-          operation.baseRevision,
-          operation.dependsOn,
-          ...(desired
-            ? [desired.title, desired.description, desired.content]
-            : []),
-          ...(operation.kind === "prompt.duplicate"
-            ? [operation.sourceId]
-            : []),
-          ...(operation.kind === "prompt.update"
-            ? [
-                operation.base.title,
-                operation.base.description,
-                operation.base.content,
-                operation.changedFields,
-                ...(promptStateFields.some(
-                  (field) => operation.desired[field] !== undefined
-                )
-                  ? [
-                      operation.base.favorite ?? null,
-                      operation.base.archived ?? null,
-                      operation.desired.favorite ?? null,
-                      operation.desired.archived ?? null,
-                    ]
-                  : []),
-              ]
-            : []),
-        ])
-      )
-      .digest("hex");
+    const hash = operationFingerprint(envelope, operation, desired);
     const [existing] =
-      await tx`SELECT operation_id, prompt_id, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id FROM library_operation
+      await tx`SELECT operation_id, prompt_id, collection_id, revision::text, accepted_at, request_hash, conflict_copy_id, conflict_notice_id, organization_notice FROM library_operation
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id = ${operation.operationId}`;
     if (existing) {
       if (existing.request_hash !== hash) {
@@ -375,6 +366,9 @@ export const mutatePrompt = (
             );
           }
         }
+        if ("collectionId" in operation) {
+          return applyCollection(savepoint, envelope, operation, hash);
+        }
         if (operation.kind === "prompt.delete") {
           return applyPromptDeletion({
             sql: savepoint,
@@ -397,6 +391,8 @@ export const mutatePrompt = (
             hash,
           });
         }
+        const collectionId = operation.desired.collectionId ?? null;
+        await validateCollectionReference(savepoint, envelope, collectionId);
         const sourceTitle =
           operation.kind === "prompt.duplicate" ? desired.title : null;
         if (operation.kind === "prompt.duplicate") {
@@ -460,8 +456,8 @@ export const mutatePrompt = (
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} RETURNING revision::text, date_trunc('milliseconds', clock_timestamp()) AS accepted_at`;
         const revision = String(updated.revision);
         const acceptedAt: Date = updated.accepted_at;
-        await savepoint`INSERT INTO prompt(instance_id, account_id, id, title, description, content, source_title, revision, title_revision, description_revision, content_revision, created_at, modified_at)
-    VALUES (${library.instance_id}, ${browser.accountId}, ${operation.promptId}, ${desired.title}, ${desired.description}, ${desired.content}, ${sourceTitle}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt})`;
+        await savepoint`INSERT INTO prompt(instance_id, account_id, id, title, description, content, source_title, revision, title_revision, description_revision, content_revision, created_at, modified_at, collection_id, collection_revision)
+    VALUES (${library.instance_id}, ${browser.accountId}, ${operation.promptId}, ${desired.title}, ${desired.description}, ${desired.content}, ${sourceTitle}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt}, ${collectionId}, ${revision})`;
         await savepoint`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at)
     VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${envelope.epoch}, ${envelope.installationId}, 1, ${hash}, ${operation.kind}, ${operation.promptId}, ${revision}, ${acceptedAt})`;
         await savepoint`INSERT INTO library_change(instance_id, account_id, revision, operation_id, kind, prompt_id, accepted_at)
@@ -498,6 +494,7 @@ const cursorSchema = z.strictObject({
   afterId: z.uuid(),
   limit: z.number(),
   view: promptViewSchema.optional(),
+  collectionId: z.uuidv4().optional(),
 });
 const signature = (payload: string) =>
   createHmac("sha256", configuration().authSecret)
@@ -522,7 +519,14 @@ const readCursor = (cursor: string) => {
 };
 type PageScope = Pick<
   z.infer<typeof cursorSchema>,
-  "account" | "instance" | "epoch" | "revision" | "kind" | "limit" | "view"
+  | "account"
+  | "instance"
+  | "epoch"
+  | "revision"
+  | "kind"
+  | "limit"
+  | "view"
+  | "collectionId"
 >;
 const scopedCursor = (cursor: string | undefined, scope: PageScope) => {
   if (!cursor) {
@@ -535,7 +539,8 @@ const scopedCursor = (cursor: string | undefined, scope: PageScope) => {
     page.epoch !== scope.epoch ||
     page.kind !== scope.kind ||
     page.limit !== scope.limit ||
-    page.view !== scope.view
+    page.view !== scope.view ||
+    page.collectionId !== scope.collectionId
   ) {
     throw invalidPromptRequest();
   }
@@ -581,6 +586,7 @@ interface PromptRow {
   use_count: number;
   last_used_at: Date | null;
   source_title: string | null;
+  collection_id: string | null;
 }
 const summaryFrom = (row: PromptRow) => ({
   id: row.id,
@@ -591,10 +597,11 @@ const summaryFrom = (row: PromptRow) => ({
   modifiedAt: row.modified_at.toISOString(),
   favorite: row.favorite,
   archived: row.archived,
+  collectionId: row.collection_id,
 });
 export const listPrompts = (
   browser: BrowserAccount,
-  { limit, cursor, view }: z.infer<typeof promptBrowseInputSchema>
+  { limit, cursor, view, collectionId }: z.infer<typeof promptBrowseInputSchema>
 ) =>
   database().begin(async (tx) => {
     const library = await lockLibrary(tx, browser);
@@ -605,13 +612,15 @@ export const listPrompts = (
       revision: library.revision,
       kind: "prompts",
       view,
+      collectionId,
       limit,
     } as const;
     const page = scopedCursor(cursor, scope);
     const rows = await tx<
       PromptRow[]
-    >`SELECT id, title, description, favorite, archived, revision::text, created_at, modified_at FROM prompt
+    >`SELECT id, title, description, favorite, archived, collection_id, revision::text, created_at, modified_at FROM prompt
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId}
+      AND (${collectionId === undefined} OR collection_id = ${collectionId ?? null}::uuid)
       AND archived = ${view === "archive"}
       AND (${view !== "favorites"} OR favorite = true)
       AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
@@ -636,7 +645,7 @@ export const getPrompt = (browser: BrowserAccount, id: string) =>
     const library = await lockLibrary(tx, browser);
     const [row] = await tx<
       PromptRow[]
-    >`SELECT id, title, description, content, source_title, revision::text, created_at, modified_at, favorite, archived, use_count, last_used_at FROM prompt
+    >`SELECT id, title, description, content, source_title, revision::text, created_at, modified_at, favorite, archived, collection_id, use_count, last_used_at FROM prompt
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${id}`;
     if (!row) {
       throw new PromptFailureError(
@@ -708,5 +717,16 @@ export const listConflicts = (
         revision: row.revision,
         createdAt: row.created_at.toISOString(),
       })),
+    });
+  });
+
+export const getOrganization = (browser: BrowserAccount) =>
+  database().begin(async (tx) => {
+    const library = await lockLibrary(tx, browser);
+    return readOrganization(tx, {
+      instanceId: library.instance_id,
+      accountId: browser.accountId,
+      revision: library.revision,
+      textBytes: Number(library.text_bytes),
     });
   });

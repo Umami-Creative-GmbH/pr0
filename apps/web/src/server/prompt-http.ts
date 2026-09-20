@@ -20,6 +20,7 @@ import {
 } from "./prompt-errors";
 import {
   mutatePrompt,
+  getOrganization,
   getPrompt,
   listPrompts,
   listConflicts,
@@ -102,7 +103,8 @@ const mutate = async (request: Request, browser: BrowserAccount) => {
 export const handlePrompts = async (
   request: Request,
   promptId?: string,
-  conflicts = false
+  conflicts = false,
+  organization = false
 ) => {
   try {
     assertOrigin(request);
@@ -129,6 +131,11 @@ export const handlePrompts = async (
           throw invalidPromptRequest();
         }
         body = await mutate(request, browser);
+      } else if (organization) {
+        if (url.search) {
+          throw invalidPromptRequest();
+        }
+        body = await getOrganization(browser);
       } else if (promptId) {
         if (url.search || !promptIdentitySchema.safeParse(promptId).success) {
           throw invalidPromptRequest();

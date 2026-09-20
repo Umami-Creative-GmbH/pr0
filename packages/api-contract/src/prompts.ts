@@ -68,6 +68,7 @@ export const promptSummarySchema = z.strictObject({
   modifiedAt: z.iso.datetime(),
   favorite: z.boolean(),
   archived: z.boolean(),
+  collectionId: promptIdentitySchema.nullable(),
 });
 export const promptSchema = promptSummarySchema.extend({
   content: promptTextSchema.shape.content,
@@ -112,6 +113,7 @@ export const promptViewSchema = z.enum(["all", "favorites", "archive"]);
 export type PromptView = z.infer<typeof promptViewSchema>;
 export const promptBrowseInputSchema = promptListInputSchema.extend({
   view: promptViewSchema.default("all"),
+  collectionId: promptIdentitySchema.optional(),
 });
 export const createPromptSchema = z.strictObject({
   operationId: promptIdentitySchema,
@@ -123,7 +125,37 @@ export const createPromptSchema = z.strictObject({
     title: z.string(),
     description: z.string(),
     content: z.string(),
+    collectionId: promptIdentitySchema.nullable().optional(),
   }),
+});
+export const createCollectionSchema = z.strictObject({
+  operationId: promptIdentitySchema,
+  kind: z.literal("collection.create"),
+  collectionId: promptIdentitySchema,
+  baseRevision: revisionSchema,
+  dependsOn: z.array(promptIdentitySchema).max(100),
+  name: z.string(),
+});
+export const renameCollectionSchema = createCollectionSchema.extend({
+  kind: z.literal("collection.rename"),
+});
+export type CollectionOperation =
+  | z.infer<typeof createCollectionSchema>
+  | z.infer<typeof renameCollectionSchema>;
+export const collectionSchema = z.strictObject({
+  id: promptIdentitySchema,
+  name: z.string(),
+  revision: revisionSchema,
+  activeCount: z.number().int().nonnegative(),
+  archivedCount: z.number().int().nonnegative(),
+  totalCount: z.number().int().nonnegative(),
+});
+export type Collection = z.infer<typeof collectionSchema>;
+export const organizationSnapshotSchema = z.strictObject({
+  ...libraryScopeSchema.shape,
+  revision: revisionSchema,
+  collections: z.array(collectionSchema).max(200),
+  textBytes: z.number().int().nonnegative(),
 });
 export const promptTextFields = ["title", "description", "content"] as const;
 export const duplicatePromptSchema = createPromptSchema.extend({
@@ -131,7 +163,11 @@ export const duplicatePromptSchema = createPromptSchema.extend({
   sourceId: promptIdentitySchema,
 });
 export type DuplicatePrompt = z.infer<typeof duplicatePromptSchema>;
-export const promptStateFields = ["favorite", "archived"] as const;
+export const promptStateFields = [
+  "favorite",
+  "archived",
+  "collectionId",
+] as const;
 const editablePromptSchema = createPromptSchema.shape.desired.extend({
   favorite: z.boolean().optional(),
   archived: z.boolean().optional(),
@@ -142,7 +178,7 @@ export const updatePromptSchema = createPromptSchema.extend({
   desired: editablePromptSchema,
   changedFields: z
     .array(z.enum([...promptTextFields, ...promptStateFields]))
-    .max(5),
+    .max(6),
 });
 export type UpdatePrompt = z.infer<typeof updatePromptSchema>;
 export const deletePromptSchema = createPromptSchema
@@ -165,6 +201,8 @@ export const mutationEnvelopeSchema = z.strictObject({
         updatePromptSchema,
         duplicatePromptSchema,
         deletePromptSchema,
+        createCollectionSchema,
+        renameCollectionSchema,
       ])
     )
     .min(1)
@@ -175,6 +213,7 @@ export type CreatePrompt = z.infer<typeof createPromptSchema>;
 export const promptErrorSchema = z.strictObject({
   code: z.enum([
     "validation_failed",
+    "name_conflict",
     "quota_exceeded",
     "operation_identity_reused",
     "identity_unavailable",
@@ -193,7 +232,7 @@ export const promptErrorSchema = z.strictObject({
   operationId: promptIdentitySchema.optional(),
   retryAfter: z.number().int().positive().optional(),
   fields: z.record(z.string(), z.string()).optional(),
-  resource: z.enum(["promptCount", "textBytes"]).optional(),
+  resource: z.enum(["promptCount", "textBytes", "collectionCount"]).optional(),
   usage: libraryUsageSchema.optional(),
 });
 export type PromptError = z.infer<typeof promptErrorSchema>;
@@ -203,6 +242,7 @@ export const mutationReceiptSchema = z.strictObject({
   promptId: promptIdentitySchema,
   revision: revisionSchema,
   acceptedAt: z.iso.datetime(),
+  organizationNotice: z.string().optional(),
   conflict: z
     .strictObject({
       copyId: promptIdentitySchema,
@@ -211,8 +251,12 @@ export const mutationReceiptSchema = z.strictObject({
     .optional(),
 });
 export type MutationReceipt = z.infer<typeof mutationReceiptSchema>;
-export const mutationResultSchema = z.discriminatedUnion("status", [
+export const collectionReceiptSchema = mutationReceiptSchema
+  .omit({ promptId: true, conflict: true, organizationNotice: true })
+  .extend({ collectionId: promptIdentitySchema });
+export const mutationResultSchema = z.union([
   mutationReceiptSchema,
+  collectionReceiptSchema,
   z.strictObject({ status: z.literal("rejected"), error: promptErrorSchema }),
 ]);
 export const mutationResponseSchema = z.strictObject({

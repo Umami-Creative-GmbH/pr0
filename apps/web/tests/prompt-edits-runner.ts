@@ -46,7 +46,11 @@ try {
     };
     const receipt = await client.mutatePrompts(envelope);
     const [accepted] = receipt.results;
-    if (accepted?.status !== "accepted" || !accepted.conflict) {
+    if (
+      accepted?.status !== "accepted" ||
+      !("promptId" in accepted) ||
+      !accepted.conflict
+    ) {
       throw new Error("Expected conflict before restart");
     }
     const fixture = {

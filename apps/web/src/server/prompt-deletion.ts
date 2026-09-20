@@ -9,6 +9,7 @@ import type {
 } from "@pr0/api-contract/prompts";
 import type { SQL } from "bun";
 
+import { validateCollectionReference } from "./collection-store";
 import { prepareConflictCopy, persistConflictCopy } from "./prompt-conflict";
 import { PromptFailureError } from "./prompt-errors";
 
@@ -34,7 +35,13 @@ const commitDeletionOutcome = async (
     copy,
     removedBytes,
     removeOriginal,
-  }: { copy?: PromptText; removedBytes: number; removeOriginal: boolean }
+    collectionId = null,
+  }: {
+    copy?: PromptText;
+    removedBytes: number;
+    removeOriginal: boolean;
+    collectionId?: string | null;
+  }
 ) => {
   const { instanceId, accountId } = envelope;
   const preserved = copy ? prepareConflictCopy(copy) : null;
@@ -81,6 +88,7 @@ const commitDeletionOutcome = async (
       revision: accepted.revision,
       acceptedAt: accepted.accepted_at,
       copy: preserved,
+      collectionId,
     });
   }
   await sql`INSERT INTO library_operation(instance_id, account_id, operation_id, epoch, installation_id, canonical_version, request_hash, kind, prompt_id, revision, accepted_at, conflict_copy_id, conflict_notice_id)
@@ -106,7 +114,7 @@ export const applyPromptDeletion = async (
     operation,
   } = context;
   const [current] =
-    await sql`SELECT title, description, content, greatest(title_revision, description_revision, content_revision)::text AS text_revision,
+    await sql`SELECT title, description, content, collection_id, greatest(title_revision, description_revision, content_revision)::text AS text_revision,
     octet_length(title) + octet_length(description) + octet_length(content) + octet_length(coalesce(source_title, '')) AS bytes
     FROM prompt WHERE instance_id = ${instanceId} AND account_id = ${accountId} AND id = ${operation.promptId}`;
   const [deleted] =
@@ -128,6 +136,7 @@ export const applyPromptDeletion = async (
     copy,
     removedBytes: (current?.bytes ?? 0) + Number(notices.bytes),
     removeOriginal: Boolean(current),
+    collectionId: current?.collection_id ?? null,
   });
 };
 
@@ -151,8 +160,14 @@ export const preserveDeletedPromptEdit = async (
   ) {
     throw unavailable();
   }
+  await validateCollectionReference(
+    sql,
+    { instanceId, accountId },
+    operation.desired.collectionId
+  );
   return commitDeletionOutcome(context, {
     copy: desired,
+    collectionId: operation.desired.collectionId ?? null,
     removedBytes: 0,
     removeOriginal: false,
   });

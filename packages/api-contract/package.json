@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./organization": "./src/organization.ts",
+    "./organization-fixtures": "./src/organization-fixtures.ts",
     "./prompts": "./src/prompts.ts",
     "./prompt-fixtures": "./src/prompt-fixtures.ts",
     "./accounts": "./src/accounts.ts",

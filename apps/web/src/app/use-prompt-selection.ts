@@ -9,19 +9,26 @@ import { useEffect, useState } from "react";
 
 import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 
-const eligible = (prompt: Prompt, view: PromptView) =>
+const eligible = (
+  prompt: Prompt,
+  view: PromptView,
+  collectionId: string | null
+) =>
+  (!collectionId || prompt.collectionId === collectionId) &&
   prompt.archived === (view === "archive") &&
   (view !== "favorites" || prompt.favorite);
 
 export const usePromptSelection = ({
   library,
   view,
+  collectionId,
   prompts,
   incomplete,
   loading,
 }: {
   library: PrivateLibrary;
   view: PromptView;
+  collectionId: string | null;
   prompts: { id: string; revision: string }[];
   incomplete: boolean;
   loading: boolean;
@@ -61,7 +68,7 @@ export const usePromptSelection = ({
     return Boolean(
       state?.data &&
       BigInt(state.data.revision) >= BigInt(revision) &&
-      !eligible(state.data, view)
+      !eligible(state.data, view, collectionId)
     );
   };
   const excluded = cachedExcludes(

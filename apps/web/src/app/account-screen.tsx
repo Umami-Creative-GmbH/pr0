@@ -199,7 +199,9 @@ export const AccountScreen = ({
                   <dd>{signedIn.instance.id}</dd>
                 </dl>
                 <p className="text-muted-foreground mt-4 text-sm">
-                  {draftOpen ? "Unsaved prompt in this tab." : "No open draft."}
+                  {draftOpen
+                    ? "Unsaved changes in this tab."
+                    : "No open draft."}
                 </p>
                 <SignOutControl
                   busy={busy}

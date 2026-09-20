@@ -27,6 +27,7 @@ export const persistConflictCopy = async ({
   revision,
   acceptedAt,
   copy,
+  collectionId = null,
 }: {
   sql: SQL;
   instanceId: string;
@@ -35,9 +36,10 @@ export const persistConflictCopy = async ({
   revision: string;
   acceptedAt: Date;
   copy: ReturnType<typeof prepareConflictCopy>;
+  collectionId?: string | null;
 }) => {
-  await sql`INSERT INTO prompt(instance_id, account_id, id, title, description, content, revision, title_revision, description_revision, content_revision, created_at, modified_at)
-    VALUES (${instanceId}, ${accountId}, ${copy.id}, ${copy.title}, ${copy.source.description}, ${copy.source.content}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt})`;
+  await sql`INSERT INTO prompt(instance_id, account_id, id, title, description, content, revision, title_revision, description_revision, content_revision, created_at, modified_at, collection_id, collection_revision)
+    VALUES (${instanceId}, ${accountId}, ${copy.id}, ${copy.title}, ${copy.source.description}, ${copy.source.content}, ${revision}, ${revision}, ${revision}, ${revision}, ${acceptedAt}, ${acceptedAt}, ${collectionId}, ${revision})`;
   await sql`INSERT INTO conflict_notice(instance_id, account_id, id, original_id, copy_id, source_title, revision, created_at)
     VALUES (${instanceId}, ${accountId}, ${copy.noticeId}, ${originalId}, ${copy.id}, ${copy.source.title}, ${revision}, ${acceptedAt})`;
 };

@@ -5,18 +5,25 @@ import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { promptLimits } from "@pr0/api-contract/prompts";
 import type {
+  Collection,
   Prompt,
   MutationReceipt,
   PromptView,
 } from "@pr0/api-contract/prompts";
 import { PromptDeleteDialog } from "@pr0/ui/components/prompt-delete-dialog";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQueryClient,
+  useQuery,
+} from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { CollectionControls } from "./collection-controls";
 import { PromptActionStatus } from "./prompt-action-status";
 import { PromptConflicts } from "./prompt-conflicts";
 import { PromptEditor } from "./prompt-editor";
 import { retryPromptRead, promptRetryDelay } from "./prompt-query";
+import { PromptResults, PromptViewNavigation } from "./prompt-results";
 import { usePromptActions } from "./use-prompt-actions";
 import type { PromptAction } from "./use-prompt-actions";
 import { usePromptSelection } from "./use-prompt-selection";
@@ -29,12 +36,14 @@ const errorMessage = (error: Error) =>
     : "Could not load prompts. Try again.";
 const PromptDetail = ({
   detail,
+  collections,
   onEdit,
   editing,
   onAction,
   actionsBlocked,
   onDelete,
 }: {
+  collections: Collection[];
   detail: ReturnType<typeof usePromptSelection>["detail"];
   onEdit: (prompt: Prompt) => void;
   editing: boolean;
@@ -126,6 +135,11 @@ const PromptDetail = ({
             Permanently delete prompt
           </button>
         </div>
+        <p className="mt-3">
+          Collection:{" "}
+          {collections.find((entry) => entry.id === detail.data?.collectionId)
+            ?.name ?? (detail.data.collectionId ? "Unavailable" : "None")}
+        </p>
         {detail.data.sourceTitle &&
         detail.data.title !== `${detail.data.sourceTitle} (copy)` ? (
           <p className="mt-3 break-words">
@@ -159,93 +173,12 @@ const PromptDetail = ({
     ) : null}
   </section>
 );
-const PromptListRow = ({
-  prompt,
-  selectedId,
-  setSelected,
-  actions,
-  onDelete,
-}: {
-  prompt: Pick<
-    Prompt,
-    "id" | "title" | "description" | "favorite" | "archived" | "revision"
-  >;
-  selectedId: string | null;
-  setSelected: (id: string) => void;
-  actions: ReturnType<typeof usePromptActions>;
-  onDelete: (prompt: Pick<Prompt, "id" | "title" | "revision">) => void;
-}) => (
-  <li>
-    <button
-      aria-pressed={selectedId === prompt.id}
-      className="w-full rounded-md border px-3 py-3 text-left break-words focus-visible:outline-2 focus-visible:outline-offset-2"
-      onClick={() => setSelected(prompt.id)}
-      type="button"
-    >
-      <span className="block font-medium">{prompt.title}</span>
-      {prompt.description ? (
-        <span className="text-muted-foreground mt-1 block text-sm">
-          {prompt.description}
-        </span>
-      ) : null}
-    </button>
-    <div className="mt-1 flex flex-wrap gap-2">
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`${prompt.favorite ? "Unfavorite" : "Favorite"} ${prompt.title}`}
-        aria-pressed={prompt.favorite}
-        disabled={actions.blocked}
-        onClick={() => {
-          void actions.act(prompt, "favorite", !prompt.favorite);
-        }}
-      >
-        {prompt.favorite ? "Unfavorite" : "Favorite"}
-      </button>
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`Duplicate ${prompt.title}`}
-        disabled={actions.blocked}
-        onClick={() => {
-          void actions.act(prompt, "duplicate");
-        }}
-      >
-        Duplicate
-      </button>
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`${prompt.archived ? "Restore" : "Archive"} ${prompt.title}`}
-        disabled={actions.blocked}
-        onClick={() => {
-          void actions.act(prompt, "archived", !prompt.archived);
-        }}
-      >
-        {prompt.archived ? "Restore" : "Archive"}
-      </button>
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`Permanently delete ${prompt.title}`}
-        disabled={actions.blocked}
-        onClick={() => onDelete(prompt)}
-      >
-        Delete
-      </button>
-    </div>
-  </li>
-);
 const nearingCapacity = (usage?: { promptCount: number; textBytes: number }) =>
   Boolean(
     usage &&
     (usage.promptCount >= promptLimits.promptCount * 0.9 ||
       usage.textBytes >= promptLimits.libraryBytes * 0.9)
   );
-const emptyViewMessage = (view: PromptView) =>
-  view === "all"
-    ? "Create your first prompt with a title and content."
-    : `No prompts in ${view === "archive" ? "the archive" : "favorites"}.`;
 export const PromptLibrary = ({
   library,
   onDirtyChange,
@@ -262,6 +195,25 @@ export const PromptLibrary = ({
     "id" | "title" | "revision"
   > | null>(null);
   const [view, setView] = useState<PromptView>("all");
+  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const organizationDirty = useRef(false);
+  const organizationKey = [
+    "organization",
+    client.baseUrl,
+    library.instance.id,
+    library.account.id,
+  ];
+  const organization = useQuery({
+    queryKey: organizationKey,
+    queryFn: ({ signal }) =>
+      client.getOrganization(signal, {
+        instanceId: library.instance.id,
+        accountId: library.account.id,
+      }),
+    retry: retryPromptRead,
+    retryDelay: promptRetryDelay,
+  });
+  const collections = organization.data?.collections ?? [];
   const editorDirty = useRef(false);
   const actionDirty = useRef(false);
   const noticeRef = useRef<HTMLParagraphElement>(null);
@@ -279,15 +231,24 @@ export const PromptLibrary = ({
     library.instance.id,
     library.account.id,
     view,
+    collectionId,
   ];
   const list = useInfiniteQuery({
     queryKey,
     initialPageParam: "",
     queryFn: ({ pageParam, signal }) =>
-      client.getPrompts({ cursor: pageParam || undefined, view }, signal, {
-        instanceId: library.instance.id,
-        accountId: library.account.id,
-      }),
+      client.getPrompts(
+        {
+          cursor: pageParam || undefined,
+          view,
+          collectionId: collectionId ?? undefined,
+        },
+        signal,
+        {
+          instanceId: library.instance.id,
+          accountId: library.account.id,
+        }
+      ),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     retry: retryPromptRead,
     retryDelay: promptRetryDelay,
@@ -299,11 +260,11 @@ export const PromptLibrary = ({
   const { selectedId, setSelected, detail } = usePromptSelection({
     library,
     view,
+    collectionId,
     prompts,
     incomplete: list.isFetching || list.hasNextPage,
     loading: list.isPending,
   });
-  const empty = list.isSuccess && !prompts.length;
   const saved = (receipt: MutationReceipt) => {
     restoreFocus.current = true;
     setEditing(null);
@@ -311,11 +272,12 @@ export const PromptLibrary = ({
     setNotice(
       receipt.conflict
         ? "Saved to server. Competing text was preserved in an independent conflict copy."
-        : "Saved to server."
+        : `Saved to server.${receipt.organizationNotice ? ` ${receipt.organizationNotice}` : ""}`
     );
   };
   const accepted = () => {
-    void queryClient.resetQueries({ queryKey: queryKey.slice(0, -1) });
+    void queryClient.invalidateQueries({ queryKey: organizationKey });
+    void queryClient.resetQueries({ queryKey: queryKey.slice(0, 4) });
     void queryClient.invalidateQueries({
       queryKey: [
         "prompt",
@@ -337,7 +299,7 @@ export const PromptLibrary = ({
     library,
     onDirtyChange: (dirty) => {
       actionDirty.current = dirty;
-      onDirtyChange(dirty || editorDirty.current);
+      onDirtyChange(dirty || editorDirty.current || organizationDirty.current);
     },
     onAccepted: (receipt, action, message) => {
       accepted();
@@ -354,6 +316,7 @@ export const PromptLibrary = ({
       }
       if (action === "duplicate") {
         setView("all");
+        setCollectionId(null);
         setSelected(receipt.promptId);
       }
       noticeRef.current?.focus();
@@ -366,6 +329,7 @@ export const PromptLibrary = ({
         accountId: library.account.id,
       });
       setView(prompt.archived ? "archive" : "all");
+      setCollectionId(null);
       setSelected(id);
     } catch (error) {
       setNotice(
@@ -405,28 +369,28 @@ export const PromptLibrary = ({
           Create prompt
         </button>
       </div>
-      <nav aria-label="Prompt views" className="flex flex-wrap gap-2">
-        {(
-          [
-            ["all", "All prompts"],
-            ["favorites", "Favorites"],
-            ["archive", "Archive"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            className={buttonClass}
-            key={value}
-            type="button"
-            aria-pressed={view === value}
-            onClick={() => {
-              setView(value);
-              setSelected(null);
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+      <PromptViewNavigation
+        view={view}
+        onChange={(value) => {
+          setView(value);
+          setCollectionId(null);
+          setSelected(null);
+        }}
+      />
+      <CollectionControls
+        library={library}
+        organization={organization}
+        onAccepted={accepted}
+        collectionId={collectionId}
+        onSelect={(id) => {
+          setCollectionId(id);
+          setSelected(null);
+        }}
+        onDirtyChange={(dirty) => {
+          organizationDirty.current = dirty;
+          onDirtyChange(dirty || editorDirty.current || actionDirty.current);
+        }}
+      />
       <PromptActionStatus actions={actions} />
       <PromptConflicts
         library={library}
@@ -449,6 +413,7 @@ export const PromptLibrary = ({
       {editing ? (
         <PromptEditor
           library={library}
+          collections={collections}
           prompt={editing === "create" ? undefined : editing}
           onOpen={(id) => {
             void openPrompt(id);
@@ -459,65 +424,31 @@ export const PromptLibrary = ({
           }}
           onDirtyChange={(dirty) => {
             editorDirty.current = dirty;
-            onDirtyChange(dirty || actionDirty.current);
+            onDirtyChange(
+              dirty || actionDirty.current || organizationDirty.current
+            );
           }}
           onSaved={saved}
           onAccepted={accepted}
         />
       ) : null}
-      <section
-        aria-labelledby="prompts-heading"
-        className="rounded-lg border p-6"
-      >
-        <h2 className="text-xl font-semibold" id="prompts-heading">
-          {empty && view === "all" ? "Your library is empty" : "Saved prompts"}
-        </h2>
-        {list.isPending ? <output>Loading your library…</output> : null}
-        {empty ? (
-          <p className="text-muted-foreground mt-2">{emptyViewMessage(view)}</p>
-        ) : null}
-        {list.isError ? (
-          <div role="alert">
-            <p>{errorMessage(list.error)}</p>
-            <button
-              className={buttonClass}
-              onClick={() => {
-                void queryClient.resetQueries({ queryKey });
-              }}
-              type="button"
-            >
-              Refresh list
-            </button>
-          </div>
-        ) : null}
-        <ul className="mt-4 space-y-2">
-          {prompts.map((prompt) => (
-            <PromptListRow
-              key={prompt.id}
-              prompt={prompt}
-              selectedId={selectedId}
-              setSelected={setSelected}
-              actions={actions}
-              onDelete={setDeleting}
-            />
-          ))}
-        </ul>
-        {list.hasNextPage ? (
-          <button
-            className={`${buttonClass} mt-4`}
-            disabled={list.isFetchingNextPage || list.isError}
-            onClick={() => {
-              void list.fetchNextPage();
-            }}
-            type="button"
-          >
-            {list.isFetchingNextPage ? "Loading…" : "Load more prompts"}
-          </button>
-        ) : null}
-      </section>
+      <PromptResults
+        view={view}
+        collectionId={collectionId}
+        list={list}
+        prompts={prompts}
+        selectedId={selectedId}
+        setSelected={setSelected}
+        actions={actions}
+        onDelete={setDeleting}
+        onRefresh={() => {
+          void queryClient.resetQueries({ queryKey });
+        }}
+      />
       {selectedId ? (
         <PromptDetail
           detail={detail}
+          collections={collections}
           key={selectedId}
           editing={Boolean(editing)}
           onEdit={(prompt) => {

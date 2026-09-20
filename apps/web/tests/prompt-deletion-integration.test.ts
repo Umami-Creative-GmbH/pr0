@@ -299,7 +299,11 @@ test.each(["delete-first", "edit-first"] as const)(
       promptId: base.id,
       conflict: {},
     });
-    if (receipt?.status !== "accepted" || !receipt.conflict) {
+    if (
+      receipt?.status !== "accepted" ||
+      !("promptId" in receipt) ||
+      !receipt.conflict
+    ) {
       throw new Error("Expected preserved conflict copy");
     }
     const copy = await client.getPrompt(receipt.conflict.copyId);

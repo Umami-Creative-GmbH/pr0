@@ -61,7 +61,7 @@ export const usePromptActions = ({
         AbortSignal.timeout(30_000)
       );
       const [result] = response.results;
-      if (result?.status === "accepted") {
+      if (result?.status === "accepted" && "promptId" in result) {
         pending.current = null;
         setCanRetry(false);
         setRetainedText(null);
@@ -137,7 +137,7 @@ export const usePromptActions = ({
                 kind: "prompt.duplicate",
                 promptId: crypto.randomUUID(),
                 sourceId: source.id,
-                desired: text,
+                desired: { ...text, collectionId: source.collectionId },
               }
             : {
                 ...common,

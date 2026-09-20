@@ -1,13 +1,8 @@
 import { accountTestServer, runAcceptance } from "./account-test-server";
-import {
-  promptBrowser,
-  promptClient,
-  promptOperation,
-  promptDeletion,
-  promptEdit,
-} from "./prompt-fixture";
+import { collectionOperation, assignCollection } from "./collection-fixture";
+import { promptBrowser, promptClient, promptOperation } from "./prompt-fixture";
 
-const server = accountTestServer("pr0-prompt-deletion-32");
+const server = accountTestServer("pr0-collections-33");
 try {
   await server.setup();
   await runAcceptance([
@@ -16,6 +11,8 @@ try {
     ...(process.argv.slice(2).length
       ? process.argv.slice(2)
       : [
+          "apps/web/tests/collections-integration.test.ts",
+          "apps/web/tests/collections-browser.test.ts",
           "apps/web/tests/prompt-deletion-integration.test.ts",
           "apps/web/tests/prompt-deletion-browser.test.ts",
           "apps/web/tests/prompt-lifecycle-integration.test.ts",
@@ -32,41 +29,32 @@ try {
   if (!process.argv.slice(2).length) {
     const account = await promptBrowser();
     const client = promptClient(account.Cookie);
+    const collection = collectionOperation("Restart collection");
     const create = promptOperation();
-    await account.mutate([create]);
-    const source = await client.getPrompt(create.promptId);
-    await account.mutate([
-      promptEdit(source, {
-        ...create.desired,
-        description: "Unseen before restart",
-      }),
-    ]);
-    const envelope = {
-      ...account.identity,
-      operations: [promptDeletion(source)],
-    };
+    const envelope = { ...account.identity, operations: [collection, create] };
     const receipt = await client.mutatePrompts(envelope);
-    const [result] = receipt.results;
-    if (
-      result?.status !== "accepted" ||
-      !("promptId" in result) ||
-      !result.conflict
-    ) {
-      throw new Error("Expected preserved copy");
-    }
+    const source = await client.getPrompt(create.promptId);
+    const assignments = {
+      ...account.identity,
+      operations: [assignCollection(source, collection.collectionId)],
+    };
+    const assignmentReceipt = await client.mutatePrompts(assignments);
+    await account.mutate([
+      collectionOperation("Renamed before restart", collection.collectionId),
+    ]);
     const fixture = {
       Cookie: account.Cookie,
       envelope,
       receipt,
-      sourceId: source.id,
-      copy: await client.getPrompt(result.conflict.copyId),
-      notices: await client.getConflicts(),
-      page: await client.getPrompts(),
+      assignments,
+      assignmentReceipt,
+      prompt: await client.getPrompt(source.id),
+      snapshot: await client.getOrganization(),
     };
     await server.startServer();
     await runAcceptance(
-      ["bun", "test", "apps/web/tests/prompt-deletion-restart.test.ts"],
-      { PR0_DELETE_RESTART_FIXTURE: JSON.stringify(fixture) }
+      ["bun", "test", "apps/web/tests/collections-restart.test.ts"],
+      { PR0_COLLECTION_RESTART_FIXTURE: JSON.stringify(fixture) }
     );
   }
 } finally {

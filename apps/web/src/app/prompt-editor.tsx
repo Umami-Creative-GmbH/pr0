@@ -1,8 +1,14 @@
 "use client";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
-import type { Prompt, MutationReceipt } from "@pr0/api-contract/prompts";
+import type {
+  Collection,
+  Prompt,
+  MutationReceipt,
+} from "@pr0/api-contract/prompts";
+import { CollectionPicker } from "@pr0/ui/components/collection-picker";
 import { PromptFields } from "@pr0/ui/components/prompt-fields";
 
+import { collectionMatches } from "./collection-query";
 import { PromptOriginal } from "./prompt-original";
 import { usePromptEditor } from "./use-prompt-editor";
 
@@ -10,6 +16,7 @@ const buttonClass =
   "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
 export const PromptEditor = ({
   library,
+  collections,
   prompt,
   onSaved,
   onAccepted,
@@ -18,6 +25,7 @@ export const PromptEditor = ({
   onDirtyChange,
 }: {
   library: PrivateLibrary;
+  collections: Collection[];
   prompt?: Prompt;
   onSaved: (receipt: MutationReceipt) => void;
   onAccepted: () => void;
@@ -100,6 +108,18 @@ export const PromptEditor = ({
           titleRef={titleRef}
           value={draft}
         />
+        <CollectionPicker
+          collections={collections}
+          label="Collection (optional)"
+          emptyLabel="No collection"
+          value={draft.collectionId}
+          search={collectionMatches}
+          disabled={!prompt && (state.status === "saving" || state.uncertain)}
+          onChange={(collectionId) => change({ ...draft, collectionId })}
+        />
+        {state.fields.collectionId ? (
+          <p role="alert">{state.fields.collectionId}</p>
+        ) : null}
         <div className="flex flex-wrap gap-3">
           <button
             className={buttonClass}

@@ -4,6 +4,95 @@ import type { MutationEnvelope } from "@pr0/api-contract/prompts";
 
 import { createApiClient } from "./client";
 
+test("organization reads validate scope, payloads, HTTP errors and cancellation", async () => {
+  const scope = {
+    instanceId: crypto.randomUUID(),
+    accountId: crypto.randomUUID(),
+  };
+  const abort = new AbortController();
+  let signal: AbortSignal | null | undefined;
+  const client = createApiClient({
+    fetcher: (_url, init) => {
+      signal = init?.signal;
+      return Promise.resolve(
+        Response.json({
+          ...scope,
+          revision: "0",
+          collections: [],
+          textBytes: 0,
+        })
+      );
+    },
+  });
+  expect(await client.getOrganization(abort.signal, scope)).toMatchObject({
+    collections: [],
+  });
+  expect(signal).toBe(abort.signal);
+  await expect(
+    client.getOrganization(undefined, {
+      ...scope,
+      accountId: crypto.randomUUID(),
+    })
+  ).rejects.toMatchObject({ status: 403 });
+  const malformed = createApiClient({
+    fetcher: () =>
+      Promise.resolve(Response.json({ ...scope, collections: [] })),
+  });
+  await expect(malformed.getOrganization()).rejects.toThrow();
+  const failed = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json(
+          {
+            code: "authentication_required",
+            retryable: true,
+            message: "Sign in.",
+          },
+          { status: 401 }
+        )
+      ),
+  });
+  await expect(failed.getOrganization()).rejects.toMatchObject({ status: 401 });
+});
+
+test("collection mutation receipts must match the collection and operation identities", async () => {
+  const operation = {
+    kind: "collection.create" as const,
+    operationId: crypto.randomUUID(),
+    collectionId: crypto.randomUUID(),
+    baseRevision: "0",
+    dependsOn: [],
+    name: "Work",
+  };
+  const envelope: MutationEnvelope = {
+    protocolVersion: 1,
+    instanceId: crypto.randomUUID(),
+    accountId: crypto.randomUUID(),
+    epoch: crypto.randomUUID(),
+    installationId: crypto.randomUUID(),
+    operations: [operation],
+  };
+  const client = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({
+          results: [
+            {
+              status: "accepted",
+              operationId: operation.operationId,
+              collectionId: crypto.randomUUID(),
+              revision: "1",
+              acceptedAt: "2026-09-20T12:00:00.000Z",
+            },
+          ],
+        })
+      ),
+  });
+  await expect(client.mutatePrompts(envelope)).rejects.toThrow(
+    "does not match"
+  );
+});
+
 test("prompt client rejects HTTP errors and malformed successful responses", async () => {
   const failing = createApiClient({
     fetcher: () =>

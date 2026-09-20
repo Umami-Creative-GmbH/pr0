@@ -1,5 +1,6 @@
 import {
   mutationEnvelopeSchema,
+  organizationSnapshotSchema,
   mutationResponseSchema,
   promptErrorSchema,
   promptIdentitySchema,
@@ -81,6 +82,13 @@ export const createPromptClient = (
     return response.json();
   };
   return {
+    async getOrganization(signal?: AbortSignal, scope?: LibraryScope) {
+      const snapshot = organizationSnapshotSchema.parse(
+        await request("library/organization", signal)
+      );
+      assertScope(snapshot, scope);
+      return snapshot;
+    },
     async getConflicts(
       input: { cursor?: string; limit?: number } = {},
       signal?: AbortSignal,
@@ -98,7 +106,12 @@ export const createPromptClient = (
       return result;
     },
     async getPrompts(
-      input: { cursor?: string; limit?: number; view?: PromptView } = {},
+      input: {
+        cursor?: string;
+        limit?: number;
+        view?: PromptView;
+        collectionId?: string;
+      } = {},
       signal?: AbortSignal,
       scope?: LibraryScope
     ) {
@@ -109,6 +122,9 @@ export const createPromptClient = (
       });
       if (parsed.cursor) {
         params.set("cursor", parsed.cursor);
+      }
+      if (parsed.collectionId) {
+        params.set("collectionId", parsed.collectionId);
       }
       const result = promptPageSchema.parse(
         await request(`library/prompts?${params}`, signal)
@@ -142,7 +158,11 @@ export const createPromptClient = (
           const operation = envelope.operations[index];
           return entry.status === "accepted"
             ? entry.operationId !== operation?.operationId ||
-                entry.promptId !== operation.promptId
+                ("collectionId" in entry
+                  ? !("collectionId" in operation) ||
+                    entry.collectionId !== operation.collectionId
+                  : !("promptId" in operation) ||
+                    entry.promptId !== operation.promptId)
             : entry.error.operationId !== operation?.operationId;
         })
       ) {

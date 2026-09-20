@@ -22,13 +22,20 @@ import type {
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-const textOf = (text: PromptText): PromptText => ({
+type PromptDraft = PromptText & { collectionId: string | null };
+const editorFields = [...promptTextFields, "collectionId"] as const;
+const textOf = (
+  text: PromptText & { collectionId?: string | null }
+): PromptDraft => ({
+  collectionId: text.collectionId ?? null,
   title: trimPromptText(text.title),
   description: trimPromptText(text.description),
   content: text.content,
 });
-const sameText = (a: PromptText, b: PromptText) =>
-  promptTextFields.every((field) => textOf(a)[field] === textOf(b)[field]);
+const sameText = (
+  a: PromptText & { collectionId?: string | null },
+  b: PromptText & { collectionId?: string | null }
+) => editorFields.every((field) => textOf(a)[field] === textOf(b)[field]);
 export const usePromptEditor = ({
   library,
   prompt,
@@ -45,13 +52,14 @@ export const usePromptEditor = ({
   onDirtyChange: (dirty: boolean) => void;
 }) => {
   const client = useApiClient();
-  const [draft, setDraft] = useState<PromptText>(
+  const [draft, setDraft] = useState<PromptDraft>(
     prompt
       ? textOf(prompt)
       : {
           title: "",
           description: "",
           content: "",
+          collectionId: null,
         }
   );
   const latestDraft = useRef(draft);
@@ -80,7 +88,9 @@ export const usePromptEditor = ({
   const statusRef = useRef<HTMLParagraphElement>(null);
   const dirty = baseline
     ? !sameText(draft, baseline.text)
-    : Boolean(draft.title || draft.description || draft.content);
+    : Boolean(
+        draft.title || draft.description || draft.content || draft.collectionId
+      );
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
@@ -94,14 +104,26 @@ export const usePromptEditor = ({
     window.addEventListener("beforeunload", beforeUnload);
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [dirty, state.status, state.uncertain]);
-  const change = (value: PromptText) => {
+  const change = (input: PromptText & { collectionId?: string | null }) => {
+    const value = {
+      ...input,
+      collectionId:
+        input.collectionId === undefined
+          ? latestDraft.current.collectionId
+          : input.collectionId,
+    };
     latestDraft.current = value;
     setDraft(value);
     onDirtyChange(
       Boolean(pending.current) ||
         (baseline
           ? !sameText(value, baseline.text)
-          : Boolean(value.title || value.description || value.content))
+          : Boolean(
+              value.title ||
+              value.description ||
+              value.content ||
+              value.collectionId
+            ))
     );
     setState((previous) =>
       previous.status === "saving" || previous.uncertain
@@ -115,7 +137,7 @@ export const usePromptEditor = ({
     submitted: CreatePrompt | UpdatePrompt
   ) => {
     const acceptedText = {
-      ...submitted.desired,
+      ...textOf(submitted.desired),
       title: result.conflict
         ? conflictCopyTitle(submitted.desired.title)
         : submitted.desired.title,
@@ -138,6 +160,12 @@ export const usePromptEditor = ({
           retained[field] = acceptedText[field];
         }
       }
+      if (
+        latestDraft.current.collectionId ===
+        (submitted.desired.collectionId ?? null)
+      ) {
+        retained.collectionId = acceptedText.collectionId;
+      }
       latestDraft.current = retained;
       setDraft(retained);
       onDirtyChange(true);
@@ -158,9 +186,12 @@ export const usePromptEditor = ({
     if (inFlight.current) {
       return;
     }
-    const parsed = promptTextSchema.safeParse(
-      pending.current?.operations[0]?.desired ?? draft
-    );
+    const requested = pending.current?.operations[0]?.desired ?? draft;
+    const parsed = promptTextSchema.safeParse({
+      title: requested.title,
+      description: requested.description,
+      content: requested.content,
+    });
     if (!parsed.success) {
       setState({
         status: "failed",
@@ -179,7 +210,10 @@ export const usePromptEditor = ({
     }
     if (!pending.current) {
       const saved = baseline;
-      const desired = textOf(parsed.data);
+      const desired = textOf({
+        ...parsed.data,
+        collectionId: draft.collectionId,
+      });
       const operation = saved
         ? {
             operationId: crypto.randomUUID(),
@@ -189,7 +223,7 @@ export const usePromptEditor = ({
             dependsOn: [],
             base: saved.text,
             desired,
-            changedFields: promptTextFields.filter(
+            changedFields: editorFields.filter(
               (field) => desired[field] !== saved.text[field]
             ),
           }
@@ -219,7 +253,7 @@ export const usePromptEditor = ({
         AbortSignal.timeout(30_000)
       );
       const [result] = response.results;
-      if (result?.status === "accepted") {
+      if (result?.status === "accepted" && "promptId" in result) {
         const [submitted] = pending.current.operations;
         if (!submitted) {
           return;

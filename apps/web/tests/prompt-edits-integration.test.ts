@@ -118,7 +118,11 @@ test("long conflict titles, tied-revision pages and old receipt replay retain ev
   };
   const result = await b.mutatePrompts(envelope);
   const [receipt] = result.results;
-  if (receipt?.status !== "accepted" || !receipt.conflict) {
+  if (
+    receipt?.status !== "accepted" ||
+    !("promptId" in receipt) ||
+    !receipt.conflict
+  ) {
     throw new Error("Expected conflict mapping");
   }
   const copy = await b.getPrompt(receipt.conflict.copyId);
