@@ -71,6 +71,11 @@ pub struct Token {
     pub expires_in: u64,
     pub scope: String,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Success {
+    pub success: bool,
+}
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Retained {
@@ -129,6 +134,11 @@ impl Capabilities {
     }
 }
 impl Identity {
+    pub fn expired(&self) -> bool {
+        chrono::DateTime::parse_from_rfc3339(&self.session.expires_at).map_or(true, |expiry| {
+            expiry <= chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now())
+        })
+    }
     pub fn validate(&self, trust: &Capabilities) -> Result<(), String> {
         if self.instance.id != trust.instance_id
             || self.instance.origin != trust.origin

@@ -118,7 +118,11 @@ export const verifyNativeHttps = async (
       "--no-run",
       "--message-format=json",
     ],
-    { stdout: "pipe", stderr: "inherit" }
+    {
+      cwd: path.resolve(import.meta.dir, "../../.."),
+      stdout: "pipe",
+      stderr: "inherit",
+    }
   );
   const output = await new Response(build.stdout).text();
   assert.equal(await build.exited, 0);

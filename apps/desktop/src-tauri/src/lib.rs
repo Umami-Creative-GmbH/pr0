@@ -41,7 +41,7 @@ async fn auth_status(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, ManagedAuth>,
 ) -> Result<AuthView, String> {
-    dispatch(window, state, AuthService::status).await
+    dispatch(window, state, AuthService::restore).await
 }
 #[tauri::command]
 async fn auth_begin(

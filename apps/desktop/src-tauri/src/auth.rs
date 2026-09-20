@@ -37,9 +37,11 @@ struct State {
     message: String,
     storage: Metadata,
     clearing: bool,
+    restore_pending: bool,
 }
 pub struct AuthService {
     state: Mutex<State>,
+    restoration: Mutex<()>,
     transport: Arc<dyn Transport>,
     credentials: Arc<dyn Credentials>,
     directory: PathBuf,
@@ -112,6 +114,7 @@ impl AuthService {
                 retained.as_ref().is_some_and(|r| {
                     !r.cleanup_pending
                         && !r.authentication_required
+                        && !r.identity.expired()
                         && e.version == 1
                         && e.origin == r.identity.instance.origin
                         && e.instance_id == r.identity.instance.id
@@ -126,9 +129,11 @@ impl AuthService {
             String::new()
         };
         Ok(Self {
+            restoration: Mutex::new(()),
             state: Mutex::new(State {
                 generation: 1,
                 retained,
+                restore_pending: credential.is_some(),
                 credential,
                 attempt: None,
                 message,
@@ -142,6 +147,19 @@ impl AuthService {
     }
     pub fn status(&self) -> Result<AuthView, String> {
         Ok(self.state.lock().map_err(|_| "state_unavailable")?.view())
+    }
+    pub fn restore(&self) -> Result<AuthView, String> {
+        let _restoration = self.restoration.lock().map_err(|_| "state_unavailable")?;
+        let pending = {
+            let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+            std::mem::take(&mut state.restore_pending)
+        };
+        if pending {
+            // A failed online check records a safe status and preserves local files.
+            // In particular, a server-side revocation requires authentication again.
+            let _ = self.refresh();
+        }
+        self.status()
     }
     pub fn begin(&self, input: &str) -> Result<AuthView, String> {
         let origin = canonical_origin(input)?;
@@ -462,7 +480,8 @@ impl AuthService {
                     Some(&e.token),
                     Some(json!({})),
                 )
-                .is_ok()
+                .and_then(decode::<Success>)
+                .is_ok_and(|response| response.success)
         });
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
         if state.generation != generation {
