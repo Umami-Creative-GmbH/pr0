@@ -21,7 +21,7 @@ Before using engineering skills or exploring the codebase, read and follow the [
 
 When using the `implement` skill, claim the ticket before starting implementation by assigning it to the currently authenticated GitHub user (`gh issue edit <number> --add-assignee "@me"`). Verify that the user appears in the ticket's assignees.
 
-When a ticket's acceptance criteria are met and required validation passes, close it as completed (`gh issue close <number> --reason completed`) and verify its closed state before reporting completion.
+When a ticket's acceptance criteria are met and required validation passes, include `Closes #<number>` in the implementing PR's description so GitHub closes the ticket when the PR merges into the default branch. Leave the ticket open until that merge; do not close it manually. After the merge, verify the ticket's closed state before reporting it as closed.
 
 # Runtime and data access decisions
 
