@@ -314,6 +314,10 @@ fn offline_command_worker() {
     } else {
         approval()
     };
+    let transport: Arc<dyn Transport> = match std::env::var("PR0_SEARCH_FIXTURE_DIRECTORY") {
+        Ok(directory)=>Arc::new(SearchFixtureTransport{directory:directory.into(),fallback:transport}),
+        Err(_)=>transport,
+    };
     let service = AuthService::new(directory, transport, vault).unwrap();
     if view(&service)["state"] == "signed_out" {
         sign_in(&service);
@@ -335,6 +339,10 @@ fn offline_command_worker() {
                 .map_err(|_| "invalid_transition".to_string())
                 .and_then(|request| service.transition(request)).map(|v| json!(v)),
             "library_status" => service.library_status().map(|v| json!(v)),
+            "library_download" => service.library_download().map(|v|json!(v)),
+            "library_search" => serde_json::from_value(input["request"].clone()).map_err(|_|"invalid_input".to_string()).and_then(|request| service.library_search(request)).map(|v|json!(v)),
+            "library_cancel_search" => service.cancel_search(input["id"].as_str().unwrap()).map(|_|json!(null)),
+            "library_recover_search" => serde_json::from_value(input["request"].clone()).map_err(|_|"invalid_input".to_string()).and_then(|request| service.library_recover_search(request)).map(|_|json!(null)),
             "library_browse" => service
                 .library_browse(input["offset"].as_u64().unwrap_or(0) as u32)
                 .map(|v| json!(v)),

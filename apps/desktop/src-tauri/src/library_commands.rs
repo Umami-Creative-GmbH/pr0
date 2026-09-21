@@ -1,5 +1,40 @@
 // Included in auth's module so the active identity/connection share its generation lock.
 impl AuthService {
+    pub fn admit_search(&self, id: &str) -> Result<Arc<std::sync::atomic::AtomicBool>, String> {
+        if !valid_id(id) {return Err("invalid_input".into());}
+        let cancelled=Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut active=self.search.lock().map_err(|_|"state_unavailable")?;
+        if let Some((_,old))=active.replace((id.into(),cancelled.clone())) {old.store(true,std::sync::atomic::Ordering::Relaxed);}
+        Ok(cancelled)
+    }
+    pub fn cancel_search(&self, id: &str) -> Result<(),String> {
+        let active=self.search.lock().map_err(|_|"state_unavailable")?;
+        if let Some((current,cancelled))=active.as_ref() {if current==id {cancelled.store(true,std::sync::atomic::Ordering::Relaxed);}}
+        Ok(())
+    }
+    pub fn library_recover_search(&self, request: super::search_contract::SearchRequest) -> Result<(), String> {
+        request.validate()?;
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if request.generation != state.generation || request.instance_id != retained.identity.instance.id || request.account_id != retained.identity.account.id { return Err("operation_cancelled".into()); }
+        self.library(&mut state)?.recover_search()
+    }
+    pub fn library_search(&self, request: super::search_contract::SearchRequest) -> Result<super::search_contract::SearchPage, String> {
+        let cancelled=self.admit_search(&request.request_id)?;
+        self.library_search_admitted(request,cancelled)
+    }
+    pub fn library_search_admitted(&self, request: super::search_contract::SearchRequest, cancelled: Arc<std::sync::atomic::AtomicBool>) -> Result<super::search_contract::SearchPage,String> {
+        request.validate()?;
+        let check=|| cancelled.load(std::sync::atomic::Ordering::Relaxed);
+        if check() {return Err("operation_cancelled".into());}
+        let _gate=self.search_gate.try_lock().map_err(|_|"search_busy")?;
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if request.generation != state.generation || request.instance_id != retained.identity.instance.id || request.account_id != retained.identity.account.id {
+            return Err("operation_cancelled".into());
+        }
+        self.library(&mut state)?.search(&request,&check)
+    }
     pub fn copy_draft(
         &self,
         instance: &str,

@@ -65,7 +65,7 @@ impl LibraryStore {
             params![id, body],
         )
         .map_err(io)?;
-        tx.commit().map_err(io)?;
+        commit_search(tx)?;
         Ok(Some((
             serde_json::from_str(&body).map_err(|_| "storage_unavailable")?,
             replay,
@@ -139,7 +139,7 @@ impl LibraryStore {
                 serde_json::from_str(&active).map_err(|_| "storage_unavailable")?;
             retire_downloaded_uploads(&tx, &active)?;
         }
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
     pub fn record_usage(&mut self, usage: &Usage) -> Result<(), String> {
         #[cfg(test)]
@@ -153,7 +153,7 @@ impl LibraryStore {
         )
         .map_err(io)?;
         // Recency is derived from this same durable event, so it cannot commit independently.
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
     pub fn project_usage(&self, prompt: &mut Prompt) -> Result<(), String> {
         let (count, used): (i64, Option<String>) = self.db.query_row(

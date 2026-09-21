@@ -6,6 +6,9 @@ edition = "2021"
 rust-version = "1.94"
 publish = false
 
+[features]
+search-webview-test = ["tauri/custom-protocol"]
+
 [lib]
 name = "pr0_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -36,6 +39,7 @@ arboard = { version = "3.6.1", default-features = false }
 windows-sys = { version = "0.61.2", features = [
   "Win32_Foundation",
   "Win32_Security_Credentials",
+  "Win32_Storage_FileSystem",
 ] }
 
 # PROTOTYPE (issue #9): native quick launcher.

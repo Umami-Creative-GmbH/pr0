@@ -6,6 +6,10 @@ include!("upload_tests.rs");
 include!("change_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
+include!("search_tests.rs");
+include!("search_fixture_transport.rs");
+#[cfg(feature = "search-webview-test")]
+include!("search_webview_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     serde_json::from_str(include_str!(

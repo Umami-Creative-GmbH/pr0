@@ -231,7 +231,7 @@ impl LibraryStore {
                 record_receipt(&tx, &request.operation_id, &fingerprint, &result)?;
                 #[cfg(test)]
                 test_stage("before_commit")?;
-                tx.commit().map_err(io)?;
+                commit_search(tx)?;
                 #[cfg(test)]
                 test_stage("after_commit")?;
                 return Ok(result);
@@ -289,7 +289,6 @@ impl LibraryStore {
             .map_err(io)?;
         let record = serde_json::to_string(&prompt).map_err(|_| "invalid_input")?;
         tx.execute("INSERT INTO local_prompt VALUES(?1,?2,?3,?4,?5) ON CONFLICT(id) DO UPDATE SET title=excluded.title,archived=excluded.archived,record=excluded.record,text_bytes=excluded.text_bytes",params![prompt.id,prompt.title,prompt.archived,record,bytes]).map_err(io)?;
-        super::local_search::update(&tx, &prompt, revision).map_err(io)?;
         #[cfg(test)]
         test_stage("after_projection")?;
         let mut operation = super::local_contract::PendingOperation::new(
@@ -318,7 +317,7 @@ impl LibraryStore {
         record_receipt(&tx, &request.operation_id, &fingerprint, &result)?;
         #[cfg(test)]
         test_stage("before_commit")?;
-        tx.commit().map_err(io)?;
+        commit_search(tx)?;
         #[cfg(test)]
         test_stage("after_commit")?;
         Ok(result)

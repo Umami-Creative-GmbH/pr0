@@ -6,6 +6,11 @@ import {
 } from "@pr0/api-contract/desktop-copy";
 import type { DesktopCopy } from "@pr0/api-contract/desktop-copy";
 import {
+  desktopSearchSchema,
+  desktopSearchPageSchema,
+} from "@pr0/api-contract/desktop-search";
+import type { DesktopSearch } from "@pr0/api-contract/desktop-search";
+import {
   localPromptSchema,
   localSaveSchema,
   uploadStatusSchema,
@@ -35,6 +40,38 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  search: async (request: DesktopSearch, signal: AbortSignal) => {
+    const input = desktopSearchSchema.parse(request);
+    signal.throwIfAborted();
+    const cancel = async () => {
+      try {
+        await invoke("library_cancel_search", { id: input.requestId });
+      } catch {
+        /* The aborted response is still rejected below if native cancellation fails. */
+      }
+    };
+    signal.addEventListener("abort", cancel, { once: true });
+    try {
+      const page = desktopSearchPageSchema.parse(
+        await invoke("library_search", { request: input })
+      );
+      signal.throwIfAborted();
+      if (
+        page.instanceId !== input.instanceId ||
+        page.accountId !== input.accountId
+      ) {
+        throw new Error("invalid_native_response");
+      }
+      return page;
+    } finally {
+      signal.removeEventListener("abort", cancel);
+    }
+  },
+  recoverSearch: async (request: DesktopSearch) => {
+    await invoke("library_recover_search", {
+      request: desktopSearchSchema.parse(request),
+    });
+  },
   sync: async () => {
     await invoke("library_sync");
   },
@@ -108,6 +145,18 @@ export const libraryClient = {
 };
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
 export const downloadError = (error: unknown) => {
+  if (error === "operation_cancelled") {
+    return "The account changed. Refresh the connection before searching again.";
+  }
+  if (error === "disk_full") {
+    return "There is not enough free disk space. Free some space and retry; saved prompts and pending changes are preserved.";
+  }
+  if (error === "search_recovery_required") {
+    return "Search needs recovery. Rebuild the search index; saved prompts and pending changes are preserved.";
+  }
+  if (error === "search_busy" || error === "search_preparing") {
+    return "Preparing search. Please retry shortly.";
+  }
   if (error === "download_backoff") {
     return "Download paused after a connection or server error. Saved prompts remain available; retry shortly.";
   }

@@ -28,18 +28,37 @@ pub fn library_path(root: &Path, instance: &str, account: &str) -> Result<PathBu
     )))
 }
 impl LibraryStore {
+    pub fn recover_search(&mut self) -> Result<(), String> {
+        super::local_search::rebuild(&mut self.db).map_err(|error| {
+            if error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull) {
+                io(error)
+            } else {
+                "search_recovery_required".into()
+            }
+        })
+    }
+    pub fn search(
+        &mut self,
+        request: &super::search_contract::SearchRequest,
+        cancelled: &impl Fn() -> bool,
+    ) -> Result<super::search_contract::SearchPage, String> {
+        let tx = self.db.transaction().map_err(io)?;
+        let result = super::search_query::search(&tx, request, cancelled)?;
+        tx.commit().map_err(io)?;
+        Ok(result)
+    }
     pub fn open(root: &Path, instance: &str, account: &str) -> Result<Self, String> {
         let path = library_path(root, instance, account)?;
         if std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
             return Err("storage_unavailable".into());
         }
-        let db = Connection::open(path).map_err(io)?;
+        let mut db = Connection::open(path).map_err(io)?;
         db.busy_timeout(std::time::Duration::from_millis(250))
             .map_err(io)?;
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 5 {
+        if version > 6 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -129,6 +148,11 @@ impl LibraryStore {
                 UPDATE upload_state SET last_checked=NULL;
                 PRAGMA user_version=5; COMMIT;").map_err(io)?;
         }
+        if version < 6 {
+            super::local_search::upgrade(&mut db).map_err(io)?;
+        }
+        db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;")
+            .map_err(io)?;
         Ok(Self {
             db,
             instance: instance.into(),
@@ -171,7 +195,7 @@ impl LibraryStore {
             [&manifest.id],
         )
         .map_err(io)?;
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
     pub fn apply(&mut self, manifest: &Manifest, index: usize, page: Page) -> Result<(), String> {
         let expected = manifest.pages.get(index).ok_or("invalid_response")?;
@@ -282,7 +306,7 @@ impl LibraryStore {
         }
         tx.execute("UPDATE local_state SET revision=revision+1", [])
             .map_err(io)?;
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
     pub fn status(&self) -> Result<LibraryStatus, String> {
         let row: Option<(String,u32,bool)> = self.db.query_row("SELECT manifest,applied,complete FROM download WHERE id=(SELECT coalesce(staging,active) FROM state)",[], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(io)?;
@@ -352,6 +376,10 @@ impl LibraryStore {
     }
 }
 include!("local_storage.rs");
+fn commit_search(tx: rusqlite::Transaction<'_>) -> Result<(), String> {
+    super::local_search::flush(&tx).map_err(|_| "search_recovery_required".to_string())?;
+    tx.commit().map_err(io)
+}
 include!("upload_storage.rs");
 include!("change_storage.rs");
 include!("usage_storage.rs");
