@@ -60,6 +60,13 @@ pub struct PendingError {
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PendingPrompt {
+    pub prompt_id: String,
+    pub title: String,
+    pub deleting: bool,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UploadStatus {
     pub last_checked_at: Option<String>,
     pub waiting: u32,
@@ -68,6 +75,7 @@ pub struct UploadStatus {
     pub retry_after_ms: u64,
     pub errors: Vec<PendingError>,
     pub mappings: Vec<Mapping>,
+    pub pending: Vec<PendingPrompt>,
 }
 pub fn now() -> i64 {
     std::time::SystemTime::now()

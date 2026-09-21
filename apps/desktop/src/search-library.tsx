@@ -135,9 +135,13 @@ const SearchResults = ({
   search,
   copying,
   onCopy,
+  onFavorite,
+  changing,
 }: {
   search: ReturnType<typeof useLocalSearch>;
   copying: boolean;
+  changing: boolean;
+  onFavorite: (id: string) => Promise<void>;
   onCopy: (id: string) => Promise<void>;
 }) => {
   const { page } = search;
@@ -161,6 +165,16 @@ const SearchResults = ({
               >
                 {row.title}
                 {row.archived ? " (Archived)" : ""}
+              </button>
+              <button
+                type="button"
+                disabled={search.busy || changing}
+                aria-label={`${row.favorite ? "Unfavorite" : "Favorite"} ${row.title}`}
+                onClick={() => {
+                  void onFavorite(row.id);
+                }}
+              >
+                {row.favorite ? "Unfavorite" : "Favorite"}
               </button>
               <button
                 type="button"
@@ -213,6 +227,8 @@ export const SearchLibrary = ({
   onSelect,
   onCopy,
   copying,
+  onFavorite,
+  changing,
 }: {
   account: Status;
   refresh: number;
@@ -220,9 +236,14 @@ export const SearchLibrary = ({
   onOrganizationSaved: () => Promise<void>;
   editingDisabled: boolean;
   onEditing: (editing: boolean) => void;
-  onSelect: (id: string | null) => Promise<void>;
+  onSelect: (
+    id: string | null,
+    reason?: "refresh" | "navigation"
+  ) => Promise<void>;
   onCopy: (id: string) => Promise<void>;
   copying: boolean;
+  changing: boolean;
+  onFavorite: (id: string) => Promise<void>;
 }) => {
   const search = useLocalSearch(account, refresh, onSelect);
   const { page } = search;
@@ -327,7 +348,13 @@ export const SearchLibrary = ({
           ) : null}
         </div>
       ) : null}
-      <SearchResults search={search} copying={copying} onCopy={onCopy} />
+      <SearchResults
+        search={search}
+        copying={copying}
+        onCopy={onCopy}
+        onFavorite={onFavorite}
+        changing={changing}
+      />
     </section>
   );
 };

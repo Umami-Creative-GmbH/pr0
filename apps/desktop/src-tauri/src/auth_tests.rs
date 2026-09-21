@@ -7,6 +7,7 @@ include!("change_tests.rs");
 include!("recovery_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
+include!("lifecycle_tests.rs");
 include!("compatibility_tests.rs");
 include!("migration_tests.rs");
 include!("search_tests.rs");
@@ -557,6 +558,21 @@ fn live_https_worker() {
                 .transition(serde_json::from_value(input["request"].clone()).unwrap())
                 .map(|value| json!(value)),
             "library_status" => service.library_status().map(|value| json!(value)),
+            "library_lifecycle" => service
+                .library_lifecycle(serde_json::from_value(input["request"].clone()).unwrap())
+                .map(|v| json!(v)),
+            "library_recover" => service
+                .library_recover(serde_json::from_value(input["request"].clone()).unwrap())
+                .map(|v| json!(v)),
+            "library_retained_prompt" => service
+                .library_retained_prompt(input["id"].as_str().unwrap())
+                .map(|v| json!(v)),
+            "library_list" => service
+                .library_list(
+                    input["offset"].as_u64().unwrap_or(0) as u32,
+                    serde_json::from_value(input["view"].clone()).unwrap(),
+                )
+                .map(|v| json!(v)),
             "library_reconcile" => service.library_reconcile().map(|_| serde_json::Value::Null),
             "library_organization" => service.library_organization(),
             "library_organize" => serde_json::from_value(input["request"].clone())

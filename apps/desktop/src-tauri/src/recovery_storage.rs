@@ -1,3 +1,73 @@
+impl LibraryStore {
+    pub fn retained_prompt(&self, id: &str) -> Result<Prompt, String> {
+        if !super::local_contract::uuid4(id) {
+            return Err("invalid_input".into());
+        }
+        let record:Option<String>=self.db.query_row("SELECT record FROM local_prompt WHERE id=?1 AND EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1)",[id],|r|r.get(0)).optional().map_err(io)?;
+        serde_json::from_str(&record.ok_or("prompt_unavailable")?)
+            .map_err(|_| "storage_unavailable".into())
+    }
+    pub fn recover(
+        &mut self,
+        request: super::lifecycle_contract::RecoveryRequest,
+    ) -> Result<(), String> {
+        use super::lifecycle_contract::RecoveryAction;
+        if !super::local_contract::uuid4(&request.prompt_id) {
+            return Err("invalid_input".into());
+        }
+        let tx = self
+            .db
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(io)?;
+        match request.action {
+            RecoveryAction::Retry => {
+                let blocked: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM recovery_blocked WHERE prompt_id=?1) OR EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND error='recovery_required')",[&request.prompt_id],|r|r.get(0)).map_err(io)?;
+                if blocked { return Err("recovery_required".into()); }
+                // Keep frozen envelopes and server rejection evidence until the outcome
+                // is resolved. Retrying never changes an operation's identity or payload.
+                tx.execute("UPDATE outbox SET next_attempt=0 WHERE prompt_id=?1 AND state<>'accepted_awaiting_download'",[&request.prompt_id]).map_err(io)?;
+                tx.execute(
+                    "UPDATE upload_state SET next_attempt=0,attempts=0,error=NULL",
+                    [],
+                )
+                .map_err(io)?;
+            }
+            RecoveryAction::Discard => {
+                if !request.confirmed {
+                    return Err("confirmation_required".into());
+                }
+                let uncertain:bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND state='in_flight' AND error IS NULL)",[&request.prompt_id],|r|r.get(0)).map_err(io)?;
+                if uncertain {
+                    return Err("delivery_uncertain".into());
+                }
+                let accepted:bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND state='accepted_awaiting_download')",[&request.prompt_id],|r|r.get(0)).map_err(io)?;
+                if accepted {
+                    return Err("accepted_effect_pending_download".into());
+                }
+                let dependent:bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM outbox child,json_each(child.payload,'$.dependsOn') d JOIN outbox parent ON parent.id=d.value WHERE parent.prompt_id=?1 AND child.prompt_id<>?1)",[&request.prompt_id],|r|r.get(0)).map_err(io)?;
+                if dependent {
+                    return Err("dependent_changes_pending".into());
+                }
+                tx.execute(
+                    "DELETE FROM outbox WHERE prompt_id=?1",
+                    [&request.prompt_id],
+                )
+                .map_err(io)?;
+                super::local_search::remove(&tx, &request.prompt_id).map_err(io)?;
+                tx.execute("DELETE FROM local_prompt WHERE id=?1", [&request.prompt_id])
+                    .map_err(io)?;
+                tx.execute(
+                    "DELETE FROM local_deleted WHERE id=?1",
+                    [&request.prompt_id],
+                )
+                .map_err(io)?;
+                tx.execute("UPDATE local_state SET revision=revision+1", [])
+                    .map_err(io)?;
+            }
+        }
+        commit_search(tx)
+    }
+}
 // Epoch recovery retains the pre-refresh baseline, visible saved variants and pending identities
 // in the account's SQLite partition. Archived records never become automatic upload operations.
 fn reconcile_replacement_overlays(tx: &rusqlite::Transaction, manifest: &Manifest) -> Result<(), String> {
@@ -6,10 +76,19 @@ fn reconcile_replacement_overlays(tx: &rusqlite::Transaction, manifest: &Manifes
     while let Some(row) = rows.next().map_err(io)? {
         let saved: Prompt = serde_json::from_str(&row.get::<_,String>(0).map_err(io)?).map_err(|_|"storage_unavailable")?;
         let mut current: Prompt = serde_json::from_str(&row.get::<_,String>(1).map_err(io)?).map_err(|_|"storage_unavailable")?;
-        current.title = saved.title;
-        current.description = saved.description;
-        current.content = saved.content;
         current.modified_at = saved.modified_at;
+        let mut pending = tx.prepare("SELECT payload FROM outbox WHERE prompt_id=?1 AND (state<>'accepted_awaiting_download' OR cast(json_extract(receipt,'$.revision') AS INTEGER)>?2) ORDER BY local_revision").map_err(io)?;
+        let operations = pending.query_map(params![current.id, manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?], |r|r.get::<_,String>(0)).map_err(io)?.collect::<Result<Vec<_>,_>>().map_err(io)?;
+        for payload in operations {
+            let operation: PendingOperation = serde_json::from_str(&payload).map_err(|_|"storage_unavailable")?;
+            if let Some(metadata) = operation.metadata {
+                metadata.apply(&mut current);
+            } else if !matches!(operation.action, PendingAction::Delete) {
+                current.title = saved.title.clone();
+                current.description = saved.description.clone();
+                current.content = saved.content.clone();
+            }
+        }
         store_overlay_prompt(tx, &current)?;
     }
     Ok(())

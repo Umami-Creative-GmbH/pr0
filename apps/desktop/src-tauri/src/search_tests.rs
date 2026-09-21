@@ -439,7 +439,7 @@ fn search_upgrades_both_version_seven_layouts_with_pending_work() {
         assert_eq!(
             db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                 .unwrap(),
-            8
+            super::library_migrations::CURRENT_SCHEMA
         );
         drop(db);
         std::fs::remove_dir_all(directory).unwrap();
@@ -498,7 +498,7 @@ fn search_upgrades_both_version_six_layouts_preserving_pending_work() {
         assert_eq!(
             db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                 .unwrap(),
-            8
+            super::library_migrations::CURRENT_SCHEMA
         );
         if search_preview {
             assert_eq!(fingerprint(&db), before);

@@ -300,12 +300,26 @@ impl LibraryStore {
         Ok(status)
     }
     pub fn browse(&self, offset: u32) -> Result<Vec<Summary>, String> {
+        self.list(offset, super::lifecycle_contract::LibraryView::All)
+    }
+    pub fn list(
+        &self,
+        offset: u32,
+        view: super::lifecycle_contract::LibraryView,
+    ) -> Result<Vec<Summary>, String> {
         if offset > 20000 {
             return Err("invalid_input".into());
         }
+        let filter = match view {
+            super::lifecycle_contract::LibraryView::All => "archived=0",
+            super::lifecycle_contract::LibraryView::Favorites => {
+                "archived=0 AND json_extract(record,'$.favorite')=1"
+            }
+            super::lifecycle_contract::LibraryView::Archive => "archived=1",
+        };
         let mut statement = self
             .db
-            .prepare("SELECT id,title,archived FROM visible_prompt ORDER BY id LIMIT 50 OFFSET ?1")
+            .prepare(&format!("SELECT id,title,archived FROM visible_prompt WHERE {filter} ORDER BY id LIMIT 50 OFFSET ?1"))
             .map_err(io)?;
         let result = statement
             .query_map([offset], |r| {
@@ -338,6 +352,7 @@ impl LibraryStore {
     }
 }
 include!("local_storage.rs");
+include!("lifecycle_storage.rs");
 fn commit_search(tx: rusqlite::Transaction<'_>) -> Result<(), String> {
     super::local_search::flush(&tx).map_err(|_| "search_recovery_required".to_string())?;
     tx.commit().map_err(io)

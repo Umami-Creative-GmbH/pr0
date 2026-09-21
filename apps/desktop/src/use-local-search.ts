@@ -24,7 +24,10 @@ const remembered = (key: string, view: PromptView): PromptSort => {
 export const useLocalSearch = (
   account: Status,
   refresh: number,
-  onSelect: (id: string | null) => Promise<void>
+  onSelect: (
+    id: string | null,
+    reason?: "refresh" | "navigation"
+  ) => Promise<void>
 ) => {
   const [view, setView] = useState<PromptView>("all");
   const [viewCollectionId, setViewCollectionId] = useState<string>();
@@ -46,6 +49,8 @@ export const useLocalSearch = (
   const selected = useRef<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const request = useRef<DesktopSearch | null>(null);
+  const [navigation, setNavigation] = useState(0);
+  const previousNavigation = useRef<number | null>(null);
   const validQuery = promptQuerySchema.safeParse(query);
   const searching =
     Boolean(query) &&
@@ -56,6 +61,8 @@ export const useLocalSearch = (
   useEffect(() => {
     void refresh;
     void retry;
+    const selectionReason =
+      previousNavigation.current === navigation ? "refresh" : "navigation";
     const abort = new AbortController();
     const input: DesktopSearch = {
       instanceId: account.instanceId ?? "",
@@ -96,7 +103,10 @@ export const useLocalSearch = (
         setPage(result);
         selected.current = result.selectedId;
         setSelectedId(result.selectedId);
-        await onSelect(result.selectedId);
+        await onSelect(result.selectedId, selectionReason);
+        if (!abort.signal.aborted) {
+          previousNavigation.current = navigation;
+        }
       } catch (error) {
         if (abort.signal.aborted) {
           return;
@@ -149,10 +159,12 @@ export const useLocalSearch = (
     cursor,
     refresh,
     retry,
+    navigation,
     onSelect,
   ]);
   // oxlint-enable react/exhaustive-effect-dependencies
   const resetPage = () => {
+    setNavigation((value) => value + 1);
     setCursors([]);
     setBusy(true);
   };
@@ -234,12 +246,14 @@ export const useLocalSearch = (
     },
     clearFilters,
     previous: () => {
+      setNavigation((value) => value + 1);
       setCursors((values) => values.slice(0, -1));
       setBusy(true);
     },
     next: () => {
       const next = page?.nextCursor;
       if (next) {
+        setNavigation((value) => value + 1);
         setCursors((values) => [...values, next]);
         setBusy(true);
       }
