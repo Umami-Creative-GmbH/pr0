@@ -19,6 +19,7 @@ import { failure, json, readBody } from "./account-http";
 import {
   AccountFailureError,
   admit,
+  admitApi,
   admitEmail,
   assertOrigin,
   clientBucket,
@@ -365,7 +366,7 @@ export const handleAccountChange = async (request: Request) => {
         return json({ code: "forbidden" }, 403, result.headers);
       }
       await claimOwner(user.id);
-      await admit([{ key: `api:${user.id}`, max: 120, seconds: 60 }]);
+      await admitApi(user.id);
       const browser = { accountId: user.id, sessionId: session.id };
       const response = await routeAccountChange(request, browser);
       response.headers.set("Cache-Control", "no-store");

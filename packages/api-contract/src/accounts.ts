@@ -152,6 +152,7 @@ export const accountRequestSchema = z.union([
 export type AccountRequest = z.infer<typeof accountRequestSchema>;
 export const accountErrorSchema = z.strictObject({
   code: z.enum([
+    "account_suspended",
     "invalid_input",
     "invalid_credentials",
     "unauthenticated",

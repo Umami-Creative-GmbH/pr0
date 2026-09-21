@@ -66,11 +66,14 @@ export const readSnapshot = (
   database().begin(async (tx) => {
     // Account -> session -> library is the same lock order as mutations/deletion.
     const owner =
-      await tx`SELECT id FROM "user" WHERE id = ${accountId} AND email_verified AND NOT deletion_pending FOR UPDATE`;
+      await tx`SELECT id,suspended FROM "user" WHERE id = ${accountId} AND email_verified AND NOT deletion_pending FOR UPDATE`;
     const active =
       await tx`SELECT id FROM session WHERE id = ${sessionId} AND user_id = ${accountId} AND provenance = 'device' AND expires_at > clock_timestamp() FOR KEY SHARE`;
     if (!owner.length || !active.length) {
       throw new AccountFailureError("unauthenticated", 401);
+    }
+    if (owner[0].suspended) {
+      throw new AccountFailureError("account_suspended", 403);
     }
     const [library] =
       await tx`SELECT l.instance_id, l.revision::text, l.prompt_count, l.text_bytes::text, i.recovery_epoch FROM library l JOIN instance i ON i.id=l.instance_id WHERE l.account_id=${accountId} FOR UPDATE OF l`;

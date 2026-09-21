@@ -40,6 +40,22 @@ const LastChecked = ({ at }: { at?: string | null }) =>
     <p>Not yet checked for updates.</p>
   );
 
+const admissionLabel = (
+  changes: ChangeStatus | undefined,
+  upload: UploadStatus | undefined
+) => {
+  if (
+    changes?.error === "account_suspended" ||
+    upload?.error === "account_suspended"
+  ) {
+    return "Account suspended · Local work retained";
+  }
+  if (changes?.error?.startsWith("retry_after:") && changes.retryAfterMs > 0) {
+    return `Service busy · Retrying in ${Math.ceil(changes.retryAfterMs / 1000)} seconds`;
+  }
+  return null;
+};
+
 const incomingLabel = (
   status: DownloadStatus | undefined,
   signedIn: boolean,
@@ -64,13 +80,20 @@ const incomingLabel = (
   }
   return label;
 };
+const incomingExplanation = (error: string) => {
+  if (error === "account_suspended") {
+    return "Contact your instance operator. Suspension does not delete your local library.";
+  }
+  if (error === "snapshot_required") {
+    return "This library needs a recovery download.";
+  }
+  return "Synchronization retries when the connection and account are available.";
+};
 const IncomingError = ({ changes }: { changes?: ChangeStatus }) =>
   changes?.error ? (
     <p>
       Incoming updates are paused. Saved local work and drafts are retained.{" "}
-      {changes.error === "snapshot_required"
-        ? "This library needs a recovery download."
-        : "Synchronization retries when the connection and account are available."}
+      {incomingExplanation(changes.error)}
     </p>
   ) : null;
 export const LocalLibraryStatus = ({
@@ -90,18 +113,21 @@ export const LocalLibraryStatus = ({
   onOpen: (id: string) => void;
   onRetry: () => void;
 }) => {
-  const label = incomingLabel(
-    status,
-    signedIn,
-    upload,
-    changes,
-    uploadLabel(signedIn, offline, status?.pendingChanges ?? 0, upload)
-  );
+  const pendingChanges = status?.pendingChanges ?? 0;
+  const label =
+    admissionLabel(changes, upload) ??
+    incomingLabel(
+      status,
+      signedIn,
+      upload,
+      changes,
+      uploadLabel(signedIn, offline, pendingChanges, upload)
+    );
   return (
     <details>
       <summary>{label}</summary>
       <p>
-        {status?.pendingChanges ?? 0} pending changes. Saved local changes await
+        {pendingChanges} pending changes. Saved local changes await
         synchronization.
       </p>
       <LastChecked at={changes?.lastCheckedAt} />

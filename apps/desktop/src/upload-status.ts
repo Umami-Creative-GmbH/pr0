@@ -6,6 +6,12 @@ export const uploadLabel = (
   pending: number,
   upload?: UploadStatus
 ) => {
+  if (upload?.error === "account_suspended") {
+    return "Account suspended · Changes retained";
+  }
+  if (upload?.error?.startsWith("retry_after:") && upload.retryAfterMs > 0) {
+    return `Service busy · Retrying in ${Math.ceil(upload.retryAfterMs / 1000)} seconds · Changes retained`;
+  }
   if (!signedIn && pending) {
     return "Sign in to sync · Changes waiting";
   }

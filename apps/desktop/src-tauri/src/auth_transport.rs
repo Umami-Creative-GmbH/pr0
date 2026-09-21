@@ -126,7 +126,19 @@ impl Transport for HttpsTransport {
                         .clamp(1, 86400);
                     return Err(format!("retry_after:{delay}"));
                 }
-                if status == 401 || status == 403 {
+                if status == 403 {
+                    let mut bytes = Vec::new();
+                    while let Some(chunk) =
+                        response.chunk().await.map_err(|_| "network_unavailable")?
+                    {
+                        if bytes.len() + chunk.len() > 4096 {
+                            return Err("authentication_required".into());
+                        }
+                        bytes.extend_from_slice(&chunk);
+                    }
+                    return Err(authorization_failure(&bytes));
+                }
+                if status == 401 {
                     return Err("authentication_required".into());
                 }
                 if status == 409 {
@@ -196,7 +208,15 @@ impl Transport for HttpsTransport {
         if status.is_redirection() {
             return Err("redirect_rejected".into());
         }
-        if status.as_u16() == 401 || status.as_u16() == 403 {
+        if status.as_u16() == 403 {
+            let mut bytes = Vec::new();
+            result
+                .take(4097)
+                .read_to_end(&mut bytes)
+                .map_err(|_| "network_unavailable")?;
+            return Err(authorization_failure(&bytes));
+        }
+        if status.as_u16() == 401 {
             return Err("authentication_required".into());
         }
         if matches!(endpoint, Endpoint::Changes) && status.as_u16() == 409 {
@@ -237,6 +257,20 @@ impl Transport for HttpsTransport {
     }
     fn open_browser(&self, url: &str) -> Result<(), String> {
         open::that(url).map_err(|_| "browser_unavailable".into())
+    }
+}
+
+fn authorization_failure(bytes: &[u8]) -> String {
+    if bytes.len() <= 4096
+        && serde_json::from_slice::<Value>(bytes)
+            .ok()
+            .and_then(|value| value.get("code").and_then(Value::as_str).map(str::to_owned))
+            .as_deref()
+            == Some("account_suspended")
+    {
+        "account_suspended".into()
+    } else {
+        "authentication_required".into()
     }
 }
 
