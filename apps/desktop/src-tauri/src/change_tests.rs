@@ -60,24 +60,32 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     let (directory, service, _) = downloaded_change_fixture();
     let id = "66666666-6666-4666-8666-666666666666";
     let prompt = service.library_detail(id).unwrap();
-    service.library_copy(copy_request(&service, id), |_| Ok(())).unwrap();
+    service
+        .library_copy(copy_request(&service, id), |_| Ok(()))
+        .unwrap();
     let mut saved = save_request(&service);
     saved.desired.title = "Saved before upgrade".into();
     service.library_create(saved.clone()).unwrap();
     drop(service);
-    let path = super::library_storage::library_path(
-        &directory, &prompt.instance_id, &prompt.account_id,
-    ).unwrap();
+    let path =
+        super::library_storage::library_path(&directory, &prompt.instance_id, &prompt.account_id)
+            .unwrap();
     let db = rusqlite::Connection::open(&path).unwrap();
     // Recreate main's version-4 schema with real downloaded and pending records.
-    db.execute_batch("DROP TABLE change_state; DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
+    db.execute_batch("DROP VIEW visible_prompt; CREATE VIEW visible_prompt AS SELECT * FROM base_visible_prompt; DROP TABLE organization_known; DROP TABLE organization_checkpoint; DROP TABLE organization_ack; DROP TABLE organization_queue; DROP TABLE organization_local; DROP TABLE organization_receipt; DROP TABLE organization_removed; DROP TABLE organization_affected; DROP TABLE organization_assignment; DROP TABLE organization_membership_removal; DROP VIEW visible_prompt; DROP VIEW base_visible_prompt; CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt); DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery; DROP TABLE change_state; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
     drop(db);
     let store = super::library_storage::LibraryStore::open(
-        &directory, &prompt.instance_id, &prompt.account_id,
-    ).unwrap();
+        &directory,
+        &prompt.instance_id,
+        &prompt.account_id,
+    )
+    .unwrap();
     assert!(store.status().unwrap().complete);
     assert_eq!(store.detail(id).unwrap().content, prompt.content);
-    assert_eq!(store.detail(&saved.prompt_id).unwrap().title, "Saved before upgrade");
+    assert_eq!(
+        store.detail(&saved.prompt_id).unwrap().title,
+        "Saved before upgrade"
+    );
     assert_eq!(store.status().unwrap().pending_changes, 2);
     assert_eq!(store.usage_status().unwrap().waiting, 1);
     assert_eq!(store.recents(0).unwrap()[0].id, id);
@@ -85,7 +93,11 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     assert!(store.change_request(0).unwrap().is_some());
     drop(store);
     let db = rusqlite::Connection::open(path).unwrap();
-    assert_eq!(db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 6);
+    assert_eq!(
+        db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
+            .unwrap(),
+        7
+    );
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();
 }
@@ -97,8 +109,11 @@ fn live_changes_before_usage_receipt_do_not_double_count_after_acknowledgement()
     let prompt = service.library_detail(id).unwrap();
     drop(service);
     let mut store = super::library_storage::LibraryStore::open(
-        &directory, &prompt.instance_id, &prompt.account_id,
-    ).unwrap();
+        &directory,
+        &prompt.instance_id,
+        &prompt.account_id,
+    )
+    .unwrap();
     let usage = super::usage_contract::Usage {
         id: uuid::Uuid::new_v4().to_string(),
         prompt_id: id.into(),
@@ -110,13 +125,18 @@ fn live_changes_before_usage_receipt_do_not_double_count_after_acknowledgement()
     page["changes"][0]["operationId"] = json!(usage.id);
     page["changes"][0]["prompts"][0]["useCount"] = json!(1);
     page["changes"][0]["prompts"][0]["lastUsedAt"] = json!(usage.occurred_at);
-    store.apply_changes(serde_json::from_value(page).unwrap()).unwrap();
+    store
+        .apply_changes(serde_json::from_value(page).unwrap())
+        .unwrap();
     let receipt = serde_json::from_value(json!({
         "operationId": usage.id, "promptId": id, "revision": "3",
         "acceptedAt": usage.occurred_at, "usedAt": usage.occurred_at,
         "conflict": null, "organizationNotice": null
-    })).unwrap();
-    store.acknowledge_usage(&body, super::upload_contract::Outcome::Accepted(receipt)).unwrap();
+    }))
+    .unwrap();
+    store
+        .acknowledge_usage(&body, super::upload_contract::Outcome::Accepted(receipt))
+        .unwrap();
     assert_eq!(store.usage_status().unwrap().awaiting_download, 0);
     assert_eq!(store.detail(id).unwrap().use_count, 1);
     assert_eq!(store.recents(0).unwrap()[0].id, id);

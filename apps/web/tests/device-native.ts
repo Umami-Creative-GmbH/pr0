@@ -17,6 +17,7 @@ import { verifyNativeChanges } from "./changes-native";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
+import { verifyNativeOrganization } from "./organization-native";
 import { verifyNativeRecovery } from "./recovery-native";
 import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
 import { verifyNativeUploads } from "./uploads-native";
@@ -131,6 +132,7 @@ const verifyNativePeerChanges = async ({
   page,
   selectedOrigin,
   native,
+  organization = false,
 }: {
   executable: string;
   directory: string;
@@ -139,6 +141,7 @@ const verifyNativePeerChanges = async ({
   page: Page;
   selectedOrigin: string;
   native: ReturnType<typeof worker>;
+  organization?: boolean;
 }) => {
   const peer = worker(
     executable,
@@ -163,7 +166,7 @@ const verifyNativePeerChanges = async ({
       peerStatus = await peer.command("poll");
     }
     assert.equal(peerStatus.state, "signed_in");
-    await verifyNativeChanges({
+    await (organization ? verifyNativeOrganization : verifyNativeChanges)({
       commands: [
         (command, args = {}) => native.library(command, z.json(), args),
         (command, args = {}) => peer.library(command, z.json(), args),
@@ -258,7 +261,7 @@ export const verifyNativeHttps = async (
     download?: boolean;
     upload?: boolean;
     usage?: boolean;
-    live?: boolean;
+    live?: boolean | "organization";
     operations?: boolean;
     recovery?: boolean;
     afterSession?: (context: NativeSession) => Promise<void>;
@@ -368,10 +371,21 @@ export const verifyNativeHttps = async (
     headless: true,
   });
   try {
-    await server.startServer({
+    const serverEnvironment = {
       PR0_ORIGIN: selectedOrigin,
       SMTP_TLS: "starttls",
-    });
+    };
+    // Organization races issue discovery requests faster than interactive use.
+    // Admission limits are exercised separately by the operations scenarios.
+    await server.startServer(
+      live === "organization"
+        ? {
+            ...serverEnvironment,
+            PR0_LIMIT_AUTH_BURST: "1000",
+            PR0_LIMIT_AUTH_MINUTE: "1000",
+          }
+        : serverEnvironment
+    );
     const begin = await native.command("begin", selectedOrigin);
     assert.equal(begin.state, "awaiting_approval");
     assert.equal(
@@ -516,6 +530,7 @@ export const verifyNativeHttps = async (
         page,
         selectedOrigin,
         native,
+        organization: live === "organization",
       });
     }
     if (usage) {

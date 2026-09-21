@@ -200,7 +200,9 @@ export const handlePrompts = async (
   try {
     const native =
       request.headers.has("authorization") &&
-      (target.kind === "mutations" || target.kind === "receipts");
+      (target.kind === "mutations" ||
+        target.kind === "receipts" ||
+        target.kind === "organization-states");
     if (native) {
       nativeOrigin(request);
     } else {

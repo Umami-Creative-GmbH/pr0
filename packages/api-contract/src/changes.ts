@@ -20,6 +20,10 @@ export const changeEventSchema = z.strictObject({
   acceptedAt: z.iso.datetime(),
   prompts: snapshotRecordsSchema.shape.prompts.max(2),
   deletedPromptIds: z.array(z.uuidv4()).max(1),
+  removedMemberships: z
+    .array(z.strictObject({ promptId: z.uuidv4(), tagId: z.uuidv4() }))
+    .max(20)
+    .optional(),
   organization: organizationSnapshotSchema,
   effect: organizationEffectSchema.nullable(),
 });

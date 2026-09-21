@@ -7,6 +7,7 @@ include!("change_tests.rs");
 include!("recovery_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
+include!("organization_tests.rs");
 include!("deletion_tests.rs");
 
 fn fixtures() -> serde_json::Value {
@@ -550,6 +551,27 @@ fn live_https_worker() {
                 .transition(serde_json::from_value(input["request"].clone()).unwrap())
                 .map(|value| json!(value)),
             "library_status" => service.library_status().map(|value| json!(value)),
+            "library_reconcile" => service.library_reconcile().map(|_| serde_json::Value::Null),
+            "library_organization" => service.library_organization(),
+            "library_organize" => serde_json::from_value(input["request"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| service.library_organize(r)),
+            "library_organization_impact" => serde_json::from_value(input["action"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| {
+                    service.library_organization_impact(
+                        r,
+                        input["replaces"].as_str().map(str::to_owned),
+                    )
+                }),
+            "library_organization_browse" => serde_json::from_value(input["request"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| service.library_organization_browse(r))
+                .map(|v| json!(v)),
+            "library_organization_review" => service.library_organization_review(
+                input["id"].as_str().unwrap(),
+                input["offset"].as_u64().unwrap_or(0) as u32,
+            ),
             "library_download" => service.library_download().map(|value| json!(value)),
             "library_recovery_browse" => service
                 .library_recovery_browse(input["offset"].as_u64().unwrap_or(0) as u32)

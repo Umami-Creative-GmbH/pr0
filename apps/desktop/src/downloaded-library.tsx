@@ -1,5 +1,6 @@
 import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
+import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import type {
   LocalPrompt,
   UploadStatus,
@@ -13,6 +14,12 @@ import { LibraryViews } from "./library-views";
 import { DownloadControls, LocalLibraryStatus } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
+import { organizationClient } from "./organization-client";
+import {
+  OrganizationControls,
+  PromptOrganization,
+} from "./organization-controls";
+import type { OrganizationFilters } from "./organization-controls";
 import { RecoveryLibrary } from "./recovery-library";
 import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
@@ -22,12 +29,10 @@ import { usePromptCopy } from "./use-prompt-copy";
 const editorIsBlocked = (editing: boolean, transition: boolean) =>
   editing || transition;
 
-export const DownloadedLibrary = ({
+const useDownloadedLibrary = ({
   signedIn,
   refreshAuth,
   account,
-  editingDisabled,
-  onEditing,
 }: {
   account: Status;
   signedIn: boolean;
@@ -35,9 +40,14 @@ export const DownloadedLibrary = ({
   editingDisabled: boolean;
   onEditing: (editing: boolean) => void;
 }) => {
-  const [status, setStatus] = useState<DownloadStatus>();
-  const [upload, setUpload] = useState<UploadStatus>();
-  const [changes, setChanges] = useState<ChangeStatus>();
+  const [snapshot, setSnapshot] = useState<{
+    status?: DownloadStatus;
+    upload?: UploadStatus;
+    changes?: ChangeStatus;
+    usage?: DesktopUsageStatus;
+    organization?: LocalOrganization;
+  }>({});
+  const { status, upload, changes, usage, organization } = snapshot;
   const [rows, setRows] = useState<DownloadedSummary[]>([]);
   const [localDetail, setLocalDetail] = useState<LocalPrompt>();
   const [editor, setEditor] = useState<{ initial?: LocalPrompt }>();
@@ -46,8 +56,11 @@ export const DownloadedLibrary = ({
   const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [usage, setUsage] = useState<DesktopUsageStatus>();
   const [recents, setRecents] = useState(false);
+  const [filters, setFilters] = useState<OrganizationFilters>({
+    collectionId: null,
+    tagIds: [],
+  });
   const refreshLibrary = useCallback(() => setRetry((value) => value + 1), []);
   const copy = usePromptCopy(account, refreshLibrary);
   useLibraryRefresh(refreshLibrary);
@@ -57,25 +70,47 @@ export const DownloadedLibrary = ({
   const currentOffset = useRef(0);
   const selectedPrompt = useRef<string | null>(null);
   const observedMappings = useRef(new Set<string>());
-  const open = useCallback(async (id: string) => {
-    selectedPrompt.current = id;
-    selection.current += 1;
-    const request = selection.current;
-    try {
-      const value = await libraryClient.editor(id);
-      if (alive.current && request === selection.current) {
-        setLocalDetail(value);
-      }
-    } catch (error) {
-      if (alive.current && request === selection.current) {
-        if (error === "prompt_not_found" || error === "prompt_unavailable") {
-          selectedPrompt.current = null;
-          setLocalDetail(undefined);
+  const open = useCallback(
+    async (id: string) => {
+      selectedPrompt.current = id;
+      selection.current += 1;
+      const request = selection.current;
+      try {
+        const value = await libraryClient.editor(id);
+        if (alive.current && request === selection.current) {
+          const assignedTags = new Set(value.prompt.tagIds);
+          const eligible =
+            !value.prompt.archived &&
+            (!filters.collectionId ||
+              value.prompt.collectionId === filters.collectionId) &&
+            filters.tagIds.every((tag) => assignedTags.has(tag));
+          setLocalDetail(eligible ? value : undefined);
+          if (!eligible) {
+            selectedPrompt.current = null;
+          }
         }
-        setErrorText(downloadError(error));
+      } catch (error) {
+        if (alive.current && request === selection.current) {
+          if (error === "prompt_not_found" || error === "prompt_unavailable") {
+            selectedPrompt.current = null;
+            setLocalDetail(undefined);
+          }
+          setErrorText(downloadError(error));
+        }
       }
+    },
+    [filters]
+  );
+  const organizationSaved = useCallback(async () => {
+    const nextOrganization = await organizationClient.snapshot();
+    if (alive.current) {
+      setSnapshot((previous) => ({
+        ...previous,
+        organization: nextOrganization,
+      }));
+      refreshLibrary();
     }
-  }, []);
+  }, [refreshLibrary]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -86,20 +121,28 @@ export const DownloadedLibrary = ({
     let cancelled = false;
     const refresh = async () => {
       const requestedOffset = currentOffset.current;
-      const [next, prompts, sync, incoming, uses] = await Promise.all([
-        libraryClient.status(),
-        recents
-          ? libraryClient.recents(requestedOffset)
-          : libraryClient.browse(requestedOffset),
-        libraryClient.uploadStatus(),
-        libraryClient.changeStatus(),
-        libraryClient.usageStatus(),
-      ]);
+      const [next, prompts, sync, incoming, uses, organizationSnapshot] =
+        await Promise.all([
+          libraryClient.status(),
+          organizationClient.browse(
+            requestedOffset,
+            recents,
+            filters.collectionId,
+            filters.tagIds
+          ),
+          libraryClient.uploadStatus(),
+          libraryClient.changeStatus(),
+          libraryClient.usageStatus(),
+          organizationClient.snapshot(),
+        ]);
       if (!cancelled) {
-        setStatus(next);
-        setUpload(sync);
-        setChanges(incoming);
-        setUsage(uses);
+        setSnapshot({
+          status: next,
+          upload: sync,
+          changes: incoming,
+          usage: uses,
+          organization: organizationSnapshot,
+        });
         if (
           sync.error === "authentication_required" ||
           uses.error === "authentication_required"
@@ -156,15 +199,18 @@ export const DownloadedLibrary = ({
       cancelled = true;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- An explicit Retry restarts this effect even when sign-in state is unchanged.
-  }, [signedIn, retry, refreshAuth, open, recents]);
+  }, [signedIn, retry, refreshAuth, open, recents, filters]);
   const browse = useCallback(
     async (next: number) => {
       browseRequest.current += 1;
       const request = browseRequest.current;
       try {
-        const prompts = await (recents
-          ? libraryClient.recents(next)
-          : libraryClient.browse(next));
+        const prompts = await organizationClient.browse(
+          next,
+          recents,
+          filters.collectionId,
+          filters.tagIds
+        );
         if (alive.current && request === browseRequest.current) {
           currentOffset.current = next;
           setOffset(next);
@@ -176,13 +222,13 @@ export const DownloadedLibrary = ({
         }
       }
     },
-    [recents]
+    [recents, filters]
   );
   const retryUsage = async () => {
     try {
       const result = await libraryClient.retryUsage();
       if (alive.current) {
-        setUsage(result);
+        setSnapshot((previous) => ({ ...previous, usage: result }));
         copy.usageRetried();
         setErrorText("");
         setRetry((value) => value + 1);
@@ -198,7 +244,8 @@ export const DownloadedLibrary = ({
   const retryUpload = async () => {
     try {
       await libraryClient.sync();
-      setUpload(await libraryClient.upload());
+      const result = await libraryClient.upload();
+      setSnapshot((previous) => ({ ...previous, upload: result }));
       setRetry((value) => value + 1);
     } catch {
       setRetry((value) => value + 1);
@@ -206,7 +253,8 @@ export const DownloadedLibrary = ({
   };
   const pauseDownload = async () => {
     try {
-      setStatus(await libraryClient.pauseDownload(!status?.paused));
+      const result = await libraryClient.pauseDownload(!status?.paused);
+      setSnapshot((previous) => ({ ...previous, status: result }));
       refreshLibrary();
     } catch {
       setErrorText(
@@ -214,22 +262,116 @@ export const DownloadedLibrary = ({
       );
     }
   };
+  const changeFilters = (next: OrganizationFilters) => {
+    browseRequest.current += 1;
+    currentOffset.current = 0;
+    selectedPrompt.current = null;
+    selection.current += 1;
+    setLocalDetail(undefined);
+    setOffset(0);
+    setRows([]);
+    setFilters(next);
+  };
+  const changeView = (value: boolean) => {
+    if (value !== recents) {
+      changeFilters({ collectionId: null, tagIds: [] });
+      setRecents(value);
+    }
+  };
+  const promptSaved = (value: LocalPrompt) => {
+    selectedPrompt.current = value.prompt.id;
+    selection.current += 1;
+    setEditor(undefined);
+    setLocalDetail(value);
+    setRetry((count) => count + 1);
+  };
+  return {
+    status,
+    upload,
+    changes,
+    rows,
+    setRows,
+    localDetail,
+    setLocalDetail,
+    editor,
+    setEditor,
+    offset,
+    setOffset,
+    errorText,
+    offline,
+    busy,
+    setRetry,
+    usage,
+    recents,
+    setRecents,
+    organization,
+    filters,
+    setFilters,
+    copy,
+    open,
+    organizationSaved,
+    browse,
+    retryUsage,
+    retryUpload,
+    pauseDownload,
+    refreshLibrary,
+    changeFilters,
+    changeView,
+    promptSaved,
+  };
+};
+interface LibraryProps {
+  account: Status;
+  signedIn: boolean;
+  refreshAuth: (command: "auth_status") => Promise<Status | undefined>;
+  editingDisabled: boolean;
+  onEditing: (editing: boolean) => void;
+}
+export const DownloadedLibrary = (props: LibraryProps) => {
+  const { account, signedIn, editingDisabled, onEditing } = props;
+  const {
+    status,
+    upload,
+    changes,
+    rows,
+    localDetail,
+    editor,
+    setEditor,
+    offset,
+    errorText,
+    offline,
+    busy,
+    usage,
+    recents,
+    organization,
+    filters,
+    copy,
+    open,
+    organizationSaved,
+    browse,
+    retryUsage,
+    retryUpload,
+    pauseDownload,
+    refreshLibrary,
+    changeFilters,
+    changeView,
+    promptSaved,
+  } = useDownloadedLibrary(props);
   return (
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
-      <LibraryViews
-        recents={recents}
-        onSelect={(value) => {
-          if (value === recents) {
-            return;
-          }
-          browseRequest.current += 1;
-          currentOffset.current = 0;
-          setOffset(0);
-          setRows([]);
-          setRecents(value);
-        }}
-      />
+      <LibraryViews recents={recents} onSelect={changeView} />
+      {organization ? (
+        <OrganizationControls
+          account={account}
+          snapshot={organization}
+          filters={filters}
+          onFilters={changeFilters}
+          onSaved={organizationSaved}
+          disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+          onEditing={onEditing}
+        />
+      ) : null}
       <output>{copy.message}</output>
       <UsageStatus
         status={usage}
@@ -274,12 +416,8 @@ export const DownloadedLibrary = ({
             onEditing(false);
           }}
           onSaved={(value) => {
-            selectedPrompt.current = value.prompt.id;
-            selection.current += 1;
-            setEditor(undefined);
+            promptSaved(value);
             onEditing(false);
-            setLocalDetail(value);
-            setRetry((count) => count + 1);
           }}
         />
       ) : null}
@@ -300,7 +438,7 @@ export const DownloadedLibrary = ({
         rows={rows}
         offset={offset}
         recents={recents}
-        copying={copy.busy || editingDisabled}
+        copying={copy.busy || editingDisabled || busy}
         onOpen={open}
         onCopy={copy.handleCopy}
         onBrowse={browse}
@@ -313,10 +451,19 @@ export const DownloadedLibrary = ({
             setEditor({ initial: localDetail });
             onEditing(true);
           }}
-          copying={copy.busy || editingDisabled}
+          copying={copy.busy || editingDisabled || busy}
           onCopy={() => {
             void copy.handleCopy(localDetail.prompt.id);
           }}
+        />
+      ) : null}
+      {localDetail && organization ? (
+        <PromptOrganization
+          account={account}
+          value={localDetail}
+          snapshot={organization}
+          onSaved={organizationSaved}
+          disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
         />
       ) : null}
     </section>

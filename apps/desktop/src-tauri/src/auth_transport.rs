@@ -15,6 +15,7 @@ pub enum Endpoint {
     Mutations,
     Receipts,
     Changes,
+    OrganizationStates,
     DeletionLookup,
     DeletionVerification,
 }
@@ -32,6 +33,7 @@ impl Endpoint {
             Self::Mutations => "/api/v1/sync/mutations",
             Self::Receipts => "/api/v1/sync/receipts",
             Self::Changes => "/api/v1/sync/changes",
+            Self::OrganizationStates => "/api/v1/library/organization/states",
             Self::DeletionLookup => "/api/v1/account-deletions/",
             Self::DeletionVerification => "/api/v1/account-deletions/verification",
         }
@@ -198,7 +200,7 @@ impl Transport for HttpsTransport {
             self.client.get(url)
         } else if matches!(endpoint, Endpoint::DeletionVerification) {
             self.client.get(url).query(&body.unwrap_or_default())
-        } else if matches!(endpoint, Endpoint::Changes) {
+        } else if matches!(endpoint, Endpoint::Changes | Endpoint::OrganizationStates) {
             self.client
                 .get(url)
                 .query(&body.unwrap_or_default())
@@ -248,7 +250,10 @@ impl Transport for HttpsTransport {
             Endpoint::Snapshot => 262144,
             Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
             Endpoint::DeletionVerification => super::deletion_proof::VERIFICATION_PAGE_BYTES,
-            Endpoint::Mutations | Endpoint::Receipts | Endpoint::Changes => 4_194_304,
+            Endpoint::Mutations
+            | Endpoint::Receipts
+            | Endpoint::Changes
+            | Endpoint::OrganizationStates => 4_194_304,
             _ => 16384,
         };
         if result

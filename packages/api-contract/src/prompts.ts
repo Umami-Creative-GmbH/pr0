@@ -322,6 +322,17 @@ export const organizationReviewSchema = z.strictObject({
 });
 export const organizationStatesSchema = z.strictObject({
   ...libraryScopeSchema.shape,
+  revision: revisionSchema.optional(),
+  removals: z
+    .array(
+      z.strictObject({
+        promptId: promptIdentitySchema,
+        tagId: promptIdentitySchema,
+        revision: revisionSchema,
+      })
+    )
+    .max(2000)
+    .optional(),
   states: z.array(organizationStateSchema).max(1000),
 });
 export const usePromptSchema = createPromptSchema

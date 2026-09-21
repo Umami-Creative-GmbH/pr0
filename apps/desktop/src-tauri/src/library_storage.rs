@@ -39,7 +39,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 6 {
+        if version > 7 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -129,7 +129,10 @@ impl LibraryStore {
                 UPDATE upload_state SET last_checked=NULL;
                 PRAGMA user_version=5; COMMIT;").map_err(io)?;
         }
-        if version < 6 {
+        // Both pre-merge branches used version 6 for different features.
+        // Inspect the schema so either existing database upgrades without losing work.
+        let has_recovery: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='recovery_state')", [], |r| r.get(0)).map_err(io)?;
+        if version < 7 && !has_recovery {
             db.execute_batch("BEGIN IMMEDIATE;
                 CREATE TABLE recovery_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), required INTEGER NOT NULL DEFAULT 0, paused INTEGER NOT NULL DEFAULT 0, error TEXT);
                 INSERT INTO recovery_state(singleton) VALUES(1);
@@ -140,6 +143,13 @@ impl LibraryStore {
                 ALTER TABLE pending_usage ADD COLUMN recovery INTEGER NOT NULL DEFAULT 0;
                 UPDATE recovery_state SET required=EXISTS(SELECT 1 FROM change_state WHERE error='snapshot_required');
                 PRAGMA user_version=6; COMMIT;").map_err(io)?;
+        }
+        if version < 7 {
+            let has_organization: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='organization_queue')", [], |r| r.get(0)).map_err(io)?;
+            if !has_organization {
+                migrate_organization(&db)?;
+            }
+            db.pragma_update(None, "user_version", 7).map_err(io)?;
         }
         Ok(Self {
             db,
@@ -314,6 +324,7 @@ impl LibraryStore {
         }
         tx.execute("UPDATE local_state SET revision=revision+1", [])
             .map_err(io)?;
+        project_organization(&tx)?;
         #[cfg(test)]
         test_stage("snapshot_page_commit")?;
         tx.commit().map_err(io)
@@ -395,4 +406,5 @@ include!("local_storage.rs");
 include!("upload_storage.rs");
 include!("change_storage.rs");
 include!("usage_storage.rs");
+include!("organization_storage.rs");
 include!("recovery_storage.rs");
