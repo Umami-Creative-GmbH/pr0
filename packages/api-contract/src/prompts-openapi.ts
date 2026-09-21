@@ -109,9 +109,9 @@ export const promptPaths = {
     get: {
       operationId: "getOrganizationStates",
       tags: ["Organization"],
-      security: [{ BrowserSession: [] }],
+      security: librarySecurity,
       description:
-        "Looks up removed identities only within this library. Merged tags expose an existing final target or null after target deletion. Cycles terminate safely. These aliases never authorize automatic UI filter substitution; unavailable selected identities keep returning no matches.",
+        "Looks up removed identities within this library at one locked revision. Optional promptIds returns explicit membership removal revisions along each requested tag's alias path, attributed to the requested identity. Merged tags expose an existing final target or null after target deletion. Cycles terminate safely. These aliases never authorize automatic UI filter substitution; unavailable selected identities keep returning no matches.",
       parameters: [
         {
           name: "ids",
@@ -119,6 +119,13 @@ export const promptPaths = {
           required: true,
           description: "Comma-separated list of 1–1,000 UUIDv4 identities.",
           schema: { type: "string", maxLength: 36_999 },
+        },
+        {
+          name: "promptIds",
+          in: "query",
+          description:
+            "Optional comma-separated list of 1–20 UUIDv4 prompt identities. Removal metadata is limited to 2,000 entries.",
+          schema: { type: "string", maxLength: 739 },
         },
       ],
       responses: {

@@ -4,7 +4,7 @@ import type { SQL, TransactionSQL } from "bun";
 import { AccountFailureError } from "./admission";
 import { database } from "./database";
 
-export const serverMigrationVersion = 19;
+export const serverMigrationVersion = 20;
 export const ensureSchemaCompatibility = async (
   sql: SQL | TransactionSQL = database()
 ) => {

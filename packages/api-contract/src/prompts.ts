@@ -322,6 +322,17 @@ export const organizationReviewSchema = z.strictObject({
 });
 export const organizationStatesSchema = z.strictObject({
   ...libraryScopeSchema.shape,
+  revision: revisionSchema.optional(),
+  removals: z
+    .array(
+      z.strictObject({
+        promptId: promptIdentitySchema,
+        tagId: promptIdentitySchema,
+        revision: revisionSchema,
+      })
+    )
+    .max(2000)
+    .optional(),
   states: z.array(organizationStateSchema).max(1000),
 });
 export const usePromptSchema = createPromptSchema
@@ -375,6 +386,7 @@ export type MutationEnvelope = z.infer<typeof mutationEnvelopeSchema>;
 export type CreatePrompt = z.infer<typeof createPromptSchema>;
 export const promptErrorSchema = z.strictObject({
   code: z.enum([
+    "account_suspended",
     "validation_failed",
     "name_conflict",
     "quota_exceeded",

@@ -50,7 +50,12 @@ import {
   negotiateCapabilities,
   deviceApprovalSchema,
 } from "@pr0/api-contract/device";
-import { healthPath, healthResponseSchema } from "@pr0/api-contract/health";
+import {
+  healthPath,
+  healthResponseSchema,
+  readinessResponseSchema,
+} from "@pr0/api-contract/health";
+import { operationalMetricsSchema } from "@pr0/api-contract/operations";
 import { z } from "zod";
 
 import { createPromptClient } from "./prompts";
@@ -365,6 +370,39 @@ export const createApiClient = ({
       }
 
       return healthResponseSchema.parse(await response.json());
+    },
+    async getReadiness(signal?: AbortSignal) {
+      const response = await fetcher(`${normalizedBaseUrl}/api/v1/ready`, {
+        signal,
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (response.status !== 200 && response.status !== 503) {
+        throw new ApiError(response.status);
+      }
+      const body = readinessResponseSchema.parse(await response.json());
+      if ((body.status === "ready") !== response.ok) {
+        throw new Error("Invalid readiness status");
+      }
+      return body;
+    },
+    async getOperationalMetrics(token: string, signal?: AbortSignal) {
+      const response = await fetcher(
+        `${normalizedBaseUrl}/api/v1/operations/metrics`,
+        {
+          signal,
+          cache: "no-store",
+          redirect: "error",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (!response.ok) {
+        throw new ApiError(response.status);
+      }
+      return operationalMetricsSchema.parse(await response.json());
     },
   };
 };

@@ -4,6 +4,15 @@ fn predecessor(directory: &std::path::Path, version: u32) {
     let path = super::library_storage::library_path(directory,
         "11111111-1111-4111-8111-111111111111", "33333333-3333-4333-8333-333333333333").unwrap();
     let db = rusqlite::Connection::open(path).unwrap();
+    downgrade_search_fixture(&db);
+    if version < 7 {
+        db.execute_batch("DROP VIEW visible_prompt; DROP VIEW base_visible_prompt;
+            CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt);
+            DROP TABLE organization_known; DROP TABLE organization_checkpoint; DROP TABLE organization_ack; DROP TABLE organization_queue; DROP TABLE organization_local; DROP TABLE organization_receipt; DROP TABLE organization_removed; DROP TABLE organization_affected; DROP TABLE organization_assignment; DROP TABLE organization_membership_removal;").unwrap();
+    }
+    if version < 6 {
+        db.execute_batch("DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery;").unwrap();
+    }
     if version < 5 { db.execute_batch("DROP TABLE change_state;").unwrap(); }
     if version < 4 { db.execute_batch("DROP TABLE pending_usage; DROP TABLE usage_state;").unwrap(); }
     if version < 3 { db.execute_batch("DROP TABLE upload_state; DROP TABLE prompt_mapping; ALTER TABLE outbox DROP COLUMN envelope; ALTER TABLE outbox DROP COLUMN receipt; ALTER TABLE outbox DROP COLUMN error; ALTER TABLE outbox DROP COLUMN next_attempt;").unwrap(); }
@@ -13,7 +22,7 @@ fn predecessor(directory: &std::path::Path, version: u32) {
 
 #[test]
 fn migration_every_predecessor_preserves_exact_pending_work_and_consistent_backup() {
-    for version in 1..=4 {
+    for version in 1..=7 {
         let (directory, service, _) = downloaded_change_fixture();
         let request = save_request(&service);
         if version >= 2 { service.library_create(request.clone()).unwrap(); }
@@ -57,7 +66,7 @@ fn migration_normalization_rebuild_preserves_primary_variants_and_resets_checkpo
     assert_eq!(service.library_detail(&request.prompt_id).unwrap().content, "  My complete draft\n");
     assert_eq!(serde_json::to_value(service.library_pending().unwrap()).unwrap(), pending);
     assert!(service.library_change_status().unwrap().last_checked_at.is_none());
-    assert!(path.with_extension("backup-v5.sqlite").is_file());
+    assert!(path.with_extension("backup-v8.sqlite").is_file());
     drop(service);
     std::fs::remove_dir_all(directory).unwrap();
 }
@@ -96,7 +105,7 @@ fn migration_refuses_newer_schema_and_backup_io_failure_without_changing_primary
 
 #[test]
 fn migration_full_volume_and_io_roll_back_every_predecessor() {
-    for version in 1..=4 {
+    for version in 1..=7 {
         for fault in ["full", "io"] {
             let (directory, service, _) = downloaded_change_fixture();
             let request = save_request(&service);
@@ -130,7 +139,7 @@ fn migration_kill_worker() {
 fn migration_interruption_rolls_back_every_predecessor() {
     use std::io::{BufRead, BufReader};
     use std::process::{Command, Stdio};
-    for version in 1..=4 {
+    for version in 1..=7 {
         let (directory, service, _) = downloaded_change_fixture();
         let request = save_request(&service);
         if version >= 2 { service.library_create(request.clone()).unwrap(); }
@@ -161,7 +170,7 @@ fn migration_broken_index_retains_browsing_during_io_failure_then_recovers() {
     let db = rusqlite::Connection::open(&path).unwrap();
     db.execute_batch("DROP TABLE local_f_content").unwrap();
     drop(db);
-    let blocked = path.with_extension("backup-v5.preparing");
+    let blocked = path.with_extension("backup-v8.preparing");
     std::fs::create_dir(&blocked).unwrap();
     let service = AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
     assert_eq!(service.library_status().unwrap().recovery_error.as_deref(), Some("migration_backup_failed"));

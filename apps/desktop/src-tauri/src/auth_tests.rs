@@ -4,10 +4,17 @@ use std::sync::{Arc, Mutex};
 include!("local_tests.rs");
 include!("upload_tests.rs");
 include!("change_tests.rs");
+include!("recovery_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
 include!("compatibility_tests.rs");
 include!("migration_tests.rs");
+include!("search_tests.rs");
+include!("search_fixture_transport.rs");
+#[cfg(feature = "search-webview-test")]
+include!("search_webview_tests.rs");
+include!("organization_tests.rs");
+include!("deletion_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     serde_json::from_str(include_str!(
@@ -387,6 +394,7 @@ fn late_redemption_after_cancel_cannot_store_credentials() {
         ) -> Result<serde_json::Value, String> {
             let data = fixtures();
             Ok(match endpoint {
+                Endpoint::DeletionLookup => json!({"status":"absent"}),
                 Endpoint::Capabilities => data["capabilities"].clone(),
                 Endpoint::Code => data["code"].clone(),
                 Endpoint::Token => {
@@ -545,8 +553,41 @@ fn live_https_worker() {
             "poll" => service.poll().map(|value| json!(value)),
             "sign_out" => service.sign_out().map(|value| json!(value)),
             "refresh" => service.refresh().map(|value| json!(value)),
+            "auth_sign_out" => service
+                .transition(serde_json::from_value(input["request"].clone()).unwrap())
+                .map(|value| json!(value)),
             "library_status" => service.library_status().map(|value| json!(value)),
+            "library_reconcile" => service.library_reconcile().map(|_| serde_json::Value::Null),
+            "library_organization" => service.library_organization(),
+            "library_organize" => serde_json::from_value(input["request"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| service.library_organize(r)),
+            "library_organization_impact" => serde_json::from_value(input["action"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| {
+                    service.library_organization_impact(
+                        r,
+                        input["replaces"].as_str().map(str::to_owned),
+                    )
+                }),
+            "library_organization_browse" => serde_json::from_value(input["request"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| service.library_organization_browse(r))
+                .map(|v| json!(v)),
+            "library_organization_review" => service.library_organization_review(
+                input["id"].as_str().unwrap(),
+                input["offset"].as_u64().unwrap_or(0) as u32,
+            ),
             "library_download" => service.library_download().map(|value| json!(value)),
+            "library_recovery_browse" => service
+                .library_recovery_browse(input["offset"].as_u64().unwrap_or(0) as u32)
+                .map(|v| json!(v)),
+            "library_recovery_detail" => service
+                .library_recovery_detail(
+                    input["snapshotId"].as_str().unwrap(),
+                    input["id"].as_str().unwrap(),
+                )
+                .map(|v| json!(v)),
             "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
             "library_change_status" => service.library_change_status().map(|v| json!(v)),
             "library_sync" => {
@@ -602,6 +643,7 @@ fn late_authenticated_response_after_logout_cannot_restore_the_account() {
         ) -> Result<serde_json::Value, String> {
             let data = fixtures();
             Ok(match endpoint {
+                Endpoint::DeletionLookup => json!({"status":"absent"}),
                 Endpoint::Capabilities => data["capabilities"].clone(),
                 Endpoint::Code => data["code"].clone(),
                 Endpoint::Token => data["token"].clone(),
@@ -655,10 +697,13 @@ fn known_revocation_survives_restart_without_erasing_retained_identity() {
         fn request(
             &self,
             _: &str,
-            _: Endpoint,
+            endpoint: Endpoint,
             _: Option<&str>,
             _: Option<serde_json::Value>,
         ) -> Result<serde_json::Value, String> {
+            if matches!(endpoint, Endpoint::DeletionLookup) {
+                return Ok(json!({"status":"absent"}));
+            }
             Err("authentication_required".into())
         }
         fn open_browser(&self, _: &str) -> Result<(), String> {
@@ -697,10 +742,13 @@ fn concurrent_restore_waits_for_the_same_revocation_check() {
         fn request(
             &self,
             _: &str,
-            _: Endpoint,
+            endpoint: Endpoint,
             _: Option<&str>,
             _: Option<serde_json::Value>,
         ) -> Result<serde_json::Value, String> {
+            if matches!(endpoint, Endpoint::DeletionLookup) {
+                return Ok(json!({"status":"absent"}));
+            }
             self.entered.wait();
             self.release.wait();
             Err("authentication_required".into())
@@ -841,6 +889,7 @@ fn expiry_and_offline_restart_preserve_the_prior_usable_download() {
         fresh,
         first,
         second,
+        change_fixture(),
     ])));
     let reopened = AuthService::new(directory.clone(), transport, vault).unwrap();
     assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
@@ -851,6 +900,7 @@ fn expiry_and_offline_restart_preserve_the_prior_usable_download() {
     assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
     assert!(!reopened.library_download().unwrap().complete);
     assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
+    assert!(!reopened.library_download().unwrap().complete);
     assert!(reopened.library_download().unwrap().complete);
     assert_eq!(reopened.library_browse(0).unwrap().len(), 2);
     drop(reopened);
@@ -946,11 +996,22 @@ impl Transport for Fixture {
     fn request(
         &self,
         _: &str,
-        _: Endpoint,
+        endpoint: Endpoint,
         _: Option<&str>,
         _: Option<serde_json::Value>,
     ) -> Result<serde_json::Value, String> {
-        let value = self.0.lock().unwrap().remove(0);
+        let mut responses = self.0.lock().unwrap();
+        if matches!(endpoint, Endpoint::DeletionLookup)
+            && !responses.first().is_some_and(|v| v.get("status").is_some())
+        {
+            return Ok(json!({"status":"absent"}));
+        }
+        if matches!(endpoint, Endpoint::DeletionVerification) {
+            return Ok(
+                json!({"instanceId": fixtures()["capabilities"]["instanceId"], "anchor": fixtures()["capabilities"]["deletionKey"], "rotations": []}),
+            );
+        }
+        let value = responses.remove(0);
         if let Some(error) = value
             .get("fixtureFailure")
             .and_then(serde_json::Value::as_str)

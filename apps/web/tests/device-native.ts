@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { changeStatusSchema } from "@pr0/api-contract/changes";
 import { uploadStatusSchema } from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
 import { chromium } from "playwright";
@@ -16,6 +17,8 @@ import { verifyNativeChanges } from "./changes-native";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
+import { verifyNativeOrganization } from "./organization-native";
+import { verifyNativeRecovery } from "./recovery-native";
 import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
 import { verifyNativeUploads } from "./uploads-native";
 import { verifyNativeUsage } from "./usage-native";
@@ -28,7 +31,7 @@ const resultSchema = z.object({
     message: z.string(),
   }),
 });
-const worker = (
+export const worker = (
   executable: string,
   directory: string,
   certificate: string,
@@ -129,6 +132,7 @@ const verifyNativePeerChanges = async ({
   page,
   selectedOrigin,
   native,
+  organization = false,
 }: {
   executable: string;
   directory: string;
@@ -137,6 +141,7 @@ const verifyNativePeerChanges = async ({
   page: Page;
   selectedOrigin: string;
   native: ReturnType<typeof worker>;
+  organization?: boolean;
 }) => {
   const peer = worker(
     executable,
@@ -161,7 +166,7 @@ const verifyNativePeerChanges = async ({
       peerStatus = await peer.command("poll");
     }
     assert.equal(peerStatus.state, "signed_in");
-    await verifyNativeChanges({
+    await (organization ? verifyNativeOrganization : verifyNativeChanges)({
       commands: [
         (command, args = {}) => native.library(command, z.json(), args),
         (command, args = {}) => peer.library(command, z.json(), args),
@@ -175,13 +180,95 @@ const verifyNativePeerChanges = async ({
   }
 };
 
+interface NativeSession {
+  native: ReturnType<typeof worker>;
+  page: Page;
+  origin: string;
+  directory: string;
+  traffic: { path: string; body: string }[];
+}
+
+const verifyNativeSuspension = async (
+  native: ReturnType<typeof worker>,
+  accountId: string
+) => {
+  const before = await native.library(
+    "library_browse",
+    z.array(z.object({ id: z.string(), title: z.string() }))
+  );
+  assert.ok(before.length > 0);
+  await runAcceptance([
+    "bun",
+    "--conditions=react-server",
+    "apps/web/scripts/accounts.ts",
+    "suspend",
+    accountId,
+  ]);
+  try {
+    const suspended = await native.library(
+      "library_changes",
+      changeStatusSchema
+    );
+    assert.equal(suspended.error, "account_suspended");
+    assert.deepEqual(
+      await native.library(
+        "library_browse",
+        z.array(z.object({ id: z.string(), title: z.string() }))
+      ),
+      before
+    );
+  } finally {
+    await runAcceptance([
+      "bun",
+      "--conditions=react-server",
+      "apps/web/scripts/accounts.ts",
+      "resume",
+      accountId,
+    ]);
+  }
+  process.stdout.write(
+    "PASS native HTTPS suspension is explicit and retains downloaded prompts\n"
+  );
+};
+
+const finishNativeJourney = async (
+  context: NativeSession,
+  recovery: boolean | undefined,
+  afterSession?: (context: NativeSession) => Promise<void>
+) => {
+  const { native, page, origin: selectedOrigin } = context;
+  if (recovery) {
+    await verifyNativeRecovery({
+      command: (name, args = {}) => native.library(name, z.json(), args),
+      page,
+      origin: selectedOrigin,
+    });
+    return;
+  }
+  const refreshed = await native.command("refresh");
+  assert.equal(refreshed.state, "signed_in");
+  await afterSession?.(context);
+  const signedOut = await native.command("sign_out");
+  assert.equal(signedOut.state, "signed_out");
+  process.stdout.write(
+    "PASS Rust HTTPS → browser email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
+  );
+};
+
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
-  download = false,
-  upload = false,
-  usage = false,
-  live = false
+  scenarios: {
+    download?: boolean;
+    upload?: boolean;
+    usage?: boolean;
+    live?: boolean | "organization";
+    operations?: boolean;
+    recovery?: boolean;
+    afterSession?: (context: NativeSession) => Promise<void>;
+  } = {}
 ) => {
+  const { download, upload, usage, live, operations, recovery, afterSession } =
+    scenarios;
   const account = await verifiedBrowser();
   if (download) {
     await seedDownloadCapacity(account.library);
@@ -284,17 +371,29 @@ export const verifyNativeHttps = async (
     headless: true,
   });
   try {
-    await server.startServer({
+    const serverEnvironment = {
       PR0_ORIGIN: selectedOrigin,
       SMTP_TLS: "starttls",
-    });
+    };
+    // Organization races issue discovery requests faster than interactive use.
+    // Admission limits are exercised separately by the operations scenarios.
+    await server.startServer(
+      live === "organization"
+        ? {
+            ...serverEnvironment,
+            PR0_LIMIT_AUTH_BURST: "1000",
+            PR0_LIMIT_AUTH_MINUTE: "1000",
+          }
+        : serverEnvironment
+    );
     const begin = await native.command("begin", selectedOrigin);
     assert.equal(begin.state, "awaiting_approval");
     assert.equal(
       native.url(),
       `${selectedOrigin}/device?user_code=${begin.userCode}`
     );
-    const page = await browser.newPage({ ignoreHTTPSErrors: true });
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await context.newPage();
     await page.goto(native.url());
     await page.getByLabel("Email", { exact: true }).fill(account.email);
     await page.getByLabel("Password", { exact: true }).fill(password);
@@ -431,6 +530,7 @@ export const verifyNativeHttps = async (
         page,
         selectedOrigin,
         native,
+        organization: live === "organization",
       });
     }
     if (usage) {
@@ -454,12 +554,19 @@ export const verifyNativeHttps = async (
         origin: selectedOrigin,
       });
     }
-    const refreshed = await native.command("refresh");
-    assert.equal(refreshed.state, "signed_in");
-    const signedOut = await native.command("sign_out");
-    assert.equal(signedOut.state, "signed_out");
-    process.stdout.write(
-      "PASS Rust HTTPS → browser email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
+    if (operations) {
+      await verifyNativeSuspension(native, account.library.account.id);
+    }
+    await finishNativeJourney(
+      {
+        native,
+        page,
+        origin: selectedOrigin,
+        directory: path.join(directory, "state"),
+        traffic,
+      },
+      recovery,
+      afterSession
     );
   } finally {
     try {

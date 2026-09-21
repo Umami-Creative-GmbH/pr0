@@ -21,6 +21,7 @@ impl Transport for UploadFixture {
     ) -> Result<serde_json::Value, String> {
         let data = fixtures();
         match endpoint {
+            Endpoint::DeletionLookup => Ok(json!({"status":"absent"})),
             Endpoint::Capabilities => {
                 let mut capabilities = data["capabilities"].clone();
                 if token.is_some() && std::env::var("PR0_COMPATIBILITY_UI_FIXTURE").as_deref() == Ok("true") { capabilities["protocols"] = json!([2]); }

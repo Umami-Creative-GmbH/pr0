@@ -23,7 +23,7 @@ try {
     "60000",
   ]);
   await verifySnapshotExpiry(server);
-  await verifyNativeHttps(server, true);
+  await verifyNativeHttps(server, { download: true });
 } finally {
   await server.cleanup();
 }

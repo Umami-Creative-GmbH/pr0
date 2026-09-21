@@ -23,7 +23,8 @@ const filenames = [
   "016-device.sql",
   "017-snapshots.sql",
   "018-live-changes.sql",
-  "019-compatible-upgrades.sql",
+  "019-service-operations.sql",
+  "020-compatible-upgrades.sql",
 ];
 
 export const migrate = async (pool: SQL) => {

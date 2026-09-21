@@ -2,7 +2,7 @@ use super::library_storage::io;
 use rusqlite::{params, Connection, TransactionBehavior};
 use std::path::Path;
 
-pub const CURRENT_SCHEMA: u32 = 5;
+pub const CURRENT_SCHEMA: u32 = 8;
 
 pub fn migrate(
     db: &mut Connection,
@@ -92,6 +92,39 @@ pub fn migrate(
                 INSERT INTO change_state(singleton) VALUES(1);
                 UPDATE upload_state SET last_checked=NULL;
                 PRAGMA user_version=5; ").map_err(io)?;
+    }
+
+    // Earlier branches reused versions 6 and 7 for different feature combinations.
+    // Inspect the schema so either existing database upgrades without losing work.
+    let has_recovery: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='recovery_state')", [], |r| r.get(0)).map_err(io)?;
+    if version < 8 && !has_recovery {
+        tx.execute_batch("
+                CREATE TABLE recovery_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), required INTEGER NOT NULL DEFAULT 0, paused INTEGER NOT NULL DEFAULT 0, error TEXT);
+                INSERT INTO recovery_state(singleton) VALUES(1);
+                CREATE TABLE recovery_archive(snapshot TEXT PRIMARY KEY REFERENCES download(id), captured_at TEXT NOT NULL);
+                CREATE TABLE recovery_prompt(snapshot TEXT NOT NULL REFERENCES recovery_archive(snapshot), id TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(snapshot,id));
+                CREATE TABLE recovery_work(snapshot TEXT NOT NULL REFERENCES recovery_archive(snapshot), id TEXT NOT NULL, kind TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(snapshot,id));
+                CREATE TABLE recovery_blocked(prompt_id TEXT PRIMARY KEY);
+                ALTER TABLE pending_usage ADD COLUMN recovery INTEGER NOT NULL DEFAULT 0;
+                UPDATE recovery_state SET required=EXISTS(SELECT 1 FROM change_state WHERE error='snapshot_required');
+                PRAGMA user_version=6;").map_err(io)?;
+    }
+    if version < 8 {
+        let has_organization: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='organization_queue')", [], |r| r.get(0)).map_err(io)?;
+        if !has_organization {
+            super::library_storage::migrate_organization(&tx)?;
+        }
+        let indexed: bool = tx
+            .query_row(
+                "SELECT version=2 FROM local_search_version WHERE singleton=1",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(io)?;
+        if !indexed {
+            super::local_search::upgrade(&tx).map_err(io)?;
+        }
+        super::local_search::integrate_organization(&tx).map_err(io)?;
     }
 
     #[cfg(test)]

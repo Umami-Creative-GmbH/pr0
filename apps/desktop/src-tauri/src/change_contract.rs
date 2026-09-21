@@ -19,6 +19,8 @@ pub struct ChangePage {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Change {
+    #[serde(default)]
+    pub removed_memberships: Vec<RemovedMembership>,
     pub revision: String,
     pub operation_id: String,
     pub accepted_at: String,
@@ -26,6 +28,12 @@ pub struct Change {
     pub prompts: Vec<Prompt>,
     pub deleted_prompt_ids: Vec<String>,
     pub effect: Option<Effect>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RemovedMembership {
+    pub prompt_id: String,
+    pub tag_id: String,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -70,6 +78,14 @@ impl ChangePage {
         }
         let mut next = revision(&self.from_revision)?;
         for event in &self.changes {
+            if event.removed_memberships.len() > 20
+                || event.removed_memberships.iter().any(|m| {
+                    !super::local_contract::uuid4(&m.prompt_id)
+                        || !super::local_contract::uuid4(&m.tag_id)
+                })
+            {
+                return Err("invalid_response".into());
+            }
             next = next.checked_add(1).ok_or("invalid_response")?;
             if revision(&event.revision)? != next
                 || !uuid::Uuid::parse_str(&event.operation_id)

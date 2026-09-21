@@ -10,7 +10,14 @@ import type { NativeArgs } from "./local-native-worker";
 
 test("desktop incompatible server shows update recovery and retains exact saved work for keyboard browsing", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-upgrade-ui-"));
-  const native = await localNativeWorker(directory, true, true);
+  const native = await localNativeWorker(
+    directory,
+    true,
+    false,
+    false,
+    "debug",
+    true
+  );
   const browser = await chromium.launch({
     channel: process.env.PR0_TEST_BROWSER ?? "chrome",
     headless: true,
@@ -63,6 +70,9 @@ test("desktop incompatible server shows update recovery and retains exact saved 
       .getByLabel("Content", { exact: true })
       .fill("  Exact ß é variant\n");
     await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Retained across versions", exact: true })
+      .click();
     await page.getByText("Saved on this device", { exact: true }).waitFor();
     const pending = await native.command("library_pending");
     await native.command("library_upload");

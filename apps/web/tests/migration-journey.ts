@@ -43,8 +43,8 @@ export const verifyServerUpgrade = async (
   await server.stopServer();
   await server.stopMail();
   await sql`ALTER TABLE instance DROP COLUMN minimum_server_migration`;
-  await sql`DELETE FROM migration WHERE version=19`;
-  await sql`UPDATE migration_control SET completed=18,phase='ready' WHERE singleton=1`;
+  await sql`DELETE FROM migration WHERE version=20`;
+  await sql`UPDATE migration_control SET completed=19,phase='ready' WHERE singleton=1`;
   const coordinator = await sql.reserve();
   try {
     await coordinator`SELECT pg_advisory_lock(24001)`;
@@ -71,21 +71,21 @@ export const verifyServerUpgrade = async (
   const [checkpoint] =
     await sql`SELECT phase,completed FROM migration_control WHERE singleton=1`;
   assert.equal(checkpoint.phase, "preflight");
-  assert.equal(checkpoint.completed, 18);
+  assert.equal(checkpoint.completed, 19);
   await runAcceptance([...compose, "run", "--rm", "migrate"]);
   const [backup] =
     await sql`SELECT backup,phase,completed FROM migration_control WHERE singleton=1`;
   assert.match(backup.backup, /sha256/u);
-  assert.equal(backup.completed, 19);
+  assert.equal(backup.completed, 20);
   assert.equal(backup.phase, "ready");
   server.startMail();
   await server.startServer();
   assert.deepEqual(await client.getPrompt(operation.promptId), prompt);
   assert.deepEqual(await client.mutatePrompts(envelope), receipt);
   // A contract migration raises the minimum binary; reads must safely stop.
-  await sql`UPDATE instance SET minimum_server_migration=20`;
+  await sql`UPDATE instance SET minimum_server_migration=21`;
   const incompatible = await fetch(`${origin}/api/v1/capabilities`);
   assert.equal(incompatible.status, 503);
-  await sql`UPDATE instance SET minimum_server_migration=19`;
+  await sql`UPDATE instance SET minimum_server_migration=20`;
   assert.deepEqual(await client.getPrompt(operation.promptId), prompt);
 };

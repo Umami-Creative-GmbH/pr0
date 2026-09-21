@@ -31,6 +31,15 @@ When a ticket's acceptance criteria are met and required validation passes, incl
 - Tauri retains its Rust core and system WebView; Bun runs its JavaScript tooling. Node-compatible APIs/types do not imply a Node.js runtime requirement.
 - See [architecture conventions](docs/architecture.md) for workspace boundaries.
 
+# React Doctor false positives
+
+When reviewing React Doctor results, verify each suspected false positive against the affected code. Fix valid findings; record confirmed false positives as exceptions in the applicable `doctor.config.ts`, creating it if needed.
+
+- Follow the [React Doctor configuration documentation](https://www.react.doctor/docs/configuration/config-files) when adding or updating exceptions.
+- Prefer `ignore.overrides` with specific `files` and `rules`. Use `ignore.rules` only when a rule does not apply anywhere in the project, and `ignore.files` only when all diagnostics for those files should be excluded.
+- Add a short comment beside each exception explaining why the finding is a false positive.
+- Rerun the same React Doctor scan to verify that the exception suppresses the intended finding while unrelated findings remain visible.
+
 # Ultracite Code Standards
 
 This project uses **Ultracite**, a zero-config preset that enforces strict code quality standards through automated formatting and linting.

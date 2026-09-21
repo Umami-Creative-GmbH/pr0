@@ -31,6 +31,7 @@ impl LibraryStore {
         Ok(())
     }
     pub fn prepare_usage(&mut self) -> Result<Option<(serde_json::Value, bool)>, String> {
+        if self.recovering()? { return Ok(None); }
         let tx = self.db.transaction().map_err(io)?;
         let manifest: Option<String> = tx
             .query_row(
@@ -46,7 +47,7 @@ impl LibraryStore {
         let manifest: Manifest =
             serde_json::from_str(&manifest).map_err(|_| "storage_unavailable")?;
         // A local create must be accepted before its use is sent. A usage event never retargets to a conflict copy.
-        let row:Option<(String,String,String,Option<String>)>=tx.query_row("SELECT id,prompt_id,occurred_at,envelope FROM pending_usage u WHERE receipt IS NULL AND NOT EXISTS(SELECT 1 FROM outbox o WHERE o.prompt_id=u.prompt_id AND json_extract(o.payload,'$.kind')='prompt.create' AND o.state<>'accepted_awaiting_download') ORDER BY rowid LIMIT 1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(io)?;
+        let row:Option<(String,String,String,Option<String>)>=tx.query_row("SELECT id,prompt_id,occurred_at,envelope FROM pending_usage u WHERE receipt IS NULL AND recovery=0 AND NOT EXISTS(SELECT 1 FROM outbox o WHERE o.prompt_id=u.prompt_id AND json_extract(o.payload,'$.kind')='prompt.create' AND o.state<>'accepted_awaiting_download') ORDER BY rowid LIMIT 1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(io)?;
         let Some((id, prompt, occurred, frozen)) = row else {
             return Ok(None);
         };
@@ -65,7 +66,7 @@ impl LibraryStore {
             params![id, body],
         )
         .map_err(io)?;
-        tx.commit().map_err(io)?;
+        commit_search(tx)?;
         Ok(Some((
             serde_json::from_str(&body).map_err(|_| "storage_unavailable")?,
             replay,
@@ -80,6 +81,7 @@ impl LibraryStore {
         let id = operation["operationId"]
             .as_str()
             .ok_or("invalid_response")?;
+        if self.db.query_row("SELECT EXISTS(SELECT 1 FROM pending_usage WHERE id=?1 AND recovery=1)",[id],|r|r.get::<_,bool>(0)).map_err(io)? { return Err("recovery_required".into()); }
         let receipt = match outcome {
             Outcome::Accepted(receipt) => receipt,
             Outcome::Rejected { error } => {
@@ -139,7 +141,7 @@ impl LibraryStore {
                 serde_json::from_str(&active).map_err(|_| "storage_unavailable")?;
             retire_downloaded_uploads(&tx, &active)?;
         }
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
     pub fn record_usage(&mut self, usage: &Usage) -> Result<(), String> {
         #[cfg(test)]
@@ -153,7 +155,7 @@ impl LibraryStore {
         )
         .map_err(io)?;
         // Recency is derived from this same durable event, so it cannot commit independently.
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
     pub fn project_usage(&self, prompt: &mut Prompt) -> Result<(), String> {
         let (count, used): (i64, Option<String>) = self.db.query_row(
@@ -198,6 +200,6 @@ impl LibraryStore {
             .collect())
     }
     pub fn usage_status(&self) -> Result<UsageStatus, String> {
-        self.db.query_row("SELECT (SELECT count(*) FROM pending_usage WHERE receipt IS NULL),(SELECT count(*) FROM pending_usage WHERE receipt IS NOT NULL),error,max(0,next_attempt-?1) FROM usage_state",[now()],|r| Ok(UsageStatus {waiting:r.get(0)?,awaiting_download:r.get(1)?,memory_only:0,error:r.get(2)?,retry_after_ms:r.get::<_,i64>(3)? as u64})).map_err(io)
+        self.db.query_row("SELECT (SELECT count(*) FROM pending_usage WHERE receipt IS NULL),(SELECT count(*) FROM pending_usage WHERE receipt IS NOT NULL),CASE WHEN EXISTS(SELECT 1 FROM pending_usage WHERE recovery=1) THEN 'recovery_required' ELSE error END,max(0,next_attempt-?1) FROM usage_state",[now()],|r| Ok(UsageStatus {waiting:r.get(0)?,awaiting_download:r.get(1)?,memory_only:0,error:r.get(2)?,retry_after_ms:r.get::<_,i64>(3)? as u64})).map_err(io)
     }
 }

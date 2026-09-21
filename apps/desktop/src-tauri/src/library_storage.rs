@@ -29,6 +29,27 @@ pub fn library_path(root: &Path, instance: &str, account: &str) -> Result<PathBu
     )))
 }
 impl LibraryStore {
+    pub fn recover_search(&mut self) -> Result<(), String> {
+        super::local_search::rebuild(&mut self.db).map_err(|error| {
+            if error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull) {
+                io(error)
+            } else {
+                "search_recovery_required".into()
+            }
+        })?;
+        self.recovery_error = None;
+        Ok(())
+    }
+    pub fn search(
+        &mut self,
+        request: &super::search_contract::SearchRequest,
+        cancelled: &impl Fn() -> bool,
+    ) -> Result<super::search_contract::SearchPage, String> {
+        let tx = self.db.transaction().map_err(io)?;
+        let result = super::search_query::search(&tx, request, cancelled)?;
+        tx.commit().map_err(io)?;
+        Ok(result)
+    }
     pub fn open(root: &Path, instance: &str, account: &str) -> Result<Self, String> {
         let path = library_path(root, instance, account)?;
         if std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
@@ -61,6 +82,8 @@ impl LibraryStore {
         }
         super::library_migrations::migrate(&mut db, &path, instance, account)?;
         let recovery_error = super::local_search::recover(&mut db, &path).err();
+        db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;")
+            .map_err(io)?;
         Ok(Self {
             db,
             recovery_error,
@@ -69,7 +92,7 @@ impl LibraryStore {
         })
     }
     pub fn pending(&self) -> Result<Option<(Manifest, usize)>, String> {
-        let row: Option<(String,u32)> = self.db.query_row("SELECT manifest,applied FROM download WHERE id=(SELECT staging FROM state WHERE singleton=1) AND complete=0", [], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(io)?;
+        let row: Option<(String,u32)> = self.db.query_row("SELECT manifest,applied FROM download WHERE id=(SELECT staging FROM state WHERE singleton=1)", [], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(io)?;
         row.map(|(value, page)| {
             serde_json::from_str(&value)
                 .map(|manifest| (manifest, page as usize))
@@ -79,7 +102,7 @@ impl LibraryStore {
     }
     pub fn expire(&mut self) -> Result<(), String> {
         self.db
-            .execute("UPDATE state SET staging=NULL WHERE singleton=1", [])
+            .execute_batch("BEGIN IMMEDIATE; UPDATE state SET staging=NULL WHERE singleton=1; UPDATE recovery_state SET required=1; COMMIT;")
             .map_err(io)?;
         Ok(())
     }
@@ -89,11 +112,13 @@ impl LibraryStore {
             return Err("snapshot_expired".into());
         }
         let value = serde_json::to_string(manifest).map_err(|_| "invalid_response")?;
+        self.preflight_snapshot(manifest)?;
         let tx = self.db.transaction().map_err(io)?;
+        preserve_recovery_epoch(&tx, manifest)?;
         // At most one staging copy; the prior usable generation remains intact.
         tx.execute("UPDATE state SET staging=NULL WHERE singleton=1", [])
             .map_err(io)?;
-        tx.execute("DELETE FROM download WHERE id NOT IN(SELECT active FROM state WHERE active IS NOT NULL)",[]).map_err(io)?;
+        tx.execute("DELETE FROM download WHERE id NOT IN(SELECT active FROM state WHERE active IS NOT NULL) AND id NOT IN(SELECT snapshot FROM recovery_archive)",[]).map_err(io)?;
         tx.execute(
             "INSERT INTO download(id,manifest) VALUES(?1,?2)",
             params![manifest.id, value],
@@ -104,9 +129,22 @@ impl LibraryStore {
             [&manifest.id],
         )
         .map_err(io)?;
-        tx.commit().map_err(io)
+        tx.execute(
+            "UPDATE change_state SET cursor=NULL,error=NULL,next_attempt=0,attempts=0,updating=1",
+            [],
+        )
+        .map_err(io)?;
+        tx.execute(
+            "UPDATE outbox SET error=NULL,next_attempt=0 WHERE error='snapshot_required'",
+            [],
+        )
+        .map_err(io)?;
+        commit_search(tx)
     }
     pub fn apply(&mut self, manifest: &Manifest, index: usize, page: Page) -> Result<(), String> {
+        if manifest.expired() {
+            return Err("snapshot_expired".into());
+        }
         let expected = manifest.pages.get(index).ok_or("invalid_response")?;
         let digest = format!("{:x}", Sha256::digest(page.payload.as_bytes()));
         if page.id != manifest.id
@@ -201,7 +239,10 @@ impl LibraryStore {
             params![manifest.id, (index + 1) as u32, complete],
         )
         .map_err(io)?;
-        if complete {
+        let initial: bool = tx
+            .query_row("SELECT active=staging FROM state", [], |r| r.get(0))
+            .map_err(io)?;
+        if complete && initial {
             retire_downloaded_uploads(&tx, manifest)?;
             tx.execute("UPDATE change_state SET cursor=NULL,updating=1", [])
                 .map_err(io)?;
@@ -210,12 +251,17 @@ impl LibraryStore {
                 [&manifest.id],
             )
             .map_err(io)?;
-            tx.execute("DELETE FROM download WHERE id<>?1", [&manifest.id])
+            tx.execute("DELETE FROM download WHERE id<>?1 AND id NOT IN(SELECT snapshot FROM recovery_archive)", [&manifest.id])
+                .map_err(io)?;
+            tx.execute("UPDATE recovery_state SET required=0", [])
                 .map_err(io)?;
         }
         tx.execute("UPDATE local_state SET revision=revision+1", [])
             .map_err(io)?;
-        tx.commit().map_err(io)
+        project_organization(&tx)?;
+        #[cfg(test)]
+        test_stage("snapshot_page_commit")?;
+        commit_search(tx)
     }
     pub fn status(&self) -> Result<LibraryStatus, String> {
         let row: Option<(String,u32,bool)> = self.db.query_row("SELECT manifest,applied,complete FROM download WHERE id=(SELECT coalesce(staging,active) FROM state)",[], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(io)?;
@@ -225,6 +271,11 @@ impl LibraryStore {
             .map_err(io)?;
         let mut status = LibraryStatus {
             recovery_error: self.recovery_error.clone(),
+            replacement: self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT active FROM state) AND complete=1) AND ((SELECT required FROM recovery_state) OR EXISTS(SELECT 1 FROM state WHERE staging IS NOT NULL))", [], |r|r.get(0)).map_err(io)?,
+            catching_up: self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT staging FROM state) AND complete=1)", [], |r|r.get(0)).map_err(io)?,
+            paused: self.db.query_row("SELECT paused FROM recovery_state", [], |r|r.get(0)).map_err(io)?,
+            error: self.db.query_row("SELECT error FROM recovery_state", [], |r|r.get(0)).map_err(io)?,
+            recovery_count: self.db.query_row("SELECT count(*) FROM recovery_prompt", [], |r|r.get(0)).map_err(io)?,
             complete: false,
             downloaded,
             total: 0,
@@ -239,7 +290,8 @@ impl LibraryStore {
         if let Some((value, applied, complete)) = row {
             let manifest: Manifest =
                 serde_json::from_str(&value).map_err(|_| "storage_unavailable")?;
-            status.complete = complete;
+            let recovering = self.recovering()?;
+            status.complete = complete && !recovering;
             status.total = manifest.prompt_count;
             status.applied_pages = applied;
             status.total_pages = manifest.pages.len() as u32;
@@ -286,6 +338,12 @@ impl LibraryStore {
     }
 }
 include!("local_storage.rs");
+fn commit_search(tx: rusqlite::Transaction<'_>) -> Result<(), String> {
+    super::local_search::flush(&tx).map_err(|_| "search_recovery_required".to_string())?;
+    tx.commit().map_err(io)
+}
 include!("upload_storage.rs");
 include!("change_storage.rs");
 include!("usage_storage.rs");
+include!("organization_storage.rs");
+include!("recovery_storage.rs");

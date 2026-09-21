@@ -1,0 +1,15 @@
+[
+  {
+    "code": "account_suspended",
+    "nativeError": "account_suspended",
+    "status": 403,
+    "retryable": false
+  },
+  {
+    "code": "temporarily_unavailable",
+    "nativeError": "retry_after:5",
+    "status": 503,
+    "retryable": true,
+    "retryAfter": 5
+  }
+]

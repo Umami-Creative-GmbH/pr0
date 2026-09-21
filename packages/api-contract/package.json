@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./desktop-search": "./src/desktop-search.ts",
+    "./local-organization": "./src/local-organization.ts",
+    "./operations": "./src/operations.ts",
     "./changes": "./src/changes.ts",
     "./desktop-copy": "./src/desktop-copy.ts",
     "./desktop-session": "./src/desktop-session.ts",

@@ -56,7 +56,16 @@ export const captureChange = async (
     FROM prompt p WHERE p.instance_id=${instanceId} AND p.account_id=${accountId} AND p.revision=${receipt.revision}::bigint ORDER BY p.id LIMIT 3`;
   const deleted =
     await sql`SELECT prompt_id FROM prompt_deletion WHERE instance_id=${instanceId} AND account_id=${accountId} AND revision=${receipt.revision}::bigint`;
+  const removedMemberships = change.organization_effect
+    ? []
+    : await sql<
+        { prompt_id: string; tag_id: string }[]
+      >`SELECT prompt_id,tag_id FROM prompt_tag WHERE instance_id=${instanceId} AND account_id=${accountId} AND remove_revision=${receipt.revision}::bigint AND remove_revision<>merge_revision LIMIT 21`;
   const event = changeEventSchema.parse({
+    removedMemberships: removedMemberships.map((row) => ({
+      promptId: row.prompt_id,
+      tagId: row.tag_id,
+    })),
     revision: receipt.revision,
     operationId: receipt.operationId,
     acceptedAt: change.accepted_at.toISOString(),

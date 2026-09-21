@@ -6,29 +6,28 @@ import {
 } from "@pr0/api-contract/desktop-copy";
 import type { DesktopCopy } from "@pr0/api-contract/desktop-copy";
 import {
+  desktopSearchSchema,
+  desktopSearchPageSchema,
+} from "@pr0/api-contract/desktop-search";
+import type { DesktopSearch } from "@pr0/api-contract/desktop-search";
+import {
   localPromptSchema,
   localSaveSchema,
   uploadStatusSchema,
 } from "@pr0/api-contract/local-prompts";
 import type { LocalSave } from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
+import {
+  downloadStatusSchema,
+  recoverySummariesSchema,
+} from "@pr0/api-contract/snapshots";
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
 import { upgradeRecoveryMessage } from "./upgrade-recovery";
 
-const statusSchema = z.strictObject({
+const statusSchema = downloadStatusSchema.extend({
   recoveryError: z.string().nullable().optional(),
-  pendingChanges: z.number().int().nonnegative(),
-  textBytes: z.number().int().nonnegative(),
-  complete: z.boolean(),
-  downloaded: z.number().int().min(0),
-  total: z.number().int().min(0).max(10_000),
-  appliedPages: z.number().int().min(0).max(1024),
-  totalPages: z.number().int().min(0).max(1024),
-  revision: z.string().nullable(),
-  instanceId: z.uuid(),
-  accountId: z.uuid(),
 });
 const summariesSchema = z
   .array(
@@ -38,6 +37,48 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  search: async (request: DesktopSearch, signal: AbortSignal) => {
+    const input = desktopSearchSchema.parse(request);
+    signal.throwIfAborted();
+    const cancel = async () => {
+      try {
+        await invoke("library_cancel_search", { id: input.requestId });
+      } catch {
+        /* The aborted response is still rejected below if native cancellation fails. */
+      }
+    };
+    signal.addEventListener("abort", cancel, { once: true });
+    try {
+      const page = desktopSearchPageSchema.parse(
+        await invoke("library_search", { request: input })
+      );
+      signal.throwIfAborted();
+      if (
+        page.instanceId !== input.instanceId ||
+        page.accountId !== input.accountId
+      ) {
+        throw new Error("invalid_native_response");
+      }
+      return page;
+    } finally {
+      signal.removeEventListener("abort", cancel);
+    }
+  },
+  recoverSearch: async (request: DesktopSearch) => {
+    await invoke("library_recover_search", {
+      request: desktopSearchSchema.parse(request),
+    });
+  },
+  pauseDownload: async (paused: boolean) =>
+    statusSchema.parse(await invoke("library_pause_download", { paused })),
+  recoveryBrowse: async (offset: number) =>
+    recoverySummariesSchema.parse(
+      await invoke("library_recovery_browse", { offset })
+    ),
+  recoveryDetail: async (snapshotId: string, id: string) =>
+    promptSchema.parse(
+      await invoke("library_recovery_detail", { snapshotId, id })
+    ),
   sync: async () => {
     await invoke("library_sync");
   },
@@ -109,12 +150,35 @@ export const libraryClient = {
   detail: async (id: string) =>
     promptSchema.parse(await invoke("library_detail", { id })),
 };
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
-export const downloadError = (error: unknown) => {
+export const downloadError = (
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
+  error: unknown,
+  context: "download" | "search" = "download"
+) => {
   const code = z.string().safeParse(error).data;
   const recovery = code ? upgradeRecoveryMessage(code) : undefined;
   if (recovery) {
     return recovery;
+  }
+  if (error === "operation_cancelled") {
+    return context === "search"
+      ? "The account changed. Refresh the connection before searching again."
+      : "Download paused or already running. Saved prompts and pending work are retained.";
+  }
+  if (error === "disk_full") {
+    return "There is not enough free disk space. Free some space and retry; saved prompts and pending changes are preserved.";
+  }
+  if (error === "search_recovery_required") {
+    return "Search needs recovery. Rebuild the search index; saved prompts and pending changes are preserved.";
+  }
+  if (error === "search_busy" || error === "search_preparing") {
+    return "Preparing search. Please retry shortly.";
+  }
+  if (error === "download_in_progress") {
+    return "Download paused or already running. Saved prompts and pending work are retained.";
+  }
+  if (error === "insufficient_scratch_space") {
+    return "Not enough free disk space to stage the library. Free disk space and retry; saved prompts and pending work are retained.";
   }
   if (error === "download_backoff") {
     return "Download paused after a connection or server error. Saved prompts remain available; retry shortly.";
@@ -124,9 +188,6 @@ export const downloadError = (error: unknown) => {
   }
   if (error === "redirect_rejected") {
     return "The server redirected the download. Check its canonical address; downloaded prompts are preserved.";
-  }
-  if (error === "local_update_required") {
-    return "This library needs a newer version of pr0. Update the app; local data is preserved.";
   }
   if (error === "authentication_required") {
     return "Sign in to resume downloading. Your downloaded prompts remain available.";
