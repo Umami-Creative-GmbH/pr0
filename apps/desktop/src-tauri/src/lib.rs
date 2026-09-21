@@ -7,9 +7,11 @@ mod auth_transport;
 mod change_contract;
 mod clipboard;
 mod library_contract;
+mod library_migrations;
 mod library_storage;
 mod local_contract;
 mod local_search;
+mod migration_backup;
 mod upload_contract;
 mod usage_contract;
 

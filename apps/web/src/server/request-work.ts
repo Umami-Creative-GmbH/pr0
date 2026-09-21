@@ -3,10 +3,12 @@ import "server-only";
 import { AccountFailureError } from "./admission";
 import { workDatabase } from "./database";
 import { ensureDeletionRecovery } from "./deletion-recovery";
+import { ensureSchemaCompatibility } from "./schema-compatibility";
 
 export const withRequestWork = async (
   operation: (claimOwner: (owner: string) => Promise<void>) => Promise<Response>
 ) => {
+  await ensureSchemaCompatibility();
   await ensureDeletionRecovery();
   const sql = workDatabase();
   const id = crypto.randomUUID();
@@ -19,6 +21,7 @@ export const withRequestWork = async (
     while (!admitted) {
       admitted = await sql.begin(async (tx) => {
         await tx`SELECT pg_advisory_xact_lock(24005)`;
+        await ensureSchemaCompatibility(tx);
         await tx`DELETE FROM request_work WHERE expires_at <= now()`;
         const [counts] =
           await tx`SELECT count(*) FILTER (WHERE active)::int AS active,

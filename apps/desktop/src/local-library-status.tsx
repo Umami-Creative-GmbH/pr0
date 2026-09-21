@@ -2,6 +2,7 @@ import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
 
 import type { DownloadStatus } from "./library-client";
+import { upgradeRecoveryMessage } from "./upgrade-recovery";
 import { uploadLabel, uploadFailureMessage } from "./upload-status";
 
 export const DownloadProgress = ({
@@ -73,6 +74,23 @@ const IncomingError = ({ changes }: { changes?: ChangeStatus }) =>
         : "Synchronization retries when the connection and account are available."}
     </p>
   ) : null;
+const RecoveryError = ({ code }: { code?: string | null }) =>
+  code ? (
+    <p role="alert">
+      Search preparation could not finish.{" "}
+      {upgradeRecoveryMessage(code) ??
+        "Check storage access and restart pr0 to retry. Browsing and copying remain available; primary prompts and pending changes are preserved."}
+    </p>
+  ) : null;
+const UploadError = ({ code }: { code?: string | null }) =>
+  code ? (
+    <p>
+      {upgradeRecoveryMessage(code) ??
+        (code === "incompatible_instance"
+          ? "Update pr0 or check your instance address before syncing. Local work is preserved."
+          : "Local work is preserved. Synchronization will retry automatically when the connection and account are available.")}
+    </p>
+  ) : null;
 export const LocalLibraryStatus = ({
   status,
   signedIn,
@@ -105,6 +123,7 @@ export const LocalLibraryStatus = ({
         synchronization.
       </p>
       <LastChecked at={changes?.lastCheckedAt} />
+      <RecoveryError code={status?.recoveryError} />
       <IncomingError changes={changes} />
       {upload?.awaitingDownload ? (
         <p>
@@ -112,13 +131,7 @@ export const LocalLibraryStatus = ({
           Downloading current records.
         </p>
       ) : null}
-      {upload?.error ? (
-        <p>
-          {upload.error === "incompatible_instance"
-            ? "Update pr0 or check your instance address before syncing. Local work is preserved."
-            : "Local work is preserved. Synchronization will retry automatically when the connection and account are available."}
-        </p>
-      ) : null}
+      <UploadError code={upload?.error} />
       {upload?.retryAfterMs ? (
         <p>
           Retry available in {Math.ceil(upload.retryAfterMs / 1000)} seconds.

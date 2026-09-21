@@ -84,6 +84,49 @@ pub fn migrate(db: &Connection) -> rusqlite::Result<()> {
     }
     Ok(())
 }
+
+pub fn recover(db: &mut Connection, path: &std::path::Path) -> Result<(), String> {
+    use super::library_storage::io;
+    let compatible = db.query_row("SELECT version=1 AND normalization='pr0-search-v1-ucd17' FROM local_search_version WHERE singleton=1", [], |r| r.get::<_, bool>(0)).unwrap_or(false);
+    let readable = db
+        .query_row("PRAGMA quick_check(local_search)", [], |r| {
+            r.get::<_, String>(0)
+        })
+        .is_ok_and(|value| value == "ok");
+    let postings_valid = ["title", "description", "content"].iter().all(|field| {
+        db.execute_batch(&format!(
+            "INSERT INTO local_f_{field}(local_f_{field},rank) VALUES('integrity-check',1);"
+        ))
+        .is_ok()
+    });
+    if compatible && readable && postings_valid {
+        return Ok(());
+    }
+    let tx = db
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(io)?;
+    super::migration_backup::prepare(&tx, path, super::library_migrations::CURRENT_SCHEMA)?;
+    // SQLite stages replacement pages in the transaction. Readers retain the
+    // previous committed generation until both projection and marker commit.
+    tx.execute_batch("DROP TABLE IF EXISTS local_f_title; DROP TABLE IF EXISTS local_f_description; DROP TABLE IF EXISTS local_f_content; DROP TABLE IF EXISTS local_search_short; DROP TABLE IF EXISTS local_search_version; DROP TABLE IF EXISTS local_search;").map_err(io)?;
+    migrate(&tx).map_err(io)?;
+    {
+        let mut statement = tx
+            .prepare("SELECT record FROM local_prompt ORDER BY id")
+            .map_err(io)?;
+        let mut records = statement.query([]).map_err(io)?;
+        let revision: i64 = tx
+            .query_row("SELECT revision FROM local_state", [], |r| r.get(0))
+            .map_err(io)?;
+        while let Some(row) = records.next().map_err(io)? {
+            let value: String = row.get(0).map_err(io)?;
+            let prompt: Prompt = serde_json::from_str(&value).map_err(|_| "storage_unavailable")?;
+            update(&tx, &prompt, revision).map_err(io)?;
+        }
+    }
+    tx.execute_batch("UPDATE change_state SET cursor=NULL,updating=1,error=NULL; UPDATE upload_state SET last_checked=NULL;").map_err(io)?;
+    tx.commit().map_err(io)
+}
 fn grams(text: &str) -> BTreeSet<String> {
     let mut result = BTreeSet::new();
     let mut previous = None;

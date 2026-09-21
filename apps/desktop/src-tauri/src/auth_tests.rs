@@ -6,6 +6,8 @@ include!("upload_tests.rs");
 include!("change_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
+include!("compatibility_tests.rs");
+include!("migration_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     serde_json::from_str(include_str!(

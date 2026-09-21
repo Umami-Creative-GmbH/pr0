@@ -6,6 +6,9 @@ export const uploadLabel = (
   pending: number,
   upload?: UploadStatus
 ) => {
+  if (upload?.error === "compatibility_update_required") {
+    return "Update required · Changes waiting";
+  }
   if (!signedIn && pending) {
     return "Sign in to sync · Changes waiting";
   }

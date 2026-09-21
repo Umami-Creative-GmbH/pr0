@@ -45,7 +45,11 @@ import {
   deletionTrustSchema,
   deletionVerificationSchema,
 } from "@pr0/api-contract/deletions";
-import { deviceApprovalSchema } from "@pr0/api-contract/device";
+import {
+  capabilitiesSchema,
+  negotiateCapabilities,
+  deviceApprovalSchema,
+} from "@pr0/api-contract/device";
 import { healthPath, healthResponseSchema } from "@pr0/api-contract/health";
 import { z } from "zod";
 
@@ -112,6 +116,16 @@ export const createApiClient = ({
   };
 
   return {
+    async getCompatibility(signal?: AbortSignal) {
+      const capabilities = capabilitiesSchema.parse(
+        await accountRequest(
+          "/api/v1/capabilities?negotiation=1",
+          undefined,
+          signal
+        )
+      );
+      return { capabilities, ...negotiateCapabilities(capabilities) };
+    },
     async decideDevice(
       input: z.infer<typeof deviceApprovalSchema>,
       approve: boolean,

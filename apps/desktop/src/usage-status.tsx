@@ -1,5 +1,7 @@
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 
+import { upgradeRecoveryMessage } from "./upgrade-recovery";
+
 export const UsageStatus = ({
   status,
   onRetry,
@@ -22,8 +24,8 @@ export const UsageStatus = ({
     ) : null}
     {status?.error ? (
       <p>
-        Usage sync is paused. Check your connection and sign-in; saved uses will
-        retry automatically.
+        {upgradeRecoveryMessage(status.error) ??
+          "Usage sync is paused. Check your connection and sign-in; saved uses will retry automatically."}
       </p>
     ) : null}
     {status?.memoryOnly ? (

@@ -19,7 +19,7 @@ pub enum Endpoint {
 impl Endpoint {
     fn path(self) -> &'static str {
         match self {
-            Self::Capabilities => "/api/v1/capabilities",
+            Self::Capabilities => "/api/v1/capabilities?negotiation=1",
             Self::Code => "/api/auth/device/code",
             Self::Token => "/api/auth/device/token",
             Self::Cancel => "/api/auth/device/cancel",

@@ -15,7 +15,10 @@ import { promptSchema } from "@pr0/api-contract/prompts";
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
+import { upgradeRecoveryMessage } from "./upgrade-recovery";
+
 const statusSchema = z.strictObject({
+  recoveryError: z.string().nullable().optional(),
   pendingChanges: z.number().int().nonnegative(),
   textBytes: z.number().int().nonnegative(),
   complete: z.boolean(),
@@ -108,6 +111,11 @@ export const libraryClient = {
 };
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
 export const downloadError = (error: unknown) => {
+  const code = z.string().safeParse(error).data;
+  const recovery = code ? upgradeRecoveryMessage(code) : undefined;
+  if (recovery) {
+    return recovery;
+  }
   if (error === "download_backoff") {
     return "Download paused after a connection or server error. Saved prompts remain available; retry shortly.";
   }

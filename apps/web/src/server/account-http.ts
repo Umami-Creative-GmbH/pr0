@@ -1,4 +1,3 @@
-import "server-only";
 import {
   accountErrorSchema,
   accountRequestSchema,
@@ -10,6 +9,7 @@ import {
   socialSignInSchema,
   socialVerificationSchema,
 } from "@pr0/api-contract/accounts";
+import "server-only";
 import type {
   AccountRequest,
   AccountResponse,
@@ -32,6 +32,7 @@ import { ensureDeletionRecovery } from "./deletion-recovery";
 import { validateMailConfiguration, withMailReservation } from "./mail";
 import { resetPassword } from "./recovery";
 import { withRequestWork } from "./request-work";
+import { ensureSchemaCompatibility } from "./schema-compatibility";
 import { withSessionIssuance } from "./session-issuance";
 import { enabledProviders } from "./social-config";
 
@@ -470,6 +471,7 @@ export const handleLibrary = async (request: Request) => {
 
 export const handleReadiness = async () => {
   try {
+    await ensureSchemaCompatibility();
     await ensureDeletionRecovery();
     configuration();
     validateMailConfiguration();

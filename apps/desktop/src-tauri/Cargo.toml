@@ -23,7 +23,7 @@ reqwest = { version = "0.12", default-features = false, features = [
   "json",
   "rustls-tls",
 ] }
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.40.2", features = ["bundled", "backup"] }
 url = "2"
 tokio = { version = "1", features = ["time"] }
 uuid = { version = "1", features = ["v4"] }
@@ -36,6 +36,7 @@ arboard = { version = "3.6.1", default-features = false }
 windows-sys = { version = "0.61.2", features = [
   "Win32_Foundation",
   "Win32_Security_Credentials",
+  "Win32_Storage_FileSystem",
 ] }
 
 # PROTOTYPE (issue #9): native quick launcher.

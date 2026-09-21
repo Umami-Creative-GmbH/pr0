@@ -29,6 +29,7 @@ impl AuthService {
                 json!(null),
             )?)?;
             capabilities.validate(&envelope.origin)?;
+            capabilities.negotiate()?;
             if capabilities.instance_id != envelope.instance_id
                 || capabilities.deletion_key != trust.deletion_key
             {

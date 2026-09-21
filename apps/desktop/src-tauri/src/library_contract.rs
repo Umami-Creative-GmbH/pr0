@@ -85,6 +85,7 @@ pub struct Summary {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryStatus {
+    pub recovery_error: Option<String>,
     pub text_bytes: u64,
     pub pending_changes: u32,
     pub complete: bool,
