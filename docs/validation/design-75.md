@@ -18,7 +18,7 @@ Issue #75 was reopened after PR #87. That port kept the earlier form-like markup
 ### What moved where
 
 - Shared presentation lives in `packages/ui`: tokens and component utilities in `styles/wayfinder.css`; `wayfinder-shell` (app bar, status and control slots, account menu), `search-box`, `prompt-row`, `prompt-header`, `prompt-content`, `wayfinder-dialog` (head/body/foot), `auth-layout`, chip-style `collection-picker`/`tag-picker`. Pure helpers in `lib/present.ts` (initials, stable collection accent, compact relative time, status tone) are unit-tested.
-- Variable highlighting uses `templateSpans` in `@pr0/api-contract/variables`. It shares one scanner with `parseTemplate`, so the highlight cannot disagree with substitution, typed tokens (`{{n|number}}`) stay whole and escaped tokens stay literal. The stored text remains a selectable read-only field; the highlight is a painted layer beneath it.
+- Variable highlighting uses `templateSpans` in `@pr0/api-contract/variables`. It shares one scanner with `parseTemplate`, so on the web the highlight cannot disagree with substitution; the desktop substitutes natively and is held to the same canonical fixtures. Typed tokens (`{{n|number}}`) stay whole and escaped tokens stay literal. The stored text remains a selectable read-only field; the highlight is a painted layer beneath it.
 - Real state is placed, not hidden: synchronization/attention status sits in the app bar with its full detail in a popover; copy results and retry controls appear as a toast; conflicts, action results and draft recovery stack above the detail; capacity sits in the detail footer.
 - Account settings (web) and account/connection (desktop) open from the account menu as a view beside the still-mounted library, so open drafts survive.
 
@@ -30,6 +30,20 @@ Issue #75 was reopened after PR #87. That port kept the earlier form-like markup
 - Copy feedback persists until the next action instead of disappearing after 2.2 seconds, because it can carry failure text and retry controls.
 - Sort, favorites-only, tag filters, management dialogs and paging have no counterpart in the design documents; they use the same chip, pill and eyebrow vocabulary. Picker search fields appear only when a list exceeds eight entries.
 - Light theme is the design's light token set; theme choice persists in `localStorage` and is shared by the desktop main and launcher windows.
+
+### Revision 2 checks (September 21, 2026, Windows 11, Edge/WebView2)
+
+Run with `PR0_BROWSER_CHANNEL=msedge` and `PR0_TEST_BROWSER=msedge`; this machine has no Chrome, and journeys that hardcoded the `chrome` channel now honor the existing override.
+
+- `bun run check`, `bun run typecheck` (6 workspaces) and `bun run test` pass. New unit coverage: `templateSpans` against every canonical variable fixture, and the presentation helpers in `packages/ui/src/lib/present.test.ts`.
+- Web production build (through the journey runner) and the desktop Vite build pass; the desktop bundle emits Outfit, Manrope and JetBrains Mono locally.
+- `bun run --cwd apps/web test:design` — web design journey: **1 passed** (REST save/reload, both themes, quick access results/no matches/clipboard failure/variables, keyboard list-to-copy).
+- Native WebView2 journeys against a rebuilt, manifested test binary: design-desktop **1 passed** (twice consecutively), desktop-variables **2 passed**, desktop-resident **5 passed**, desktop-launcher **4 passed**; in a later sequential run its four-collision case failed once waiting for Windows to release `Ctrl+Shift+P` and passed when run alone.
+- Desktop frontend with the real native worker: organization-native-ui **2 passed**, desktop-search-ui **1 passed**.
+
+Inherited journey failures, measured rather than assumed: the same twelve browser journey files were run against `origin/main` at `cf75c01` (PR #87) in a separate worktree. `origin/main`: **24 passed, 23 failed** of 47. This branch: **27 passed, 21 failed** of 48 (including the design journey). Four journeys that fail on `origin/main` pass here (tag and collection pickers at capacity, draft limits, clipboard rejection on account change). Two account-change journeys failed in the 12-file run and pass when their files run alone; they are load-sensitive. The remaining failures are shared with `origin/main` and have one cause: PR #87 made the editor a modal dialog, as the design specifies, without adapting journeys written for an inline editor. They click library rows, management dialogs or the account area behind an open editor, which is now inert until **Browse library (keep draft)** is used. `local-save-ui` and `usage-ui` fail for the same reason plus controls that live in the status popover or account view. Adapting those journeys is tracked separately; no product behavior was changed to make them pass.
+
+Not performed: installer, tray, OS title bar, screen reader and multi-monitor checks; `device`, `changes`, `operations`, `account-deletion` and `backup-restore` runners.
 
 ## Reference and destination map (recorded before UI changes)
 
@@ -64,7 +78,7 @@ Integration uncovered and fixed sign-out rejecting #54's residency files. Cleanu
 
 - Real account identity, sync/download failures, pending changes and capacity remain visible. There is no fake synced badge, traffic-light decoration, prototype stage selector or simulated global shortcut in production.
 - Large organization lists retain search, unavailable selections and management controls. The extra collection filter is expandable; these controls exceed the prototype's seeded chip-only behavior.
-- Content remains a selectable read-only text field showing the exact stored template, including typed placeholders. The prototype's decorative token highlighting is not reproduced in that field.
+- Content remains a selectable read-only text field showing the exact stored template, including typed placeholders. (Revision 2 adds token highlighting as a painted layer beneath that field; see above.)
 - Browser and native variable forms retain required-field validation, typed number input, frozen templates, changed-template recovery, bounded output and failure retention. Their explanatory text and larger multiline fields take more room than the prototype.
 - Native launcher's window, shortcut and focus policy remain owned by #51/#53. The browser overlay additionally implements the prototype's open-in-library shortcut; no new native command was invented to imitate it.
 - Production save failures have no equivalent prototype storage/server failure. The error captures below show actual REST quota refusal and an actual SQLite disk-full fault in the test host, not a shipped simulated-error control.

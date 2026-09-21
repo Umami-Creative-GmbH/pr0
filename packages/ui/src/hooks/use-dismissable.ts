@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 
-/** Closes an open `<details>` menu on Escape or a pointer press outside it. */
-export const useDismissable = () => {
-  const ref = useRef<HTMLDetailsElement>(null);
+/**
+ * Closes an open `<details>` menu on Escape or a pointer press outside it.
+ * Pass the menu’s existing ref when another hook already owns one.
+ */
+export const useDismissable = (
+  existing?: RefObject<HTMLDetailsElement | null>
+) => {
+  const own = useRef<HTMLDetailsElement>(null);
+  const ref = existing ?? own;
   useEffect(() => {
     const close = (restoreFocus: boolean) => {
       const menu = ref.current;
@@ -36,6 +43,6 @@ export const useDismissable = () => {
       window.removeEventListener("pointerdown", onPointer);
       window.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [ref]);
   return ref;
 };

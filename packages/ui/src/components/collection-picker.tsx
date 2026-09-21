@@ -75,7 +75,7 @@ export const CollectionPicker = ({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-      </PickerSearch>{" "}
+      </PickerSearch>
       <fieldset
         className={compact ? "wf-chips" : "wf-chips max-h-48 overflow-y-auto"}
         aria-label={`${label} options`}

@@ -5,7 +5,7 @@ import type { Collection, Tag } from "@pr0/api-contract/prompts";
 import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
 import { accentFor } from "@pr0/ui/lib/present";
 import { Search } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { PromptCopyStatus } from "./prompt-copy-status";
@@ -83,7 +83,7 @@ export const QuickAccess = ({
     Number(quick.filters.favorite) +
     Number(Boolean(quick.filters.collectionId)) +
     quick.filters.tagIds.length;
-  const total = quick.list.data?.pages[0]?.usage.promptCount;
+  const [filtersOpen, setFiltersOpen] = useState(activeFilters > 0);
   return (
     <WayfinderDialog
       label="Quick access"
@@ -115,7 +115,11 @@ export const QuickAccess = ({
               esc
             </kbd>
           </div>
-          <details className="wf-launcher-filters" open={activeFilters > 0}>
+          <details
+            className="wf-launcher-filters"
+            open={filtersOpen}
+            onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
+          >
             <summary>
               Filters{activeFilters ? ` (${activeFilters})` : ""}
             </summary>
@@ -270,9 +274,10 @@ export const QuickAccess = ({
             </>
           )}
           <span className="wf-grow" />
-          {total === undefined || copy.interaction ? null : (
+          {copy.interaction || quick.list.isPending ? null : (
             <span>
-              {quick.prompts.length} of {total.toLocaleString()}
+              {quick.prompts.length}
+              {quick.list.hasNextPage ? "+" : ""} shown
             </span>
           )}
           <button

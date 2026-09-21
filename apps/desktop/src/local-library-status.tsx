@@ -2,6 +2,7 @@ import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
 import { LastChecked } from "@pr0/ui/components/last-checked";
 import { AppBarStatus } from "@pr0/ui/components/wayfinder-shell";
+import { useDismissable } from "@pr0/ui/hooks/use-dismissable";
 import { statusTone } from "@pr0/ui/lib/present";
 import type { ReactNode } from "react";
 
@@ -325,6 +326,7 @@ export const LocalLibraryStatus = ({
   saveFailure?: boolean;
 }) => {
   const details = useSyncDetails();
+  useDismissable(details);
   const pendingChanges = status?.pendingChanges ?? 0;
   const label = organizationAttention
     ? "Changes need attention · Changes waiting"

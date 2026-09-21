@@ -45,7 +45,7 @@ export const TagPicker = ({
             type="button"
             className="wf-chip"
             data-kind="tag"
-            aria-pressed="true"
+            data-active="true"
             onClick={() => onChange(value.filter((entry) => entry !== tagId))}
             aria-label={`Remove tag ${nameFor(tagId)}`}
           >
@@ -67,7 +67,7 @@ export const TagPicker = ({
           className="mt-1 w-full text-sm"
           placeholder={compact ? `Search ${label.toLowerCase()}` : undefined}
         />
-      </PickerSearch>{" "}
+      </PickerSearch>
       <div
         className={compact ? "wf-chips" : "wf-chips max-h-48 overflow-y-auto"}
       >

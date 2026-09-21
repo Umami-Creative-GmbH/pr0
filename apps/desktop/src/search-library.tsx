@@ -2,6 +2,7 @@ import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import { organizationSearch } from "@pr0/api-contract/organization";
 import { promptSortSchema } from "@pr0/api-contract/prompts";
 import type { Collection, PromptView } from "@pr0/api-contract/prompts";
+import { pickerSearchThreshold } from "@pr0/ui/components/picker-search";
 import { PromptIconAction } from "@pr0/ui/components/prompt-actions";
 import { PromptRow } from "@pr0/ui/components/prompt-row";
 import { SearchBox } from "@pr0/ui/components/search-box";
@@ -21,7 +22,6 @@ const views: { value: PromptView; label: string; short: string }[] = [
   { value: "recents", label: "Recents", short: "Recents" },
   { value: "archive", label: "Archive", short: "Archive" },
 ];
-const searchThreshold = 8;
 const sorts = [
   { value: "recently-used", label: "Recently used" },
   { value: "recently-modified", label: "Recently modified" },
@@ -59,7 +59,7 @@ const OrganizationPicker = ({
         : [...selected, id]
     );
   };
-  const searchable = entries.length > searchThreshold;
+  const searchable = entries.length > pickerSearchThreshold;
   return (
     <div className="flex flex-col gap-2">
       <div className="wf-section-head">
