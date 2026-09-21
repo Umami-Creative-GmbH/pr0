@@ -13,7 +13,7 @@ Validated on Windows with Bun 1.4.2, Rust 1.98.1, WebView2 and production Vite a
 - Full native suite: 146 tests passed, including existing offline durability, interrupted uploads, restart, shortcut collisions and focus-refusal cases.
 - Resident and launcher WebView2 suites: 8 tests, 24 assertions passed. These exercise real production capabilities and command handlers, not a renderer IPC replacement.
 - Resident scenarios: Cancel retains the draft; Save and quit persists offline and reopens; an in-progress native save blocks exit until acknowledgement; full-disk failure retains all 256 KiB of draft content and retries; first-close explanation/hide; four concurrent manual activations reuse the existing draft; explicit discard exits.
-- Full root Bun suite passed. Desktop and shared-contract typechecking passed. Ultracite passed after extracting the editor's field presentation.
+- Full root Bun suite, full workspace typechecking, and Ultracite passed. Reinstalling the frozen dependencies repaired missing Tolgee transitive links without a source or version change.
 - [Quit dialog captured during the native hide/restore test](../evidence/issue-54-resident-quit.png).
 
 Storage failure and delayed commit are injected only in the Rust test build at the existing storage boundary. The same production command and SQLite transaction then run. Isolated fixture account approval supplies library data; no real account is used by these tests.
@@ -23,6 +23,12 @@ Storage failure and delayed commit are injected only in the Rust test build at t
 An isolated NSIS debug bundle (`pr0 Resident Validation`, identifier `com.umami-creative.pr0.validation54`, version `0.1.54`) built and installed successfully into the checkout's ignored `.scratch/installed-resident` directory. Its native library opened with the registered shortcut and accessible Settings/Quit controls. It uses a separate application-data directory from normal pr0.
 
 The installed notification-area keyboard/overflow journey, ordinary installed restart, and native tray actions have **not yet been certified**. Computer Use was stopped with the physical Escape key; automatic approval review rejected its resumption even after the user asked to continue. Do not treat the automated native/WebView tests as completion of these installed checks. Full release signing, secure/elevated surfaces and the broader startup/resource matrix are not claimed by this slice.
+
+The user subsequently reported that everything checked worked as intended at this stage, and explicitly requested moving to #75's accepted-design integration before continuing validation. This records that general confirmation without inventing a per-case installed matrix. Further #54 validation is deferred until that integration.
+
+## Review checkpoint
+
+Standards review: no actionable findings. Specification review: no confirmed implementation defect or scope creep; installed tray evidence remains incomplete, and a combined quit/restart case during an actual in-flight upload still needs evidence. Existing upload interruption and receipt replay tests passed, but do not replace that combined journey. Both outstanding checks are retained for validation after #75.
 
 ## Reproduction
 
