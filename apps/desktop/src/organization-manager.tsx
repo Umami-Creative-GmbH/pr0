@@ -21,6 +21,13 @@ import type { Status } from "./use-auth-session";
 const button =
   "rounded border px-3 py-2 focus-visible:outline-2 disabled:opacity-50";
 type Tab = "collections" | "tags";
+interface OrganizationEdit {
+  name: string;
+  id: string;
+  creating?: boolean;
+  replaces?: string;
+}
+
 const useOrganizationManager = ({
   account,
   snapshot,
@@ -246,12 +253,7 @@ const useOrganizationManager = ({
   if (uncertain) {
     saveLabel = "Retry save";
   }
-  const edit = (entry: {
-    id: string;
-    name: string;
-    creating?: boolean;
-    replaces?: string;
-  }) => {
+  const edit = (entry: OrganizationEdit) => {
     editRevision.current = snapshot.localRevision;
     setDraft({
       name: entry.name,
@@ -403,6 +405,182 @@ const PendingCleanup = ({
   );
 };
 
+const OrganizationTabs = ({
+  tab,
+  disabled,
+  onSelect,
+}: {
+  tab: Tab;
+  disabled: boolean;
+  onSelect: (tab: Tab) => void;
+}) => (
+  <div role="tablist" aria-label="Organization" className="flex gap-2">
+    {(["collections", "tags"] as const).map((value) => (
+      <button
+        key={value}
+        id={`native-${value}-tab`}
+        role="tab"
+        aria-selected={tab === value}
+        aria-controls="native-organization-panel"
+        tabIndex={tab === value ? 0 : -1}
+        disabled={disabled}
+        className={button}
+        type="button"
+        onClick={() => {
+          onSelect(value);
+        }}
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+            return;
+          }
+          event.preventDefault();
+          let next: Tab = tab === "tags" ? "collections" : "tags";
+          if (event.key === "Home") {
+            next = "collections";
+          }
+          if (event.key === "End") {
+            next = "tags";
+          }
+          onSelect(next);
+          document
+            .querySelector<HTMLButtonElement>(`#native-${next}-tab`)
+            ?.focus();
+        }}
+      >
+        {value === "collections" ? "Collections" : "Tags"}
+      </button>
+    ))}
+  </div>
+);
+
+const PendingOrganizationChanges = ({
+  pending,
+  disabled,
+  onReview,
+  onCorrect,
+}: {
+  pending: LocalOrganization["pending"];
+  disabled: boolean;
+  onReview: (action: OrganizationAction, operationId: string) => void;
+  onCorrect: (tab: Tab, entry: OrganizationEdit) => void;
+}) => {
+  if (!pending.some((entry) => entry.error)) {
+    return null;
+  }
+  return (
+    <section
+      aria-label="Changes need attention"
+      className="space-y-2 rounded border p-3"
+    >
+      <h3>Changes need attention</h3>
+      {pending.map((entry) => {
+        if (!entry.error) {
+          return null;
+        }
+        const { operation } = entry;
+        if (!("name" in operation)) {
+          return (
+            <PendingCleanup
+              key={entry.id}
+              entry={entry}
+              disabled={disabled}
+              onReview={(action) => {
+                onReview(action, entry.id);
+              }}
+            />
+          );
+        }
+        return (
+          <div key={entry.id}>
+            <p>
+              {operation.name}: {organizationError(entry.error)}
+            </p>
+            <button
+              type="button"
+              className={button}
+              disabled={disabled}
+              onClick={() => {
+                const collection = "collectionId" in operation;
+                onCorrect(collection ? "collections" : "tags", {
+                  name: operation.name,
+                  id: collection ? operation.collectionId : operation.tagId,
+                  creating: operation.kind.endsWith(".create"),
+                  replaces: entry.id,
+                });
+              }}
+            >
+              Correct name or review merge
+            </button>
+          </div>
+        );
+      })}
+    </section>
+  );
+};
+
+const OrganizationSnapshotStatus = ({
+  snapshot,
+  count,
+  limit,
+  tab,
+}: {
+  snapshot: LocalOrganization;
+  count: number;
+  limit: number;
+  tab: Tab;
+}) => (
+  <>
+    {" "}
+    <p>
+      Counts include active and archived prompts in the available device
+      snapshot.{" "}
+      {snapshot.complete
+        ? "Download complete."
+        : "Download incomplete; counts may be incomplete."}{" "}
+      {snapshot.pending.length} changes pending server acceptance.
+    </p>
+    {count >= limit * 0.9 ? (
+      <output>
+        {count} of {limit} {tab} used. Browsing and cleanup remain available.
+      </output>
+    ) : null}
+    {snapshot.textBytes >= 94_371_840 ? (
+      <output>Library text is near its 100 MiB limit.</output>
+    ) : null}
+  </>
+);
+
+const SavedOrganizationChanges = ({
+  effects,
+  onReview,
+}: {
+  effects: LocalOrganization["effects"];
+  onReview: (result: {
+    id: string;
+    effect: OrganizationLocalImpact["effect"];
+  }) => void;
+}) => {
+  if (!effects.length) {
+    return null;
+  }
+  return (
+    <section aria-label="Saved organization changes">
+      <h3>Saved organization changes</h3>
+      {effects.map((saved) => (
+        <button
+          key={saved.id}
+          className={button}
+          type="button"
+          onClick={() => onReview({ id: saved.id, effect: saved.effect })}
+        >
+          Review {saved.effect.sourceName} ·{" "}
+          {saved.accepted ? "Accepted by server" : "Saved on this device"}
+        </button>
+      ))}
+    </section>
+  );
+};
+
 export const OrganizationManager = (props: ManagerProps) => {
   const { snapshot, onClose } = props;
   const {
@@ -436,6 +614,7 @@ export const OrganizationManager = (props: ManagerProps) => {
     setName,
     edit,
   } = useOrganizationManager(props);
+  const interactionBlocked = dirty || busy || Boolean(confirmation);
   return (
     <dialog
       ref={dialog}
@@ -449,70 +628,26 @@ export const OrganizationManager = (props: ManagerProps) => {
       <h2 id="native-organization-title" className="text-xl font-semibold">
         Manage collections and tags
       </h2>
-      <div role="tablist" aria-label="Organization" className="flex gap-2">
-        {(["collections", "tags"] as const).map((value) => (
-          <button
-            key={value}
-            id={`native-${value}-tab`}
-            role="tab"
-            aria-selected={tab === value}
-            aria-controls="native-organization-panel"
-            tabIndex={tab === value ? 0 : -1}
-            disabled={dirty || busy || Boolean(confirmation)}
-            className={button}
-            type="button"
-            onClick={() => {
-              clear();
-              setTab(value);
-            }}
-            onKeyDown={(event) => {
-              if (
-                !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
-              ) {
-                return;
-              }
-              event.preventDefault();
-              let next: Tab = tab === "tags" ? "collections" : "tags";
-              if (event.key === "Home") {
-                next = "collections";
-              }
-              if (event.key === "End") {
-                next = "tags";
-              }
-              clear();
-              setTab(next);
-              document
-                .querySelector<HTMLButtonElement>(`#native-${next}-tab`)
-                ?.focus();
-            }}
-          >
-            {value === "collections" ? "Collections" : "Tags"}
-          </button>
-        ))}
-      </div>
+      <OrganizationTabs
+        tab={tab}
+        disabled={interactionBlocked}
+        onSelect={(next) => {
+          clear();
+          setTab(next);
+        }}
+      />
       <section
         id="native-organization-panel"
         role="tabpanel"
         aria-labelledby={`native-${tab}-tab`}
         className="space-y-3"
       >
-        <p>
-          Counts include active and archived prompts in the available device
-          snapshot.{" "}
-          {snapshot.complete
-            ? "Download complete."
-            : "Download incomplete; counts may be incomplete."}{" "}
-          {snapshot.pending.length} changes pending server acceptance.
-        </p>
-        {entries.length >= limit * 0.9 ? (
-          <output>
-            {entries.length} of {limit} {tab} used. Browsing and cleanup remain
-            available.
-          </output>
-        ) : null}
-        {snapshot.textBytes >= 94_371_840 ? (
-          <output>Library text is near its 100 MiB limit.</output>
-        ) : null}
+        <OrganizationSnapshotStatus
+          snapshot={snapshot}
+          count={entries.length}
+          limit={limit}
+          tab={tab}
+        />
         <form
           className="space-y-2"
           onSubmit={(event) => {
@@ -559,7 +694,7 @@ export const OrganizationManager = (props: ManagerProps) => {
           collections={entries}
           label={tab === "tags" ? "Tags" : "Collections"}
           search={organizationMatches}
-          disabled={dirty || busy || Boolean(confirmation)}
+          disabled={interactionBlocked}
           onRename={(entry) => {
             edit(entry);
           }}
@@ -571,56 +706,17 @@ export const OrganizationManager = (props: ManagerProps) => {
           }}
         />
       </section>
-      {snapshot.pending.some((entry) => entry.error) ? (
-        <section
-          aria-label="Changes need attention"
-          className="space-y-2 rounded border p-3"
-        >
-          <h3>Changes need attention</h3>
-          {snapshot.pending.map((entry) => {
-            if (!entry.error) {
-              return null;
-            }
-            const { operation } = entry;
-            if (!("name" in operation)) {
-              return (
-                <PendingCleanup
-                  key={entry.id}
-                  entry={entry}
-                  disabled={busy || dirty}
-                  onReview={(action) => {
-                    void prepare(action, entry.id);
-                  }}
-                />
-              );
-            }
-            return (
-              <div key={entry.id}>
-                <p>
-                  {operation.name}: {organizationError(entry.error)}
-                </p>
-                <button
-                  type="button"
-                  className={button}
-                  disabled={busy || dirty}
-                  onClick={() => {
-                    const collection = "collectionId" in operation;
-                    setTab(collection ? "collections" : "tags");
-                    edit({
-                      name: operation.name,
-                      id: collection ? operation.collectionId : operation.tagId,
-                      creating: operation.kind.endsWith(".create"),
-                      replaces: entry.id,
-                    });
-                  }}
-                >
-                  Correct name or review merge
-                </button>
-              </div>
-            );
-          })}
-        </section>
-      ) : null}
+      <PendingOrganizationChanges
+        pending={snapshot.pending}
+        disabled={busy || dirty}
+        onReview={(action, operationId) => {
+          void prepare(action, operationId);
+        }}
+        onCorrect={(next, entry) => {
+          setTab(next);
+          edit(entry);
+        }}
+      />
       {replaces ? <p>Correcting a saved change that needs attention.</p> : null}
       {confirmation ? (
         <OrganizationConfirmation
@@ -637,22 +733,10 @@ export const OrganizationManager = (props: ManagerProps) => {
           onCancel={() => setConfirmation(undefined)}
         />
       ) : null}
-      {snapshot.effects.length ? (
-        <section aria-label="Saved organization changes">
-          <h3>Saved organization changes</h3>
-          {snapshot.effects.map((saved) => (
-            <button
-              key={saved.id}
-              className={button}
-              type="button"
-              onClick={() => setResult({ id: saved.id, effect: saved.effect })}
-            >
-              Review {saved.effect.sourceName} ·{" "}
-              {saved.accepted ? "Accepted by server" : "Saved on this device"}
-            </button>
-          ))}
-        </section>
-      ) : null}
+      <SavedOrganizationChanges
+        effects={snapshot.effects}
+        onReview={setResult}
+      />
       {result ? (
         <OrganizationReview
           operationId={result.id}
