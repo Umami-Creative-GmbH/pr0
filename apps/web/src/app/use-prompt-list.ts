@@ -87,7 +87,6 @@ export const usePromptList = ({
     retryDelay: promptRetryDelay,
     enabled,
     refetchOnWindowFocus: true,
-    refetchInterval: 10_000,
     gcTime: 0,
   });
   useEffect(() => {

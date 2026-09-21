@@ -1,3 +1,4 @@
+import { changeStatusSchema } from "@pr0/api-contract/changes";
 import {
   localPromptSchema,
   localSaveSchema,
@@ -28,6 +29,11 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  sync: async () => {
+    await invoke("library_sync");
+  },
+  changeStatus: async () =>
+    changeStatusSchema.parse(await invoke("library_change_status")),
   upload: async () => uploadStatusSchema.parse(await invoke("library_upload")),
   uploadStatus: async () =>
     uploadStatusSchema.parse(await invoke("library_upload_status")),

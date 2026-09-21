@@ -3,6 +3,7 @@ use serde_json::json;
 use std::sync::{Arc, Mutex};
 include!("local_tests.rs");
 include!("upload_tests.rs");
+include!("change_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     serde_json::from_str(include_str!(
@@ -535,6 +536,8 @@ fn live_https_worker() {
             "library_download" => service.library_download().map(|value| json!(value)),
             "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
             "library_upload" => service.library_upload().map(|v| json!(v)),
+            "library_changes" => service.library_changes(0).map(|v| json!(v)),
+            "library_poll_changes" => service.library_changes(25).map(|v| json!(v)),
             "library_editor" => service
                 .library_editor(input["id"].as_str().unwrap())
                 .map(|v| json!(v)),

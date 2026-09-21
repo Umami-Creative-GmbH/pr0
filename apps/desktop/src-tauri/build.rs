@@ -12,6 +12,8 @@ fn main() {
             "library_download",
             "library_upload",
             "library_upload_status",
+            "library_change_status",
+            "library_sync",
             "library_browse",
             "library_detail",
             "library_editor",

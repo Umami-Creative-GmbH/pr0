@@ -16,6 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { CollectionControls } from "./collection-controls";
+import { LiveLibraryStatus } from "./live-library-status";
 import { PromptActionStatus } from "./prompt-action-status";
 import { PromptConflicts } from "./prompt-conflicts";
 import { PromptCopyStatus } from "./prompt-copy-status";
@@ -31,6 +32,7 @@ import { useLibraryDrafts } from "./use-library-drafts";
 import { useLibraryFilters } from "./use-library-filters";
 import { useLibraryRefresh } from "./use-library-refresh";
 import { useLibraryResults } from "./use-library-results";
+import { useLiveChanges } from "./use-live-changes";
 import { useOrganization } from "./use-organization";
 import { usePromptActions } from "./use-prompt-actions";
 import type { PromptAction } from "./use-prompt-actions";
@@ -262,6 +264,7 @@ export const PromptLibrary = ({
   onDirtyChange: (dirty: boolean) => void;
 }) => {
   const client = useApiClient();
+  const live = useLiveChanges(library, accountAvailable && !accountChanged);
   const markDraft = useLibraryDrafts(onDirtyChange);
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Prompt | "create" | null>(null);
@@ -399,6 +402,7 @@ export const PromptLibrary = ({
   };
   return (
     <div className="space-y-6">
+      <LiveLibraryStatus status={live} />
       <PromptVariables copy={copy} />
       {deleting ? (
         <PromptDeleteDialog

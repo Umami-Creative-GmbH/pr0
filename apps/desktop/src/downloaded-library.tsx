@@ -1,3 +1,4 @@
+import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type {
   LocalPrompt,
   UploadStatus,
@@ -23,6 +24,7 @@ export const DownloadedLibrary = ({
 }) => {
   const [status, setStatus] = useState<DownloadStatus>();
   const [upload, setUpload] = useState<UploadStatus>();
+  const [changes, setChanges] = useState<ChangeStatus>();
   const [rows, setRows] = useState<DownloadedSummary[]>([]);
   const [localDetail, setLocalDetail] = useState<LocalPrompt>();
   const [editor, setEditor] = useState<{ initial?: LocalPrompt }>();
@@ -76,24 +78,38 @@ export const DownloadedLibrary = ({
     };
     void subscribe();
     window.addEventListener("focus", refresh);
+    const wake = () => {
+      void (async () => {
+        try {
+          await libraryClient.sync();
+        } catch {
+          /* Native retries preserve authoritative state. */
+        }
+      })();
+      refresh();
+    };
+    window.addEventListener("online", wake);
     return () => {
       disposed = true;
       stop?.();
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", wake);
     };
   }, []);
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
       const requestedOffset = currentOffset.current;
-      const [next, prompts, sync] = await Promise.all([
+      const [next, prompts, sync, incoming] = await Promise.all([
         libraryClient.status(),
         libraryClient.browse(requestedOffset),
         libraryClient.uploadStatus(),
+        libraryClient.changeStatus(),
       ]);
       if (!cancelled) {
         setStatus(next);
         setUpload(sync);
+        setChanges(incoming);
         if (sync.error === "authentication_required") {
           await refreshAuth("auth_status");
         }
@@ -179,6 +195,7 @@ export const DownloadedLibrary = ({
         signedIn={signedIn}
         offline={offline}
         upload={upload}
+        changes={changes}
         onOpen={(id) => {
           void open(id);
         }}

@@ -39,7 +39,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 3 {
+        if version > 4 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -113,6 +113,13 @@ impl LibraryStore {
                 CREATE TABLE prompt_mapping(original TEXT PRIMARY KEY, copy TEXT NOT NULL, operation TEXT NOT NULL);
                 PRAGMA user_version=3;
                 COMMIT;").map_err(io)?;
+        }
+        if version < 4 {
+            db.execute_batch("BEGIN IMMEDIATE;
+                CREATE TABLE change_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), cursor TEXT, attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL DEFAULT 0, error TEXT, updating INTEGER NOT NULL DEFAULT 1);
+                INSERT INTO change_state(singleton) VALUES(1);
+                UPDATE upload_state SET last_checked=NULL;
+                PRAGMA user_version=4; COMMIT;").map_err(io)?;
         }
         Ok(Self {
             db,
@@ -255,9 +262,7 @@ impl LibraryStore {
         .map_err(io)?;
         if complete {
             retire_downloaded_uploads(&tx, manifest)?;
-            let checked = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now())
-                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-            tx.execute("UPDATE upload_state SET last_checked=?1", [checked])
+            tx.execute("UPDATE change_state SET cursor=NULL,updating=1", [])
                 .map_err(io)?;
             tx.execute(
                 "UPDATE state SET active=?1,staging=NULL WHERE singleton=1",
@@ -338,3 +343,4 @@ impl LibraryStore {
 }
 include!("local_storage.rs");
 include!("upload_storage.rs");
+include!("change_storage.rs");

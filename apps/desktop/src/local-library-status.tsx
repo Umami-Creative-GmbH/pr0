@@ -1,3 +1,4 @@
+import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
 
 import type { DownloadStatus } from "./library-client";
@@ -13,11 +14,45 @@ const LastChecked = ({ at }: { at?: string | null }) =>
     <p>Not yet checked for updates.</p>
   );
 
+const incomingLabel = (
+  status: DownloadStatus | undefined,
+  signedIn: boolean,
+  upload: UploadStatus | undefined,
+  changes: ChangeStatus | undefined,
+  label: string
+) => {
+  if (!status?.pendingChanges && !upload?.error) {
+    if (!signedIn || changes?.error === "authentication_required") {
+      return "Sign in to sync";
+    } else if (changes?.error === "network_unavailable") {
+      return "Offline";
+    } else if (changes?.error === "snapshot_required") {
+      return "Library recovery required";
+    } else if (changes?.error) {
+      return "Couldn't check for updates";
+    } else if (changes?.updating || !status?.complete) {
+      return "Updating this device's library…";
+    } else if (changes?.lastCheckedAt) {
+      return "Up to date at last check";
+    }
+  }
+  return label;
+};
+const IncomingError = ({ changes }: { changes?: ChangeStatus }) =>
+  changes?.error ? (
+    <p>
+      Incoming updates are paused. Saved local work and drafts are retained.{" "}
+      {changes.error === "snapshot_required"
+        ? "This library needs a recovery download."
+        : "Synchronization retries when the connection and account are available."}
+    </p>
+  ) : null;
 export const LocalLibraryStatus = ({
   status,
   signedIn,
   offline,
   upload,
+  changes,
   onOpen,
   onRetry,
 }: {
@@ -25,14 +60,16 @@ export const LocalLibraryStatus = ({
   signedIn: boolean;
   offline: boolean;
   upload?: UploadStatus;
+  changes?: ChangeStatus;
   onOpen: (id: string) => void;
   onRetry: () => void;
 }) => {
-  const label = uploadLabel(
+  const label = incomingLabel(
+    status,
     signedIn,
-    offline,
-    status?.pendingChanges ?? 0,
-    upload
+    upload,
+    changes,
+    uploadLabel(signedIn, offline, status?.pendingChanges ?? 0, upload)
   );
   return (
     <details>
@@ -41,7 +78,8 @@ export const LocalLibraryStatus = ({
         {status?.pendingChanges ?? 0} pending changes. Saved local changes await
         synchronization.
       </p>
-      <LastChecked at={upload?.lastCheckedAt} />
+      <LastChecked at={changes?.lastCheckedAt} />
+      <IncomingError changes={changes} />
       {upload?.awaitingDownload ? (
         <p>
           {upload.awaitingDownload} accepted operations are saved to server.

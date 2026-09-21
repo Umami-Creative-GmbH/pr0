@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { runAcceptance } from "./account-test-server";
 import type { accountTestServer } from "./account-test-server";
+import { verifyNativeChanges } from "./changes-native";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
@@ -121,14 +122,16 @@ const worker = (
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
   download = false,
-  upload = false
+  upload = false,
+  live = false
 ) => {
   const account = await verifiedBrowser();
   if (download) {
     await seedDownloadCapacity(account.library);
   }
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-device-live-"));
-  const selectedOrigin = "https://localhost:30440";
+  const selectedOrigin =
+    process.env.PR0_TEST_NATIVE_ORIGIN ?? "https://localhost:30440";
   const certificate = path.join(directory, "certificate.pem");
   await runAcceptance([
     "pwsh",
@@ -170,7 +173,8 @@ export const verifyNativeHttps = async (
   const traffic: { path: string; body: string }[] = [];
   const proxy = Bun.serve({
     hostname: "localhost",
-    port: 30_440,
+    port: Number(new URL(selectedOrigin).port),
+    idleTimeout: 60,
     tls: {
       cert: Bun.file(certificate),
       key: Bun.file(path.join(directory, "key.pem")),
@@ -218,7 +222,10 @@ export const verifyNativeHttps = async (
     certificate,
     target
   );
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    headless: true,
+  });
   try {
     await server.startServer({
       PR0_ORIGIN: selectedOrigin,
@@ -357,6 +364,14 @@ export const verifyNativeHttps = async (
         uploadStatusSchema
       );
       assert.equal(uploadStatus.waiting, 0);
+    }
+    if (live) {
+      await verifyNativeChanges({
+        command: (command, args = {}) =>
+          native.library(command, z.json(), args),
+        page,
+        origin: selectedOrigin,
+      });
     }
     const refreshed = await native.command("refresh");
     assert.equal(refreshed.state, "signed_in");

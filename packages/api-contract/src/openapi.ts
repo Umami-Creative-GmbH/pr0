@@ -2,6 +2,7 @@ import type { OpenAPIV3_1 } from "openapi-types";
 import { z } from "zod";
 
 import { accountPaths, accountSchemas } from "./accounts-openapi";
+import { changePaths, changeSchemas } from "./changes-openapi";
 import { deletionPaths, deletionSchemas } from "./deletions-openapi";
 import { devicePaths, deviceSchemas } from "./device-openapi";
 import { healthPath, healthResponseSchema } from "./health";
@@ -23,6 +24,7 @@ export const openApiDocument = {
     { name: "Prompts", description: "Owned prompt creation and retrieval" },
   ],
   paths: {
+    ...changePaths,
     ...snapshotPaths,
     ...devicePaths,
     ...accountPaths,
@@ -64,6 +66,7 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      ...changeSchemas,
       ...snapshotSchemas,
       ...deviceSchemas,
       ...accountSchemas,

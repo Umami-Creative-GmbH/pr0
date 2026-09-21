@@ -14,6 +14,7 @@ pub enum Endpoint {
     SnapshotPage,
     Mutations,
     Receipts,
+    Changes,
 }
 impl Endpoint {
     fn path(self) -> &'static str {
@@ -28,6 +29,7 @@ impl Endpoint {
             Self::SnapshotPage => "/api/v1/sync/snapshots/page",
             Self::Mutations => "/api/v1/sync/mutations",
             Self::Receipts => "/api/v1/sync/receipts",
+            Self::Changes => "/api/v1/sync/changes",
         }
     }
 }
@@ -79,7 +81,12 @@ impl Transport for HttpsTransport {
         body: Option<Value>,
     ) -> Result<Value, String> {
         let url = format!("{}{}", origin, endpoint.path());
-        let mut request = if let Some(body) = body {
+        let mut request = if matches!(endpoint, Endpoint::Changes) {
+            self.client
+                .get(url)
+                .query(&body.unwrap_or_default())
+                .timeout(Duration::from_secs(35))
+        } else if let Some(body) = body {
             self.client.post(url).json(&body)
         } else {
             self.client.get(url)
@@ -104,6 +111,9 @@ impl Transport for HttpsTransport {
         if status.as_u16() == 401 || status.as_u16() == 403 {
             return Err("authentication_required".into());
         }
+        if matches!(endpoint, Endpoint::Changes) && status.as_u16() == 409 {
+            return Err("snapshot_required".into());
+        }
         if matches!(endpoint, Endpoint::SnapshotPage)
             && (status.as_u16() == 410 || status.as_u16() == 404)
         {
@@ -112,7 +122,7 @@ impl Transport for HttpsTransport {
         let limit = match endpoint {
             Endpoint::Snapshot => 262144,
             Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
-            Endpoint::Mutations | Endpoint::Receipts => 4_194_304,
+            Endpoint::Mutations | Endpoint::Receipts | Endpoint::Changes => 4_194_304,
             _ => 16384,
         };
         if result

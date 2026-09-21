@@ -7,6 +7,9 @@ export const useLibraryRefresh = (library: PrivateLibrary) => {
   const queryClient = useQueryClient();
   const scope = [client.baseUrl, library.instance.id, library.account.id];
   return async () => {
+    window.dispatchEvent(
+      new CustomEvent("pr0:library-saved", { detail: scope.join(":") })
+    );
     // Refresh the selected snapshot before resetting lists can change selection.
     await queryClient.invalidateQueries({ queryKey: ["prompt", ...scope] });
     await queryClient.resetQueries({ queryKey: ["prompts", ...scope] });
