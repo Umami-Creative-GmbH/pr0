@@ -179,16 +179,28 @@ impl AuthService {
         endpoint: Endpoint,
         body: Value,
     ) -> Result<Value, String> {
-        let result = self.transport.request(
-            &envelope.origin,
-            endpoint,
-            Some(&envelope.token),
-            if matches!(endpoint, Endpoint::Capabilities) {
-                None
-            } else {
-                Some(body)
-            },
-        );
+        let observed = self.sync_generation();
+        let result = if matches!(endpoint, Endpoint::Changes) {
+            self.transport
+                .changes(&envelope.origin, &envelope.token, body, &|| {
+                    self.sync_generation() != observed
+                        || self
+                            .state
+                            .lock()
+                            .map_or(true, |state| state.generation != generation)
+                })
+        } else {
+            self.transport.request(
+                &envelope.origin,
+                endpoint,
+                Some(&envelope.token),
+                if matches!(endpoint, Endpoint::Capabilities) {
+                    None
+                } else {
+                    Some(body)
+                },
+            )
+        };
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
         if state.generation != generation {
             return Err("operation_cancelled".into());

@@ -3,6 +3,7 @@ use serde_json::json;
 use std::sync::{Arc, Mutex};
 include!("local_tests.rs");
 include!("upload_tests.rs");
+include!("change_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
 
@@ -490,6 +491,15 @@ fn live_https_worker() {
     };
     struct BrowserBoundary(HttpsTransport);
     impl Transport for BrowserBoundary {
+        fn changes(
+            &self,
+            origin: &str,
+            token: &str,
+            body: serde_json::Value,
+            cancelled: &(dyn Fn() -> bool + Sync),
+        ) -> Result<serde_json::Value, String> {
+            self.0.changes(origin, token, body, cancelled)
+        }
         fn request(
             &self,
             origin: &str,
@@ -536,7 +546,21 @@ fn live_https_worker() {
             "library_status" => service.library_status().map(|value| json!(value)),
             "library_download" => service.library_download().map(|value| json!(value)),
             "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
+            "library_change_status" => service.library_change_status().map(|v| json!(v)),
+            "library_sync" => {
+                service.wake_sync();
+                Ok(json!(null))
+            }
             "library_upload" => service.library_upload().map(|v| json!(v)),
+            "library_changes" => service.library_changes(0).map(|v| json!(v)),
+            "library_poll_changes" => service.library_changes(25).map(|v| json!(v)),
+            "library_interrupt_changes" => std::thread::scope(|scope| {
+                scope.spawn(|| {
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    service.wake_sync();
+                });
+                service.library_changes(25).map(|v| json!(v))
+            }),
             "library_editor" => service
                 .library_editor(input["id"].as_str().unwrap())
                 .map(|v| json!(v)),

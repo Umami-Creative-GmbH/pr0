@@ -7,10 +7,12 @@ import path from "node:path";
 import { uploadStatusSchema } from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
 import { chromium } from "playwright";
+import type { Page } from "playwright";
 import { z } from "zod";
 
 import { runAcceptance } from "./account-test-server";
 import type { accountTestServer } from "./account-test-server";
+import { verifyNativeChanges } from "./changes-native";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
@@ -119,18 +121,74 @@ const worker = (
   };
 };
 
+const verifyNativePeerChanges = async ({
+  executable,
+  directory,
+  certificate,
+  target,
+  page,
+  selectedOrigin,
+  native,
+}: {
+  executable: string;
+  directory: string;
+  certificate: string;
+  target: string;
+  page: Page;
+  selectedOrigin: string;
+  native: ReturnType<typeof worker>;
+}) => {
+  const peer = worker(
+    executable,
+    path.join(directory, "peer"),
+    certificate,
+    `${target}:peer`
+  );
+  try {
+    await peer.command("begin", selectedOrigin);
+    await page.goto(peer.url());
+    await page.getByRole("button", { name: "Approve matching code" }).click();
+    await page
+      .getByText("Desktop approved. Return to pr0 on your computer.")
+      .waitFor();
+    let peerStatus = await peer.command("poll");
+    for (
+      let attempt = 0;
+      peerStatus.state !== "signed_in" && attempt < 12;
+      attempt += 1
+    ) {
+      await Bun.sleep(1000);
+      peerStatus = await peer.command("poll");
+    }
+    assert.equal(peerStatus.state, "signed_in");
+    await verifyNativeChanges({
+      commands: [
+        (command, args = {}) => native.library(command, z.json(), args),
+        (command, args = {}) => peer.library(command, z.json(), args),
+      ],
+      page,
+      origin: selectedOrigin,
+    });
+  } finally {
+    await peer.command("sign_out");
+    await peer.stop();
+  }
+};
+
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
   download = false,
   upload = false,
-  usage = false
+  usage = false,
+  live = false
 ) => {
   const account = await verifiedBrowser();
   if (download) {
     await seedDownloadCapacity(account.library);
   }
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-device-live-"));
-  const selectedOrigin = "https://localhost:30440";
+  const selectedOrigin =
+    process.env.PR0_TEST_NATIVE_ORIGIN ?? "https://localhost:30440";
   const certificate = path.join(directory, "certificate.pem");
   await runAcceptance([
     "pwsh",
@@ -172,7 +230,8 @@ export const verifyNativeHttps = async (
   const traffic: { path: string; body: string }[] = [];
   const proxy = Bun.serve({
     hostname: "localhost",
-    port: 30_440,
+    port: Number(new URL(selectedOrigin).port),
+    idleTimeout: 60,
     tls: {
       cert: Bun.file(certificate),
       key: Bun.file(path.join(directory, "key.pem")),
@@ -363,6 +422,17 @@ export const verifyNativeHttps = async (
       );
       assert.equal(uploadStatus.waiting, 0);
     }
+    if (live) {
+      await verifyNativePeerChanges({
+        executable,
+        directory,
+        certificate,
+        target,
+        page,
+        selectedOrigin,
+        native,
+      });
+    }
     if (usage) {
       await verifyNativeUsage({
         command: (name, args = {}) => native.library(name, z.json(), args),
@@ -389,7 +459,7 @@ export const verifyNativeHttps = async (
     const signedOut = await native.command("sign_out");
     assert.equal(signedOut.state, "signed_out");
     process.stdout.write(
-      "PASS Rust HTTPS → Chrome email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
+      "PASS Rust HTTPS → browser email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
     );
   } finally {
     try {

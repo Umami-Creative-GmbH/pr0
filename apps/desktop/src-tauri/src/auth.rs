@@ -8,7 +8,7 @@ use super::library_storage::LibraryStore;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Serialize)]
@@ -46,6 +46,8 @@ struct State {
     restore_pending: bool,
 }
 pub struct AuthService {
+    wake: (Mutex<u64>, Condvar),
+    changes: Mutex<()>,
     clipboard: Mutex<()>,
     transition: Mutex<()>,
     upload: Mutex<()>,
@@ -62,6 +64,7 @@ fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, String> {
 }
 include!("library_commands.rs");
 include!("upload_commands.rs");
+include!("change_commands.rs");
 include!("usage_commands.rs");
 impl State {
     fn view(&self) -> AuthView {
@@ -147,6 +150,8 @@ impl AuthService {
             clipboard: Mutex::new(()),
             transition: Mutex::new(()),
             upload: Mutex::new(()),
+            wake: (Mutex::new(0), Condvar::new()),
+            changes: Mutex::new(()),
             download: Mutex::new(()),
             restoration: Mutex::new(()),
             state: Mutex::new(State {

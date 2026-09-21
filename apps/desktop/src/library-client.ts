@@ -1,3 +1,4 @@
+import { changeStatusSchema } from "@pr0/api-contract/changes";
 import {
   desktopCopySchema,
   desktopCopyResultSchema,
@@ -34,6 +35,11 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  sync: async () => {
+    await invoke("library_sync");
+  },
+  changeStatus: async () =>
+    changeStatusSchema.parse(await invoke("library_change_status")),
   copy: async (request: DesktopCopy) => {
     const input = desktopCopySchema.parse(request);
     const result = desktopCopyResultSchema.safeParse(

@@ -87,7 +87,6 @@ export const usePromptList = ({
     retryDelay: promptRetryDelay,
     enabled,
     refetchOnWindowFocus: true,
-    refetchInterval: 10_000,
     gcTime: 0,
   });
   useEffect(() => {
@@ -95,7 +94,7 @@ export const usePromptList = ({
       list.error instanceof PromptApiError &&
       list.error.detail?.code === "results_changed"
     ) {
-      void queryClient.resetQueries({
+      void queryClient.invalidateQueries({
         queryKey: [
           "prompts",
           client.baseUrl,

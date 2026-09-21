@@ -4,6 +4,7 @@ mod auth_storage;
 #[cfg(test)]
 mod auth_tests;
 mod auth_transport;
+mod change_contract;
 mod clipboard;
 mod library_contract;
 mod library_storage;
@@ -116,6 +117,8 @@ pub fn run() {
             library_download,
             library_upload,
             library_upload_status,
+            library_change_status,
+            library_sync,
             library_browse,
             library_detail,
             library_editor,
@@ -148,9 +151,9 @@ pub fn run() {
                     let _ = worker.restore();
                     let mut previous = String::new();
                     loop {
+                        let observed = worker.sync_generation();
                         let _ = worker.library_upload();
                         let _ = worker.library_sync_usage();
-                        let _ = worker.library_download();
                         let state = serde_json::to_string(&(
                             worker.library_upload_status(),
                             worker.library_status(),
@@ -161,12 +164,52 @@ pub fn run() {
                             let _ = handle.emit("library-changed", ());
                             previous = state;
                         }
-                        std::thread::sleep(std::time::Duration::from_secs(3));
+                        worker.wait_for_sync(observed, std::time::Duration::from_secs(1));
+                    }
+                });
+                let worker = service.as_ref().expect("initialized service").clone();
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let mut previous = String::new();
+                    loop {
+                        let observed = worker.sync_generation();
+                        let progressed =
+                            if worker.library_status().is_ok_and(|status| !status.complete) {
+                                worker.library_download().is_ok()
+                            } else {
+                                worker.library_changes(25).is_ok()
+                            };
+                        let state = serde_json::to_string(&(
+                            worker.library_change_status(),
+                            worker.library_status(),
+                        ))
+                        .unwrap_or_default();
+                        if state != previous {
+                            let _ = handle.emit("library-changed", ());
+                            previous = state;
+                        }
+                        // Drain complete pages immediately; pause only blocked or unavailable work.
+                        let ready = progressed
+                            && worker.library_change_status().is_ok_and(|status| {
+                                status.updating
+                                    && status.error.is_none()
+                                    && status.retry_after_ms == 0
+                            });
+                        if !ready {
+                            worker.wait_for_sync(observed, std::time::Duration::from_secs(1));
+                        }
                     }
                 });
             }
             app.manage(service);
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Focused(true)) {
+                if let Ok(service) = window.state::<ManagedAuth>().inner() {
+                    service.wake_sync();
+                }
+            }
         })
         .run(tauri::generate_context!())
         .expect("pr0 could not start");
@@ -248,16 +291,37 @@ async fn save_command(
 ) -> Result<local_contract::LocalPrompt, String> {
     let app = window.app_handle().clone();
     let result = dispatch(window, state, move |service| {
-        if create {
+        let result = if create {
             service.library_create(request)
         } else {
             service.library_edit(request)
-        }
+        };
+        service.wake_sync();
+        result
     })
     .await?;
     // Events only invalidate views. A lost event cannot change storage truth.
     let _ = app.emit("library-changed", &result.local_revision);
     Ok(result)
+}
+
+#[tauri::command]
+async fn library_change_status(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<change_contract::ChangeStatus, String> {
+    dispatch(window, state, AuthService::library_change_status).await
+}
+#[tauri::command]
+async fn library_sync(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<(), String> {
+    dispatch(window, state, |service| {
+        service.wake_sync();
+        Ok(())
+    })
+    .await
 }
 #[tauri::command]
 async fn library_create(

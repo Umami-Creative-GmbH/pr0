@@ -68,7 +68,7 @@ export const readSnapshot = (
     const owner =
       await tx`SELECT id FROM "user" WHERE id = ${accountId} AND email_verified AND NOT deletion_pending FOR UPDATE`;
     const active =
-      await tx`SELECT id FROM session WHERE id = ${sessionId} AND user_id = ${accountId} AND provenance = 'device' AND expires_at > clock_timestamp() FOR UPDATE`;
+      await tx`SELECT id FROM session WHERE id = ${sessionId} AND user_id = ${accountId} AND provenance = 'device' AND expires_at > clock_timestamp() FOR KEY SHARE`;
     if (!owner.length || !active.length) {
       throw new AccountFailureError("unauthenticated", 401);
     }

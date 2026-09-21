@@ -158,7 +158,7 @@ export const usePromptSelection = ({
   }
   useEffect(() => {
     if (refreshNeeded) {
-      void queryClient.resetQueries({
+      void queryClient.invalidateQueries({
         queryKey: [
           "prompts",
           client.baseUrl,

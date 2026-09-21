@@ -14,6 +14,7 @@ pub enum Endpoint {
     SnapshotPage,
     Mutations,
     Receipts,
+    Changes,
 }
 impl Endpoint {
     fn path(self) -> &'static str {
@@ -28,10 +29,20 @@ impl Endpoint {
             Self::SnapshotPage => "/api/v1/sync/snapshots/page",
             Self::Mutations => "/api/v1/sync/mutations",
             Self::Receipts => "/api/v1/sync/receipts",
+            Self::Changes => "/api/v1/sync/changes",
         }
     }
 }
 pub trait Transport: Send + Sync {
+    fn changes(
+        &self,
+        origin: &str,
+        token: &str,
+        body: Value,
+        _cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Value, String> {
+        self.request(origin, Endpoint::Changes, Some(token), Some(body))
+    }
     fn request(
         &self,
         origin: &str,
@@ -43,12 +54,21 @@ pub trait Transport: Send + Sync {
 }
 pub struct HttpsTransport {
     client: reqwest::blocking::Client,
+    changes_client: reqwest::Client,
 }
 impl HttpsTransport {
     #[cfg(test)]
     pub fn with_test_root(pem: &[u8]) -> Result<Self, String> {
         let root = reqwest::Certificate::from_pem(pem).map_err(|_| "invalid_test_root")?;
         Ok(Self {
+            changes_client: reqwest::Client::builder()
+                .https_only(true)
+                .redirect(reqwest::redirect::Policy::none())
+                .connect_timeout(Duration::from_secs(10))
+                .timeout(Duration::from_secs(35))
+                .add_root_certificate(root.clone())
+                .build()
+                .map_err(|_| "network_unavailable")?,
             client: reqwest::blocking::Client::builder()
                 .https_only(true)
                 .redirect(reqwest::redirect::Policy::none())
@@ -60,6 +80,13 @@ impl HttpsTransport {
     }
     pub fn new() -> Result<Self, String> {
         Ok(Self {
+            changes_client: reqwest::Client::builder()
+                .https_only(true)
+                .redirect(reqwest::redirect::Policy::none())
+                .connect_timeout(Duration::from_secs(10))
+                .timeout(Duration::from_secs(35))
+                .build()
+                .map_err(|_| "network_unavailable")?,
             client: reqwest::blocking::Client::builder()
                 .https_only(true)
                 .redirect(reqwest::redirect::Policy::none())
@@ -71,6 +98,69 @@ impl HttpsTransport {
     }
 }
 impl Transport for HttpsTransport {
+    fn changes(
+        &self,
+        origin: &str,
+        token: &str,
+        body: Value,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Value, String> {
+        tauri::async_runtime::block_on(async {
+            let request = async {
+                let mut response = self
+                    .changes_client
+                    .get(format!("{origin}{}", Endpoint::Changes.path()))
+                    .bearer_auth(token)
+                    .query(&body)
+                    .send()
+                    .await
+                    .map_err(|_| "network_unavailable")?;
+                let status = response.status().as_u16();
+                if status == 429 || status == 503 {
+                    let delay = response
+                        .headers()
+                        .get("retry-after")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .unwrap_or(30)
+                        .clamp(1, 86400);
+                    return Err(format!("retry_after:{delay}"));
+                }
+                if status == 401 || status == 403 {
+                    return Err("authentication_required".into());
+                }
+                if status == 409 {
+                    return Err("snapshot_required".into());
+                }
+                if !response.status().is_success() {
+                    return Err("request_failed".into());
+                }
+                const LIMIT: usize = 4_194_304;
+                if response.content_length().is_some_and(|v| v > LIMIT as u64) {
+                    return Err("invalid_response".into());
+                }
+                let mut bytes = Vec::new();
+                while let Some(chunk) = response.chunk().await.map_err(|_| "network_unavailable")? {
+                    if bytes.len() + chunk.len() > LIMIT {
+                        return Err("invalid_response".into());
+                    }
+                    bytes.extend_from_slice(&chunk);
+                }
+                serde_json::from_slice(&bytes).map_err(|_| "invalid_response".into())
+            };
+            let mut request = std::pin::pin!(request);
+            loop {
+                if cancelled() {
+                    return Err("operation_cancelled".into());
+                }
+                if let Ok(result) =
+                    tokio::time::timeout(Duration::from_millis(100), &mut request).await
+                {
+                    return result;
+                }
+            }
+        })
+    }
     fn request(
         &self,
         origin: &str,
@@ -79,7 +169,12 @@ impl Transport for HttpsTransport {
         body: Option<Value>,
     ) -> Result<Value, String> {
         let url = format!("{}{}", origin, endpoint.path());
-        let mut request = if let Some(body) = body {
+        let mut request = if matches!(endpoint, Endpoint::Changes) {
+            self.client
+                .get(url)
+                .query(&body.unwrap_or_default())
+                .timeout(Duration::from_secs(35))
+        } else if let Some(body) = body {
             self.client.post(url).json(&body)
         } else {
             self.client.get(url)
@@ -104,6 +199,9 @@ impl Transport for HttpsTransport {
         if status.as_u16() == 401 || status.as_u16() == 403 {
             return Err("authentication_required".into());
         }
+        if matches!(endpoint, Endpoint::Changes) && status.as_u16() == 409 {
+            return Err("snapshot_required".into());
+        }
         if matches!(endpoint, Endpoint::SnapshotPage)
             && (status.as_u16() == 410 || status.as_u16() == 404)
         {
@@ -112,7 +210,7 @@ impl Transport for HttpsTransport {
         let limit = match endpoint {
             Endpoint::Snapshot => 262144,
             Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
-            Endpoint::Mutations | Endpoint::Receipts => 4_194_304,
+            Endpoint::Mutations | Endpoint::Receipts | Endpoint::Changes => 4_194_304,
             _ => 16384,
         };
         if result

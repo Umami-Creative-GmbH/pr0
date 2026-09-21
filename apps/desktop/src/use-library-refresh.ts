@@ -1,6 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent } from "react";
 
+import { libraryClient } from "./library-client";
+
 export const useLibraryRefresh = (refresh: () => void) => {
   const onRefresh = useEffectEvent(refresh);
   useEffect(() => {
@@ -21,10 +23,22 @@ export const useLibraryRefresh = (refresh: () => void) => {
     };
     void subscribe();
     window.addEventListener("focus", handleRefresh);
+    const wake = () => {
+      void (async () => {
+        try {
+          await libraryClient.sync();
+        } catch {
+          // Native retries preserve authoritative state.
+        }
+      })();
+      handleRefresh();
+    };
+    window.addEventListener("online", wake);
     return () => {
       disposed = true;
       stop?.();
       window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("online", wake);
     };
   }, []);
 };
