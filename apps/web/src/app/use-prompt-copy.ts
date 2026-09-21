@@ -29,12 +29,14 @@ export const usePromptCopy = ({
   onAccepted,
   libraryRevision,
   accountChanged = false,
+  onClipboardWritten,
 }: {
   library: PrivateLibrary;
   eligible: (prompt: Prompt) => boolean;
   onAccepted: () => Promise<void>;
   libraryRevision?: string;
   accountChanged?: boolean;
+  onClipboardWritten?: () => void;
 }) => {
   const client = useApiClient();
   const alive = useRef(true);
@@ -292,6 +294,7 @@ export const usePromptCopy = ({
     clearSubmitted();
     if (current()) {
       changeInteraction(null);
+      onClipboardWritten?.();
     }
     // Drop the filled output before awaiting usage delivery. The retry envelope
     // below contains only the original prompt identity and usage metadata.

@@ -2,6 +2,7 @@ import type { LauncherStatus } from "@pr0/api-contract/desktop-launcher";
 import { organizationSearch } from "@pr0/api-contract/organization";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
+import { WayfinderShell } from "@pr0/ui/components/wayfinder-shell";
 import { StrictMode, useEffect, useEffectEvent, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { createRoot } from "react-dom/client";
@@ -299,76 +300,78 @@ const LauncherWindow = () => {
     return () => window.removeEventListener("keydown", escape);
   }, []);
   return (
-    <main className="space-y-3 p-5" data-opening={status?.opening}>
-      <h1 className="text-xl font-semibold">Quick launcher</h1>
-      <p>{status?.shortcut ?? "Global shortcut unavailable"}</p>
-      <p>
-        {status?.syncStatus ?? "Library status"}{" "}
-        <button
-          type="button"
-          onClick={() => {
-            void showDetails();
-          }}
-        >
-          Open library details
-        </button>
-      </p>
-      {status?.visible && !status.focused ? (
-        <div>
+    <WayfinderShell surface="launcher">
+      <main className="wf-launcher space-y-3" data-opening={status?.opening}>
+        <h1 className="text-xl font-semibold">Quick launcher</h1>
+        <p>{status?.shortcut ?? "Global shortcut unavailable"}</p>
+        <p>
+          {status?.syncStatus ?? "Library status"}{" "}
           <button
             type="button"
-            className="rounded border p-2"
             onClick={() => {
-              void focus();
+              void showDetails();
             }}
           >
-            Click to search
+            Open library details
           </button>
-          <p>
-            Use Alt+Tab to select Quick launcher, or open it from the library.
-          </p>
-        </div>
-      ) : null}
-      {status?.visible && status.account ? (
-        <>
-          {status.complete ? null : (
+        </p>
+        {status?.visible && !status.focused ? (
+          <div>
+            <button
+              type="button"
+              className="rounded border p-2"
+              onClick={() => {
+                void focus();
+              }}
+            >
+              Click to search
+            </button>
             <p>
-              Library download incomplete. Searching downloaded prompts only.
+              Use Alt+Tab to select Quick launcher, or open it from the library.
             </p>
-          )}
-          <LauncherSearch
-            key={`${status.opening}:${status.account.instanceId}:${status.account.accountId}:${status.account.generation}`}
-            status={status}
-            account={status.account}
-            revision={revision}
-          />
-        </>
-      ) : null}
-      {status && !status.error && !status.account ? (
-        <p>Open the library to sign in and download prompts.</p>
-      ) : null}
-      {error || message ? <p role="alert">{error || message}</p> : null}
-      <div className="flex gap-4">
-        <button
-          type="button"
-          onClick={() => {
-            void refresh();
-          }}
-        >
-          Refresh status
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (opening !== undefined) {
-              void close();
-            }
-          }}
-        >
-          Close (Esc)
-        </button>
-      </div>
-    </main>
+          </div>
+        ) : null}
+        {status?.visible && status.account ? (
+          <>
+            {status.complete ? null : (
+              <output>
+                Library download incomplete. Searching downloaded prompts only.
+              </output>
+            )}
+            <LauncherSearch
+              key={`${status.opening}:${status.account.instanceId}:${status.account.accountId}:${status.account.generation}`}
+              status={status}
+              account={status.account}
+              revision={revision}
+            />
+          </>
+        ) : null}
+        {status && !status.error && !status.account ? (
+          <p>Open the library to sign in and download prompts.</p>
+        ) : null}
+        {error || message ? <p role="alert">{error || message}</p> : null}
+        <div className="flex gap-4">
+          <button
+            type="button"
+            onClick={() => {
+              void refresh();
+            }}
+          >
+            Refresh status
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (opening !== undefined) {
+                void close();
+              }
+            }}
+          >
+            Close (Esc)
+          </button>
+        </div>
+      </main>
+    </WayfinderShell>
   );
 };
 

@@ -155,6 +155,13 @@ impl AuthService {
         for entry in std::fs::read_dir(&self.directory).map_err(|_| "storage_unavailable")? {
             let entry = entry.map_err(|_| "storage_unavailable")?;
             let name = entry.file_name();
+            // Process ownership and its close explanation are not account data.
+            // Keep these files across sign-out, but reject links or directories.
+            if ["resident.lock", "residency-explained"].contains(&name.to_string_lossy().as_ref())
+                && entry.file_type().map_err(|_| "storage_unavailable")?.is_file()
+            {
+                continue;
+            }
             if ![
                 "session-state.sqlite",
                 "session-state.sqlite-journal",

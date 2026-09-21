@@ -5,6 +5,10 @@ import type {
   LocalPrompt,
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
+import {
+  EmptyDetail,
+  LibraryWorkspace,
+} from "@pr0/ui/components/wayfinder-shell";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DownloadedStatus } from "./downloaded-status";
@@ -281,6 +285,7 @@ interface LibraryProps {
   editingDisabled: boolean;
   onEditing: (editing: boolean) => void;
 }
+
 export const DownloadedLibrary = (props: LibraryProps) => {
   const [saveFailure, setSaveFailure] = useState(false);
   const { account, signedIn, editingDisabled, onEditing } = props;
@@ -309,134 +314,151 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     lifecycle,
   } = useDownloadedLibrary(props);
   return (
-    <section aria-label="Downloaded library" className="space-y-4">
+    <section aria-label="Downloaded library">
       <PromptVariables copy={copy} />
-      <h2 className="text-xl font-semibold">Downloaded library</h2>
-      <DownloadedStatus
-        saveFailure={saveFailure}
-        organization={organization}
-        onOrganizationSaved={organizationSaved}
-        onEditing={onEditing}
-        status={status}
-        upload={upload}
-        changes={changes}
-        usage={usage}
-        account={account}
-        lifecycle={lifecycle}
-        signedIn={signedIn}
-        offline={offline}
-        editing={editingDisabled || Boolean(editor)}
-        copyMessage={copy.message}
-        onRetry={refreshLibrary}
-        onRetryUsage={() => {
-          void retryUsage();
-        }}
-        onRetryUpload={() => {
-          void retryUpload();
-        }}
-        onOpen={(id) => {
-          void open(id);
-        }}
-      >
-        <DownloadControls
+      <h2 className="sr-only">Downloaded library</h2>
+      <div className="wf-status">
+        <DownloadedStatus
+          saveFailure={saveFailure}
+          organization={organization}
+          onOrganizationSaved={organizationSaved}
+          onEditing={onEditing}
           status={status}
-          signedIn={signedIn}
-          busy={busy}
-          errorText={errorText}
-          onPause={() => {
-            void pauseDownload();
-          }}
-          onRetry={refreshLibrary}
-        />
-        <LocalAdjustments
+          upload={upload}
+          changes={changes}
+          usage={usage}
           account={account}
-          refresh={retry}
-          onChanged={refreshLibrary}
-        />
-      </DownloadedStatus>
-      <button
-        type="button"
-        className="rounded border px-4 py-2"
-        disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
-        onClick={() => {
-          setEditor({});
-          onEditing(true);
-        }}
-      >
-        New prompt
-      </button>
-      <LocalConflicts
-        account={account}
-        refresh={retry}
-        onOpen={(id) => {
-          void open(id);
-        }}
-        onChanged={refreshLibrary}
-      />
-      {editor ? (
-        <LocalPromptEditor
-          onSaveFailure={setSaveFailure}
-          initial={editor.initial}
-          mappings={upload?.mappings}
-          onOpenOriginal={(id) => {
+          lifecycle={lifecycle}
+          signedIn={signedIn}
+          offline={offline}
+          editing={editingDisabled || Boolean(editor)}
+          copyMessage={copy.message}
+          onRetry={refreshLibrary}
+          onRetryUsage={() => {
+            void retryUsage();
+          }}
+          onRetryUpload={() => {
+            void retryUpload();
+          }}
+          onOpen={(id) => {
             void open(id);
           }}
+        >
+          <DownloadControls
+            status={status}
+            signedIn={signedIn}
+            busy={busy}
+            errorText={errorText}
+            onPause={() => {
+              void pauseDownload();
+            }}
+            onRetry={refreshLibrary}
+          />
+          <LocalAdjustments
+            account={account}
+            refresh={retry}
+            onChanged={refreshLibrary}
+          />
+        </DownloadedStatus>
+      </div>
+      <LibraryWorkspace
+        sidebar={
+          <>
+            <button
+              type="button"
+              className="rounded border px-4 py-2"
+              disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+              onClick={() => {
+                setEditor({});
+                onEditing(true);
+              }}
+            >
+              New prompt
+            </button>
+            {status?.recoveryCount ? (
+              <RecoveryLibrary count={status.recoveryCount} account={account} />
+            ) : null}
+            <SearchLibrary
+              attentionIds={
+                new Set(upload?.errors.map((entry) => entry.promptId))
+              }
+              account={account}
+              refresh={retry}
+              organization={organization}
+              onOrganizationSaved={organizationSaved}
+              editingDisabled={editorIsBlocked(
+                Boolean(editor),
+                editingDisabled
+              )}
+              onEditing={onEditing}
+              onFavorite={lifecycle.handleFavorite}
+              changing={lifecycle.busy || Boolean(editor) || editingDisabled}
+              onSelect={selectResult}
+              onCopy={copy.handleCopy}
+              copying={copy.busy || editingDisabled}
+            />
+          </>
+        }
+      >
+        <LocalConflicts
           account={account}
-          onCancel={() => {
-            setSaveFailure(false);
-            setEditor(undefined);
-            onEditing(false);
+          refresh={retry}
+          onOpen={(id) => {
+            void open(id);
           }}
-          onSaved={(value) => {
-            setSaveFailure(false);
-            promptSaved(value);
-            onEditing(false);
-          }}
+          onChanged={refreshLibrary}
         />
-      ) : null}
-      {status?.recoveryCount ? (
-        <RecoveryLibrary count={status.recoveryCount} account={account} />
-      ) : null}
-      <SearchLibrary
-        attentionIds={new Set(upload?.errors.map((entry) => entry.promptId))}
-        account={account}
-        refresh={retry}
-        organization={organization}
-        onOrganizationSaved={organizationSaved}
-        editingDisabled={editorIsBlocked(Boolean(editor), editingDisabled)}
-        onEditing={onEditing}
-        onFavorite={lifecycle.handleFavorite}
-        changing={lifecycle.busy || Boolean(editor) || editingDisabled}
-        onSelect={selectResult}
-        onCopy={copy.handleCopy}
-        copying={copy.busy || editingDisabled}
-      />
-      {localDetail ? (
-        <LocalPromptDetail
-          value={localDetail}
-          editing={
-            editorIsBlocked(Boolean(editor), editingDisabled) || lifecycle.busy
-          }
-          onAction={lifecycle.handleAction}
-          onEdit={() => {
-            setEditor({ initial: localDetail });
-            onEditing(true);
-          }}
-          copying={copy.busy || editingDisabled || busy}
-          onCopy={() => {
-            void copy.handleCopy(localDetail.prompt.id);
-          }}
-        />
-      ) : null}
-      {localDetail && organization ? (
-        <PromptOrganization
-          account={account}
-          value={localDetail}
-          snapshot={organization}
-          onSaved={organizationSaved}
-          disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
-        />
-      ) : null}
+        {editor ? (
+          <LocalPromptEditor
+            onSaveFailure={setSaveFailure}
+            initial={editor.initial}
+            mappings={upload?.mappings}
+            onOpenOriginal={(id) => {
+              void open(id);
+            }}
+            account={account}
+            onCancel={() => {
+              setSaveFailure(false);
+              setEditor(undefined);
+              onEditing(false);
+            }}
+            onSaved={(value) => {
+              setSaveFailure(false);
+              promptSaved(value);
+              onEditing(false);
+            }}
+          />
+        ) : null}
+        {localDetail ? (
+          <LocalPromptDetail
+            value={localDetail}
+            editing={
+              editorIsBlocked(Boolean(editor), editingDisabled) ||
+              lifecycle.busy
+            }
+            onAction={lifecycle.handleAction}
+            onEdit={() => {
+              setEditor({ initial: localDetail });
+              onEditing(true);
+            }}
+            copying={copy.busy || editingDisabled || busy}
+            onCopy={() => {
+              void copy.handleCopy(localDetail.prompt.id);
+            }}
+          />
+        ) : (
+          <EmptyDetail />
+        )}
+        {localDetail && organization ? (
+          <PromptOrganization
+            account={account}
+            value={localDetail}
+            snapshot={organization}
+            onSaved={organizationSaved}
+            disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+          />
+        ) : null}
+      </LibraryWorkspace>
     </section>
   );
 };

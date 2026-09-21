@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-resident-hide"
+description = "Enables the resident_hide command without any pre-configured scope."
+commands.allow = ["resident_hide"]
+
+[[permission]]
+identifier = "deny-resident-hide"
+description = "Denies the resident_hide command without any pre-configured scope."
+commands.deny = ["resident_hide"]

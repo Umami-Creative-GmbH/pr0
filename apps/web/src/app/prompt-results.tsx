@@ -5,6 +5,10 @@ import type {
   PromptView,
   promptPageSchema,
 } from "@pr0/api-contract/prompts";
+import {
+  PromptIconAction,
+  PromptMoreActions,
+} from "@pr0/ui/components/prompt-actions";
 import type {
   InfiniteData,
   UseInfiniteQueryResult,
@@ -38,8 +42,9 @@ const PromptListRow = ({
   actions: ReturnType<typeof usePromptActions>;
   onDelete: (prompt: Pick<Prompt, "id" | "title" | "revision">) => void;
 }) => (
-  <li>
+  <li className="wf-row">
     <button
+      data-prompt-row
       aria-pressed={selectedId === prompt.id}
       className="w-full rounded-md border px-3 py-3 text-left break-words focus-visible:outline-2 focus-visible:outline-offset-2"
       onClick={() => setSelected(prompt.id)}
@@ -52,61 +57,57 @@ const PromptListRow = ({
         </span>
       ) : null}
     </button>
-    <div className="mt-1 flex flex-wrap gap-2">
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`Copy ${prompt.title}`}
+    <div className="wf-row-actions">
+      <PromptIconAction
+        kind="copy"
+        label={`Copy ${prompt.title}`}
         disabled={copy.blocked}
         onClick={() => {
           void copy.copy(prompt.id);
         }}
-      >
-        Copy
-      </button>
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`${prompt.favorite ? "Unfavorite" : "Favorite"} ${prompt.title}`}
-        aria-pressed={prompt.favorite}
+      />
+      <PromptIconAction
+        kind="favorite"
+        label={`${prompt.favorite ? "Unfavorite" : "Favorite"} ${prompt.title}`}
+        active={prompt.favorite}
         disabled={actions.blocked}
         onClick={() => {
           void actions.act(prompt, "favorite", !prompt.favorite);
         }}
-      >
-        {prompt.favorite ? "Unfavorite" : "Favorite"}
-      </button>
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`Duplicate ${prompt.title}`}
-        disabled={actions.blocked}
-        onClick={() => {
-          void actions.act(prompt, "duplicate");
-        }}
-      >
-        Duplicate
-      </button>
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`${prompt.archived ? "Restore" : "Archive"} ${prompt.title}`}
-        disabled={actions.blocked}
-        onClick={() => {
-          void actions.act(prompt, "archived", !prompt.archived);
-        }}
-      >
-        {prompt.archived ? "Restore" : "Archive"}
-      </button>
-      <button
-        className={buttonClass}
-        type="button"
-        aria-label={`Permanently delete ${prompt.title}`}
-        disabled={actions.blocked}
-        onClick={() => onDelete(prompt)}
-      >
-        Delete
-      </button>
+      />
+      <PromptMoreActions label={`More actions for ${prompt.title}`}>
+        <button
+          className={buttonClass}
+          type="button"
+          aria-label={`Duplicate ${prompt.title}`}
+          disabled={actions.blocked}
+          onClick={() => {
+            void actions.act(prompt, "duplicate");
+          }}
+        >
+          Duplicate
+        </button>
+        <button
+          className={buttonClass}
+          type="button"
+          aria-label={`${prompt.archived ? "Restore" : "Archive"} ${prompt.title}`}
+          disabled={actions.blocked}
+          onClick={() => {
+            void actions.act(prompt, "archived", !prompt.archived);
+          }}
+        >
+          {prompt.archived ? "Restore" : "Archive"}
+        </button>
+        <button
+          className={buttonClass}
+          type="button"
+          aria-label={`Permanently delete ${prompt.title}`}
+          disabled={actions.blocked}
+          onClick={() => onDelete(prompt)}
+        >
+          Delete
+        </button>
+      </PromptMoreActions>
     </div>
   </li>
 );
@@ -167,10 +168,7 @@ export const PromptResults = ({
   }
   const empty = list.isSuccess && !prompts.length && !pendingSearch;
   return (
-    <section
-      aria-labelledby="prompts-heading"
-      className="rounded-lg border p-6"
-    >
+    <section aria-labelledby="prompts-heading" className="wf-results">
       <h2 className="text-xl font-semibold" id="prompts-heading">
         {resultsHeading(
           empty,

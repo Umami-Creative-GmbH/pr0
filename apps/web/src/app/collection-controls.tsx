@@ -208,6 +208,7 @@ export const CollectionControls = ({
         </p>
       ) : null}
       <CollectionPicker
+        compact
         unavailableName={
           viewCollectionId ? unavailableNames.get(viewCollectionId) : undefined
         }
@@ -227,27 +228,35 @@ export const CollectionControls = ({
           </button>
         </p>
       ) : null}
-      <CollectionPicker
-        unavailableName={
-          collectionId ? unavailableNames.get(collectionId) : undefined
-        }
-        label="Collection filter"
-        emptyLabel="All collections"
-        collections={collections}
-        value={collectionId}
-        search={collectionMatches}
-        onChange={onSelect}
-      />
-      {collectionId &&
-      states.data?.some((state) => state.id === collectionId) ? (
-        <p>
-          {states.data.find((state) => state.id === collectionId)?.name} ·
-          Deleted. This collection is unavailable; no prompts match.{" "}
-          <button type="button" className={buttonClass} onClick={onAllPrompts}>
-            Go to All prompts
-          </button>
-        </p>
-      ) : null}
+      <details open={Boolean(collectionId)}>
+        <summary>Filter within this view</summary>
+        <CollectionPicker
+          compact
+          unavailableName={
+            collectionId ? unavailableNames.get(collectionId) : undefined
+          }
+          label="Collection filter"
+          emptyLabel="All collections"
+          collections={collections}
+          value={collectionId}
+          search={collectionMatches}
+          onChange={onSelect}
+        />
+        {collectionId &&
+        states.data?.some((state) => state.id === collectionId) ? (
+          <p>
+            {states.data.find((state) => state.id === collectionId)?.name} ·
+            Deleted. This collection is unavailable; no prompts match.{" "}
+            <button
+              type="button"
+              className={buttonClass}
+              onClick={onAllPrompts}
+            >
+              Go to All prompts
+            </button>
+          </p>
+        ) : null}
+      </details>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Tags</h2>
         <button
@@ -263,6 +272,7 @@ export const CollectionControls = ({
         </button>
       </div>
       <TagPicker
+        compact
         unavailableNames={unavailableNames}
         tags={tags}
         label="Tag filters"

@@ -62,13 +62,6 @@ fn hide_launcher(app: &tauri::AppHandle, opening: u64) -> Result<(), String> {
     Ok(())
 }
 fn launcher_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
-    // Preserve the existing main-window shutdown behavior until the separate
-    // tray/safe-quit slice owns residency. A hidden launcher must not strand
-    // a shortcut-owning process after its library window is destroyed.
-    if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
-        window.app_handle().exit(0);
-        return;
-    }
     if window.label() != "launcher" {
         return;
     }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-resident-action"
+description = "Enables the resident_action command without any pre-configured scope."
+commands.allow = ["resident_action"]
+
+[[permission]]
+identifier = "deny-resident-action"
+description = "Denies the resident_action command without any pre-configured scope."
+commands.deny = ["resident_action"]

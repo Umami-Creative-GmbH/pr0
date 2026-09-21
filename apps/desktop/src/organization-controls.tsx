@@ -64,6 +64,7 @@ export const OrganizationControls = ({
             Manage
           </button>
           <CollectionPicker
+            compact
             collections={snapshot.collections}
             value={filters.collectionId}
             onChange={(collectionId) => onFilters({ ...filters, collectionId })}
@@ -90,6 +91,7 @@ export const OrganizationControls = ({
             Manage
           </button>
           <TagPicker
+            compact
             tags={snapshot.tags}
             value={filters.tagIds}
             onChange={(tagIds) => onFilters({ ...filters, tagIds })}
@@ -201,6 +203,7 @@ export const PromptOrganization = ({
   return (
     <section aria-label="Prompt organization" className="space-y-2">
       <CollectionPicker
+        compact
         collections={snapshot.collections}
         value={value.prompt.collectionId}
         onChange={(collectionId) => {
@@ -216,6 +219,7 @@ export const PromptOrganization = ({
         disabled={disabled || busy || uncertain}
       />
       <TagPicker
+        compact
         tags={snapshot.tags}
         value={value.prompt.tagIds}
         onChange={(ids) => {

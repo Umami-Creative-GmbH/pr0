@@ -1,6 +1,10 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "resident_status",
+            "resident_action",
+            "resident_hide",
+            "resident_finish_quit",
             "copy_template",
             "launcher_status",
             "launcher_library_details",

@@ -4,11 +4,13 @@ import type {
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
 import type { PromptText } from "@pr0/api-contract/prompts";
+import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { z } from "zod";
 
 import { libraryClient } from "./library-client";
+import { useResidentEditor } from "./resident-editor";
 import type { Status } from "./use-auth-session";
 
 const failures = {
@@ -36,6 +38,82 @@ const failures = {
 } satisfies Record<string, string>;
 const failureMessages = new Map(Object.entries(failures));
 
+const PromptFields = ({
+  draft,
+  change,
+}: {
+  draft: PromptText;
+  change: (field: keyof PromptText, value: string) => void;
+}) => (
+  <>
+    <label className="block" htmlFor="draft-title">
+      Title
+    </label>
+    <input
+      id="draft-title"
+      className="block w-full rounded border p-2"
+      value={draft.title}
+      onChange={(event) => change("title", event.target.value)}
+    />
+    <label className="block" htmlFor="draft-description">
+      Description
+    </label>
+    <textarea
+      id="draft-description"
+      className="block w-full rounded border p-2"
+      value={draft.description}
+      onChange={(event) => change("description", event.target.value)}
+    />
+    <label className="block" htmlFor="draft-content">
+      Content
+    </label>
+    <textarea
+      id="draft-content"
+      className="min-h-48 w-full rounded border p-2"
+      value={draft.content}
+      onChange={(event) => change("content", event.target.value)}
+    />
+  </>
+);
+
+const DiscardConfirmation = ({
+  saving,
+  onCancel,
+  onKeep,
+}: {
+  saving: boolean;
+  onCancel: () => void;
+  onKeep: () => void;
+}) => (
+  <section aria-label="Discard draft confirmation">
+    <p>Discard this unsaved draft? Its text will be lost.</p>
+    <button type="button" disabled={saving} onClick={onCancel}>
+      Discard draft
+    </button>
+    <button type="button" onClick={onKeep}>
+      Keep editing
+    </button>
+  </section>
+);
+
+const EditorSaveStatus = ({
+  saving,
+  saveError,
+}: {
+  saving: boolean;
+  saveError: string;
+}) => (
+  <>
+    {" "}
+    <p aria-live="polite">
+      {saving ? "Saving…" : ""}
+      {!saving && saveError ? "Not saved" : ""}
+      {!saving && !saveError ? "Unsaved changes" : ""}
+    </p>
+    {saveError ? <p role="alert">{saveError}</p> : null}
+  </>
+);
+
 export const LocalPromptEditor = ({
   initial,
   mappings,
@@ -59,6 +137,8 @@ export const LocalPromptEditor = ({
     content: initial?.prompt.content ?? "",
   }));
   const currentDraft = useRef(draft);
+  const savedDraft = useRef(draft);
+  const pendingSave = useRef<Promise<boolean> | null>(null);
   const target = useRef({
     id: initial?.prompt.id ?? crypto.randomUUID(),
     revision: initial?.localRevision ?? null,
@@ -135,10 +215,8 @@ export const LocalPromptEditor = ({
     setDraft(next);
     setCopyMessage("");
   };
-  const save = async () => {
-    if (saving) {
-      return;
-    }
+  const performSave = async (): Promise<boolean> => {
+    let saved = false;
     setSaving(true);
     setSaveError("");
     onSaveFailure?.(false);
@@ -152,11 +230,13 @@ export const LocalPromptEditor = ({
       });
       target.current = { id: result.prompt.id, revision: result.localRevision };
       attempt.current = null;
+      savedDraft.current = request.desired;
       // Inputs remain editable during a native save. Its acknowledgement certifies only that submitted variant.
       if (
         active.current &&
         JSON.stringify(currentDraft.current) === JSON.stringify(request.desired)
       ) {
+        saved = true;
         onSaved(result);
       }
     } catch (error) {
@@ -194,7 +274,34 @@ export const LocalPromptEditor = ({
       }
     }
     setSaving(false);
+    return saved;
   };
+  const save = async (): Promise<boolean> => {
+    if (pendingSave.current) {
+      return await pendingSave.current;
+    }
+    pendingSave.current = performSave();
+    try {
+      const result = await pendingSave.current;
+      pendingSave.current = null;
+      return result;
+    } catch {
+      pendingSave.current = null;
+      setSaving(false);
+      setSaveError(
+        "The save could not be confirmed. Keep this draft open and retry, or copy the text."
+      );
+      return false;
+    }
+  };
+  useResidentEditor({
+    hasChanges: () =>
+      Boolean(attempt.current) ||
+      JSON.stringify(currentDraft.current) !==
+        JSON.stringify(savedDraft.current),
+    pending: () => pendingSave.current,
+    save,
+  });
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void save();
@@ -209,107 +316,101 @@ export const LocalPromptEditor = ({
       );
     }
   };
+  const [browsing, setBrowsing] = useState(false);
+  const editorLabel = initial ? "Edit prompt" : "New prompt";
   return (
-    <form
-      aria-label="Prompt editor"
-      className="space-y-4 rounded border p-4"
-      onSubmit={submit}
-    >
-      {originalId ? (
-        <button type="button" onClick={() => onOpenOriginal(originalId)}>
-          Open original
-        </button>
-      ) : null}
-      {redirected ? (
-        <p>
-          You&apos;re editing the conflict copy. Your unsaved text is retained.
-        </p>
-      ) : null}
-      <h3 className="text-lg font-semibold">
-        {initial ? "Edit prompt" : "New prompt"}
-      </h3>
-      <label className="block" htmlFor="draft-title">
-        Title
-      </label>
-      <input
-        id="draft-title"
-        className="block w-full rounded border p-2"
-        value={draft.title}
-        onChange={(event) => change("title", event.target.value)}
-      />
-      <label className="block" htmlFor="draft-description">
-        Description
-      </label>
-      <textarea
-        id="draft-description"
-        className="block w-full rounded border p-2"
-        value={draft.description}
-        onChange={(event) => change("description", event.target.value)}
-      />
-      <label className="block" htmlFor="draft-content">
-        Content
-      </label>
-      <textarea
-        id="draft-content"
-        className="min-h-48 w-full rounded border p-2"
-        value={draft.content}
-        onChange={(event) => change("content", event.target.value)}
-      />
-      <p aria-live="polite">
-        {saving ? "Saving…" : ""}
-        {!saving && saveError ? "Not saved" : ""}
-        {!saving && !saveError ? "Unsaved changes" : ""}
-      </p>
-      {saveError ? <p role="alert">{saveError}</p> : null}
-      <div className="flex flex-wrap gap-4">
-        <button
-          className="rounded border px-4 py-2"
-          disabled={saving}
-          type="submit"
+    <>
+      <button
+        hidden={!browsing}
+        type="button"
+        onClick={() => setBrowsing(false)}
+      >
+        Resume prompt draft
+      </button>
+      <WayfinderDialog
+        suspended={browsing}
+        label={editorLabel}
+        onRequestClose={() => {
+          if (!saving) {
+            setDiscard(true);
+          }
+        }}
+      >
+        <form
+          aria-label="Prompt editor"
+          className="space-y-4 rounded border p-4"
+          onSubmit={submit}
         >
-          {saveError ? "Retry" : "Save"}
-        </button>
-        <button
-          className="rounded border px-4 py-2"
-          type="button"
-          onClick={() => {
-            void copy();
-          }}
-        >
-          Copy text
-        </button>
-        {conflict ? (
-          <button
-            type="button"
-            onClick={() => {
-              target.current = { id: crypto.randomUUID(), revision: null };
-              attempt.current = null;
-              void save();
-            }}
-          >
-            Save as new prompt
+          <button type="button" onClick={() => setBrowsing(true)}>
+            Browse library (keep draft)
           </button>
-        ) : null}
-        <button
-          disabled={saving}
-          type="button"
-          onClick={() => setDiscard(true)}
-        >
-          Cancel
-        </button>
-      </div>
-      <p aria-live="polite">{copyMessage}</p>
-      {discard ? (
-        <section aria-label="Discard draft confirmation">
-          <p>Discard this unsaved draft? Its text will be lost.</p>
-          <button type="button" disabled={saving} onClick={onCancel}>
-            Discard draft
-          </button>
-          <button type="button" onClick={() => setDiscard(false)}>
-            Keep editing
-          </button>
-        </section>
-      ) : null}
-    </form>
+          {originalId ? (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenOriginal(originalId);
+                setBrowsing(true);
+              }}
+            >
+              Open original
+            </button>
+          ) : null}
+          {redirected ? (
+            <p>
+              You&apos;re editing the conflict copy. Your unsaved text is
+              retained.
+            </p>
+          ) : null}
+          <h3 className="text-lg font-semibold">{editorLabel}</h3>
+          <PromptFields draft={draft} change={change} />
+          <EditorSaveStatus saving={saving} saveError={saveError} />
+          <div className="flex flex-wrap gap-4">
+            <button
+              className="rounded border px-4 py-2"
+              disabled={saving}
+              type="submit"
+            >
+              {saveError ? "Retry" : "Save"}
+            </button>
+            <button
+              className="rounded border px-4 py-2"
+              type="button"
+              onClick={() => {
+                void copy();
+              }}
+            >
+              Copy text
+            </button>
+            {conflict ? (
+              <button
+                type="button"
+                onClick={() => {
+                  target.current = { id: crypto.randomUUID(), revision: null };
+                  attempt.current = null;
+                  void save();
+                }}
+              >
+                Save as new prompt
+              </button>
+            ) : null}
+            <button
+              disabled={saving}
+              type="button"
+              onClick={() => setDiscard(true)}
+            >
+              Cancel
+            </button>
+          </div>
+          <p aria-live="polite">{copyMessage}</p>
+          {discard ? (
+            <DiscardConfirmation
+              saving={saving}
+              onCancel={onCancel}
+              onKeep={() => setDiscard(false)}
+            />
+          ) : null}
+        </form>
+      </WayfinderDialog>
+    </>
   );
 };

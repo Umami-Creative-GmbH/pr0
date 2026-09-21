@@ -19,11 +19,8 @@ export const LauncherEntry = () => {
     setBusy(false);
   };
   return (
-    <section
-      aria-label="Quick launcher"
-      className="space-y-2 rounded border p-4"
-    >
-      <h2 className="text-lg font-medium">Quick launcher</h2>
+    <section aria-label="Quick launcher" className="wf-launcher-entry">
+      <h2 className="sr-only">Quick launcher</h2>
       <p>
         {status
           ? (status.shortcut ?? "Global shortcut unavailable")

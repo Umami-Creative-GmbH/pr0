@@ -69,7 +69,7 @@ const VariableDialog = ({
     <dialog
       ref={dialogRef}
       aria-labelledby="variables-heading"
-      className="bg-background text-foreground m-auto max-h-[90dvh] w-[min(40rem,90vw)] overflow-y-auto rounded-lg border p-6 backdrop:bg-black/50"
+      className="wf-dialog"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.preventDefault();

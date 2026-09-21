@@ -2,6 +2,8 @@
 
 import { useId, useState } from "react";
 
+import { PickerSearch } from "./picker-search";
+
 const buttonClass =
   "rounded-md border px-3 py-2 text-left break-words focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
 export interface CollectionOption {
@@ -19,6 +21,7 @@ export const CollectionPicker = ({
   label,
   emptyLabel,
   disabled = false,
+  compact = false,
   unavailableName,
 }: {
   collections: CollectionOption[];
@@ -28,6 +31,7 @@ export const CollectionPicker = ({
   label: string;
   emptyLabel: string;
   disabled?: boolean;
+  compact?: boolean;
   unavailableName?: string;
 }) => {
   const id = useId();
@@ -39,10 +43,12 @@ export const CollectionPicker = ({
   return (
     <fieldset
       disabled={disabled}
-      className="min-w-0 space-y-2 rounded-md border p-3"
+      className="wf-picker min-w-0 space-y-2 rounded-md border p-3"
     >
-      <legend className="px-1 font-medium">{label}</legend>
-      <p className="text-muted-foreground text-sm">
+      <legend className={compact ? "sr-only" : "px-1 font-medium"}>
+        {label}
+      </legend>
+      <p hidden={compact} className="text-muted-foreground text-sm">
         Counts are library-wide, including the archive, for the available
         snapshot.
       </p>
@@ -58,15 +64,17 @@ export const CollectionPicker = ({
           </button>
         </div>
       ) : null}
-      <label className="block" htmlFor={id}>
-        Search {label.toLowerCase()}
-      </label>
-      <input
-        id={id}
-        className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-      />
+      <PickerSearch compact={compact} label={label}>
+        <label className="block" htmlFor={id}>
+          Search {label.toLowerCase()}
+        </label>
+        <input
+          id={id}
+          className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </PickerSearch>{" "}
       <fieldset
         className="max-h-48 space-y-1 overflow-y-auto p-1"
         aria-label={`${label} options`}
