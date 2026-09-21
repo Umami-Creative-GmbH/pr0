@@ -132,6 +132,67 @@ pub fn migrate(db: &Connection) -> rusqlite::Result<()> {
     }
     Ok(())
 }
+
+pub fn recover(db: &mut Connection, path: &std::path::Path) -> Result<(), String> {
+    use super::library_storage::io;
+    let compatible = db.query_row("SELECT version=2 AND normalization='pr0-search-v1-ucd17' FROM local_search_version WHERE singleton=1", [], |r| r.get::<_, bool>(0)).unwrap_or(false);
+    let readable = [
+        "local_search",
+        "search_metadata",
+        "search_organization",
+        "search_membership",
+    ]
+    .iter()
+    .all(|table| {
+        db.query_row(&format!("PRAGMA quick_check({table})"), [], |r| {
+            r.get::<_, String>(0)
+        })
+        .is_ok_and(|value| value == "ok")
+    });
+    let postings_valid = ["title", "description", "content", "name"]
+        .iter()
+        .all(|field| {
+            db.execute_batch(&format!(
+                "INSERT INTO local_f_{field}(local_f_{field},rank) VALUES('integrity-check',1);"
+            ))
+            .is_ok()
+        });
+    if compatible && readable && postings_valid && short_postings_valid(db).unwrap_or(false) {
+        return Ok(());
+    }
+    preflight(db).map_err(io)?;
+    let tx = db
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(io)?;
+    super::migration_backup::prepare(&tx, path, super::library_migrations::CURRENT_SCHEMA)?;
+    rebuild_in_transaction(&tx).map_err(io)?;
+    tx.execute_batch("UPDATE change_state SET cursor=NULL,updating=1,error=NULL; UPDATE upload_state SET last_checked=NULL;").map_err(io)?;
+    tx.commit().map_err(io)
+}
+fn short_postings_valid(db: &Connection) -> rusqlite::Result<bool> {
+    let check: String = db.query_row("PRAGMA quick_check(local_search_short)", [], |r| r.get(0))?;
+    if check != "ok" {
+        return Ok(false);
+    }
+    let mut statement =
+        db.prepare("SELECT field,gram,representation,payload,count FROM local_search_short")?;
+    let mut rows = statement.query([])?;
+    while let Some(row) = rows.next()? {
+        let field: String = row.get(0)?;
+        let gram: String = row.get(1)?;
+        let kind: String = row.get(2)?;
+        let bytes: Vec<u8> = row.get(3)?;
+        let count: u32 = row.get(4)?;
+        if !["title", "description", "content", "name"].contains(&field.as_str())
+            || !(1..=2).contains(&gram.chars().count())
+            || bytes.len() > 20_000
+            || decode(&kind, &bytes)?.len() != count as usize
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
 fn grams(text: &str) -> BTreeSet<String> {
     let mut result = BTreeSet::new();
     let mut previous = None;
@@ -338,14 +399,13 @@ pub fn update(tx: &Transaction, prompt: &Prompt, revision: i64) -> rusqlite::Res
 
 // Triggers record affected identities, never text. The owner drains this queue before
 // committing primary data and the outbox, so no successful write exposes stale search.
-pub fn upgrade(db: &mut Connection) -> rusqlite::Result<()> {
-    preflight(db)?;
-    let tx = db.transaction()?;
+pub fn upgrade(tx: &Transaction) -> rusqlite::Result<()> {
+    preflight(tx)?;
     tx.execute_batch(
         "DROP TABLE local_f_title; DROP TABLE local_f_description; DROP TABLE local_f_content;
         DROP TABLE local_search; DROP TABLE local_search_short; DROP TABLE local_search_version;",
     )?;
-    create(&tx)?;
+    create(tx)?;
     tx.execute_batch("CREATE TABLE search_dirty(id TEXT PRIMARY KEY,text_changed INTEGER NOT NULL);
         CREATE TABLE search_org_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1),dirty INTEGER NOT NULL);
         INSERT INTO search_org_state VALUES(1,1);
@@ -378,20 +438,19 @@ pub fn upgrade(db: &mut Connection) -> rusqlite::Result<()> {
     tx.execute_batch(
         "INSERT INTO search_dirty SELECT id,1 FROM visible_prompt; PRAGMA user_version=7;",
     )?;
-    flush(&tx)?;
-    tx.commit()
+    flush(tx)?;
+    Ok(())
 }
 // Version 8 joins the search and organization previews without rebuilding prompt text.
-pub fn integrate_organization(db: &mut Connection) -> rusqlite::Result<()> {
-    let tx = db.transaction()?;
+pub fn integrate_organization(tx: &Transaction) -> rusqlite::Result<()> {
     for action in ["INSERT", "UPDATE", "DELETE"] {
         tx.execute_batch(&format!("CREATE TRIGGER IF NOT EXISTS search_projected_org_{action} AFTER {action} ON organization_local BEGIN UPDATE search_org_state SET dirty=1; END;"))?;
     }
     tx.execute_batch("UPDATE search_org_state SET dirty=1;
         INSERT INTO search_dirty SELECT id,0 FROM visible_prompt WHERE true ON CONFLICT(id) DO NOTHING;
         PRAGMA user_version=8;")?;
-    flush(&tx)?;
-    tx.commit()
+    flush(tx)?;
+    Ok(())
 }
 fn create(db: &Connection) -> rusqlite::Result<()> {
     db.execute_batch("CREATE TABLE local_search(slot INTEGER PRIMARY KEY CHECK(slot BETWEEN 0 AND 9999),id TEXT UNIQUE NOT NULL,title TEXT NOT NULL,description TEXT NOT NULL,content TEXT NOT NULL,content_bytes INTEGER NOT NULL,revision INTEGER NOT NULL);
@@ -413,6 +472,10 @@ pub fn rebuild(db: &mut Connection) -> rusqlite::Result<()> {
     // SQLite stages all replacement pages in the WAL. Readers keep their old snapshot;
     // an I/O failure rolls back the replacement without changing primary data/outbox.
     let tx = db.transaction()?;
+    rebuild_in_transaction(&tx)?;
+    tx.commit()
+}
+fn rebuild_in_transaction(tx: &Transaction) -> rusqlite::Result<()> {
     tx.execute_batch(
         "DROP TABLE IF EXISTS local_f_title; DROP TABLE IF EXISTS local_f_description;
         DROP TABLE IF EXISTS local_f_content; DROP TABLE IF EXISTS local_f_name;
@@ -420,14 +483,14 @@ pub fn rebuild(db: &mut Connection) -> rusqlite::Result<()> {
         DROP TABLE IF EXISTS local_search_version; DROP TABLE IF EXISTS search_metadata;
         DROP TABLE IF EXISTS search_organization; DROP TABLE IF EXISTS search_membership;",
     )?;
-    create(&tx)?;
+    create(tx)?;
     tx.execute_batch(
         "DELETE FROM search_dirty; INSERT INTO search_dirty SELECT id,1 FROM visible_prompt;
         UPDATE search_org_state SET dirty=1;
         UPDATE local_state SET revision=revision+1;",
     )?;
-    flush(&tx)?;
-    tx.commit()
+    flush(tx)?;
+    Ok(())
 }
 fn preflight(db: &Connection) -> rusqlite::Result<()> {
     #[cfg(windows)]

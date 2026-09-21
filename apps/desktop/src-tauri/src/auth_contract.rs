@@ -56,6 +56,21 @@ pub struct Capabilities {
     pub device_authorization: bool,
     pub deletion_key: DeletionKey,
     pub limits: Limits,
+    // Negotiation is fresh network evidence, not persisted session metadata.
+    #[serde(default, skip_serializing)]
+    pub compatibility: Option<Compatibility>,
+}
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Compatibility {
+    pub support_days: u32,
+    pub contracts: Vec<SyncContract>,
+}
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SyncContract {
+    pub protocol: u32,
+    pub normalization: String,
 }
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -152,8 +167,14 @@ impl Capabilities {
     pub fn validate(&self, origin: &str) -> Result<(), String> {
         if self.origin != origin
             || !valid_id(&self.instance_id)
-            || self.protocols != [1]
-            || self.normalization != "pr0-search-v1-ucd17"
+            || self.protocols.is_empty()
+            || self.protocols.len() > 16
+            || self
+                .protocols
+                .iter()
+                .any(|version| *version == 0 || *version > 65535)
+            || self.normalization.is_empty()
+            || self.normalization.len() > 80
             || !self.device_authorization
             || self.deletion_key.kty != "OKP"
             || self.deletion_key.crv != "Ed25519"
@@ -163,6 +184,28 @@ impl Capabilities {
             || self.limits.response_bytes != 16384
         {
             return Err("incompatible_instance".into());
+        }
+        Ok(())
+    }
+    pub fn negotiate(&self) -> Result<(), String> {
+        let compatible = if let Some(policy) = &self.compatibility {
+            policy.support_days == 90
+                && !policy.contracts.is_empty()
+                && policy.contracts.len() <= 16
+                && policy.contracts.iter().all(|entry| {
+                    entry.protocol > 0
+                        && entry.protocol <= 65535
+                        && !entry.normalization.is_empty()
+                        && entry.normalization.len() <= 80
+                })
+                && policy.contracts.iter().any(|entry| {
+                    entry.protocol == 1 && entry.normalization == "pr0-search-v1-ucd17"
+                })
+        } else {
+            self.protocols.contains(&1) && self.normalization == "pr0-search-v1-ucd17"
+        };
+        if !compatible {
+            return Err("compatibility_update_required".into());
         }
         Ok(())
     }

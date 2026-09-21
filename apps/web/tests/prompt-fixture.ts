@@ -69,7 +69,7 @@ export const promptClient = (Cookie: string) =>
     headers.set("Cookie", Cookie);
     headers.set("Origin", origin);
     const deadline = Date.now() + 120_000;
-    // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Capacity fixtures must await the explicit search preparation state before asserting results.
+    // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Capacity fixtures await search preparation and its bounded read-admission retries before asserting results.
     while (true) {
       const response = await fetch(url, { ...init, headers });
       if (
@@ -82,7 +82,12 @@ export const promptClient = (Cookie: string) =>
       const failure = promptErrorSchema.safeParse(
         await response.clone().json()
       );
-      if (!failure.success || failure.data.code !== "search_preparing") {
+      if (
+        !failure.success ||
+        !failure.data.retryable ||
+        (failure.data.code !== "search_preparing" &&
+          failure.data.code !== "temporarily_unavailable")
+      ) {
         return response;
       }
       await Bun.sleep((failure.data.retryAfter ?? 1) * 1000);

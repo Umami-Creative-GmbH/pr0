@@ -1,4 +1,3 @@
-import "server-only";
 import {
   accountErrorSchema,
   accountRequestSchema,
@@ -10,6 +9,7 @@ import {
   socialSignInSchema,
   socialVerificationSchema,
 } from "@pr0/api-contract/accounts";
+import "server-only";
 import type {
   AccountRequest,
   AccountResponse,

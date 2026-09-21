@@ -48,15 +48,52 @@ export const deletionKeySchema = z.strictObject({
 export const capabilitiesSchema = z.strictObject({
   instanceId: z.uuid(),
   origin: z.url(),
-  protocols: z.array(z.literal(1)).length(1),
-  normalization: z.literal("pr0-search-v1-ucd17"),
+  protocols: z.array(z.number().int().positive().max(65_535)).min(1).max(16),
+  normalization: z.string().min(1).max(80),
   deviceAuthorization: z.literal(true),
   deletionKey: deletionKeySchema,
   limits: z.strictObject({
     credentialBytes: z.literal(2560),
     responseBytes: z.literal(16_384),
   }),
+  compatibility: z
+    .strictObject({
+      supportDays: z.literal(90),
+      contracts: z
+        .array(
+          z.strictObject({
+            protocol: z.number().int().positive().max(65_535),
+            normalization: z.string().min(1).max(80),
+          })
+        )
+        .min(1)
+        .max(16),
+    })
+    .optional(),
 });
+
+// Keep protocol 1 and its normalization together throughout the release window.
+export const desktopContract = {
+  protocol: 1,
+  normalization: "pr0-search-v1-ucd17",
+} as const;
+export const compatibilityPolicy = {
+  supportDays: 90,
+  contracts: [desktopContract],
+} as const;
+export const negotiateCapabilities = (
+  capabilities: z.infer<typeof capabilitiesSchema>
+) => {
+  const compatible = capabilities.compatibility
+    ? capabilities.compatibility.contracts.some(
+        (entry) =>
+          entry.protocol === desktopContract.protocol &&
+          entry.normalization === desktopContract.normalization
+      )
+    : capabilities.protocols.includes(desktopContract.protocol) &&
+      capabilities.normalization === desktopContract.normalization;
+  return { compatible, contract: compatible ? desktopContract : null };
+};
 export const desktopSessionSchema = z.strictObject({
   instance: z.strictObject({ id: z.uuid(), origin: z.url() }),
   account: z.strictObject({

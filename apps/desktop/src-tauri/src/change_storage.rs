@@ -127,8 +127,7 @@ impl LibraryStore {
                 tx.execute("INSERT INTO organization_membership_removal SELECT ?1,t.value,?2 FROM prompt p,json_each(p.record,'$.tagIds') t WHERE p.snapshot=?3 AND p.id=?1 AND NOT EXISTS(SELECT 1 FROM json_each(?4) n WHERE n.value=t.value) ON CONFLICT(prompt_id,tag_id) DO UPDATE SET revision=excluded.revision",params![prompt.id,event.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.id,json!(prompt.tag_ids).to_string()]).map_err(io)?;
                 }
                 store_baseline_prompt(&tx, &manifest.id, prompt)?;
-                // Only text edits are currently exposed locally. Preserve that complete saved variant,
-                // while merging independent server metadata into its visible overlay.
+                // Apply saved local intent over independent incoming fields.
                 let local: Option<String> = tx
                     .query_row(
                         "SELECT record FROM local_prompt WHERE id=?1",
@@ -141,9 +140,19 @@ impl LibraryStore {
                     let saved: Prompt =
                         serde_json::from_str(&local).map_err(|_| "storage_unavailable")?;
                     let mut merged = prompt.clone();
-                    merged.title = saved.title;
-                    merged.description = saved.description;
-                    merged.content = saved.content;
+                    let mut statement = tx.prepare("SELECT payload FROM outbox WHERE prompt_id=?1 AND (state<>'accepted_awaiting_download' OR cast(json_extract(receipt,'$.revision') AS INTEGER)>?2) ORDER BY local_revision").map_err(io)?;
+                    let rows = statement.query_map(params![prompt.id,prompt.revision.parse::<i64>().map_err(|_|"invalid_response")?],|r|r.get::<_,String>(0)).map_err(io)?.collect::<Result<Vec<_>,_>>().map_err(io)?;
+                    for row in rows {
+                        let operation:PendingOperation = serde_json::from_str(&row).map_err(|_|"storage_unavailable")?;
+                        if let Some(metadata) = &operation.metadata {
+                            metadata.apply(&mut merged);
+                        } else if !matches!(operation.action,PendingAction::Delete) {
+                            merged.revision = saved.revision.clone();
+                            merged.title = saved.title.clone();
+                            merged.description = saved.description.clone();
+                            merged.content = saved.content.clone();
+                        }
+                    }
                     merged.modified_at = saved.modified_at;
                     store_overlay_prompt(&tx, &merged)?;
                 }

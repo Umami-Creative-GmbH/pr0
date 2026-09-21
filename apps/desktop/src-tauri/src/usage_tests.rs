@@ -241,6 +241,11 @@ fn usage_test_command(
                 .library_copy(
                     serde_json::from_value(input["request"].clone()).unwrap(),
                     |text| {
+                        if input["fault"] == "clipboard_fixture" {
+                            // Lifecycle journeys control the external clipboard boundary;
+                            // OS clipboard behavior has its separate installed tests.
+                            return Ok(());
+                        }
                         if input["fault"] == "clipboard_unavailable" {
                             return Err("clipboard_unavailable".into());
                         }

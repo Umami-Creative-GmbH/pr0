@@ -7,18 +7,19 @@ import type {
 } from "@pr0/api-contract/local-prompts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DownloadedStatus } from "./downloaded-status";
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadStatus } from "./library-client";
-import { DownloadControls, LocalLibraryStatus } from "./local-library-status";
+import { DownloadControls } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
 import { organizationClient } from "./organization-client";
 import { PromptOrganization } from "./organization-controls";
 import { RecoveryLibrary } from "./recovery-library";
 import { SearchLibrary } from "./search-library";
-import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
 import { useLibraryRefresh } from "./use-library-refresh";
+import { useLifecycle } from "./use-lifecycle";
 import { usePromptCopy } from "./use-prompt-copy";
 
 const editorIsBlocked = (editing: boolean, transition: boolean) =>
@@ -55,6 +56,7 @@ const useDownloadedLibrary = ({
   const alive = useRef(true);
   const selection = useRef(0);
   const selectedPrompt = useRef<string | null>(null);
+  const openedCopy = useRef<string | null>(null);
   const observedMappings = useRef(new Set<string>());
   const open = useCallback(async (id: string) => {
     selectedPrompt.current = id;
@@ -68,6 +70,7 @@ const useDownloadedLibrary = ({
     } catch (error) {
       if (alive.current && request === selection.current) {
         if (error === "prompt_not_found" || error === "prompt_unavailable") {
+          openedCopy.current = null;
           selectedPrompt.current = null;
           setLocalDetail(undefined);
         }
@@ -75,6 +78,19 @@ const useDownloadedLibrary = ({
       }
     }
   }, []);
+  const lifecycle = useLifecycle(account, (id, action) => {
+    if (action.kind === "duplicate" || openedCopy.current !== id) {
+      openedCopy.current = action.kind === "duplicate" ? id : null;
+    }
+    if (id) {
+      void open(id);
+    } else {
+      selectedPrompt.current = null;
+      selection.current += 1;
+      setLocalDetail(undefined);
+    }
+    refreshLibrary();
+  });
   const organizationSaved = useCallback(async () => {
     const nextOrganization = await organizationClient.snapshot();
     if (alive.current) {
@@ -165,7 +181,14 @@ const useDownloadedLibrary = ({
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- An explicit Retry restarts this effect even when sign-in state is unchanged.
   }, [signedIn, retry, refreshAuth, open]);
   const selectResult = useCallback(
-    async (id: string | null) => {
+    async (
+      id: string | null,
+      reason: "refresh" | "navigation" = "navigation"
+    ) => {
+      if (reason === "refresh" && openedCopy.current) {
+        return;
+      }
+      openedCopy.current = null;
       if (id) {
         await open(id);
       } else {
@@ -245,6 +268,7 @@ const useDownloadedLibrary = ({
     retry,
     selectResult,
     promptSaved,
+    lifecycle,
   };
 };
 interface LibraryProps {
@@ -278,28 +302,31 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     retry,
     selectResult,
     promptSaved,
+    lifecycle,
   } = useDownloadedLibrary(props);
   return (
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
-      <output>{copy.message}</output>
-      <UsageStatus
-        status={usage}
-        onRetry={() => {
-          void retryUsage();
-        }}
-      />
-      <LocalLibraryStatus
+      <DownloadedStatus
         status={status}
-        signedIn={signedIn}
-        offline={offline}
         upload={upload}
         changes={changes}
+        usage={usage}
+        account={account}
+        lifecycle={lifecycle}
+        signedIn={signedIn}
+        offline={offline}
+        editing={editingDisabled || Boolean(editor)}
+        copyMessage={copy.message}
+        onRetry={refreshLibrary}
+        onRetryUsage={() => {
+          void retryUsage();
+        }}
+        onRetryUpload={() => {
+          void retryUpload();
+        }}
         onOpen={(id) => {
           void open(id);
-        }}
-        onRetry={() => {
-          void retryUpload();
         }}
       />
       <button
@@ -351,6 +378,8 @@ export const DownloadedLibrary = (props: LibraryProps) => {
         onOrganizationSaved={organizationSaved}
         editingDisabled={editorIsBlocked(Boolean(editor), editingDisabled)}
         onEditing={onEditing}
+        onFavorite={lifecycle.handleFavorite}
+        changing={lifecycle.busy || Boolean(editor) || editingDisabled}
         onSelect={selectResult}
         onCopy={copy.handleCopy}
         copying={copy.busy || editingDisabled}
@@ -358,7 +387,10 @@ export const DownloadedLibrary = (props: LibraryProps) => {
       {localDetail ? (
         <LocalPromptDetail
           value={localDetail}
-          editing={editorIsBlocked(Boolean(editor), editingDisabled)}
+          editing={
+            editorIsBlocked(Boolean(editor), editingDisabled) || lifecycle.busy
+          }
+          onAction={lifecycle.handleAction}
           onEdit={() => {
             setEditor({ initial: localDetail });
             onEditing(true);

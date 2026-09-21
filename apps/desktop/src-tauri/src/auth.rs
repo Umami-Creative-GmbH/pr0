@@ -235,6 +235,7 @@ impl AuthService {
                     .request(&origin, Endpoint::Capabilities, None, None)?,
             )?;
         trust.validate(&origin)?;
+        trust.negotiate()?;
         {
             let state = self.state.lock().map_err(|_| "state_unavailable")?;
             if state.generation != generation {

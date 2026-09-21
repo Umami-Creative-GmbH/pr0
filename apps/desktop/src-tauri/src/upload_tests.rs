@@ -16,13 +16,17 @@ impl Transport for UploadFixture {
         &self,
         _: &str,
         endpoint: Endpoint,
-        _: Option<&str>,
+        token: Option<&str>,
         body: Option<serde_json::Value>,
     ) -> Result<serde_json::Value, String> {
         let data = fixtures();
         match endpoint {
             Endpoint::DeletionLookup => Ok(json!({"status":"absent"})),
-            Endpoint::Capabilities => Ok(data["capabilities"].clone()),
+            Endpoint::Capabilities => {
+                let mut capabilities = data["capabilities"].clone();
+                if token.is_some() && std::env::var("PR0_COMPATIBILITY_UI_FIXTURE").as_deref() == Ok("true") { capabilities["protocols"] = json!([2]); }
+                Ok(capabilities)
+            },
             Endpoint::Code => Ok(data["code"].clone()),
             Endpoint::Token => Ok(data["token"].clone()),
             Endpoint::Session => Ok(data["session"].clone()),
@@ -64,7 +68,7 @@ impl Transport for UploadFixture {
                     return Err("network_unavailable".into());
                 }
                 let operation = &body["operations"][0];
-                if self.quota && operation["desired"]["content"] == "Refused" {
+                if self.quota && (operation["desired"]["content"] == "Refused" || operation["kind"] == "prompt.delete") {
                     return Ok(
                         json!({"results":[{"status":"rejected","error":{"operationId":operation["operationId"],"code":"quota_exceeded","message":"Free capacity","retryable":true}}]}),
                     );

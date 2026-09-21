@@ -75,7 +75,7 @@ fn search_tracks_offline_organization_names_assignments_and_removal() {
 }
 
 #[test]
-fn search_reopen_rejects_incompatible_normalization_until_recovery() {
+fn search_reopen_recovers_incompatible_normalization() {
     let directory =
         std::env::temp_dir().join(format!("pr0-search-version-{}", uuid::Uuid::new_v4()));
     let vault = Arc::new(Vault::default());
@@ -98,9 +98,10 @@ fn search_reopen_rejects_incompatible_normalization_until_recovery() {
     assert_eq!(
         service
             .library_search(search_request(&service, "Hello"))
-            .err()
-            .as_deref(),
-        Some("search_recovery_required")
+            .unwrap()
+            .prompts
+            .len(),
+        2
     );
     service
         .library_recover_search(search_request(&service, ""))
@@ -450,7 +451,7 @@ fn search_upgrades_both_version_seven_layouts_with_pending_work() {
         assert_eq!(
             db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                 .unwrap(),
-            8
+            super::library_migrations::CURRENT_SCHEMA
         );
         drop(db);
         std::fs::remove_dir_all(directory).unwrap();
@@ -509,7 +510,7 @@ fn search_upgrades_both_version_six_layouts_preserving_pending_work() {
         assert_eq!(
             db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                 .unwrap(),
-            8
+            super::library_migrations::CURRENT_SCHEMA
         );
         if search_preview {
             assert_eq!(fingerprint(&db), before);
@@ -608,7 +609,7 @@ fn search_cancelled_admission_cannot_run_after_newer_typeahead() {
 }
 
 #[test]
-fn search_corruption_reports_recovery_preserves_primary_and_rebuilds_explicitly() {
+fn search_corruption_recovers_on_reopen_and_can_rebuild_explicitly() {
     let directory =
         std::env::temp_dir().join(format!("pr0-search-recovery-{}", uuid::Uuid::new_v4()));
     let vault = Arc::new(Vault::default());
@@ -627,9 +628,10 @@ fn search_corruption_reports_recovery_preserves_primary_and_rebuilds_explicitly(
     assert_eq!(
         service
             .library_search(search_request(&service, "Hello"))
-            .err()
-            .as_deref(),
-        Some("search_recovery_required")
+            .unwrap()
+            .prompts
+            .len(),
+        2
     );
     assert_eq!(
         service.library_detail(&saved.prompt.id).unwrap().content,

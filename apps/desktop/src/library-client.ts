@@ -14,8 +14,16 @@ import {
   localPromptSchema,
   localSaveSchema,
   uploadStatusSchema,
+  localLifecycleSchema,
+  lifecycleResultSchema,
+  localRecoverySchema,
 } from "@pr0/api-contract/local-prompts";
-import type { LocalSave } from "@pr0/api-contract/local-prompts";
+import type {
+  LocalSave,
+  LocalLifecycle,
+  LocalRecovery,
+  LocalView,
+} from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
 import {
   downloadStatusSchema,
@@ -24,7 +32,11 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
-const statusSchema = downloadStatusSchema;
+import { upgradeRecoveryMessage } from "./upgrade-recovery";
+
+const statusSchema = downloadStatusSchema.extend({
+  recoveryError: z.string().nullable().optional(),
+});
 const summariesSchema = z
   .array(
     z.strictObject({ id: z.uuidv4(), title: z.string(), archived: z.boolean() })
@@ -33,6 +45,32 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  retained: async (id: string) =>
+    promptSchema.parse(await invoke("library_retained_prompt", { id })),
+  lifecycle: async (request: LocalLifecycle) => {
+    const input = localLifecycleSchema.parse(request);
+    const result = lifecycleResultSchema.safeParse(
+      await invoke("library_lifecycle", { request: input })
+    );
+    const target =
+      input.action.kind === "duplicate" ? input.action.copyId : input.promptId;
+    if (!result.success || result.data.promptId !== target) {
+      throw new Error("commit_uncertain");
+    }
+    return result.data;
+  },
+  recover: async (request: LocalRecovery) => {
+    await invoke("library_recover", {
+      request: localRecoverySchema.parse(request),
+    });
+  },
+  list: async (offset: number, view: LocalView) =>
+    summariesSchema.parse(
+      await invoke(view === "recents" ? "library_recents" : "library_list", {
+        offset,
+        view,
+      })
+    ),
   search: async (request: DesktopSearch, signal: AbortSignal) => {
     const input = desktopSearchSchema.parse(request);
     signal.throwIfAborted();
@@ -151,6 +189,11 @@ export const downloadError = (
   error: unknown,
   context: "download" | "search" = "download"
 ) => {
+  const code = z.string().safeParse(error).data;
+  const recovery = code ? upgradeRecoveryMessage(code) : undefined;
+  if (recovery) {
+    return recovery;
+  }
   if (error === "operation_cancelled") {
     return context === "search"
       ? "The account changed. Refresh the connection before searching again."
@@ -179,9 +222,6 @@ export const downloadError = (
   }
   if (error === "redirect_rejected") {
     return "The server redirected the download. Check its canonical address; downloaded prompts are preserved.";
-  }
-  if (error === "local_update_required") {
-    return "This library needs a newer version of pr0. Update the app; local data is preserved.";
   }
   if (error === "authentication_required") {
     return "Sign in to resume downloading. Your downloaded prompts remain available.";

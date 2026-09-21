@@ -1,3 +1,4 @@
+export { default as duplicatePromptFixtures } from "./duplicate-prompt-fixtures.json";
 // Shared wire-level conformance vectors, usable by REST and later native checks.
 export const deletionConflictFixture = {
   base: { title: "Reply", description: "Old context", content: "  Original\n" },
@@ -51,18 +52,3 @@ export const competingPromptEdits = {
     content: "B",
   },
 };
-
-export const duplicatePromptFixtures = [
-  {
-    sourceTitle: "Writing helper",
-    title: "Writing helper (copy)",
-    description: "Context",
-    content: "  Hello\n    world\n",
-  },
-  {
-    sourceTitle: "🌍".repeat(200),
-    title: `${"🌍".repeat(193)} (copy)`,
-    description: "",
-    content: "Original text",
-  },
-] as const;

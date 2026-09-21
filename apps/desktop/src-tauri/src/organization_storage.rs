@@ -2,8 +2,8 @@
 use super::organization_contract::{OrganizationAction, OrganizeRequest};
 use serde_json::{json, Value};
 
-fn migrate_organization(db: &Connection) -> Result<(), String> {
-    db.execute_batch("BEGIN IMMEDIATE;
+pub(super) fn migrate_organization(db: &Connection) -> Result<(), String> {
+    db.execute_batch("
         CREATE TABLE organization_known(id TEXT PRIMARY KEY); CREATE TABLE organization_checkpoint(revision TEXT); INSERT INTO organization_checkpoint VALUES(NULL); CREATE TABLE organization_ack(id TEXT PRIMARY KEY,revision INTEGER NOT NULL,payload TEXT NOT NULL); CREATE TABLE organization_queue(id TEXT PRIMARY KEY, entity_id TEXT NOT NULL, payload TEXT NOT NULL, local_revision INTEGER NOT NULL, envelope TEXT, receipt TEXT, error TEXT, next_attempt INTEGER NOT NULL DEFAULT 0,occurred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
         CREATE TABLE organization_local(kind TEXT NOT NULL,id TEXT PRIMARY KEY,name TEXT NOT NULL,revision TEXT NOT NULL);
         CREATE TABLE organization_receipt(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL);
@@ -15,7 +15,7 @@ fn migrate_organization(db: &Connection) -> Result<(), String> {
         DROP VIEW visible_prompt;
         CREATE VIEW visible_prompt AS SELECT p.id,p.title,p.archived,CASE WHEN a.id IS NULL THEN p.record ELSE json_set(p.record,'$.collectionId',a.collection_id,'$.tagIds',json(a.tags),'$.modifiedAt',max(json_extract(p.record,'$.modifiedAt'),a.modified)) END AS record,p.text_bytes FROM base_visible_prompt p LEFT JOIN organization_assignment a ON a.id=p.id;
         INSERT INTO organization_local SELECT kind,id,name,json_extract(record,'$.revision') FROM organization WHERE snapshot=(SELECT active FROM state);
-        PRAGMA user_version=7; COMMIT;").map_err(io)
+        PRAGMA user_version=7;").map_err(io)
 }
 fn organization_entries(db: &Connection, kind: &str) -> Result<Vec<OrganizationEntry>, String> {
     let mut statement = db

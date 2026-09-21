@@ -11,6 +11,58 @@ import { localNativeWorker } from "./local-native-worker";
 
 const browserChannel = process.env.PR0_TEST_BROWSER ?? "chrome";
 
+test("navigation away from an opened duplicate survives a busy search retry", async () => {
+  const directory = await mkdtemp(
+    path.join(os.tmpdir(), "pr0-copy-navigation-")
+  );
+  const native = await localNativeWorker(directory, true);
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  let busySearch = false;
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(5000);
+    await connect(
+      page,
+      native,
+      () => "",
+      (command) => {
+        if (command === "library_search" && busySearch) {
+          busySearch = false;
+          throw new Error("search_busy");
+        }
+      }
+    );
+    await page.getByRole("button", { name: "First", exact: true }).click();
+    const detail = page.getByRole("article", { name: "Prompt detail" });
+    await detail
+      .getByRole("button", { name: "Duplicate", exact: true })
+      .click();
+    await detail
+      .getByRole("heading", { name: "First (copy)", exact: true })
+      .waitFor();
+    await page
+      .getByRole("button", { name: "First (copy)", exact: true })
+      .waitFor();
+    busySearch = true;
+    await page
+      .getByRole("navigation", { name: "Library views" })
+      .getByRole("button", { name: "Recents", exact: true })
+      .click();
+    await page
+      .getByText("Copied active prompts appear in Recents.", { exact: false })
+      .waitFor();
+    await detail.waitFor({ state: "detached" });
+    expect(busySearch).toBe(false);
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("recovery retains the selected prompt and open draft through pause and epoch activation", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-recovery-ui-"));
   const native = await localNativeWorker(directory, false, false, true);
@@ -245,6 +297,13 @@ test("settings cancel, failed synchronization and explicit offline discard prese
       .getByText("Server revocation could not be confirmed", { exact: false })
       .waitFor();
     expect(await reopened.getByLabel("Downloaded library").count()).toBe(0);
+    const customServer = reopened.getByRole("button", {
+      name: "Use your own server",
+      exact: true,
+    });
+    if (await customServer.count()) {
+      await customServer.click();
+    }
     expect(await reopened.getByLabel("HTTPS server").isEditable()).toBe(true);
   } finally {
     await browser.close();
@@ -478,6 +537,120 @@ test("a remote deletion selects the remaining result while preserving the delete
     expect(
       await draft.evaluate((element) => element === document.activeElement)
     ).toBe(true);
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("desktop lifecycle resolves an uncertain commit before another action, preserves an archived favorite and cancels deletion", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-lifecycle-ui-"));
+  const native = await localNativeWorker(directory);
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  let fault = "";
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(10_000);
+    await connect(page, native, () => fault);
+    await page.getByRole("button", { name: "New prompt", exact: true }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Lifecycle example");
+    await page
+      .getByLabel("Content", { exact: true })
+      .fill("  Original snapshot\n");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const detail = page.getByRole("article", { name: "Prompt detail" });
+    fault = "after_commit_error";
+    await detail.getByRole("button", { name: "Favorite", exact: true }).click();
+    await page
+      .getByText(
+        "The result could not be confirmed. Retry to check this same action safely.",
+        { exact: true }
+      )
+      .waitFor();
+    expect(await page.getByText("Not saved.", { exact: false }).count()).toBe(
+      0
+    );
+    fault = "";
+    await page
+      .getByRole("button", { name: "Retry action", exact: true })
+      .click();
+    await detail
+      .getByRole("button", { name: "Favorite", exact: true, pressed: true })
+      .waitFor();
+    await detail.getByRole("button", { name: "Archive", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Library views" })
+      .getByRole("button", { name: "Archive", exact: true })
+      .click();
+    await page
+      .getByRole("button", {
+        name: "Lifecycle example (Archived)",
+        exact: true,
+      })
+      .click();
+    await detail
+      .getByRole("button", { name: "Duplicate", exact: true })
+      .click();
+    await detail
+      .getByRole("heading", { name: "Lifecycle example (copy)", exact: true })
+      .waitFor();
+    await detail.getByRole("button", { name: "Favorite", exact: true }).click();
+    await detail
+      .getByRole("button", { name: "Favorite", exact: true, pressed: true })
+      .waitFor();
+    expect(await page.getByLabel("Prompt content").inputValue()).toBe(
+      "  Original snapshot\n"
+    );
+    await detail
+      .getByRole("button", { name: "Delete permanently", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    expect(await page.getByLabel("Prompt content").inputValue()).toBe(
+      "  Original snapshot\n"
+    );
+    await detail
+      .getByRole("button", { name: "Delete permanently", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Permanently delete", exact: true })
+      .click();
+    await page
+      .getByText("Saved on this device. Deletion is waiting to sync.", {
+        exact: true,
+      })
+      .waitFor();
+    expect(
+      await native.command("library_list", { offset: 0, view: "archive" })
+    ).toEqual([
+      expect.objectContaining({ title: "Lifecycle example", archived: true }),
+    ]);
+    await page
+      .getByRole("button", {
+        name: "Lifecycle example (Archived)",
+        exact: true,
+      })
+      .click();
+    await detail.getByRole("button", { name: "Restore", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Library views" })
+      .getByRole("button", { name: "Favorites", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Lifecycle example", exact: true })
+      .waitFor();
+    await page.getByText("Review pending changes", { exact: false }).click();
+    await page.screenshot({
+      path: "docs/evidence/issue-44-offline-lifecycle.png",
+      fullPage: true,
+    });
   } finally {
     await browser.close();
     await native.stop();
