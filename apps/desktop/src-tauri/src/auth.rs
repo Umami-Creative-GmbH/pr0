@@ -32,6 +32,7 @@ struct Attempt {
     polling: bool,
 }
 struct State {
+    memory_usage: Vec<super::usage_contract::Usage>,
     library: Option<LibraryStore>,
     generation: u64,
     retained: Option<Retained>,
@@ -43,6 +44,7 @@ struct State {
     restore_pending: bool,
 }
 pub struct AuthService {
+    clipboard: Mutex<()>,
     upload: Mutex<()>,
     download: Mutex<()>,
     state: Mutex<State>,
@@ -57,6 +59,7 @@ fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, String> {
 }
 include!("library_commands.rs");
 include!("upload_commands.rs");
+include!("usage_commands.rs");
 impl State {
     fn view(&self) -> AuthView {
         let identity = self.retained.as_ref().map(|r| &r.identity);
@@ -136,10 +139,12 @@ impl AuthService {
             String::new()
         };
         Ok(Self {
+            clipboard: Mutex::new(()),
             upload: Mutex::new(()),
             download: Mutex::new(()),
             restoration: Mutex::new(()),
             state: Mutex::new(State {
+                memory_usage: vec![],
                 library: None,
                 generation: 1,
                 retained,

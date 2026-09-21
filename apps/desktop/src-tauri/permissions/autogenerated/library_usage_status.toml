@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-usage-status"
+description = "Enables the library_usage_status command without any pre-configured scope."
+commands.allow = ["library_usage_status"]
+
+[[permission]]
+identifier = "deny-library-usage-status"
+description = "Denies the library_usage_status command without any pre-configured scope."
+commands.deny = ["library_usage_status"]

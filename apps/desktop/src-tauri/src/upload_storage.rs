@@ -3,7 +3,7 @@ use super::local_contract::{PendingAction, PendingOperation};
 use super::upload_contract::{now, Mapping, Outcome, PendingError, UploadStatus};
 impl LibraryStore {
     pub fn required_download_revision(&self) -> Result<String, String> {
-        let revision:i64=self.db.query_row("SELECT coalesce(max(cast(json_extract(receipt,'$.revision') AS INTEGER)),0) FROM outbox WHERE state='accepted_awaiting_download'",[],|r|r.get(0)).map_err(io)?;
+        let revision:i64=self.db.query_row("SELECT coalesce(max(cast(json_extract(receipt,'$.revision') AS INTEGER)),0) FROM (SELECT receipt FROM outbox WHERE state='accepted_awaiting_download' UNION ALL SELECT receipt FROM pending_usage WHERE receipt IS NOT NULL)",[],|r|r.get(0)).map_err(io)?;
         Ok(revision.to_string())
     }
     pub fn upload_ready(&self) -> Result<bool, String> {
@@ -11,7 +11,7 @@ impl LibraryStore {
     }
     pub fn refresh_required(&self) -> Result<bool, String> {
         self.db
-            .query_row("SELECT refresh FROM upload_state", [], |r| r.get(0))
+            .query_row("SELECT refresh OR EXISTS(SELECT 1 FROM pending_usage WHERE receipt IS NOT NULL) FROM upload_state", [], |r| r.get(0))
             .map_err(io)
     }
     pub fn upload_status(&self) -> Result<UploadStatus, String> {
@@ -331,6 +331,7 @@ fn retire_downloaded_uploads(
     tx: &rusqlite::Transaction,
     manifest: &Manifest,
 ) -> Result<(), String> {
+    tx.execute("DELETE FROM pending_usage WHERE receipt IS NOT NULL AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
     tx.execute("DELETE FROM outbox WHERE state='accepted_awaiting_download' AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
     let ids = {
         let mut statement = tx

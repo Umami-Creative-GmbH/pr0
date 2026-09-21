@@ -7,6 +7,7 @@ pub struct Receipt {
     pub prompt_id: String,
     pub revision: String,
     pub accepted_at: String,
+    pub used_at: Option<String>,
     pub conflict: Option<Conflict>,
     pub organization_notice: Option<String>,
 }

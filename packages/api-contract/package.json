@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./desktop-copy": "./src/desktop-copy.ts",
     "./local-prompts": "./src/local-prompts.ts",
     "./variables": "./src/variables.ts",
     "./variable-fixtures": "./src/variable-fixtures.json",

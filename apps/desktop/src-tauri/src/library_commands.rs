@@ -8,6 +8,7 @@ impl AuthService {
         text: &str,
         write: impl FnOnce(&str) -> Result<(), String>,
     ) -> Result<(), String> {
+        let _clipboard = self.clipboard.try_lock().map_err(|_| "clipboard_busy")?;
         // No queued overlapping writes, and account transitions cannot race this short OS call.
         let state = self.state.try_lock().map_err(|_| "clipboard_busy")?;
         let retained = state.retained.as_ref().ok_or("authentication_required")?;
@@ -52,6 +53,9 @@ impl AuthService {
         Ok(paths)
     }
     fn review_library_cleanup(&self, state: &mut State) -> Result<(), String> {
+        if !state.memory_usage.is_empty() {
+            return Err("pending_work".into());
+        }
         let paths = self.library_cleanup_paths(state)?;
         for entry in std::fs::read_dir(&self.directory).map_err(|_| "storage_unavailable")? {
             let entry = entry.map_err(|_| "storage_unavailable")?;

@@ -12,7 +12,7 @@ const RetainedLibrary = ({
 }) =>
   status?.accountId && status.state !== "cleanup_required" ? (
     <DownloadedLibrary
-      key={`${status.instanceId}:${status.accountId}`}
+      key={`${status.instanceId}:${status.accountId}:${status.generation}`}
       signedIn={status.state === "signed_in"}
       account={status}
       refreshAuth={refreshAuth}

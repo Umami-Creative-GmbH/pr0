@@ -1,3 +1,4 @@
+import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 import type {
   LocalPrompt,
   UploadStatus,
@@ -5,12 +6,16 @@ import type {
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DownloadedRows } from "./downloaded-rows";
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadedSummary, DownloadStatus } from "./library-client";
+import { LibraryViews } from "./library-views";
 import { LocalLibraryStatus } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
+import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
+import { usePromptCopy } from "./use-prompt-copy";
 
 export const DownloadedLibrary = ({
   signedIn,
@@ -31,6 +36,9 @@ export const DownloadedLibrary = ({
   const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [usage, setUsage] = useState<DesktopUsageStatus>();
+  const [recents, setRecents] = useState(false);
+  const copy = usePromptCopy(account, () => setRetry((value) => value + 1));
   const alive = useRef(true);
   const selection = useRef(0);
   const browseRequest = useRef(0);
@@ -86,14 +94,18 @@ export const DownloadedLibrary = ({
     let cancelled = false;
     const refresh = async () => {
       const requestedOffset = currentOffset.current;
-      const [next, prompts, sync] = await Promise.all([
+      const [next, prompts, sync, uses] = await Promise.all([
         libraryClient.status(),
-        libraryClient.browse(requestedOffset),
+        recents
+          ? libraryClient.recents(requestedOffset)
+          : libraryClient.browse(requestedOffset),
         libraryClient.uploadStatus(),
+        libraryClient.usageStatus(),
       ]);
       if (!cancelled) {
         setStatus(next);
         setUpload(sync);
+        setUsage(uses);
         if (sync.error === "authentication_required") {
           await refreshAuth("auth_status");
         }
@@ -147,23 +159,45 @@ export const DownloadedLibrary = ({
       cancelled = true;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- An explicit Retry restarts this effect even when sign-in state is unchanged.
-  }, [signedIn, retry, refreshAuth, open]);
-  const browse = useCallback(async (next: number) => {
-    browseRequest.current += 1;
-    const request = browseRequest.current;
-    try {
-      const prompts = await libraryClient.browse(next);
-      if (alive.current && request === browseRequest.current) {
-        currentOffset.current = next;
-        setOffset(next);
-        setRows(prompts);
+  }, [signedIn, retry, refreshAuth, open, recents]);
+  const browse = useCallback(
+    async (next: number) => {
+      browseRequest.current += 1;
+      const request = browseRequest.current;
+      try {
+        const prompts = await (recents
+          ? libraryClient.recents(next)
+          : libraryClient.browse(next));
+        if (alive.current && request === browseRequest.current) {
+          currentOffset.current = next;
+          setOffset(next);
+          setRows(prompts);
+        }
+      } catch (error) {
+        if (alive.current) {
+          setErrorText(downloadError(error));
+        }
       }
-    } catch (error) {
+    },
+    [recents]
+  );
+  const retryUsage = async () => {
+    try {
+      const result = await libraryClient.retryUsage();
       if (alive.current) {
-        setErrorText(downloadError(error));
+        setUsage(result);
+        copy.usageRetried();
+        setErrorText("");
+        setRetry((value) => value + 1);
+      }
+    } catch {
+      if (alive.current) {
+        setErrorText(
+          "Usage still could not be saved. Free disk space and retry usage; the clipboard is unchanged."
+        );
       }
     }
-  }, []);
+  };
   const retryUpload = async () => {
     try {
       setUpload(await libraryClient.upload());
@@ -174,6 +208,23 @@ export const DownloadedLibrary = ({
   return (
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
+      <LibraryViews
+        recents={recents}
+        onSelect={(value) => {
+          browseRequest.current += 1;
+          currentOffset.current = 0;
+          setOffset(0);
+          setRows([]);
+          setRecents(value);
+        }}
+      />
+      <output>{copy.message}</output>
+      <UsageStatus
+        status={usage}
+        onRetry={() => {
+          void retryUsage();
+        }}
+      />
       <LocalLibraryStatus
         status={status}
         signedIn={signedIn}
@@ -242,50 +293,24 @@ export const DownloadedLibrary = ({
           Retry download
         </button>
       ) : null}
-      <ul className="space-y-2">
-        {rows.map((row) => (
-          <li key={row.id}>
-            <button
-              className="rounded border px-3 py-2 text-left"
-              onClick={() => {
-                void open(row.id);
-              }}
-              type="button"
-            >
-              {row.title}
-              {row.archived ? " (Archived)" : ""}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {status?.complete && status.downloaded === 0 ? (
-        <p>Your library is empty.</p>
-      ) : null}
-      <nav aria-label="Downloaded prompt pages" className="flex gap-4">
-        <button
-          type="button"
-          disabled={offset === 0}
-          onClick={() => {
-            void browse(Math.max(0, offset - 50));
-          }}
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          disabled={offset + rows.length >= (status?.downloaded ?? 0)}
-          onClick={() => {
-            void browse(offset + 50);
-          }}
-        >
-          Next
-        </button>
-      </nav>
+      <DownloadedRows
+        rows={rows}
+        offset={offset}
+        recents={recents}
+        copying={copy.busy}
+        onOpen={open}
+        onCopy={copy.handleCopy}
+        onBrowse={browse}
+      />
       {localDetail ? (
         <LocalPromptDetail
           value={localDetail}
           editing={Boolean(editor)}
           onEdit={() => setEditor({ initial: localDetail })}
+          copying={copy.busy}
+          onCopy={() => {
+            void copy.handleCopy(localDetail.prompt.id);
+          }}
         />
       ) : null}
     </section>
