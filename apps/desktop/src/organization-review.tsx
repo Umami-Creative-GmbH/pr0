@@ -59,7 +59,7 @@ export const OrganizationReview = ({
       </p>
       <button
         type="button"
-        className="rounded border p-2"
+        className="wf-btn"
         onClick={() => {
           setOffset(0);
           setOpen(!open);

@@ -1,68 +1,66 @@
 "use client";
 
 import { promptSortSchema } from "@pr0/api-contract/prompts";
+import { SearchBox } from "@pr0/ui/components/search-box";
 
 import type { usePromptSearch } from "./use-prompt-search";
 
-export const PromptSearchControls = ({
-  search,
-}: {
-  search: ReturnType<typeof usePromptSearch>;
-}) => (
-  <search className="flex flex-wrap items-end gap-3" aria-label="Find prompts">
-    <div className="min-w-64 flex-1">
-      <label htmlFor="prompt-search" className="block font-medium">
-        Search prompts
-      </label>
-      <input
-        id="prompt-search"
-        data-library-search
-        type="search"
-        value={search.query}
-        className="bg-background w-full rounded-md border px-3 py-2"
-        aria-describedby={search.error ? "search-error" : "search-help"}
-        aria-invalid={Boolean(search.error)}
-        onChange={(event) => search.changeQuery(event.target.value)}
-      />
-      <p id="search-help" className="text-muted-foreground text-sm">
-        Find literal text in titles, content, descriptions, tags and
-        collections.
+type Search = ReturnType<typeof usePromptSearch>;
+
+export const PromptSearchControls = ({ search }: { search: Search }) => (
+  <search aria-label="Find prompts" className="flex flex-col gap-2">
+    <SearchBox
+      id="prompt-search"
+      data-library-search
+      aria-label="Search prompts"
+      aria-describedby={search.error ? "search-error" : "search-help"}
+      hint="/"
+      invalid={Boolean(search.error)}
+      placeholder="Search prompts…"
+      value={search.query}
+      onChange={(event) => search.changeQuery(event.target.value)}
+    />
+    <p id="search-help" className="sr-only">
+      Find literal text in titles, content, descriptions, tags and collections.
+    </p>
+    {search.error ? (
+      <p id="search-error" className="wf-error" role="alert">
+        {search.error}
       </p>
-      {search.error ? (
-        <p id="search-error" role="alert">
-          {search.error}
-        </p>
-      ) : null}
-    </div>
-    <div>
-      <label htmlFor="prompt-sort" className="block font-medium">
-        Sort prompts
-      </label>
-      <select
-        id="prompt-sort"
-        className="bg-background rounded-md border px-3 py-2"
-        value={search.sort}
-        onChange={(event) =>
-          search.changeSort(promptSortSchema.parse(event.target.value))
-        }
-      >
-        {search.searching ? <option value="relevance">Relevance</option> : null}
-        <option value="recently-modified">Recently modified</option>
-        <option value="recently-used">Recently used</option>
-        <option value="newest">Newest</option>
-        <option value="oldest">Oldest</option>
-        <option value="title">Title A–Z</option>
-      </select>
-    </div>
-    {search.query ? (
-      <button
-        type="button"
-        className="rounded-md border px-4 py-2"
-        onClick={() => search.clear()}
-      >
-        Clear search
-      </button>
     ) : null}
-    {search.pending ? <output>Updating search…</output> : null}
+    {search.query || search.pending ? (
+      <div className="flex items-center gap-2">
+        {search.query ? (
+          <button
+            type="button"
+            className="wf-btn-quiet"
+            onClick={() => search.clear()}
+          >
+            Clear search
+          </button>
+        ) : null}
+        {search.pending ? (
+          <output className="wf-hint">Updating search…</output>
+        ) : null}
+      </div>
+    ) : null}
   </search>
+);
+
+export const PromptSortControl = ({ search }: { search: Search }) => (
+  <select
+    id="prompt-sort"
+    aria-label="Sort prompts"
+    value={search.sort}
+    onChange={(event) =>
+      search.changeSort(promptSortSchema.parse(event.target.value))
+    }
+  >
+    {search.searching ? <option value="relevance">Relevance</option> : null}
+    <option value="recently-modified">Recently modified</option>
+    <option value="recently-used">Recently used</option>
+    <option value="newest">Newest</option>
+    <option value="oldest">Oldest</option>
+    <option value="title">Title A–Z</option>
+  </select>
 );

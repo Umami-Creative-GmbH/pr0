@@ -43,11 +43,7 @@ export const OrganizationCapacity = ({
     {error ? (
       <div role="alert">
         {error}{" "}
-        <button
-          className="rounded-md border px-3 py-2 focus-visible:outline-2"
-          type="button"
-          onClick={onRetry}
-        >
+        <button className="wf-btn" type="button" onClick={onRetry}>
           Retry {plural.toLowerCase()}
         </button>
       </div>

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 import fixtures from "./variable-fixtures.json";
 import validation from "./variable-validation-fixtures.json";
-import { parseTemplate, substituteTemplate } from "./variables";
+import { parseTemplate, substituteTemplate, templateSpans } from "./variables";
 
 for (const fixture of fixtures) {
   test(`canonical tokenization and literal output: ${fixture.content}`, () => {
@@ -104,3 +104,26 @@ for (const fixture of validation.bounds) {
     expect(result.ok).toBe(fixture.ok);
   });
 }
+
+for (const fixture of fixtures) {
+  test(`display spans keep the exact source and mark only real variables: ${fixture.content}`, () => {
+    const spans = templateSpans(fixture.content);
+    expect(spans.map((span) => span.text).join("")).toBe(fixture.content);
+    expect(spans.every((span) => span.text.length > 0)).toBe(true);
+    const names = new Set(
+      spans.flatMap((span) => (span.variable ? [span.variable] : []))
+    );
+    expect([...names]).toEqual(fixture.fields.map(([name = ""]) => name));
+  });
+}
+test("display spans keep typed tokens whole and escaped tokens literal", () => {
+  expect(templateSpans("Cut {{ n | number }}% of \\{{text}} {{text}}")).toEqual(
+    [
+      { text: "Cut " },
+      { text: "{{ n | number }}", variable: "n" },
+      { text: "% of \\{{text}} " },
+      { text: "{{text}}", variable: "text" },
+    ]
+  );
+  expect(templateSpans("")).toEqual([]);
+});

@@ -1,8 +1,7 @@
 "use client";
 import type { usePromptActions } from "./use-prompt-actions";
 
-const buttonClass =
-  "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
+const buttonClass = "wf-btn";
 export const PromptActionStatus = ({
   actions,
 }: {

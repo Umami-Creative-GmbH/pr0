@@ -26,7 +26,7 @@ export const DownloadedRows = ({
       {rows.map((row) => (
         <li key={row.id} className="flex flex-wrap gap-2">
           <button
-            className="rounded border px-3 py-2 disabled:opacity-50"
+            className="wf-btn"
             type="button"
             disabled={changing}
             aria-label={`Toggle favorite for ${row.title}`}
@@ -37,7 +37,7 @@ export const DownloadedRows = ({
             Favorite
           </button>
           <button
-            className="rounded border px-3 py-2 text-left"
+            className="wf-btn"
             type="button"
             onClick={() => {
               void onOpen(row.id);
@@ -47,7 +47,7 @@ export const DownloadedRows = ({
             {row.archived ? " (Archived)" : ""}
           </button>
           <button
-            className="rounded border px-3 py-2"
+            className="wf-btn"
             type="button"
             aria-label={`Copy ${row.title}`}
             disabled={copying}

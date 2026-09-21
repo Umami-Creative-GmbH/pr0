@@ -15,8 +15,7 @@ import type { z } from "zod";
 import { collectionMatches } from "./collection-query";
 import { OrganizationManager } from "./organization-manager";
 
-const buttonClass =
-  "rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
+const buttonClass = "wf-btn";
 const UnavailableTags = ({
   states,
   tagIds,
@@ -165,7 +164,7 @@ export const CollectionControls = ({
     void organization.refetch();
   };
   return (
-    <section aria-label="Collections" className="space-y-3">
+    <section aria-label="Collections" className="wf-section">
       {managing ? (
         <OrganizationManager
           library={library}
@@ -185,10 +184,10 @@ export const CollectionControls = ({
           onDirtyChange={onDirtyChange}
         />
       ) : null}
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Collections</h2>
+      <div className="wf-section-head">
+        <h2 className="wf-eyebrow">Collections</h2>
         <button
-          className={buttonClass}
+          className="wf-btn-quiet"
           type="button"
           aria-label="Manage collections"
           onClick={() => {
@@ -200,7 +199,7 @@ export const CollectionControls = ({
         </button>
       </div>
       {error ? (
-        <p role="alert">
+        <p className="wf-notice" role="alert">
           {error}{" "}
           <button className={buttonClass} type="button" onClick={refresh}>
             Retry collections
@@ -228,7 +227,11 @@ export const CollectionControls = ({
           </button>
         </p>
       ) : null}
-      <details open={Boolean(collectionId)}>
+      <details
+        className="wf-hint"
+        hidden={!collections.length && !collectionId}
+        open={Boolean(collectionId)}
+      >
         <summary>Filter within this view</summary>
         <CollectionPicker
           compact
@@ -257,11 +260,11 @@ export const CollectionControls = ({
           </p>
         ) : null}
       </details>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Tags</h2>
+      <div className="wf-section-head">
+        <h2 className="wf-eyebrow">Tags</h2>
         <button
           type="button"
-          className={buttonClass}
+          className="wf-btn-quiet"
           aria-label="Manage tags"
           onClick={() => {
             setManaging("tags");

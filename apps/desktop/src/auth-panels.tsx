@@ -17,21 +17,21 @@ export const SignInForm = ({ busy, status, run }: PanelProps) => {
     void run("auth_begin", status.origin ?? origin);
   };
   return (
-    <form className="space-y-4" onSubmit={submit}>
-      <h2 className="text-xl font-semibold">
+    <form className="flex flex-col gap-4" onSubmit={submit}>
+      <span className="wf-eyebrow-accent">Desktop sign-in</span>
+      <h2>
         {status.state === "authentication_required"
           ? "Sign in to resume"
           : "Sign in to pr0"}
       </h2>
-      <p>
+      <p className="wf-hint">
         Choose a server you trust. You will approve a matching code in your
         system browser.
       </p>
       {custom || status.origin ? (
-        <label className="block">
-          HTTPS server
+        <label className="wf-field">
+          <span className="wf-label">HTTPS server</span>
           <input
-            className="mt-2 block w-full rounded border p-2"
             disabled={busy || Boolean(status.origin)}
             onChange={(event) => setOrigin(event.target.value)}
             placeholder="https://your-server.example"
@@ -42,9 +42,9 @@ export const SignInForm = ({ busy, status, run }: PanelProps) => {
         </label>
       ) : (
         <>
-          <p>Server: {origin}</p>
+          <p className="wf-hint">Server: {origin}</p>
           <button
-            className="underline"
+            className="wf-link self-start"
             onClick={() => setCustom(true)}
             type="button"
           >
@@ -52,11 +52,7 @@ export const SignInForm = ({ busy, status, run }: PanelProps) => {
           </button>
         </>
       )}
-      <button
-        className="block rounded border px-4 py-2"
-        disabled={busy}
-        type="submit"
-      >
+      <button className="wf-btn-accent" disabled={busy} type="submit">
         Continue in browser
       </button>
     </form>
@@ -102,7 +98,7 @@ export const SignOutControl = ({
           account or server.
         </p>
         <button
-          className="rounded border px-4 py-2"
+          className="wf-btn"
           type="button"
           disabled={busy}
           onClick={() => {
@@ -136,7 +132,7 @@ export const SignOutControl = ({
           ) : null}
           <div className="flex flex-wrap gap-3">
             <button
-              className="rounded border px-4 py-2"
+              className="wf-btn"
               disabled={busy}
               onClick={() => {
                 void choose("synchronize");
@@ -146,7 +142,7 @@ export const SignOutControl = ({
               Synchronize first and sign out
             </button>
             <button
-              className="rounded border px-4 py-2"
+              className="wf-btn"
               disabled={busy && !synchronizing}
               onClick={() => {
                 void choose("cancel");
@@ -166,7 +162,7 @@ export const SignOutControl = ({
             I understand that pending changes on this device will be lost
           </label>
           <button
-            className="rounded border px-4 py-2"
+            className="wf-btn"
             disabled={busy || !discardConfirmed}
             onClick={() => {
               void choose("discard");
@@ -179,7 +175,7 @@ export const SignOutControl = ({
       ) : (
         <>
           <button
-            className="rounded border px-4 py-2"
+            className="wf-btn"
             disabled={busy || editing || status.state === "awaiting_approval"}
             onClick={() => {
               setConfirm(true);

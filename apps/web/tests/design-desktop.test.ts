@@ -67,7 +67,7 @@ test("designed desktop keeps offline persistence, theme and a separate native la
       .click();
     await page.evaluate(() => {
       window.scrollTo(0, 0);
-      document.querySelector(".wf-sidebar")?.scrollTo(0, 0);
+      document.querySelector(".wf-list")?.scrollTo(0, 0);
     });
     await page.screenshot({
       path: "docs/evidence/design-75/production-desktop-dark-detail.png",

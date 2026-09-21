@@ -9,6 +9,7 @@ import {
   EmptyDetail,
   LibraryWorkspace,
 } from "@pr0/ui/components/wayfinder-shell";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DownloadedStatus } from "./downloaded-status";
@@ -314,71 +315,77 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     lifecycle,
   } = useDownloadedLibrary(props);
   return (
-    <section aria-label="Downloaded library">
+    <section aria-label="Downloaded library" className="contents">
       <PromptVariables copy={copy} />
       <h2 className="sr-only">Downloaded library</h2>
-      <div className="wf-status">
-        <DownloadedStatus
-          saveFailure={saveFailure}
-          organization={organization}
-          onOrganizationSaved={organizationSaved}
-          onEditing={onEditing}
+      <DownloadedStatus
+        saveFailure={saveFailure}
+        organization={organization}
+        onOrganizationSaved={organizationSaved}
+        onEditing={onEditing}
+        status={status}
+        upload={upload}
+        changes={changes}
+        usage={usage}
+        account={account}
+        lifecycle={lifecycle}
+        signedIn={signedIn}
+        offline={offline}
+        editing={editingDisabled || Boolean(editor)}
+        copyMessage={copy.message}
+        onRetry={refreshLibrary}
+        onRetryUsage={() => {
+          void retryUsage();
+        }}
+        onRetryUpload={() => {
+          void retryUpload();
+        }}
+        onOpen={(id) => {
+          void open(id);
+        }}
+      >
+        <DownloadControls
           status={status}
-          upload={upload}
-          changes={changes}
-          usage={usage}
-          account={account}
-          lifecycle={lifecycle}
           signedIn={signedIn}
-          offline={offline}
-          editing={editingDisabled || Boolean(editor)}
-          copyMessage={copy.message}
+          busy={busy}
+          errorText={errorText}
+          onPause={() => {
+            void pauseDownload();
+          }}
           onRetry={refreshLibrary}
-          onRetryUsage={() => {
-            void retryUsage();
-          }}
-          onRetryUpload={() => {
-            void retryUpload();
-          }}
-          onOpen={(id) => {
-            void open(id);
-          }}
-        >
-          <DownloadControls
-            status={status}
-            signedIn={signedIn}
-            busy={busy}
-            errorText={errorText}
-            onPause={() => {
-              void pauseDownload();
-            }}
-            onRetry={refreshLibrary}
-          />
-          <LocalAdjustments
-            account={account}
-            refresh={retry}
-            onChanged={refreshLibrary}
-          />
-        </DownloadedStatus>
-      </div>
+        />
+        <LocalAdjustments
+          account={account}
+          refresh={retry}
+          onChanged={refreshLibrary}
+        />
+      </DownloadedStatus>
       <LibraryWorkspace
         sidebar={
           <>
-            <button
-              type="button"
-              className="rounded border px-4 py-2"
-              disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
-              onClick={() => {
-                setEditor({});
-                onEditing(true);
-              }}
-            >
-              New prompt
-            </button>
             {status?.recoveryCount ? (
-              <RecoveryLibrary count={status.recoveryCount} account={account} />
+              <div className="wf-section">
+                <RecoveryLibrary
+                  count={status.recoveryCount}
+                  account={account}
+                />
+              </div>
             ) : null}
             <SearchLibrary
+              headActions={
+                <button
+                  type="button"
+                  className="wf-btn-quiet"
+                  disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+                  onClick={() => {
+                    setEditor({});
+                    onEditing(true);
+                  }}
+                >
+                  <Plus aria-hidden="true" size={13} />
+                  New prompt
+                </button>
+              }
               attentionIds={
                 new Set(upload?.errors.map((entry) => entry.promptId))
               }
@@ -400,14 +407,16 @@ export const DownloadedLibrary = (props: LibraryProps) => {
           </>
         }
       >
-        <LocalConflicts
-          account={account}
-          refresh={retry}
-          onOpen={(id) => {
-            void open(id);
-          }}
-          onChanged={refreshLibrary}
-        />
+        <div className="wf-notices">
+          <LocalConflicts
+            account={account}
+            refresh={retry}
+            onOpen={(id) => {
+              void open(id);
+            }}
+            onChanged={refreshLibrary}
+          />
+        </div>
         {editor ? (
           <LocalPromptEditor
             onSaveFailure={setSaveFailure}
@@ -431,6 +440,15 @@ export const DownloadedLibrary = (props: LibraryProps) => {
         ) : null}
         {localDetail ? (
           <LocalPromptDetail
+            collection={
+              organization?.collections.find(
+                (entry) => entry.id === localDetail.prompt.collectionId
+              )?.name
+            }
+            tags={localDetail.prompt.tagIds.flatMap(
+              (id) =>
+                organization?.tags.find((entry) => entry.id === id)?.name ?? []
+            )}
             value={localDetail}
             editing={
               editorIsBlocked(Boolean(editor), editingDisabled) ||
@@ -447,16 +465,18 @@ export const DownloadedLibrary = (props: LibraryProps) => {
             }}
           />
         ) : (
-          <EmptyDetail />
+          <EmptyDetail hint="Choose a prompt on the left, or open the quick launcher, type its name and press Enter." />
         )}
         {localDetail && organization ? (
-          <PromptOrganization
-            account={account}
-            value={localDetail}
-            snapshot={organization}
-            onSaved={organizationSaved}
-            disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
-          />
+          <div className="wf-meta">
+            <PromptOrganization
+              account={account}
+              value={localDetail}
+              snapshot={organization}
+              onSaved={organizationSaved}
+              disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+            />
+          </div>
         ) : null}
       </LibraryWorkspace>
     </section>

@@ -9,8 +9,7 @@ import { useRef, useState } from "react";
 import { accountErrorMessage } from "./account-errors";
 import { useDeletionRecovery } from "./use-deletion-recovery";
 
-const buttonClass =
-  "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
+const buttonClass = "wf-btn";
 export const AccountDeletionSettings = ({
   accountId,
   onDeleted,

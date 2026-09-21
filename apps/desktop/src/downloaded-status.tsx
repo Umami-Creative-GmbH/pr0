@@ -54,29 +54,31 @@ export const DownloadedStatus = ({
   saveFailure?: boolean;
 }) => (
   <>
-    <output>{copyMessage}</output>
-    <output>{lifecycle.message}</output>
-    {lifecycle.failed ? (
-      <div role="alert" className="flex gap-3">
-        <button
-          type="button"
-          disabled={lifecycle.busy}
-          onClick={() => {
-            void lifecycle.retry();
-          }}
-        >
-          Retry action
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            void lifecycle.copy();
-          }}
-        >
-          Copy text
-        </button>
-      </div>
-    ) : null}
+    <div className="wf-toast">
+      <output>{copyMessage}</output>
+      <output>{lifecycle.message}</output>
+      {lifecycle.failed ? (
+        <div role="alert" className="flex gap-3">
+          <button
+            type="button"
+            disabled={lifecycle.busy}
+            onClick={() => {
+              void lifecycle.retry();
+            }}
+          >
+            Retry action
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void lifecycle.copy();
+            }}
+          >
+            Copy text
+          </button>
+        </div>
+      ) : null}
+    </div>
     <LocalLibraryStatus
       saveFailure={saveFailure}
       status={status}

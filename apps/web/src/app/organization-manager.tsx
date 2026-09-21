@@ -15,8 +15,7 @@ import type { CleanupRequest } from "./organization-cleanup";
 import { OrganizationTabs } from "./organization-tabs";
 import { useOrganizationNameSave } from "./use-organization-name-save";
 
-const buttonClass =
-  "rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
+const buttonClass = "wf-btn";
 const cleanupSelected = (request: CleanupRequest | null, ids: string[]) =>
   request !== null && ids.includes(request.sourceId);
 const tabLabels = {

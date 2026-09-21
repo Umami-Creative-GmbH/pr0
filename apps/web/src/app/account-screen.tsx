@@ -2,10 +2,12 @@
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
+import { AuthLayout } from "@pr0/ui/components/auth-layout";
 import { WayfinderShell } from "@pr0/ui/components/wayfinder-shell";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, Search } from "lucide-react";
 import { useRef, useState } from "react";
-import type { FormEvent, RefObject } from "react";
+import type { ComponentProps, FormEvent, RefObject } from "react";
 
 import { AccountDeletionSettings } from "./account-deletion-settings";
 import { accountErrorMessage, methodResultMessage } from "./account-errors";
@@ -54,21 +56,10 @@ const initialError = (verification?: string, socialError?: string) => {
     : "";
 };
 
-const AccountHeading = ({ signedIn }: { signedIn: boolean }) => (
-  <header className={signedIn ? "sr-only" : "wf-auth"}>
-    <p className="text-muted-foreground text-sm font-semibold">
-      pr0 · Personal prompt library
-    </p>
-    <h1 className="mt-2 text-3xl font-semibold">
-      {signedIn ? "Your library" : "Welcome to pr0"}
-    </h1>
-  </header>
-);
-
 const quickAvailable = (
   signedIn: PrivateLibrary | undefined,
-  draftOpen: boolean
-) => Boolean(signedIn) && !draftOpen;
+  blocked: boolean
+) => Boolean(signedIn) && !blocked;
 const QuickAccessButton = ({
   signedIn,
   disabled,
@@ -85,40 +76,34 @@ const QuickAccessButton = ({
       disabled={disabled}
       onClick={onOpen}
     >
-      Quick access — find and copy a prompt <kbd>Ctrl K</kbd>
+      <Search aria-hidden="true" size={15} />
+      <span>Quick access — find and copy a prompt</span>
+      <kbd className="wf-kbd">Ctrl K</kbd>
     </button>
   ) : null;
 const AccountSettings = ({
   library,
   draftOpen,
-  busy,
-  onSignOut,
   methodResult,
 }: {
   library: PrivateLibrary;
   draftOpen: boolean;
-  busy: boolean;
-  onSignOut: () => void;
   methodResult?: string;
 }) => (
-  <details className="wf-settings">
-    <summary>Account settings</summary>
-    <section aria-labelledby="account-title" className="rounded-lg border p-6">
-      <h2 className="font-semibold" id="account-title">
-        Account and instance
-      </h2>
-      <dl className="mt-3 space-y-2 text-sm break-all">
-        <dt className="font-medium">Account</dt>
+  <>
+    <section aria-labelledby="account-title" className="wf-card">
+      <h2 id="account-title">Account and instance</h2>
+      <dl className="grid gap-1 text-sm break-all">
+        <dt className="wf-eyebrow">Account</dt>
         <dd>{library.account.email}</dd>
-        <dt className="font-medium">Instance</dt>
+        <dt className="wf-eyebrow mt-2">Instance</dt>
         <dd>{library.instance.origin}</dd>
-        <dt className="font-medium">Instance identity</dt>
-        <dd>{library.instance.id}</dd>
+        <dt className="wf-eyebrow mt-2">Instance identity</dt>
+        <dd className="wf-mono">{library.instance.id}</dd>
       </dl>
-      <p className="text-muted-foreground mt-4 text-sm">
+      <p className="wf-hint">
         {draftOpen ? "Unsaved changes in this tab." : "No open draft."}
       </p>
-      <SignOutControl busy={busy} dirty={draftOpen} onSignOut={onSignOut} />
     </section>
     <SessionSettings accountId={library.account.id} />
     <EmailSettings
@@ -126,7 +111,7 @@ const AccountSettings = ({
       accountId={library.account.id}
       methodResult={methodResult}
     />
-  </details>
+  </>
 );
 
 const AccountSignIn = ({
@@ -148,33 +133,37 @@ const AccountSignIn = ({
 }) => {
   const submitLabel = mode === "login" ? "Sign in" : "Create account";
   return (
-    <section aria-labelledby="form-title" className="wf-auth">
-      <h2 className="text-xl font-medium" id="form-title">
-        {mode === "login" ? "Sign in" : "Create an account"}
-      </h2>
-      <p className="text-muted-foreground mt-2 text-sm">
-        Verify your email before accessing your library. Registration depends on
-        this instance’s admission settings.
-      </p>
-      <SocialSignIn />
-      <form className="mt-6 space-y-4" onSubmit={onSubmit} ref={formRef}>
-        <div className="space-y-2">
-          <label className="block font-medium" htmlFor="email">
+    <section aria-labelledby="form-title" className="contents">
+      <header className="flex flex-col gap-2">
+        <span className="wf-eyebrow-accent">
+          {mode === "login" ? "Welcome to pr0" : "One account, every device"}
+        </span>
+        <h2 id="form-title">
+          {mode === "login" ? "Sign in" : "Create an account"}
+        </h2>
+        <p className="wf-hint">
+          Verify your email before accessing your library. Registration depends
+          on this instance’s admission settings.
+        </p>
+      </header>
+      <form onSubmit={onSubmit} ref={formRef}>
+        <div className="wf-field">
+          <label className="wf-label" htmlFor="email">
             Email
           </label>
           <input
             autoComplete="email"
-            className="bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
             disabled={busy}
             id="email"
             maxLength={254}
             name="email"
+            placeholder="name@company.com"
             required
             type="email"
           />
         </div>
-        <div className="space-y-2">
-          <label className="block font-medium" htmlFor="password">
+        <div className="wf-field">
+          <label className="wf-label" htmlFor="password">
             Password
           </label>
           <input
@@ -182,7 +171,6 @@ const AccountSignIn = ({
             autoComplete={
               mode === "login" ? "current-password" : "new-password"
             }
-            className="bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
             disabled={busy}
             id="password"
             maxLength={128}
@@ -191,19 +179,20 @@ const AccountSignIn = ({
             required
             type="password"
           />
-          <p className="text-muted-foreground text-sm" id="password-help">
+          <p className="wf-hint" id="password-help">
             Use 12–128 characters.
           </p>
         </div>
         <button
-          className="bg-primary text-primary-foreground rounded-md px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="wf-btn-accent wf-btn-block"
           disabled={busy || pending}
           type="submit"
         >
           {busy ? "Please wait…" : submitLabel}
+          <ArrowRight aria-hidden="true" size={15} />
         </button>
         <button
-          className="block text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="wf-link self-start"
           disabled={busy}
           onClick={onResend}
           type="button"
@@ -211,8 +200,9 @@ const AccountSignIn = ({
           Send another verification email
         </button>
       </form>
+      <SocialSignIn />
       <button
-        className="mt-6 text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="wf-link self-start"
         disabled={busy}
         onClick={onToggle}
         type="button"
@@ -236,14 +226,66 @@ const LibraryLoadError = ({
     return null;
   }
   return (
-    <p role="alert">
+    <p className="wf-notice" role="alert">
       Unable to open your library.{" "}
-      <button className="underline" type="button" onClick={onRetry}>
+      <button className="wf-link" type="button" onClick={onRetry}>
         Retry
       </button>
     </p>
   );
 };
+
+/** Settings when signed in; recovery and deletion help when signed out. */
+const AccountPage = ({
+  signedIn,
+  showSettings,
+  accountChanged,
+  draftOpen,
+  methodResult,
+  pending,
+  error,
+  onBack,
+  onRetry,
+  onDeleted,
+}: {
+  signedIn?: PrivateLibrary;
+  showSettings: boolean;
+  accountChanged: boolean;
+  draftOpen: boolean;
+  methodResult?: string;
+  pending: boolean;
+  error: Error | null;
+  onBack: () => void;
+  onRetry: () => void;
+  onDeleted: ComponentProps<typeof AccountDeletionSettings>["onDeleted"];
+}) => (
+  <div className="wf-page" hidden={Boolean(signedIn) && !showSettings}>
+    {showSettings ? (
+      <div className="flex items-center justify-between gap-3">
+        <h2>Account settings</h2>
+        <button className="wf-btn" type="button" onClick={onBack}>
+          Back to library
+        </button>
+      </div>
+    ) : null}
+    {signedIn && !accountChanged ? (
+      <AccountSettings
+        library={signedIn}
+        draftOpen={draftOpen}
+        methodResult={methodResult}
+      />
+    ) : null}
+    {!signedIn && !pending ? <RecoveryForm /> : null}
+    <LibraryLoadError error={error} onRetry={onRetry} />
+    <details className="wf-card" open={!signedIn}>
+      <summary>Account deletion and recovery</summary>{" "}
+      <AccountDeletionSettings
+        accountId={signedIn?.account.id}
+        onDeleted={onDeleted}
+      />
+    </details>
+  </div>
+);
 
 export const AccountScreen = ({
   verification,
@@ -353,7 +395,11 @@ export const AccountScreen = ({
     );
   };
   const accountChanged = changedLibrary(draftLibrary, library.data);
-  const quick = useQuickAccess(quickAvailable(signedIn, draftOpen));
+  const [settingsOpen, setSettingsOpen] = useState(Boolean(methodResult));
+  const showSettings = Boolean(signedIn) && settingsOpen;
+  const quick = useQuickAccess(
+    quickAvailable(signedIn, draftOpen || showSettings)
+  );
   return (
     <WayfinderShell
       surface="web"
@@ -361,25 +407,49 @@ export const AccountScreen = ({
       actions={
         <QuickAccessButton
           signedIn={signedIn}
-          disabled={draftOpen}
+          disabled={draftOpen || showSettings}
           onOpen={() => quick.show()}
         />
       }
+      menu={
+        signedIn && !accountChanged ? (
+          <>
+            <button
+              className="wf-menu-item"
+              type="button"
+              onClick={() => setSettingsOpen(!settingsOpen)}
+            >
+              {settingsOpen ? "Back to library" : "Account settings"}
+            </button>
+            <SignOutControl busy={busy} dirty={draftOpen} onSignOut={logout} />
+          </>
+        ) : null
+      }
     >
-      <main>
-        <AccountHeading signedIn={Boolean(signedIn)} />
+      <main className="wf-main">
+        <h1 className="sr-only">
+          {signedIn ? "Your library" : "Welcome to pr0"}
+        </h1>
         <p
           aria-live="polite"
-          className="wf-status"
+          className="wf-banner"
           ref={statusRef}
           tabIndex={-1}
         >
           {accountStatus(errorText, message, signedIn, methodResult)}
         </p>
-        {library.isPending ? <output>Checking your session…</output> : null}
-
+        {library.isPending ? (
+          <output className="wf-empty">Checking your session…</output>
+        ) : null}
+        {signedIn && accountChanged ? (
+          <p className="wf-banner" role="alert">
+            Your browser is now signed in to a different account. This draft
+            belongs to {signedIn.account.email}. Return to that account to save,
+            or copy your text before discarding the draft.
+          </p>
+        ) : null}
         {signedIn ? (
-          <>
+          <div className="contents" hidden={showSettings}>
             <LibraryAttentionProvider
               key={`${signedIn.instance.id}:${signedIn.account.id}`}
             >
@@ -393,63 +463,51 @@ export const AccountScreen = ({
                 onDirtyChange={retainDraft}
               />
             </LibraryAttentionProvider>
-            {accountChanged ? (
-              <p role="alert">
-                Your browser is now signed in to a different account. This draft
-                belongs to {signedIn.account.email}. Return to that account to
-                save, or copy your text before discarding the draft.
-              </p>
-            ) : (
-              <AccountSettings
-                library={signedIn}
-                draftOpen={draftOpen}
-                busy={busy}
-                onSignOut={logout}
-                methodResult={methodResult}
-              />
-            )}
-          </>
-        ) : (
-          <AccountSignIn
-            mode={mode}
-            busy={busy}
-            pending={library.isPending}
-            formRef={formRef}
-            onSubmit={submit}
-            onResend={resend}
-            onToggle={() => {
-              setMode(mode === "login" ? "register" : "login");
-              setErrorText("");
-            }}
-          />
+          </div>
+        ) : null}
+        {signedIn || library.isPending ? null : (
+          <AuthLayout keys="Ctrl K ⦁ Search ⦁ ↵ ⦁ Copied">
+            <AccountSignIn
+              mode={mode}
+              busy={busy}
+              pending={library.isPending}
+              formRef={formRef}
+              onSubmit={submit}
+              onResend={resend}
+              onToggle={() => {
+                setMode(mode === "login" ? "register" : "login");
+                setErrorText("");
+              }}
+            />
+          </AuthLayout>
         )}
-        {!signedIn && !library.isPending ? <RecoveryForm /> : null}
-        <LibraryLoadError
+        <AccountPage
+          signedIn={signedIn}
+          showSettings={showSettings}
+          accountChanged={accountChanged}
+          draftOpen={draftOpen}
+          methodResult={methodResult}
+          pending={library.isPending}
           error={library.error}
+          onBack={() => setSettingsOpen(false)}
           onRetry={() => {
             void library.refetch();
           }}
+          onDeleted={async (identity) => {
+            setDraftLibrary((current) =>
+              deletedPartition(current, identity) ? null : current
+            );
+            if (
+              await clearDeletedAccountCache(
+                queryClient,
+                client.baseUrl,
+                identity
+              )
+            ) {
+              await library.refetch();
+            }
+          }}
         />
-        <details className="wf-settings" open={!signedIn}>
-          <summary>Account deletion and recovery</summary>{" "}
-          <AccountDeletionSettings
-            accountId={signedIn?.account.id}
-            onDeleted={async (identity) => {
-              setDraftLibrary((current) =>
-                deletedPartition(current, identity) ? null : current
-              );
-              if (
-                await clearDeletedAccountCache(
-                  queryClient,
-                  client.baseUrl,
-                  identity
-                )
-              ) {
-                await library.refetch();
-              }
-            }}
-          />
-        </details>
       </main>
     </WayfinderShell>
   );

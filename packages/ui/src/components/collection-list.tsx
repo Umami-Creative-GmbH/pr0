@@ -3,8 +3,7 @@ import { useState } from "react";
 
 import type { CollectionOption } from "./collection-picker";
 
-const buttonClass =
-  "rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
+const buttonClass = "wf-btn";
 export const CollectionList = ({
   collections,
   search,

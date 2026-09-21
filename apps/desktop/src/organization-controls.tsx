@@ -57,7 +57,7 @@ export const OrganizationControls = ({
           <button
             type="button"
             aria-label="Manage collections"
-            className="rounded border p-2"
+            className="wf-btn"
             disabled={disabled}
             onClick={() => open("collections")}
           >
@@ -84,7 +84,7 @@ export const OrganizationControls = ({
           <button
             type="button"
             aria-label="Manage tags"
-            className="rounded border p-2"
+            className="wf-btn"
             disabled={disabled}
             onClick={() => open("tags")}
           >
@@ -106,7 +106,7 @@ export const OrganizationControls = ({
           <button
             type="button"
             key={state.id}
-            className="rounded border p-2"
+            className="wf-btn"
             onClick={() => {
               if (state.targetId) {
                 onFilters({

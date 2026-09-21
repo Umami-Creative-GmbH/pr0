@@ -39,7 +39,7 @@ test("designed web library persists edits and theme; quick access retains failed
       .waitFor();
     await page.evaluate(() => {
       window.scrollTo(0, 0);
-      document.querySelector(".wf-sidebar")?.scrollTo(0, 0);
+      document.querySelector(".wf-list")?.scrollTo(0, 0);
     });
     await page.screenshot({
       path: "docs/evidence/design-75/production-web-dark-detail.png",

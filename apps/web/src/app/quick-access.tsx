@@ -3,6 +3,8 @@
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type { Collection, Tag } from "@pr0/api-contract/prompts";
 import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
+import { accentFor } from "@pr0/ui/lib/present";
+import { Search } from "lucide-react";
 import { useRef } from "react";
 import type { KeyboardEvent } from "react";
 
@@ -74,9 +76,18 @@ export const QuickAccess = ({
       void copy.copy(quick.selectedId);
     }
   };
+  const collectionNames = new Map(
+    quick.organization?.collections.map((entry) => [entry.id, entry.name])
+  );
+  const activeFilters =
+    Number(quick.filters.favorite) +
+    Number(Boolean(quick.filters.collectionId)) +
+    quick.filters.tagIds.length;
+  const total = quick.list.data?.pages[0]?.usage.promptCount;
   return (
     <WayfinderDialog
       label="Quick access"
+      size="launcher"
       onRequestClose={() => {
         if (copy.busy) {
           return;
@@ -89,135 +100,181 @@ export const QuickAccess = ({
       }}
     >
       <div className="wf-launcher">
-        <div hidden={Boolean(copy.interaction)}>
-          <label className="block">
-            Find and copy a prompt
+        <div className="contents" hidden={Boolean(copy.interaction)}>
+          <label className="wf-launcher-search">
+            <Search aria-hidden="true" size={18} />
+            <span className="sr-only">Find and copy a prompt</span>
             <input
               type="search"
-              className="mt-2 w-full"
+              placeholder="Find a prompt and copy it with ↵…"
               value={quick.search.query}
               onChange={(event) => quick.search.changeQuery(event.target.value)}
               onKeyDown={(event) => move(event)}
             />
+            <kbd className="wf-kbd">esc</kbd>
           </label>
-          <fieldset
-            className="wf-quick-filters"
-            aria-label="Quick access filters"
-          >
-            <button
-              type="button"
-              aria-pressed={quick.filters.favorite}
-              onClick={() =>
-                quick.setFilters({
-                  ...quick.filters,
-                  favorite: !quick.filters.favorite,
-                })
-              }
-            >
-              Favorites only
-            </button>
-            {quick.organization?.collections.map((collection) => (
+          <details className="wf-launcher-filters" open={activeFilters > 0}>
+            <summary>
+              Filters{activeFilters ? ` (${activeFilters})` : ""}
+            </summary>
+            <fieldset className="wf-chips" aria-label="Quick access filters">
               <button
-                key={collection.id}
+                className="wf-chip"
                 type="button"
-                aria-pressed={quick.filters.collectionId === collection.id}
+                aria-pressed={quick.filters.favorite}
                 onClick={() =>
                   quick.setFilters({
                     ...quick.filters,
-                    collectionId:
-                      quick.filters.collectionId === collection.id
-                        ? null
-                        : collection.id,
+                    favorite: !quick.filters.favorite,
                   })
                 }
               >
-                {collection.name}
+                Favorites only
               </button>
-            ))}
-            {quick.organization?.tags.map((tag) => (
-              <button
-                key={tag.id}
-                type="button"
-                aria-pressed={selectedTags.has(tag.id)}
-                onClick={() =>
-                  quick.setFilters({
-                    ...quick.filters,
-                    tagIds: selectedTags.has(tag.id)
-                      ? quick.filters.tagIds.filter((id) => id !== tag.id)
-                      : [...quick.filters.tagIds, tag.id],
-                  })
-                }
-              >
-                #{tag.name}
-              </button>
-            ))}
-          </fieldset>
-          {quick.search.pending || quick.list.isPending ? (
-            <output>Finding prompts…</output>
-          ) : null}
-          {quick.search.error ? <p role="alert">{quick.search.error}</p> : null}
-          {quick.list.isError ? (
-            <div role="alert">
-              Could not load prompts.{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  void quick.list.refetch();
-                }}
-              >
-                Retry search
-              </button>
-            </div>
-          ) : null}
-          <ul aria-label="Quick access results">
-            {quick.prompts.map((prompt) => (
-              <li key={prompt.id}>
+              {quick.organization?.collections.map((collection) => (
                 <button
+                  className="wf-chip"
+                  key={collection.id}
                   type="button"
-                  className="w-full p-3 text-left"
-                  aria-pressed={prompt.id === quick.selectedId}
-                  disabled={copy.blocked || quick.searchBlocked}
-                  ref={(element) => {
-                    if (element) {
-                      rows.current.set(prompt.id, element);
-                    } else {
-                      rows.current.delete(prompt.id);
-                    }
-                  }}
-                  onFocus={() => quick.setSelected(prompt.id)}
-                  onKeyDown={(event) => move(event, prompt.id)}
+                  aria-pressed={quick.filters.collectionId === collection.id}
+                  onClick={() =>
+                    quick.setFilters({
+                      ...quick.filters,
+                      collectionId:
+                        quick.filters.collectionId === collection.id
+                          ? null
+                          : collection.id,
+                    })
+                  }
+                >
+                  <span
+                    className="wf-dot"
+                    data-accent={accentFor(collection.id)}
+                  />
+                  {collection.name}
+                </button>
+              ))}
+              {quick.organization?.tags.map((tag) => (
+                <button
+                  className="wf-chip"
+                  data-kind="tag"
+                  key={tag.id}
+                  type="button"
+                  aria-pressed={selectedTags.has(tag.id)}
+                  onClick={() =>
+                    quick.setFilters({
+                      ...quick.filters,
+                      tagIds: selectedTags.has(tag.id)
+                        ? quick.filters.tagIds.filter((id) => id !== tag.id)
+                        : [...quick.filters.tagIds, tag.id],
+                    })
+                  }
+                >
+                  #{tag.name}
+                </button>
+              ))}
+            </fieldset>
+          </details>
+          <div className="wf-launcher-status">
+            {quick.search.pending || quick.list.isPending ? (
+              <output className="wf-hint">Finding prompts…</output>
+            ) : null}
+            {quick.search.error ? (
+              <p className="wf-error" role="alert">
+                {quick.search.error}
+              </p>
+            ) : null}
+            {quick.list.isError ? (
+              <div className="wf-notice" role="alert">
+                Could not load prompts.{" "}
+                <button
+                  className="wf-link"
+                  type="button"
                   onClick={() => {
-                    void copy.copy(prompt.id);
+                    void quick.list.refetch();
                   }}
                 >
-                  {prompt.title}
-                  <span>Copy ↵</span>
+                  Retry search
                 </button>
-              </li>
-            ))}
-          </ul>
-          {!quick.list.isPending &&
-          !quick.searchBlocked &&
-          !quick.prompts.length ? (
-            <p>No matching prompts</p>
-          ) : null}
-          {quick.list.hasNextPage ? (
-            <button
-              type="button"
-              disabled={quick.list.isFetchingNextPage}
-              onClick={() => {
-                void quick.list.fetchNextPage();
-              }}
-            >
-              Load more prompts
-            </button>
-          ) : null}
-          <PromptCopyStatus copy={copy} />
+              </div>
+            ) : null}
+            <PromptCopyStatus copy={copy} />
+          </div>
+          <div className="wf-launcher-list">
+            <ul aria-label="Quick access results">
+              {quick.prompts.map((prompt) => (
+                <li key={prompt.id}>
+                  <button
+                    type="button"
+                    className="wf-launcher-row"
+                    aria-pressed={prompt.id === quick.selectedId}
+                    disabled={copy.blocked || quick.searchBlocked}
+                    ref={(element) => {
+                      if (element) {
+                        rows.current.set(prompt.id, element);
+                      } else {
+                        rows.current.delete(prompt.id);
+                      }
+                    }}
+                    onFocus={() => quick.setSelected(prompt.id)}
+                    onKeyDown={(event) => move(event, prompt.id)}
+                    onClick={() => {
+                      void copy.copy(prompt.id);
+                    }}
+                  >
+                    <span
+                      className="wf-dot"
+                      data-accent={accentFor(prompt.collectionId)}
+                    />
+                    <strong>{prompt.title}</strong>
+                    <span className="wf-mono" aria-hidden="true">
+                      {prompt.collectionId
+                        ? collectionNames.get(prompt.collectionId)
+                        : ""}
+                    </span>
+                    <kbd>
+                      <span className="sr-only">Copy </span>↵
+                    </kbd>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {!quick.list.isPending &&
+            !quick.searchBlocked &&
+            !quick.prompts.length ? (
+              <p className="wf-launcher-note">No matching prompts</p>
+            ) : null}
+            {quick.list.hasNextPage ? (
+              <button
+                className="wf-btn-quiet mx-auto my-2"
+                type="button"
+                disabled={quick.list.isFetchingNextPage}
+                onClick={() => {
+                  void quick.list.fetchNextPage();
+                }}
+              >
+                Load more prompts
+              </button>
+            ) : null}
+          </div>
         </div>
         <PromptVariables copy={copy} inline />
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <span>↑↓ Navigate · Enter Copy · Ctrl/⌘+Enter Open</span>
+        <footer className="wf-launcher-foot">
+          {copy.interaction ? null : (
+            <>
+              <span>↑↓ Navigate</span>
+              <span>↵ Copy</span>
+              <span>Ctrl ↵ Open</span>
+            </>
+          )}
+          <span className="wf-grow" />
+          {total === undefined || copy.interaction ? null : (
+            <span>
+              {quick.prompts.length} of {total.toLocaleString()}
+            </span>
+          )}
           <button
+            className="wf-btn-quiet"
             type="button"
             disabled={copy.busy}
             onClick={() => {
@@ -227,7 +284,7 @@ export const QuickAccess = ({
           >
             Close quick access
           </button>
-        </div>
+        </footer>
       </div>
     </WayfinderDialog>
   );

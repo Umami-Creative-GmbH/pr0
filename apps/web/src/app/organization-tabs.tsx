@@ -19,7 +19,7 @@ export const OrganizationTabs = ({
         aria-controls="organization-panel"
         tabIndex={value === tab ? 0 : -1}
         disabled={disabled}
-        className="rounded-md border px-3 py-2 focus-visible:outline-2 disabled:opacity-50"
+        className="wf-btn"
         type="button"
         onClick={() => onChange(tab)}
         onKeyDown={(event) => {

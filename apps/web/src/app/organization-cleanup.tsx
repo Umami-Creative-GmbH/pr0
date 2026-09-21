@@ -16,8 +16,7 @@ export interface CleanupRequest {
   sourceId: string;
   targetId?: string;
 }
-const buttonClass =
-  "rounded-md border px-3 py-2 focus-visible:outline-2 disabled:opacity-50";
+const buttonClass = "wf-btn";
 const cleanupOperation = (
   request: CleanupRequest,
   revision: string
