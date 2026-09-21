@@ -83,6 +83,19 @@ fn desktop_search_webview_worker() {
                 .data_directory(profile)
                 .build()?;
             crate::register_launcher_shortcut(app.handle())?;
+            if let Some(gate) = std::env::var_os("PR0_TEST_CLIPBOARD_GATE") {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    let entered = std::path::PathBuf::from(gate).with_extension("entered");
+                    for _ in 0..1000 {
+                        if entered.exists() {
+                            let _ = app.get_webview_window("main").unwrap().set_focus();
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                });
+            }
             if std::env::var("PR0_TEST_CLOSE_MAIN").as_deref() == Ok("true") {
                 let app = app.handle().clone();
                 std::thread::spawn(move || {

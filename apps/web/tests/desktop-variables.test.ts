@@ -3,12 +3,51 @@ import { mkdtemp, rm, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { launcherStatusSchema } from "@pr0/api-contract/desktop-launcher";
 import { desktopStatusSchema } from "@pr0/api-contract/desktop-session";
 import { localPromptSchema } from "@pr0/api-contract/local-prompts";
+import type { Page } from "playwright";
 
 import { localNativeWorker } from "./local-native-worker";
 import { holdNativeResource } from "./native-resource";
 import { nativeWebview } from "./native-webview";
+
+const measureCopy = async (page: Page) => {
+  await page.evaluate(() => {
+    performance.clearMeasures("copy-confirmation");
+    const button = [...document.querySelectorAll("dialog button")].find(
+      (element) => element.textContent === "Copy"
+    );
+    button?.addEventListener(
+      "click",
+      () => {
+        performance.mark("copy-activated");
+        const observer = new MutationObserver(() => {
+          if (!document.querySelector("dialog")) {
+            performance.mark("copy-confirmed");
+            performance.measure(
+              "copy-confirmation",
+              "copy-activated",
+              "copy-confirmed"
+            );
+            observer.disconnect();
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+      },
+      { once: true }
+    );
+  });
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  const duration = await page.evaluate(
+    () => performance.getEntriesByName("copy-confirmation")[0]?.duration
+  );
+  if (duration === undefined) {
+    throw new Error("Copy confirmation was not measured");
+  }
+  return duration;
+};
 
 test("offline desktop variable entry preserves launcher navigation and copies only on final activation", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "pr0-variable-ui-"));
@@ -122,13 +161,32 @@ test("offline desktop variable entry preserves launcher navigation and copies on
       }
     );
     expect(collision).toBe("clipboard_busy");
-    await main.bringToFront();
+    await launcher.waitForFunction(async () => {
+      const status = await window.__TAURI_INTERNALS__.invoke(
+        "launcher_status",
+        {}
+      );
+      return (
+        // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Poll the observed native focus event, not browser-tab activation.
+        typeof status === "object" &&
+        status !== null &&
+        "focused" in status &&
+        status.focused === false
+      );
+    });
     await unlink(gate);
     await launcher
       .getByRole("status")
       .filter({ hasText: "Could not copy" })
       .waitFor();
     expect(await launcher.getByRole("dialog").isVisible()).toBe(true);
+    const failedStatus = launcherStatusSchema.parse(
+      await launcher.evaluate(() =>
+        window.__TAURI_INTERNALS__.invoke("launcher_status", {})
+      )
+    );
+    expect(failedStatus.visible).toBe(true);
+    expect(failedStatus.focused).toBe(false);
     expect(await name.inputValue()).toBe("  Ada\nLovelace  ");
     expect(
       await launcher.getByLabel("count (number)", { exact: true }).inputValue()
@@ -136,35 +194,7 @@ test("offline desktop variable entry preserves launcher navigation and copies on
     await releaseClipboard();
     await launcher.bringToFront();
     await launcher.screenshot({ path: "docs/evidence/issue-53-variables.png" });
-    await launcher.evaluate(() => {
-      const button = [...document.querySelectorAll("dialog button")].find(
-        (element) => element.textContent === "Copy"
-      );
-      button?.addEventListener(
-        "click",
-        () => {
-          performance.mark("copy-activated");
-          const observer = new MutationObserver(() => {
-            if (!document.querySelector("dialog")) {
-              performance.mark("copy-confirmed");
-              performance.measure(
-                "copy-confirmation",
-                "copy-activated",
-                "copy-confirmed"
-              );
-              observer.disconnect();
-            }
-          });
-          observer.observe(document.body, { childList: true, subtree: true });
-        },
-        { once: true }
-      );
-    });
-    await launcher.getByRole("button", { name: "Copy", exact: true }).click();
-    await name.waitFor({ state: "detached" });
-    const latency = await launcher.evaluate(
-      () => performance.getEntriesByName("copy-confirmation")[0]?.duration
-    );
+    const latency = await measureCopy(launcher);
     expect(latency).toBeDefined();
     await Bun.write(
       ".scratch/desktop-variable-latency.json",
@@ -294,3 +324,85 @@ test("offline desktop variable entry preserves launcher navigation and copies on
     }
   }
 }, 60_000);
+
+test("maximum output and a thousand variables remain keyboard accessible and meet the copy target", async () => {
+  const directory = await mkdtemp(
+    path.join(tmpdir(), "pr0-variable-performance-")
+  );
+  const native = await localNativeWorker(directory, true);
+  const account = desktopStatusSchema.parse(
+    await native.command("auth_status")
+  );
+  const names = Array.from({ length: 1000 }, (_, index) => `v${index}`);
+  for (const { title, content } of [
+    { title: "Maximum output", content: "{{value}}{{value}}" },
+    {
+      title: "Many variables",
+      content: names.map((name) => `{{${name}}}`).join(""),
+    },
+  ]) {
+    // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each native save is acknowledged before the next fixture.
+    await native.command("library_create", {
+      request: {
+        instanceId: account.instanceId,
+        accountId: account.accountId,
+        generation: account.generation,
+        operationId: crypto.randomUUID(),
+        promptId: crypto.randomUUID(),
+        expectedLocalRevision: null,
+        desired: { title, content, description: "" },
+      },
+    });
+  }
+  await native.stop();
+  const webview = await nativeWebview(native.executable, directory);
+  try {
+    const main = webview.page;
+    await main
+      .getByRole("button", { name: "Copy Maximum output", exact: true })
+      .click();
+    await main
+      .getByLabel("value (string)", { exact: true })
+      .fill("a".repeat(131_072));
+    const maximumOutputMs = await measureCopy(main);
+    await main
+      .getByRole("button", { name: "Copy Many variables", exact: true })
+      .click();
+    for (const name of names) {
+      // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Fill through actual controlled inputs, preserving React event semantics.
+      await main.getByLabel(`${name} (string)`, { exact: true }).fill("x");
+    }
+    await main.getByLabel("v998 (string)", { exact: true }).focus();
+    await main.keyboard.press("Tab");
+    expect(
+      await main
+        .getByLabel("v999 (string)", { exact: true })
+        .evaluate((element) => element === document.activeElement)
+    ).toBe(true);
+    const manyVariablesMs = await measureCopy(main);
+    await Bun.write(
+      ".scratch/desktop-variable-bound-latency.json",
+      JSON.stringify({
+        maximumOutputMs,
+        outputBytes: 262_144,
+        manyVariablesMs,
+        fields: 1000,
+        target: 150,
+      })
+    );
+    expect(maximumOutputMs).toBeLessThanOrEqual(150);
+    expect(manyVariablesMs).toBeLessThanOrEqual(150);
+  } finally {
+    await webview.stop();
+    try {
+      await rm(directory, {
+        recursive: true,
+        force: true,
+        maxRetries: 20,
+        retryDelay: 100,
+      });
+    } catch {
+      /* WebView2 may retain the disposable profile briefly after exit. */
+    }
+  }
+}, 120_000);
