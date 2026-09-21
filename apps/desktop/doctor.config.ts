@@ -6,7 +6,7 @@ export default {
         // extracting its state hook and independent render branches. The
         // current function has five decision points (six including callbacks).
         // Recheck this narrow exception when upgrading React Doctor.
-        files: ["apps/desktop/src/organization-manager.tsx"],
+        files: ["src/organization-manager.tsx"],
         rules: ["react-doctor/no-high-complexity-react-function"],
       },
     ],
