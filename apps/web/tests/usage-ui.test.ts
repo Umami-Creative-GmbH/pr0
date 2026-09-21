@@ -154,10 +154,16 @@ test("desktop list/detail Copy preserves failure, retries usage only and shows d
     expect(await page.getByLabel("Title", { exact: true }).inputValue()).toBe(
       "Retain this draft during sign-in"
     );
-    await page.getByRole("button", { name: "Copy First", exact: true }).click();
     await page
-      .getByText("The account changed. Select the prompt again before copying.")
+      .getByText(
+        "The account changed. Refresh the connection before searching again."
+      )
       .waitFor();
+    expect(
+      await page
+        .getByRole("button", { name: "Copy First", exact: true })
+        .count()
+    ).toBe(0);
     expect(await page.getByText("Copied.", { exact: true }).count()).toBe(0);
   } finally {
     held.resolve();

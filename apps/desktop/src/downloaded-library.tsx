@@ -1,19 +1,22 @@
 import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
+import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import type {
   LocalPrompt,
-  LocalView,
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { DownloadedRows } from "./downloaded-rows";
 import { DownloadedStatus } from "./downloaded-status";
 import { downloadError, libraryClient } from "./library-client";
-import type { DownloadedSummary, DownloadStatus } from "./library-client";
-import { LibraryViews } from "./library-views";
+import type { DownloadStatus } from "./library-client";
+import { DownloadControls } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
+import { organizationClient } from "./organization-client";
+import { PromptOrganization } from "./organization-controls";
+import { RecoveryLibrary } from "./recovery-library";
+import { SearchLibrary } from "./search-library";
 import type { Status } from "./use-auth-session";
 import { useLibraryRefresh } from "./use-library-refresh";
 import { useLifecycle } from "./use-lifecycle";
@@ -22,12 +25,10 @@ import { usePromptCopy } from "./use-prompt-copy";
 const editorIsBlocked = (editing: boolean, transition: boolean) =>
   editing || transition;
 
-export const DownloadedLibrary = ({
+const useDownloadedLibrary = ({
   signedIn,
   refreshAuth,
   account,
-  editingDisabled,
-  onEditing,
 }: {
   account: Status;
   signedIn: boolean;
@@ -35,28 +36,27 @@ export const DownloadedLibrary = ({
   editingDisabled: boolean;
   onEditing: (editing: boolean) => void;
 }) => {
-  const [status, setStatus] = useState<DownloadStatus>();
-  const [upload, setUpload] = useState<UploadStatus>();
-  const [changes, setChanges] = useState<ChangeStatus>();
-  const [rows, setRows] = useState<DownloadedSummary[]>([]);
+  const [snapshot, setSnapshot] = useState<{
+    status?: DownloadStatus;
+    upload?: UploadStatus;
+    changes?: ChangeStatus;
+    usage?: DesktopUsageStatus;
+    organization?: LocalOrganization;
+  }>({});
+  const { status, upload, changes, usage, organization } = snapshot;
   const [localDetail, setLocalDetail] = useState<LocalPrompt>();
   const [editor, setEditor] = useState<{ initial?: LocalPrompt }>();
-  const [offset, setOffset] = useState(0);
   const [errorText, setErrorText] = useState("");
   const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [usage, setUsage] = useState<DesktopUsageStatus>();
-  const [view, setView] = useState<LocalView>("all");
-  const recents = view === "recents";
   const refreshLibrary = useCallback(() => setRetry((value) => value + 1), []);
   const copy = usePromptCopy(account, refreshLibrary);
   useLibraryRefresh(refreshLibrary);
   const alive = useRef(true);
   const selection = useRef(0);
-  const browseRequest = useRef(0);
-  const currentOffset = useRef(0);
   const selectedPrompt = useRef<string | null>(null);
+  const openedCopy = useRef<string | null>(null);
   const observedMappings = useRef(new Set<string>());
   const open = useCallback(async (id: string) => {
     selectedPrompt.current = id;
@@ -70,6 +70,7 @@ export const DownloadedLibrary = ({
     } catch (error) {
       if (alive.current && request === selection.current) {
         if (error === "prompt_not_found" || error === "prompt_unavailable") {
+          openedCopy.current = null;
           selectedPrompt.current = null;
           setLocalDetail(undefined);
         }
@@ -77,7 +78,10 @@ export const DownloadedLibrary = ({
       }
     }
   }, []);
-  const lifecycle = useLifecycle(account, (id) => {
+  const lifecycle = useLifecycle(account, (id, action) => {
+    if (action.kind === "duplicate" || openedCopy.current !== id) {
+      openedCopy.current = action.kind === "duplicate" ? id : null;
+    }
     if (id) {
       void open(id);
     } else {
@@ -87,6 +91,16 @@ export const DownloadedLibrary = ({
     }
     refreshLibrary();
   });
+  const organizationSaved = useCallback(async () => {
+    const nextOrganization = await organizationClient.snapshot();
+    if (alive.current) {
+      setSnapshot((previous) => ({
+        ...previous,
+        organization: nextOrganization,
+      }));
+      refreshLibrary();
+    }
+  }, [refreshLibrary]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -96,27 +110,27 @@ export const DownloadedLibrary = ({
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
-      const requestedOffset = currentOffset.current;
-      const [next, prompts, sync, incoming, uses] = await Promise.all([
-        libraryClient.status(),
-        libraryClient.list(requestedOffset, view),
-        libraryClient.uploadStatus(),
-        libraryClient.changeStatus(),
-        libraryClient.usageStatus(),
-      ]);
+      const [next, sync, incoming, uses, organizationSnapshot] =
+        await Promise.all([
+          libraryClient.status(),
+          libraryClient.uploadStatus(),
+          libraryClient.changeStatus(),
+          libraryClient.usageStatus(),
+          organizationClient.snapshot(),
+        ]);
       if (!cancelled) {
-        setStatus(next);
-        setUpload(sync);
-        setChanges(incoming);
-        setUsage(uses);
+        setSnapshot({
+          status: next,
+          upload: sync,
+          changes: incoming,
+          usage: uses,
+          organization: organizationSnapshot,
+        });
         if (
           sync.error === "authentication_required" ||
           uses.error === "authentication_required"
         ) {
           await refreshAuth("auth_status");
-        }
-        if (requestedOffset === currentOffset.current) {
-          setRows(prompts);
         }
         if (selectedPrompt.current) {
           const mapping = sync.mappings.find(
@@ -139,7 +153,7 @@ export const DownloadedLibrary = ({
         let next = await refresh();
         // Each native command commits one bounded page before progress changes.
         // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Sequential page acknowledgements are required for durable progress.
-        while (!next.complete) {
+        while (!next.complete && !next.paused) {
           if (cancelled || !signedIn) {
             break;
           }
@@ -165,31 +179,31 @@ export const DownloadedLibrary = ({
       cancelled = true;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- An explicit Retry restarts this effect even when sign-in state is unchanged.
-  }, [signedIn, retry, refreshAuth, open, view]);
-  const browse = useCallback(
-    async (next: number) => {
-      browseRequest.current += 1;
-      const request = browseRequest.current;
-      try {
-        const prompts = await libraryClient.list(next, view);
-        if (alive.current && request === browseRequest.current) {
-          currentOffset.current = next;
-          setOffset(next);
-          setRows(prompts);
-        }
-      } catch (error) {
-        if (alive.current) {
-          setErrorText(downloadError(error));
-        }
+  }, [signedIn, retry, refreshAuth, open]);
+  const selectResult = useCallback(
+    async (
+      id: string | null,
+      reason: "refresh" | "navigation" = "navigation"
+    ) => {
+      if (reason === "refresh" && openedCopy.current) {
+        return;
+      }
+      openedCopy.current = null;
+      if (id) {
+        await open(id);
+      } else {
+        selectedPrompt.current = null;
+        selection.current += 1;
+        setLocalDetail(undefined);
       }
     },
-    [view]
+    [open]
   );
   const retryUsage = async () => {
     try {
       const result = await libraryClient.retryUsage();
       if (alive.current) {
-        setUsage(result);
+        setSnapshot((previous) => ({ ...previous, usage: result }));
         copy.usageRetried();
         setErrorText("");
         setRetry((value) => value + 1);
@@ -204,27 +218,95 @@ export const DownloadedLibrary = ({
   };
   const retryUpload = async () => {
     try {
-      setUpload(await libraryClient.upload());
+      await libraryClient.sync();
+      const result = await libraryClient.upload();
+      setSnapshot((previous) => ({ ...previous, upload: result }));
+      setRetry((value) => value + 1);
     } catch {
       setRetry((value) => value + 1);
     }
   };
+  const pauseDownload = async () => {
+    try {
+      const result = await libraryClient.pauseDownload(!status?.paused);
+      setSnapshot((previous) => ({ ...previous, status: result }));
+      refreshLibrary();
+    } catch {
+      setErrorText(
+        "Could not change download state. Retry; local work is retained."
+      );
+    }
+  };
+  const promptSaved = (value: LocalPrompt) => {
+    selectedPrompt.current = value.prompt.id;
+    selection.current += 1;
+    setEditor(undefined);
+    setLocalDetail(value);
+    setRetry((count) => count + 1);
+  };
+  return {
+    status,
+    upload,
+    changes,
+    localDetail,
+    setLocalDetail,
+    editor,
+    setEditor,
+    errorText,
+    offline,
+    busy,
+    setRetry,
+    usage,
+    organization,
+    copy,
+    open,
+    organizationSaved,
+    retryUsage,
+    retryUpload,
+    pauseDownload,
+    refreshLibrary,
+    retry,
+    selectResult,
+    promptSaved,
+    lifecycle,
+  };
+};
+interface LibraryProps {
+  account: Status;
+  signedIn: boolean;
+  refreshAuth: (command: "auth_status") => Promise<Status | undefined>;
+  editingDisabled: boolean;
+  onEditing: (editing: boolean) => void;
+}
+export const DownloadedLibrary = (props: LibraryProps) => {
+  const { account, signedIn, editingDisabled, onEditing } = props;
+  const {
+    status,
+    upload,
+    changes,
+    localDetail,
+    editor,
+    setEditor,
+    errorText,
+    offline,
+    busy,
+    usage,
+    organization,
+    copy,
+    open,
+    organizationSaved,
+    retryUsage,
+    retryUpload,
+    pauseDownload,
+    refreshLibrary,
+    retry,
+    selectResult,
+    promptSaved,
+    lifecycle,
+  } = useDownloadedLibrary(props);
   return (
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
-      <LibraryViews
-        view={view}
-        onSelect={(value) => {
-          if (value === view) {
-            return;
-          }
-          browseRequest.current += 1;
-          currentOffset.current = 0;
-          setOffset(0);
-          setRows([]);
-          setView(value);
-        }}
-      />
       <DownloadedStatus
         status={status}
         upload={upload}
@@ -234,9 +316,7 @@ export const DownloadedLibrary = ({
         lifecycle={lifecycle}
         signedIn={signedIn}
         offline={offline}
-        busy={busy}
         editing={editingDisabled || Boolean(editor)}
-        error={errorText}
         copyMessage={copy.message}
         onRetry={refreshLibrary}
         onRetryUsage={() => {
@@ -273,25 +353,36 @@ export const DownloadedLibrary = ({
             onEditing(false);
           }}
           onSaved={(value) => {
-            selectedPrompt.current = value.prompt.id;
-            selection.current += 1;
-            setEditor(undefined);
+            promptSaved(value);
             onEditing(false);
-            setLocalDetail(value);
-            setRetry((count) => count + 1);
           }}
         />
       ) : null}
-      <DownloadedRows
-        rows={rows}
-        offset={offset}
-        recents={recents}
-        copying={copy.busy || editingDisabled}
-        onOpen={open}
-        onCopy={copy.handleCopy}
-        onBrowse={browse}
+      <DownloadControls
+        status={status}
+        signedIn={signedIn}
+        busy={busy}
+        errorText={errorText}
+        onPause={() => {
+          void pauseDownload();
+        }}
+        onRetry={refreshLibrary}
+      />
+      {status?.recoveryCount ? (
+        <RecoveryLibrary count={status.recoveryCount} account={account} />
+      ) : null}
+      <SearchLibrary
+        account={account}
+        refresh={retry}
+        organization={organization}
+        onOrganizationSaved={organizationSaved}
+        editingDisabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+        onEditing={onEditing}
         onFavorite={lifecycle.handleFavorite}
         changing={lifecycle.busy || Boolean(editor) || editingDisabled}
+        onSelect={selectResult}
+        onCopy={copy.handleCopy}
+        copying={copy.busy || editingDisabled}
       />
       {localDetail ? (
         <LocalPromptDetail
@@ -304,10 +395,19 @@ export const DownloadedLibrary = ({
             setEditor({ initial: localDetail });
             onEditing(true);
           }}
-          copying={copy.busy || editingDisabled}
+          copying={copy.busy || editingDisabled || busy}
           onCopy={() => {
             void copy.handleCopy(localDetail.prompt.id);
           }}
+        />
+      ) : null}
+      {localDetail && organization ? (
+        <PromptOrganization
+          account={account}
+          value={localDetail}
+          snapshot={organization}
+          onSaved={organizationSaved}
+          disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
         />
       ) : null}
     </section>

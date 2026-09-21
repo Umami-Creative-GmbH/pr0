@@ -308,17 +308,36 @@ fn offline_command_worker() {
     };
     let directory = std::path::PathBuf::from(directory);
     let vault = Arc::new(Vault::default());
+    let organization_capacity = std::env::var("PR0_ORGANIZATION_CAPACITY").as_deref() == Ok("true");
     let upload_fixture_enabled = std::env::var("PR0_UPLOAD_UI_FIXTURE").as_deref() == Ok("true");
-    let transport: Arc<dyn Transport> = if upload_fixture_enabled {
+    let recovery_fixture_enabled = std::env::var("PR0_RECOVERY_UI_FIXTURE").as_deref() == Ok("true");
+    let search_fixture_enabled = std::env::var_os("PR0_SEARCH_FIXTURE_DIRECTORY").is_some();
+    let recovery_transport = approval();
+    if recovery_fixture_enabled {
+        let data: serde_json::Value = serde_json::from_str(include_str!("../../../../packages/api-contract/src/snapshot-fixtures.json")).unwrap();
+        recovery_transport.0.lock().unwrap().pop();
+        recovery_transport.0.lock().unwrap().extend([data["manifest"].clone(), data["pages"][0].clone(), data["pages"][1].clone()]);
+    }
+    let transport: Arc<dyn Transport> = if organization_capacity {
+        organization_capacity_transport()
+    } else if recovery_fixture_enabled {
+        recovery_transport.clone()
+    } else if upload_fixture_enabled {
         upload_fixture(true, false)
     } else {
         approval()
+    };
+    let transport: Arc<dyn Transport> = match std::env::var("PR0_SEARCH_FIXTURE_DIRECTORY") {
+        Ok(directory)=>Arc::new(SearchFixtureTransport{directory:directory.into(),fallback:transport}),
+        Err(_)=>transport,
     };
     let service = AuthService::new(directory, transport, vault).unwrap();
     if view(&service)["state"] == "signed_out" {
         sign_in(&service);
     }
-    if upload_fixture_enabled && !service.library_status().unwrap().complete {
+    if (upload_fixture_enabled || organization_capacity || recovery_fixture_enabled)
+        && !service.library_status().unwrap().complete
+    {
         service.library_download().unwrap();
         service.library_download().unwrap();
     }
@@ -333,7 +352,8 @@ fn offline_command_worker() {
             "auth_status" => service.status().map(|v| json!(v)),
             "auth_sign_out" => serde_json::from_value(input["request"].clone())
                 .map_err(|_| "invalid_transition".to_string())
-                .and_then(|request| service.transition(request)).map(|v| json!(v)),
+                .and_then(|request| service.transition(request))
+                .map(|v| json!(v)),
             "library_status" => service.library_status().map(|v| json!(v)),
             "library_lifecycle" => {
                 super::library_storage::set_test_fault(input["fault"].as_str().unwrap_or(""));
@@ -344,6 +364,43 @@ fn offline_command_worker() {
             "library_retained_prompt" => service.library_retained_prompt(input["id"].as_str().unwrap()).map(|v|json!(v)),
             "library_recover" => service.library_recover(serde_json::from_value(input["request"].clone()).unwrap()).map(|v|json!(v)),
             "library_list" => service.library_list(input["offset"].as_u64().unwrap_or(0) as u32,serde_json::from_value(input["view"].clone()).unwrap()).map(|v|json!(v)),
+            "library_download" if recovery_fixture_enabled || search_fixture_enabled => service.library_download().map(|v|json!(v)),
+            "library_search" => serde_json::from_value(input["request"].clone()).map_err(|_|"invalid_input".to_string()).and_then(|request| service.library_search(request)).map(|v|json!(v)),
+            "library_cancel_search" => service.cancel_search(input["id"].as_str().unwrap()).map(|_|json!(null)),
+            "library_recover_search" => serde_json::from_value(input["request"].clone()).map_err(|_|"invalid_input".to_string()).and_then(|request| service.library_recover_search(request)).map(|_|json!(null)),
+            "library_reconcile" => service.library_reconcile().map(|_| serde_json::Value::Null),
+            "library_organization" => service.library_organization(),
+            "library_organize" => serde_json::from_value(input["request"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| service.library_organize(r)),
+            "library_organization_impact" => serde_json::from_value(input["action"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| {
+                    service.library_organization_impact(
+                        r,
+                        input["replaces"].as_str().map(str::to_owned),
+                    )
+                }),
+            "library_organization_browse" => serde_json::from_value(input["request"].clone())
+                .map_err(|_| "invalid_input".to_string())
+                .and_then(|r| service.library_organization_browse(r))
+                .map(|v| json!(v)),
+            "library_organization_review" => service.library_organization_review(
+                input["id"].as_str().unwrap(),
+                input["offset"].as_u64().unwrap_or(0) as u32,
+            ),
+            "test_recovery" => {
+                let mut data = replacement_fixture();
+                data["manifest"]["epoch"] = json!("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+                let mut changes = change_fixture();
+                changes["epoch"] = data["manifest"]["epoch"].clone();
+                recovery_transport.0.lock().unwrap().extend([json!({"fixtureFailure":"snapshot_required"}), data["manifest"].clone(), data["pages"][0].clone(), data["pages"][1].clone(), changes]);
+                service.library_changes(0).unwrap();
+                service.library_pause_download(true).map(|v|json!(v))
+            }
+            "library_pause_download" => service.library_pause_download(input["paused"].as_bool().unwrap()).map(|v|json!(v)),
+            "library_recovery_browse" => service.library_recovery_browse(input["offset"].as_u64().unwrap_or(0) as u32).map(|v|json!(v)),
+            "library_recovery_detail" => service.library_recovery_detail(input["snapshotId"].as_str().unwrap(), input["id"].as_str().unwrap()).map(|v|json!(v)),
             "library_browse" => service
                 .library_browse(input["offset"].as_u64().unwrap_or(0) as u32)
                 .map(|v| json!(v)),
@@ -368,7 +425,10 @@ fn offline_command_worker() {
             "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
             "library_change_status" => service.library_change_status().map(|v| json!(v)),
             "library_changes" => service.library_changes(0).map(|v| json!(v)),
-            "library_sync" => { service.wake_sync(); Ok(json!(null)) },
+            "library_sync" => {
+                service.wake_sync();
+                Ok(json!(null))
+            }
             "library_upload" => service.library_upload().map(|v| json!(v)),
             "library_copy_draft" => service
                 .copy_draft(
@@ -379,7 +439,11 @@ fn offline_command_worker() {
                     |_| Ok(()),
                 )
                 .map(|_| json!(null)),
-            "library_copy"|"library_recents"|"library_usage_status"|"library_retry_usage"|"test_clipboard_text"=>usage_test_command(&service,&input),
+            "library_copy"
+            | "library_recents"
+            | "library_usage_status"
+            | "library_retry_usage"
+            | "test_clipboard_text" => usage_test_command(&service, &input),
             _ => Err("network_unavailable".into()),
         };
         println!("RESULT:{}", serde_json::to_string(&result).unwrap());

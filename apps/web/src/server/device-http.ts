@@ -4,6 +4,7 @@ import { emptyRequestSchema } from "@pr0/api-contract/accounts";
 import type { AccountRequest } from "@pr0/api-contract/accounts";
 import {
   capabilitiesSchema,
+  compatibilityPolicy,
   desktopSessionSchema,
   deviceApprovalSchema,
   deviceCancelSchema,
@@ -19,6 +20,8 @@ import { failure, readBody } from "./account-http";
 import {
   AccountFailureError,
   admit,
+  admitAnonymous,
+  admitApi,
   assertOrigin,
   clientBucket,
 } from "./admission";
@@ -77,7 +80,11 @@ const validatedAuthResponse = async (result: Response, schema: z.ZodType) => {
   );
 };
 
-const approve = async (request: Request, path: string) => {
+const approve = async (
+  request: Request,
+  path: string,
+  claimOwner: (owner: string) => Promise<void>
+) => {
   assertOrigin(request);
   const input = deviceApprovalSchema.parse(await readBody(request));
   const cookie = request.headers.get("cookie") ?? "";
@@ -95,6 +102,8 @@ const approve = async (request: Request, path: string) => {
   if (browser.user.id !== input.accountId) {
     throw new AccountFailureError("account_changed", 409);
   }
+  await claimOwner(browser.user.id);
+  await admitApi(browser.user.id);
   await admit([
     { key: `device-approve:${browser.user.id}`, max: 30, seconds: 60 },
   ]);
@@ -182,12 +191,10 @@ export const handleDevice = async (request: Request) => {
     ) {
       throw new AccountFailureError("not_found", 404);
     }
-    return await withRequestWork(async () => {
-      await admit([
-        { key: `device-api:${clientBucket(request)}`, max: 120, seconds: 60 },
-      ]);
+    return await withRequestWork(async (claimOwner) => {
+      await admitAnonymous(request);
       return path === "device/approve" || path === "device/deny"
-        ? approve(request, path)
+        ? approve(request, path, claimOwner)
         : nativeCode(request, path);
     });
   } catch (error) {
@@ -203,9 +210,7 @@ export const handleDevice = async (request: Request) => {
 export const handleCapabilities = async (request: Request) => {
   try {
     return await withRequestWork(async () => {
-      await admit([
-        { key: `discovery:${clientBucket(request)}`, max: 60, seconds: 60 },
-      ]);
+      await admitAnonymous(request);
       const instanceId = await deletionInstance();
       const keys = await signingKeys(instanceId);
       return response(
@@ -217,6 +222,12 @@ export const handleCapabilities = async (request: Request) => {
           deviceAuthorization: true,
           deletionKey: keys.anchor,
           limits: { credentialBytes: 2560, responseBytes: 16_384 },
+          // Legacy desktops reject additional fields. Discovery is opt-in until
+          // the last strict legacy release leaves the support window.
+          compatibility:
+            new URL(request.url).searchParams.get("negotiation") === "1"
+              ? compatibilityPolicy
+              : undefined,
         })
       );
     });
@@ -248,7 +259,7 @@ export const handleDesktopSession = async (request: Request) => {
         throw new AccountFailureError("forbidden", 403);
       }
       await claimOwner(result.user.id);
-      await admit([{ key: `api:${result.user.id}`, max: 120, seconds: 60 }]);
+      await admitApi(result.user.id);
       const sql = database();
       if (request.method === "POST") {
         if (!emptyRequestSchema.safeParse(await readBody(request)).success) {

@@ -1,61 +1,13 @@
 import { configuration } from "../src/server/config";
 import { database } from "../src/server/database";
+import { migrate } from "./migrate";
 
 const sql = database();
 const [command] = process.argv.slice(2);
 try {
   configuration();
   if (command === "migrate") {
-    const migrations = await Promise.all(
-      [
-        "001-accounts.sql",
-        "002-request-work.sql",
-        "003-email-admission.sql",
-        "004-session-issuance.sql",
-        "005-social.sql",
-        "006-email-change.sql",
-        "007-prompts.sql",
-        "008-prompt-edits.sql",
-        "009-prompt-lifecycle.sql",
-        "010-prompt-deletion.sql",
-        "011-collections.sql",
-        "012-tags.sql",
-        "013-organization-cleanup.sql",
-        "014-prompt-use.sql",
-        "015-account-deletion.sql",
-        "016-device.sql",
-        "017-snapshots.sql",
-        "018-live-changes.sql",
-      ].map(async (name, index) => ({
-        version: index + 1,
-        source: await Bun.file(
-          new URL(`../migrations/${name}`, import.meta.url)
-        ).text(),
-      }))
-    );
-    await sql.begin(async (tx) => {
-      await tx`SELECT pg_advisory_xact_lock(24001)`;
-      await tx`CREATE TABLE IF NOT EXISTS migration (version integer PRIMARY KEY, digest text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`;
-      // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Versioned DDL must apply sequentially under the coordinator lock.
-      for (const migration of migrations) {
-        const digest = new Bun.CryptoHasher("sha256")
-          .update(migration.source)
-          .digest("hex");
-        const applied =
-          await tx`SELECT digest FROM migration WHERE version = ${migration.version}`;
-        if (applied.length > 0) {
-          if (applied[0].digest !== digest) {
-            throw new Error("Applied migration checksum mismatch");
-          }
-        } else {
-          await tx.unsafe(migration.source);
-          if (migration.version === 1) {
-            await tx`INSERT INTO instance(id, schema_version) VALUES (${crypto.randomUUID()}, 1)`;
-          }
-          await tx`INSERT INTO migration(version, digest) VALUES (${migration.version}, ${digest})`;
-        }
-      }
-    });
+    await migrate(sql);
     process.stdout.write(
       "Account schema ready; immutable instance identity retained.\n"
     );
@@ -82,13 +34,32 @@ try {
     process.stdout.write(
       "Address admitted; ordinary signup and email verification are still required.\n"
     );
+  } else if (
+    command === "pause-registration" ||
+    command === "resume-registration"
+  ) {
+    await sql`UPDATE instance SET registration_paused=${command === "pause-registration"}`;
+    process.stdout.write(
+      "Registration admission updated; existing-account recovery remains available.\n"
+    );
+  } else if (command === "suspend" || command === "resume") {
+    const { z } = await import("zod");
+    const accountId = z.uuid().parse(process.argv[3]);
+    const rows =
+      await sql`UPDATE "user" SET suspended=${command === "suspend"} WHERE id=${accountId} RETURNING id`;
+    if (!rows.length) {
+      throw new Error("Account not found");
+    }
+    process.stdout.write(
+      "Account admission updated; retained work is unchanged.\n"
+    );
   } else if (command === "mail-status") {
     const rows =
       await sql`SELECT state, count(*)::int AS count FROM mail_job GROUP BY state`;
     process.stdout.write(`${JSON.stringify(rows)}\n`);
   } else {
     throw new Error(
-      "Use migrate, admit-first <email>, allow <email>, or mail-status"
+      "Use migrate, admit-first <email>, allow <email>, pause-registration, resume-registration, suspend <account-uuid>, resume <account-uuid>, or mail-status"
     );
   }
 } catch (error) {

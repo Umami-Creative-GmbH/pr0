@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-organization-review"
+description = "Enables the library_organization_review command without any pre-configured scope."
+commands.allow = ["library_organization_review"]
+
+[[permission]]
+identifier = "deny-library-organization-review"
+description = "Denies the library_organization_review command without any pre-configured scope."
+commands.deny = ["library_organization_review"]

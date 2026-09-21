@@ -3,7 +3,7 @@ import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
 
 import type { DownloadStatus } from "./library-client";
-import { DownloadProgress, LocalLibraryStatus } from "./local-library-status";
+import { LocalLibraryStatus } from "./local-library-status";
 import { PendingRecovery } from "./pending-recovery";
 import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
@@ -18,9 +18,7 @@ export const DownloadedStatus = ({
   lifecycle,
   signedIn,
   offline,
-  busy,
   editing,
-  error,
   copyMessage,
   onRetry,
   onRetryUsage,
@@ -35,9 +33,7 @@ export const DownloadedStatus = ({
   lifecycle: ReturnType<typeof useLifecycle>;
   signedIn: boolean;
   offline: boolean;
-  busy: boolean;
   editing: boolean;
-  error: string;
   copyMessage: string;
   onRetry: () => void;
   onRetryUsage: () => void;
@@ -84,17 +80,5 @@ export const DownloadedStatus = ({
       onOpen={onOpen}
       onRetry={onRetryUpload}
     />
-    <DownloadProgress status={status} signedIn={signedIn} />
-    {error ? <p role="alert">{error}</p> : null}
-    {!status?.complete && signedIn ? (
-      <button
-        type="button"
-        disabled={busy}
-        onClick={onRetry}
-        className="rounded border px-4 py-2"
-      >
-        Retry download
-      </button>
-    ) : null}
   </>
 );

@@ -24,7 +24,7 @@ try {
       "60000",
     ]);
   }
-  await verifyNativeHttps(server, false, false, false, false, true);
+  await verifyNativeHttps(server, { lifecycle: true });
 } finally {
   await server.cleanup();
 }

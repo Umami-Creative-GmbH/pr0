@@ -21,7 +21,7 @@ try {
     "--timeout",
     "60000",
   ]);
-  await verifyNativeHttps(server, false, true);
+  await verifyNativeHttps(server, { upload: true });
 } finally {
   await server.cleanup();
 }

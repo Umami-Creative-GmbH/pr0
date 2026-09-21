@@ -1,4 +1,5 @@
 // Public typed commands over durable SQLite; HTTPS is the controlled external boundary.
+include!("lifecycle_recovery_tests.rs");
 #[test]
 fn lifecycle_recovery_includes_deletions_beyond_the_first_hundred_prompts() {
     let directory = std::env::temp_dir().join(format!("pr0-pending-list-{}", uuid::Uuid::new_v4()));

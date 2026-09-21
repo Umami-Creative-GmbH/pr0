@@ -5,71 +5,134 @@ import path from "node:path";
 
 import { localPromptSchema } from "@pr0/api-contract/local-prompts";
 import { chromium } from "playwright";
-import type { Page } from "playwright";
 
+import { connect } from "./local-native-ui";
 import { localNativeWorker } from "./local-native-worker";
-import type { NativeArgs } from "./local-native-worker";
 
 const browserChannel = process.env.PR0_TEST_BROWSER ?? "chrome";
 
-declare global {
-  interface Window {
-    nativeCommand: (
-      command: string,
-      args: NativeArgs
-    ) => Promise<{ ok?: NativeArgs[string]; error?: string }>;
-  }
-}
-
-const connect = async (
-  page: Page,
-  native: Awaited<ReturnType<typeof localNativeWorker>>,
-  fault: () => string,
-  after: (command: string) => Promise<void> = async () => {}
-) => {
-  await page.exposeFunction(
-    "nativeCommand",
-    async (command: string, args: NativeArgs) => {
-      try {
-        const ok = await native.command(command, { ...args, fault: fault() });
-        await after(command);
-        if (
-          fault() === "malformed_response" &&
-          (command === "library_create" || command === "library_edit")
-        ) {
-          return { ok: null };
-        }
-        return { ok };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "native_unavailable",
-        };
-      }
-    }
+test("navigation away from an opened duplicate survives a busy search retry", async () => {
+  const directory = await mkdtemp(
+    path.join(os.tmpdir(), "pr0-copy-navigation-")
   );
-  await page.addInitScript(() => {
-    Object.defineProperty(window, "__TAURI_EVENT_PLUGIN_INTERNALS__", {
-      value: { unregisterListener: () => {} },
-    });
-    Object.defineProperty(window, "__TAURI_INTERNALS__", {
-      value: {
-        invoke: async (command: string, args: NativeArgs = {}) => {
-          // Native events are notifications only; this test refreshes authoritative views explicitly.
-          if (command.startsWith("plugin:event|")) {
-            return 1;
-          }
-          const result = await window.nativeCommand(command, args);
-          if (result.error) {
-            throw result.error;
-          }
-          return result.ok;
-        },
-        transformCallback: () => 1,
-      },
-    });
+  const native = await localNativeWorker(directory, true);
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
   });
-  await page.goto("http://localhost:1420");
-};
+  let busySearch = false;
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(5000);
+    await connect(
+      page,
+      native,
+      () => "",
+      (command) => {
+        if (command === "library_search" && busySearch) {
+          busySearch = false;
+          throw new Error("search_busy");
+        }
+      }
+    );
+    await page.getByRole("button", { name: "First", exact: true }).click();
+    const detail = page.getByRole("article", { name: "Prompt detail" });
+    await detail
+      .getByRole("button", { name: "Duplicate", exact: true })
+      .click();
+    await detail
+      .getByRole("heading", { name: "First (copy)", exact: true })
+      .waitFor();
+    await page
+      .getByRole("button", { name: "First (copy)", exact: true })
+      .waitFor();
+    busySearch = true;
+    await page
+      .getByRole("navigation", { name: "Library views" })
+      .getByRole("button", { name: "Recents", exact: true })
+      .click();
+    await page
+      .getByText("Copied active prompts appear in Recents.", { exact: false })
+      .waitFor();
+    await detail.waitFor({ state: "detached" });
+    expect(busySearch).toBe(false);
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("recovery retains the selected prompt and open draft through pause and epoch activation", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-recovery-ui-"));
+  const native = await localNativeWorker(directory, false, false, true);
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(10_000);
+    await connect(page, native, () => "");
+    page.on("pageerror", (error) => process.stderr.write(`${error.message}\n`));
+
+    await page.getByRole("button", { name: "First", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Edit prompt", exact: true })
+      .click();
+    await page
+      .getByLabel("Content", { exact: true })
+      .fill("My unsaved draft survives replacement");
+    await native.command("test_recovery");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page
+      .getByText(
+        "Download paused. Resume when you are ready; local work is retained."
+      )
+      .waitFor();
+    expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
+      "My unsaved draft survives replacement"
+    );
+    await page
+      .getByRole("button", { name: "Resume download", exact: true })
+      .click();
+    await page
+      .getByText("Library downloaded at revision 3. Available offline.")
+      .waitFor();
+    expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
+      "My unsaved draft survives replacement"
+    );
+    await page
+      .getByText("Review pre-recovery library (2 retained prompts)", {
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", { name: "Show retained prompts", exact: true })
+      .click();
+    await page
+      .locator("details")
+      .filter({
+        has: page.getByRole("button", {
+          name: "Show retained prompts",
+          exact: true,
+        }),
+      })
+      .getByRole("button", { name: "First", exact: true })
+      .click();
+    expect(await page.getByLabel("Retained prompt").textContent()).toContain(
+      "  Hello offline\n"
+    );
+    await page.screenshot({
+      path: ".scratch/issue47-recovery.png",
+      fullPage: true,
+    });
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
 
 test("desktop editor retains a disk-full draft then commits and reopens pending text through native commands", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-save-ui-"));
@@ -234,6 +297,13 @@ test("settings cancel, failed synchronization and explicit offline discard prese
       .getByText("Server revocation could not be confirmed", { exact: false })
       .waitFor();
     expect(await reopened.getByLabel("Downloaded library").count()).toBe(0);
+    const customServer = reopened.getByRole("button", {
+      name: "Use your own server",
+      exact: true,
+    });
+    if (await customServer.count()) {
+      await customServer.click();
+    }
     expect(await reopened.getByLabel("HTTPS server").isEditable()).toBe(true);
   } finally {
     await browser.close();
@@ -424,7 +494,7 @@ test("an open draft follows its conflict copy without replacing text and offers 
   }
 });
 
-test("a remote deletion clears the saved desktop detail while preserving its open unsaved draft", async () => {
+test("a remote deletion selects the remaining result while preserving the deleted prompt's open unsaved draft", async () => {
   const directory = await mkdtemp(
     path.join(os.tmpdir(), "pr0-live-delete-ui-")
   );
@@ -453,7 +523,16 @@ test("a remote deletion clears the saved desktop detail while preserving its ope
     await draft.fill("Keep this unsaved draft");
     await native.command("library_changes");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await page.getByLabel("Prompt content").waitFor({ state: "detached" });
+    await page
+      .getByRole("article", { name: "Prompt detail" })
+      .getByRole("heading", { name: "Second", exact: true })
+      .waitFor();
+    expect(
+      await page
+        .getByRole("article", { name: "Prompt detail" })
+        .getByRole("heading", { name: original.prompt.title, exact: true })
+        .count()
+    ).toBe(0);
     expect(await draft.inputValue()).toBe("Keep this unsaved draft");
     expect(
       await draft.evaluate((element) => element === document.activeElement)
@@ -519,6 +598,10 @@ test("desktop lifecycle resolves an uncertain commit before another action, pres
     await detail
       .getByRole("heading", { name: "Lifecycle example (copy)", exact: true })
       .waitFor();
+    await detail.getByRole("button", { name: "Favorite", exact: true }).click();
+    await detail
+      .getByRole("button", { name: "Favorite", exact: true, pressed: true })
+      .waitFor();
     expect(await page.getByLabel("Prompt content").inputValue()).toBe(
       "  Original snapshot\n"
     );
@@ -544,6 +627,11 @@ test("desktop lifecycle resolves an uncertain commit before another action, pres
         exact: true,
       })
       .waitFor();
+    expect(
+      await native.command("library_list", { offset: 0, view: "archive" })
+    ).toEqual([
+      expect.objectContaining({ title: "Lifecycle example", archived: true }),
+    ]);
     await page
       .getByRole("button", {
         name: "Lifecycle example (Archived)",

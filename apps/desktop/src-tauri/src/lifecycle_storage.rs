@@ -1,4 +1,8 @@
 // Included in library_storage: projection and outbox share one transaction.
+fn duplicate_title(title: &str) -> String {
+    format!("{} (copy)", title.chars().take(193).collect::<String>())
+}
+
 impl LibraryStore {
     pub fn lifecycle(
         &mut self,
@@ -101,10 +105,7 @@ impl LibraryStore {
                 }
                 let (count, used) = known_usage(&tx)?;
                 prompt.source_title = Some(prompt.title.clone());
-                prompt.title = format!(
-                    "{} (copy)",
-                    prompt.title.chars().take(193).collect::<String>()
-                );
+                prompt.title = duplicate_title(&prompt.title);
                 if count >= 10_000
                     || used
                         + (prompt.title.len()
@@ -178,11 +179,12 @@ impl LibraryStore {
             if deleting {
                 tx.execute("INSERT INTO local_deleted VALUES(?1)", [&prompt.id])
                     .map_err(io)?;
-                super::local_search::remove(&tx, &prompt.id).map_err(io)?;
-            } else {
-                super::local_search::update(&tx, &prompt, revision).map_err(io)?;
             }
             tx.execute("INSERT INTO outbox(id,prompt_id,payload,state,local_revision) VALUES(?1,?2,?3,'unsent',?4)",params![request.operation_id,prompt.id,serde_json::to_string(&operation).map_err(|_|"storage_unavailable")?,revision]).map_err(io)?;
+            // Actions against the pre-restore library need the same explicit review as text edits.
+            // A duplicate also inherits its source's recovery restriction.
+            tx.execute("INSERT OR IGNORE INTO recovery_blocked SELECT ?1 WHERE EXISTS(SELECT 1 FROM recovery_archive WHERE snapshot=(SELECT active FROM state)) OR EXISTS(SELECT 1 FROM recovery_blocked WHERE prompt_id=?2)",params![prompt.id,request.prompt_id]).map_err(io)?;
+            tx.execute("UPDATE outbox SET error='recovery_required',next_attempt=9223372036854775807 WHERE id=?1 AND prompt_id IN(SELECT prompt_id FROM recovery_blocked)",[&request.operation_id]).map_err(io)?;
         }
         let result = LifecycleResult {
             prompt_id: prompt.id,
@@ -199,7 +201,7 @@ impl LibraryStore {
         .map_err(io)?;
         #[cfg(test)]
         test_stage("before_commit")?;
-        tx.commit().map_err(io)?;
+        commit_search(tx)?;
         #[cfg(test)]
         test_stage("after_commit")?;
         Ok(result)

@@ -100,6 +100,10 @@ export const PendingRecovery = ({
         setMessage(
           "An effect was already accepted. Nothing was discarded. Finish synchronization before reviewing the remaining changes."
         );
+      } else if (error === "recovery_required") {
+        setMessage(
+          "The server library was restored. Review the pre-recovery library and copy any text you want to preserve into a new prompt. These retained changes cannot be retried automatically."
+        );
       } else if (error === "dependent_changes_pending") {
         setMessage(
           "Nothing was discarded. A pending copy depends on this prompt. Sync both changes, or copy and discard the dependent copy first."

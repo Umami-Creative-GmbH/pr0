@@ -1,5 +1,40 @@
 // Included in auth's module so the active identity/connection share its generation lock.
 impl AuthService {
+    pub fn admit_search(&self, id: &str) -> Result<Arc<std::sync::atomic::AtomicBool>, String> {
+        if !valid_id(id) {return Err("invalid_input".into());}
+        let cancelled=Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut active=self.search.lock().map_err(|_|"state_unavailable")?;
+        if let Some((_,old))=active.replace((id.into(),cancelled.clone())) {old.store(true,std::sync::atomic::Ordering::Relaxed);}
+        Ok(cancelled)
+    }
+    pub fn cancel_search(&self, id: &str) -> Result<(),String> {
+        let active=self.search.lock().map_err(|_|"state_unavailable")?;
+        if let Some((current,cancelled))=active.as_ref() {if current==id {cancelled.store(true,std::sync::atomic::Ordering::Relaxed);}}
+        Ok(())
+    }
+    pub fn library_recover_search(&self, request: super::search_contract::SearchRequest) -> Result<(), String> {
+        request.validate()?;
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if request.generation != state.generation || request.instance_id != retained.identity.instance.id || request.account_id != retained.identity.account.id { return Err("operation_cancelled".into()); }
+        self.library(&mut state)?.recover_search()
+    }
+    pub fn library_search(&self, request: super::search_contract::SearchRequest) -> Result<super::search_contract::SearchPage, String> {
+        let cancelled=self.admit_search(&request.request_id)?;
+        self.library_search_admitted(request,cancelled)
+    }
+    pub fn library_search_admitted(&self, request: super::search_contract::SearchRequest, cancelled: Arc<std::sync::atomic::AtomicBool>) -> Result<super::search_contract::SearchPage,String> {
+        request.validate()?;
+        let check=|| cancelled.load(std::sync::atomic::Ordering::Relaxed);
+        if check() {return Err("operation_cancelled".into());}
+        let _gate=self.search_gate.try_lock().map_err(|_|"search_busy")?;
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if request.generation != state.generation || request.instance_id != retained.identity.instance.id || request.account_id != retained.identity.account.id {
+            return Err("operation_cancelled".into());
+        }
+        self.library(&mut state)?.search(&request,&check)
+    }
     pub fn copy_draft(
         &self,
         instance: &str,
@@ -39,10 +74,11 @@ impl AuthService {
             .file_name()
             .ok_or("storage_unavailable")?
             .to_string_lossy();
-        let paths: Vec<_> = ["", "-wal", "-shm"]
+        let mut paths: Vec<_> = ["", "-wal", "-shm"]
             .iter()
             .map(|suffix| self.directory.join(format!("{name}{suffix}")))
             .collect();
+        paths.extend(super::migration_backup::paths(&path));
         for path in &paths {
             if path.parent() != Some(self.directory.as_path())
                 || std::fs::symlink_metadata(path)
@@ -90,7 +126,7 @@ impl AuthService {
                 )?);
             }
             let store = state.library.as_ref().ok_or("storage_unavailable")?;
-            if store.upload_status()?.waiting > 0 || store.usage_status()?.waiting > 0 {
+            if store.upload_status()?.waiting > 0 || store.usage_status()?.waiting > 0 || store.status()?.recovery_count > 0 {
                 return Err("pending_work".into());
             }
         }
@@ -118,6 +154,20 @@ impl AuthService {
     }
     pub fn library_status(&self) -> Result<LibraryStatus, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        self.library(&mut state)?.status()
+    }
+    pub fn library_recovery_browse(&self, offset: u32) -> Result<Vec<super::library_contract::RecoverySummary>, String> {
+        let mut state = self.state.lock().map_err(|_|"state_unavailable")?;
+        self.library(&mut state)?.recovery_browse(offset)
+    }
+    pub fn library_recovery_detail(&self, snapshot: &str, id: &str) -> Result<Prompt, String> {
+        let mut state = self.state.lock().map_err(|_|"state_unavailable")?;
+        self.library(&mut state)?.recovery_detail(snapshot,id)
+    }
+    pub fn library_pause_download(&self, paused: bool) -> Result<LibraryStatus, String> {
+        let mut state = self.state.lock().map_err(|_|"state_unavailable")?;
+        self.library(&mut state)?.pause_download(paused)?;
+        self.wake_sync();
         self.library(&mut state)?.status()
     }
     pub fn library_create(
@@ -208,6 +258,15 @@ impl AuthService {
         endpoint: Endpoint,
         body: Value,
     ) -> Result<Value, String> {
+        {
+            let state = self.state.lock().map_err(|_| "state_unavailable")?;
+            if state.generation != generation
+                || state.clearing
+                || state.retained.as_ref().is_some_and(|r| r.cleanup_pending)
+            {
+                return Err("operation_cancelled".into());
+            }
+        }
         let observed = self.sync_generation();
         let result = if matches!(endpoint, Endpoint::Changes) {
             self.transport
@@ -269,12 +328,24 @@ impl AuthService {
             .download
             .try_lock()
             .map_err(|_| "download_in_progress")?;
-        let (generation, envelope, pending, minimum_revision) = {
+        let generation = self.state.lock().map_err(|_| "state_unavailable")?.generation;
+        let result = self.download_page();
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.generation != generation { return Err("operation_cancelled".into()); }
+        if let Ok(store) = self.library(&mut state) {
+            if result.as_ref().err().is_some_and(|e|e=="snapshot_expired") { store.expire()?; }
+            store.download_result(result.as_ref().err().map(String::as_str))?;
+        }
+        result
+    }
+    fn download_page(&self) -> Result<LibraryStatus, String> {
+        let (generation, envelope, pending, minimum_revision, recovering) = {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
             let envelope = state.credential.clone().ok_or("authentication_required")?;
             let generation = state.generation;
             let store = self.library(&mut state)?;
             let status = store.status()?;
+            if status.paused { return Ok(status); }
             if status.complete && !store.refresh_required()? {
                 return Ok(status);
             }
@@ -287,19 +358,25 @@ impl AuthService {
                 envelope,
                 store.pending()?,
                 store.required_download_revision()?,
+                store.recovering()?,
             )
         };
         let (manifest, index) = match pending {
+            Some((manifest, index)) if index == manifest.pages.len() => {
+                let changes = self.library_changes(0)?;
+                if let Some(error) = changes.error { return Err(error); }
+                return self.library_status();
+            }
             Some((manifest, index)) if !manifest.expired() => (manifest, index),
             _ => {
                 let manifest: Manifest = decode(self.snapshot_request(
                     generation,
                     &envelope,
                     Endpoint::Snapshot,
-                    json!({"minimumRevision":minimum_revision}),
+                    if recovering { json!({"minimumRevision":"0"}) } else { json!({"minimumRevision":minimum_revision}) },
                 )?)?;
                 manifest.validate(&envelope.instance_id, &envelope.account_id)?;
-                if manifest
+                if !recovering && manifest
                     .revision
                     .parse::<i64>()
                     .map_err(|_| "invalid_response")?
@@ -335,6 +412,7 @@ impl AuthService {
         }
         let page: Page = decode(response)?;
         let store = self.library(&mut state)?;
+        if store.status()?.paused { return Err("operation_cancelled".into()); }
         if let Err(error) = store.apply(&manifest, index, page) {
             state.library = None;
             return Err(error);

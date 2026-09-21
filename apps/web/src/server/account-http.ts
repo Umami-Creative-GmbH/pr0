@@ -1,4 +1,3 @@
-import "server-only";
 import {
   accountErrorSchema,
   accountRequestSchema,
@@ -10,6 +9,7 @@ import {
   socialSignInSchema,
   socialVerificationSchema,
 } from "@pr0/api-contract/accounts";
+import "server-only";
 import type {
   AccountRequest,
   AccountResponse,
@@ -19,6 +19,9 @@ import { z } from "zod";
 import {
   AccountFailureError,
   admit,
+  admitAnonymous,
+  admitApi,
+  admitSignup,
   admitEmail,
   assertOrigin,
   assertRegistration,
@@ -28,13 +31,15 @@ import {
 import { authentication } from "./auth";
 import { configuration } from "./config";
 import { database } from "./database";
-import { ensureDeletionRecovery } from "./deletion-recovery";
-import { validateMailConfiguration, withMailReservation } from "./mail";
+import { withMailReservation } from "./mail";
+import { recordFailure } from "./operational-events";
 import { resetPassword } from "./recovery";
 import { withRequestWork } from "./request-work";
+import { serviceLimit } from "./service-limits";
 import { withSessionIssuance } from "./session-issuance";
 import { enabledProviders } from "./social-config";
 
+const recordedResponses = new WeakSet<Response>();
 export const json = (
   body: AccountResponse,
   status = 200,
@@ -42,7 +47,12 @@ export const json = (
 ) => {
   headers.set("Cache-Control", "no-store");
   headers.set("Referrer-Policy", "no-referrer");
-  return Response.json(body, { status, headers });
+  const response = Response.json(body, { status, headers });
+  if (status >= 400 && "code" in body) {
+    recordFailure("account", body.code);
+    recordedResponses.add(response);
+  }
+  return response;
 };
 
 export const failure = (error: Error) => {
@@ -163,7 +173,7 @@ const handleCredentials = async (
   }
   const { email, password } = result.data;
   if (path === "sign-up/email") {
-    await admit([{ key: `signup:${ip}`, max: 5, seconds: 3600 }]);
+    await admitSignup(ip);
     await assertRegistration(email);
     await admitEmail(email, ip);
     return await withMailReservation(async (reservation) => {
@@ -188,8 +198,12 @@ const handleCredentials = async (
   }
   // Reserve before hashing to bound concurrent failures; refund successful logins.
   const loginAdmission = await admit([
-    { key: `login:pair:${email}:${ip}`, max: 10, seconds: 900 },
-    { key: `login:ip:${ip}`, max: 50, seconds: 900 },
+    {
+      key: `login:pair:${email}:${ip}`,
+      max: serviceLimit("LOGIN_PAIR", 10),
+      seconds: 900,
+    },
+    { key: `login:ip:${ip}`, max: serviceLimit("LOGIN_IP", 50), seconds: 900 },
   ]);
   const response = await withSessionIssuance(email, () =>
     authentication().handler(authRequest(request, path, { email, password }))
@@ -330,10 +344,7 @@ const processAuth = async (request: Request) => {
       return json({ code: "not_found" }, 404);
     }
     const ip = clientBucket(request);
-    await admit([
-      { key: `auth:minute:${ip}`, max: 60, seconds: 60 },
-      { key: `auth:burst:${ip}`, max: 10, seconds: 10 },
-    ]);
+    await admitAnonymous(request);
     const socialResponse = await handleSocialRequest(request, path, ip);
     if (socialResponse) {
       return socialResponse;
@@ -437,7 +448,7 @@ export const handleLibrary = async (request: Request) => {
         return json({ code: "forbidden" }, 403, result.headers);
       }
       await claimOwner(user.id);
-      await admit([{ key: `api:${user.id}`, max: 120, seconds: 60 }]);
+      await admitApi(user.id);
       const sql = database();
       const rows =
         await sql`SELECT instance_id, revision::text, recovery_epoch FROM library JOIN instance ON instance.id = library.instance_id WHERE account_id = ${user.id}`;
@@ -468,24 +479,6 @@ export const handleLibrary = async (request: Request) => {
   }
 };
 
-export const handleReadiness = async () => {
-  try {
-    await ensureDeletionRecovery();
-    configuration();
-    validateMailConfiguration();
-    const sql = database();
-    const ready =
-      await sql`SELECT i.id FROM instance i WHERE schema_version = 6 AND EXISTS
-      (SELECT 1 FROM worker_health WHERE name = 'mail' AND heartbeat_at > now() - interval '30 seconds')`;
-    return json(
-      { status: ready.length ? "ready" : "unavailable" },
-      ready.length ? 200 : 503
-    );
-  } catch {
-    return json({ status: "unavailable" }, 503);
-  }
-};
-
 export const handleAuth = async (request: Request) => {
   try {
     assertOrigin(
@@ -507,11 +500,16 @@ export const handleAuth = async (request: Request) => {
         return json({ code: "unavailable", retryAfter: 30 }, 503);
       }
       const parsed = accountErrorSchema.strip().safeParse(payload);
-      return json(
-        parsed.success ? parsed.data : { code: "unavailable", retryAfter: 30 },
-        parsed.success ? response.status : 503,
-        new Headers(response.headers)
-      );
+      const body = parsed.success
+        ? parsed.data
+        : { code: "unavailable" as const, retryAfter: 30 };
+      if (!recordedResponses.has(response)) {
+        recordFailure("account", body.code);
+      }
+      return Response.json(body, {
+        status: parsed.success ? response.status : 503,
+        headers: new Headers(response.headers),
+      });
     }
     return response;
   } catch (error) {

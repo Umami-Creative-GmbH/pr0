@@ -80,7 +80,20 @@ const operation = (
   return result;
 };
 export const devicePaths = {
-  "/api/v1/capabilities": { get: operation("getCapabilities", "Capabilities") },
+  "/api/v1/capabilities": {
+    get: {
+      ...operation("getCapabilities", "Capabilities"),
+      description:
+        "Negotiate before any upload. Optional negotiation=1 returns explicit supported protocol/normalization pairs and the 90-day desktop support policy. Without the query parameter the legacy strict shape is retained. A legacy server may ignore the parameter; use its protocols and normalization as the advertised contract. No common pair means stop uploads, retain offline browsing and pending work, and update the desktop or ask the self-hosted instance operator to update. Never infer a cross-product of independent version lists.",
+      parameters: [
+        {
+          name: "negotiation",
+          in: "query",
+          schema: { type: "integer", enum: [1] },
+        },
+      ],
+    },
+  },
   "/api/auth/device/code": {
     post: operation("startDeviceApproval", "DeviceCode", "DeviceClient"),
   },

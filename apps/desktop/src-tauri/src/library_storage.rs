@@ -7,8 +7,9 @@ pub struct LibraryStore {
     db: Connection,
     instance: String,
     account: String,
+    recovery_error: Option<String>,
 }
-fn io(error: rusqlite::Error) -> String {
+pub(crate) fn io(error: rusqlite::Error) -> String {
     match error.sqlite_error_code() {
         Some(rusqlite::ErrorCode::DiskFull) => "disk_full",
         Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked) => {
@@ -28,18 +29,39 @@ pub fn library_path(root: &Path, instance: &str, account: &str) -> Result<PathBu
     )))
 }
 impl LibraryStore {
+    pub fn recover_search(&mut self) -> Result<(), String> {
+        super::local_search::rebuild(&mut self.db).map_err(|error| {
+            if error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull) {
+                io(error)
+            } else {
+                "search_recovery_required".into()
+            }
+        })?;
+        self.recovery_error = None;
+        Ok(())
+    }
+    pub fn search(
+        &mut self,
+        request: &super::search_contract::SearchRequest,
+        cancelled: &impl Fn() -> bool,
+    ) -> Result<super::search_contract::SearchPage, String> {
+        let tx = self.db.transaction().map_err(io)?;
+        let result = super::search_query::search(&tx, request, cancelled)?;
+        tx.commit().map_err(io)?;
+        Ok(result)
+    }
     pub fn open(root: &Path, instance: &str, account: &str) -> Result<Self, String> {
         let path = library_path(root, instance, account)?;
         if std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
             return Err("storage_unavailable".into());
         }
-        let db = Connection::open(path).map_err(io)?;
+        let mut db = Connection::open(&path).map_err(io)?;
         db.busy_timeout(std::time::Duration::from_millis(250))
             .map_err(io)?;
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 6 {
+        if version > super::library_migrations::CURRENT_SCHEMA {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -58,94 +80,19 @@ impl LibraryStore {
         if mode != "wal" || full != 2 || foreign != 1 {
             return Err("storage_unavailable".into());
         }
-        if version == 0 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                CREATE TABLE identity(singleton INTEGER PRIMARY KEY CHECK(singleton=1), instance TEXT NOT NULL, account TEXT NOT NULL);
-                CREATE TABLE download(id TEXT PRIMARY KEY, manifest TEXT NOT NULL, applied INTEGER NOT NULL DEFAULT 0, complete INTEGER NOT NULL DEFAULT 0);
-                CREATE TABLE state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), active TEXT REFERENCES download(id), staging TEXT REFERENCES download(id));
-                INSERT INTO state VALUES(1,NULL,NULL);
-                CREATE TABLE organization(snapshot TEXT NOT NULL REFERENCES download(id) ON DELETE CASCADE, kind TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(snapshot,kind,id));
-                CREATE TABLE prompt(snapshot TEXT NOT NULL REFERENCES download(id) ON DELETE CASCADE, id TEXT NOT NULL, title TEXT NOT NULL, archived INTEGER NOT NULL, record TEXT NOT NULL, text_bytes INTEGER NOT NULL, PRIMARY KEY(snapshot,id));
-                PRAGMA user_version=1;").map_err(io)?;
-            db.execute(
-                "INSERT INTO identity VALUES(1,?1,?2)",
-                params![instance, account],
-            )
+        super::library_migrations::migrate(&mut db, &path, instance, account)?;
+        let recovery_error = super::local_search::recover(&mut db, &path).err();
+        db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;")
             .map_err(io)?;
-            db.execute_batch("COMMIT").map_err(io)?;
-        }
-        let valid: bool = db
-            .query_row(
-                "SELECT instance=?1 AND account=?2 FROM identity WHERE singleton=1",
-                params![instance, account],
-                |r| r.get(0),
-            )
-            .map_err(io)?;
-        if !valid {
-            return Err("snapshot_identity_mismatch".into());
-        }
-        if version < 2 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                ALTER TABLE download ADD COLUMN text_bytes INTEGER NOT NULL DEFAULT 0;
-                CREATE TABLE local_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL CHECK(revision>=0), installation TEXT NOT NULL);
-                CREATE TABLE local_prompt(id TEXT PRIMARY KEY,title TEXT NOT NULL,archived INTEGER NOT NULL,record TEXT NOT NULL,text_bytes INTEGER NOT NULL);
-                CREATE TABLE outbox(id TEXT PRIMARY KEY,prompt_id TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('unsent','in_flight','accepted_awaiting_download')),local_revision INTEGER NOT NULL);
-                CREATE INDEX outbox_prompt ON outbox(prompt_id,local_revision);
-                CREATE TABLE local_receipt(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL);
-                CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt);
-                PRAGMA user_version=2;").map_err(io)?;
-            db.execute(
-                "INSERT INTO local_state VALUES(1,0,?1)",
-                [uuid::Uuid::new_v4().to_string()],
-            )
-            .map_err(io)?;
-            super::local_search::migrate(&db).map_err(io)?;
-            db.execute_batch("COMMIT").map_err(io)?;
-        }
-        if version < 3 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                ALTER TABLE outbox ADD COLUMN envelope TEXT;
-                ALTER TABLE outbox ADD COLUMN receipt TEXT;
-                ALTER TABLE outbox ADD COLUMN error TEXT;
-                ALTER TABLE outbox ADD COLUMN next_attempt INTEGER NOT NULL DEFAULT 0;
-                CREATE TABLE upload_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL DEFAULT 0, error TEXT, refresh INTEGER NOT NULL DEFAULT 0, last_checked TEXT);
-                INSERT INTO upload_state(singleton) VALUES(1);
-                CREATE TABLE prompt_mapping(original TEXT PRIMARY KEY, copy TEXT NOT NULL, operation TEXT NOT NULL);
-                PRAGMA user_version=3;
-                COMMIT;").map_err(io)?;
-        }
-        if version < 4 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                CREATE TABLE pending_usage(id TEXT PRIMARY KEY,prompt_id TEXT NOT NULL,occurred_at TEXT NOT NULL,envelope TEXT,receipt TEXT);
-                CREATE INDEX usage_prompt ON pending_usage(prompt_id);
-                CREATE TABLE usage_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1),attempts INTEGER NOT NULL DEFAULT 0,next_attempt INTEGER NOT NULL DEFAULT 0,error TEXT);
-                INSERT INTO usage_state(singleton) VALUES(1);
-                PRAGMA user_version=4; COMMIT;").map_err(io)?;
-        }
-        if version < 5 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                CREATE TABLE change_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), cursor TEXT, attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL DEFAULT 0, error TEXT, updating INTEGER NOT NULL DEFAULT 1);
-                INSERT INTO change_state(singleton) VALUES(1);
-                UPDATE upload_state SET last_checked=NULL;
-                PRAGMA user_version=5; COMMIT;").map_err(io)?;
-        }
-        if version < 6 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                CREATE TABLE local_deleted(id TEXT PRIMARY KEY);
-                CREATE TABLE local_identity(id TEXT PRIMARY KEY);
-                INSERT OR IGNORE INTO local_identity SELECT id FROM local_prompt;
-                DROP VIEW visible_prompt;
-                CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt WHERE id NOT IN(SELECT id FROM local_deleted) UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt) AND id NOT IN(SELECT id FROM local_deleted);
-                PRAGMA user_version=6; COMMIT;").map_err(io)?;
-        }
         Ok(Self {
             db,
+            recovery_error,
             instance: instance.into(),
             account: account.into(),
         })
     }
     pub fn pending(&self) -> Result<Option<(Manifest, usize)>, String> {
-        let row: Option<(String,u32)> = self.db.query_row("SELECT manifest,applied FROM download WHERE id=(SELECT staging FROM state WHERE singleton=1) AND complete=0", [], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(io)?;
+        let row: Option<(String,u32)> = self.db.query_row("SELECT manifest,applied FROM download WHERE id=(SELECT staging FROM state WHERE singleton=1)", [], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(io)?;
         row.map(|(value, page)| {
             serde_json::from_str(&value)
                 .map(|manifest| (manifest, page as usize))
@@ -155,7 +102,7 @@ impl LibraryStore {
     }
     pub fn expire(&mut self) -> Result<(), String> {
         self.db
-            .execute("UPDATE state SET staging=NULL WHERE singleton=1", [])
+            .execute_batch("BEGIN IMMEDIATE; UPDATE state SET staging=NULL WHERE singleton=1; UPDATE recovery_state SET required=1; COMMIT;")
             .map_err(io)?;
         Ok(())
     }
@@ -165,11 +112,13 @@ impl LibraryStore {
             return Err("snapshot_expired".into());
         }
         let value = serde_json::to_string(manifest).map_err(|_| "invalid_response")?;
+        self.preflight_snapshot(manifest)?;
         let tx = self.db.transaction().map_err(io)?;
+        preserve_recovery_epoch(&tx, manifest)?;
         // At most one staging copy; the prior usable generation remains intact.
         tx.execute("UPDATE state SET staging=NULL WHERE singleton=1", [])
             .map_err(io)?;
-        tx.execute("DELETE FROM download WHERE id NOT IN(SELECT active FROM state WHERE active IS NOT NULL)",[]).map_err(io)?;
+        tx.execute("DELETE FROM download WHERE id NOT IN(SELECT active FROM state WHERE active IS NOT NULL) AND id NOT IN(SELECT snapshot FROM recovery_archive)",[]).map_err(io)?;
         tx.execute(
             "INSERT INTO download(id,manifest) VALUES(?1,?2)",
             params![manifest.id, value],
@@ -180,9 +129,22 @@ impl LibraryStore {
             [&manifest.id],
         )
         .map_err(io)?;
-        tx.commit().map_err(io)
+        tx.execute(
+            "UPDATE change_state SET cursor=NULL,error=NULL,next_attempt=0,attempts=0,updating=1",
+            [],
+        )
+        .map_err(io)?;
+        tx.execute(
+            "UPDATE outbox SET error=NULL,next_attempt=0 WHERE error='snapshot_required'",
+            [],
+        )
+        .map_err(io)?;
+        commit_search(tx)
     }
     pub fn apply(&mut self, manifest: &Manifest, index: usize, page: Page) -> Result<(), String> {
+        if manifest.expired() {
+            return Err("snapshot_expired".into());
+        }
         let expected = manifest.pages.get(index).ok_or("invalid_response")?;
         let digest = format!("{:x}", Sha256::digest(page.payload.as_bytes()));
         if page.id != manifest.id
@@ -277,7 +239,10 @@ impl LibraryStore {
             params![manifest.id, (index + 1) as u32, complete],
         )
         .map_err(io)?;
-        if complete {
+        let initial: bool = tx
+            .query_row("SELECT active=staging FROM state", [], |r| r.get(0))
+            .map_err(io)?;
+        if complete && initial {
             retire_downloaded_uploads(&tx, manifest)?;
             tx.execute("UPDATE change_state SET cursor=NULL,updating=1", [])
                 .map_err(io)?;
@@ -286,12 +251,17 @@ impl LibraryStore {
                 [&manifest.id],
             )
             .map_err(io)?;
-            tx.execute("DELETE FROM download WHERE id<>?1", [&manifest.id])
+            tx.execute("DELETE FROM download WHERE id<>?1 AND id NOT IN(SELECT snapshot FROM recovery_archive)", [&manifest.id])
+                .map_err(io)?;
+            tx.execute("UPDATE recovery_state SET required=0", [])
                 .map_err(io)?;
         }
         tx.execute("UPDATE local_state SET revision=revision+1", [])
             .map_err(io)?;
-        tx.commit().map_err(io)
+        project_organization(&tx)?;
+        #[cfg(test)]
+        test_stage("snapshot_page_commit")?;
+        commit_search(tx)
     }
     pub fn status(&self) -> Result<LibraryStatus, String> {
         let row: Option<(String,u32,bool)> = self.db.query_row("SELECT manifest,applied,complete FROM download WHERE id=(SELECT coalesce(staging,active) FROM state)",[], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(io)?;
@@ -300,6 +270,12 @@ impl LibraryStore {
             .query_row("SELECT count(*) FROM visible_prompt", [], |r| r.get(0))
             .map_err(io)?;
         let mut status = LibraryStatus {
+            recovery_error: self.recovery_error.clone(),
+            replacement: self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT active FROM state) AND complete=1) AND ((SELECT required FROM recovery_state) OR EXISTS(SELECT 1 FROM state WHERE staging IS NOT NULL))", [], |r|r.get(0)).map_err(io)?,
+            catching_up: self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT staging FROM state) AND complete=1)", [], |r|r.get(0)).map_err(io)?,
+            paused: self.db.query_row("SELECT paused FROM recovery_state", [], |r|r.get(0)).map_err(io)?,
+            error: self.db.query_row("SELECT error FROM recovery_state", [], |r|r.get(0)).map_err(io)?,
+            recovery_count: self.db.query_row("SELECT count(*) FROM recovery_prompt", [], |r|r.get(0)).map_err(io)?,
             complete: false,
             downloaded,
             total: 0,
@@ -314,7 +290,8 @@ impl LibraryStore {
         if let Some((value, applied, complete)) = row {
             let manifest: Manifest =
                 serde_json::from_str(&value).map_err(|_| "storage_unavailable")?;
-            status.complete = complete;
+            let recovering = self.recovering()?;
+            status.complete = complete && !recovering;
             status.total = manifest.prompt_count;
             status.applied_pages = applied;
             status.total_pages = manifest.pages.len() as u32;
@@ -376,7 +353,12 @@ impl LibraryStore {
 }
 include!("local_storage.rs");
 include!("lifecycle_storage.rs");
-include!("recovery_storage.rs");
+fn commit_search(tx: rusqlite::Transaction<'_>) -> Result<(), String> {
+    super::local_search::flush(&tx).map_err(|_| "search_recovery_required".to_string())?;
+    tx.commit().map_err(io)
+}
 include!("upload_storage.rs");
 include!("change_storage.rs");
 include!("usage_storage.rs");
+include!("organization_storage.rs");
+include!("recovery_storage.rs");

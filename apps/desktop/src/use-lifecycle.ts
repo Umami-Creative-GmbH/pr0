@@ -27,7 +27,7 @@ const errors = new Map([
 ]);
 export const useLifecycle = (
   account: Status,
-  onSaved: (id: string | null) => void
+  onSaved: (id: string | null, action: LifecycleAction) => void
 ) => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -58,7 +58,10 @@ export const useLifecycle = (
           ? "Saved on this device. Deletion is waiting to sync."
           : "Saved on this device. Changes waiting to sync."
       );
-      onSaved(request.action.kind === "delete" ? null : result.promptId);
+      onSaved(
+        request.action.kind === "delete" ? null : result.promptId,
+        request.action
+      );
     } catch (error) {
       setFailed(true);
       const parsed = z.string().safeParse(error);
