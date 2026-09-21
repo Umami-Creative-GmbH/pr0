@@ -9,7 +9,7 @@ export const UsageStatus = ({
   status?: DesktopUsageStatus;
   onRetry: () => void;
 }) => (
-  <section aria-label="Prompt usage" aria-live="polite">
+  <section aria-label="Prompt usage">
     {status?.memoryOnly ? (
       <p>
         Copied, but {status.memoryOnly} use(s) are only held in memory. Retry

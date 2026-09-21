@@ -258,6 +258,15 @@ const LauncherWindow = () => {
   const { status, revision, error, refresh } = useLauncherStatus();
   const [message, setMessage] = useState("");
   const opening = status?.opening;
+  const showDetails = async () => {
+    try {
+      await launcherClient.libraryDetails();
+    } catch {
+      setMessage(
+        "Could not open library details. Use Alt+Tab to open the library."
+      );
+    }
+  };
   const close = async () => {
     if (opening === undefined) {
       return;
@@ -295,6 +304,17 @@ const LauncherWindow = () => {
       <main className="wf-launcher space-y-3" data-opening={status?.opening}>
         <h1 className="text-xl font-semibold">Quick launcher</h1>
         <p>{status?.shortcut ?? "Global shortcut unavailable"}</p>
+        <p>
+          {status?.syncStatus ?? "Library status"}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              void showDetails();
+            }}
+          >
+            Open library details
+          </button>
+        </p>
         {status?.visible && !status.focused ? (
           <div>
             <button

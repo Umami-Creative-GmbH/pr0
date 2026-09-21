@@ -121,6 +121,7 @@ export const LocalPromptEditor = ({
   onSaved,
   onCancel,
   onOpenOriginal,
+  onSaveFailure,
 }: {
   initial?: LocalPrompt;
   mappings?: UploadStatus["mappings"];
@@ -128,6 +129,7 @@ export const LocalPromptEditor = ({
   onSaved: (value: LocalPrompt) => void;
   onCancel: () => void;
   onOpenOriginal: (id: string) => void;
+  onSaveFailure?: (failed: boolean) => void;
 }) => {
   const [draft, setDraft] = useState<PromptText>(() => ({
     title: initial?.prompt.title ?? "",
@@ -217,6 +219,7 @@ export const LocalPromptEditor = ({
     let saved = false;
     setSaving(true);
     setSaveError("");
+    onSaveFailure?.(false);
     setConflict(false);
     const request = attempt.current ?? makeRequest();
     attempt.current = request;
@@ -237,6 +240,7 @@ export const LocalPromptEditor = ({
         onSaved(result);
       }
     } catch (error) {
+      onSaveFailure?.(true);
       if (error instanceof z.ZodError) {
         setSaveError(error.issues.map((issue) => issue.message).join(" "));
         attempt.current = null;

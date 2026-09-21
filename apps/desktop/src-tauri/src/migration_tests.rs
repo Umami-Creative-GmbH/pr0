@@ -37,6 +37,11 @@ fn predecessor(directory: &std::path::Path, version: u32) {
     let path = super::library_storage::library_path(directory,
         "11111111-1111-4111-8111-111111111111", "33333333-3333-4333-8333-333333333333").unwrap();
     let db = rusqlite::Connection::open(path).unwrap();
+    downgrade_attention_fixture(&db);
+    if version == 9 {
+        db.pragma_update(None,"user_version",version).unwrap();
+        return;
+    }
     db.execute_batch("DROP VIEW base_visible_prompt;
         CREATE VIEW base_visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt);
         DROP TABLE local_deleted; DROP TABLE local_identity;").unwrap();
@@ -60,9 +65,17 @@ fn predecessor(directory: &std::path::Path, version: u32) {
     db.pragma_update(None, "user_version", version).unwrap();
 }
 
+fn downgrade_attention_fixture(db: &rusqlite::Connection) {
+    db.execute_batch("DROP TABLE IF EXISTS attention_staging; DROP TABLE IF EXISTS organization_adjustment; DROP TABLE IF EXISTS conflict_notice; DROP TABLE IF EXISTS conflict_reviewed; DROP TABLE IF EXISTS conflict_state;").unwrap();
+    for table in ["outbox","organization_queue"] {
+        let exists:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info(?1) WHERE name='failure')",[table],|r|r.get(0)).unwrap();
+        if exists {db.execute_batch(&format!("ALTER TABLE {table} DROP COLUMN failure")).unwrap();}
+    }
+}
+
 #[test]
 fn migration_every_predecessor_preserves_exact_pending_work_and_consistent_backup() {
-    for version in 1..=8 {
+    for version in 1..=9 {
         let (directory, service, _) = downloaded_change_fixture();
         let request = save_request(&service);
         if version >= 2 { service.library_create(request.clone()).unwrap(); }
@@ -106,7 +119,7 @@ fn migration_normalization_rebuild_preserves_primary_variants_and_resets_checkpo
     assert_eq!(service.library_detail(&request.prompt_id).unwrap().content, "  My complete draft\n");
     assert_eq!(serde_json::to_value(service.library_pending().unwrap()).unwrap(), pending);
     assert!(service.library_change_status().unwrap().last_checked_at.is_none());
-    assert!(path.with_extension("backup-v9.sqlite").is_file());
+    assert!(path.with_extension("backup-v10.sqlite").is_file());
     drop(service);
     std::fs::remove_dir_all(directory).unwrap();
 }
@@ -145,7 +158,7 @@ fn migration_refuses_newer_schema_and_backup_io_failure_without_changing_primary
 
 #[test]
 fn migration_full_volume_and_io_roll_back_every_predecessor() {
-    for version in 1..=8 {
+    for version in 1..=9 {
         for fault in ["full", "io"] {
             let (directory, service, _) = downloaded_change_fixture();
             let request = save_request(&service);
@@ -179,7 +192,7 @@ fn migration_kill_worker() {
 fn migration_interruption_rolls_back_every_predecessor() {
     use std::io::{BufRead, BufReader};
     use std::process::{Command, Stdio};
-    for version in 1..=8 {
+    for version in 1..=9 {
         let (directory, service, _) = downloaded_change_fixture();
         let request = save_request(&service);
         if version >= 2 { service.library_create(request.clone()).unwrap(); }
@@ -210,7 +223,7 @@ fn migration_broken_index_retains_browsing_during_io_failure_then_recovers() {
     let db = rusqlite::Connection::open(&path).unwrap();
     db.execute_batch("DROP TABLE local_f_content").unwrap();
     drop(db);
-    let blocked = path.with_extension("backup-v9.preparing");
+    let blocked = path.with_extension("backup-v10.preparing");
     std::fs::create_dir(&blocked).unwrap();
     let service = AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
     assert_eq!(service.library_status().unwrap().recovery_error.as_deref(), Some("migration_backup_failed"));

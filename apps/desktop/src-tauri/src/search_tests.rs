@@ -359,6 +359,7 @@ fn search_snapshot_reclaims_slots_before_replacing_a_full_library() {
 }
 
 fn downgrade_search_fixture(db: &rusqlite::Connection) {
+    downgrade_attention_fixture(db);
     let triggers = db
         .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_%'")
         .unwrap()
@@ -407,6 +408,7 @@ fn search_upgrades_both_version_seven_layouts_with_pending_work() {
         if organization_layout {
             downgrade_search_fixture(&db);
         } else {
+            downgrade_attention_fixture(&db);
             for action in ["INSERT", "UPDATE", "DELETE"] {
                 db.execute_batch(&format!("DROP TRIGGER search_projected_org_{action};"))
                     .unwrap();
@@ -482,6 +484,7 @@ fn search_upgrades_both_version_six_layouts_preserving_pending_work() {
         };
         let before = fingerprint(&db);
         if search_preview {
+            downgrade_attention_fixture(&db);
             db.execute_batch("DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery;").unwrap();
         } else {
             downgrade_search_fixture(&db);

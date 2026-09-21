@@ -1,10 +1,14 @@
 import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
+import { LastChecked } from "@pr0/ui/components/last-checked";
+import type { ReactNode } from "react";
 
 import type { DownloadStatus } from "./library-client";
 import { downloadError } from "./library-client";
+import { RejectedChange } from "./rejected-change";
 import { upgradeRecoveryMessage } from "./upgrade-recovery";
-import { uploadLabel, uploadFailureMessage } from "./upload-status";
+import { uploadLabel } from "./upload-status";
+import { useSyncDetails } from "./use-sync-details";
 
 const downloadLabel = (status?: DownloadStatus) => {
   if (status?.replacement) {
@@ -24,7 +28,7 @@ export const DownloadProgress = ({
   signedIn: boolean;
 }) => (
   <>
-    <output className="block">{downloadLabel(status)}</output>
+    <p className="block">{downloadLabel(status)}</p>
     {status?.paused ? (
       <p>Download paused. Resume when you are ready; local work is retained.</p>
     ) : null}
@@ -70,7 +74,7 @@ export const DownloadControls = ({
   <>
     <DownloadProgress status={status} signedIn={signedIn} />
     {errorText || status?.error ? (
-      <p role="alert">{errorText || downloadError(status?.error)}</p>
+      <p>{errorText || downloadError(status?.error)}</p>
     ) : null}
     {status?.complete ? null : (
       <button type="button" onClick={onPause}>
@@ -90,19 +94,10 @@ export const DownloadControls = ({
   </>
 );
 
-const LastChecked = ({ at }: { at?: string | null }) =>
-  at ? (
-    <p>
-      Last checked for updates{" "}
-      <time dateTime={at}>{new Date(at).toLocaleString()}</time>.
-    </p>
-  ) : (
-    <p>Not yet checked for updates.</p>
-  );
-
 const admissionLabel = (
   changes: ChangeStatus | undefined,
-  upload: UploadStatus | undefined
+  upload: UploadStatus | undefined,
+  pending: number
 ) => {
   if (
     changes?.error === "account_suspended" ||
@@ -111,11 +106,38 @@ const admissionLabel = (
     return "Account suspended · Local work retained";
   }
   if (changes?.error?.startsWith("retry_after:") && changes.retryAfterMs > 0) {
-    return `Service busy · Retrying in ${Math.ceil(changes.retryAfterMs / 1000)} seconds`;
+    return `Service busy · Retrying in ${Math.ceil(changes.retryAfterMs / 1000)} seconds${pending ? " · Changes waiting" : ""}`;
   }
   return null;
 };
 
+const incomingFailureLabel = (
+  status: DownloadStatus | undefined,
+  changes: ChangeStatus | undefined,
+  attentionError?: string | null
+) => {
+  const pending = Boolean(status?.pendingChanges);
+  if (changes?.error === "authentication_required") {
+    return pending ? "Sign in to sync · Changes waiting" : "Sign in to sync";
+  }
+  if (changes?.error === "network_unavailable") {
+    return pending ? "Offline · Changes waiting to sync" : "Offline";
+  }
+  if (changes?.error === "snapshot_required") {
+    return "Library recovery required";
+  }
+  if (
+    changes?.error ||
+    status?.error ||
+    status?.recoveryError ||
+    attentionError
+  ) {
+    return pending
+      ? "Couldn't sync · Changes waiting"
+      : "Couldn't check for updates";
+  }
+  return null;
+};
 const incomingLabel = (
   status: DownloadStatus | undefined,
   signedIn: boolean,
@@ -123,23 +145,87 @@ const incomingLabel = (
   changes: ChangeStatus | undefined,
   label: string
 ) => {
-  if (!status?.pendingChanges && !upload?.error) {
-    if (!signedIn || changes?.error === "authentication_required") {
-      return "Sign in to sync";
-    } else if (changes?.error === "network_unavailable") {
-      return "Offline";
-    } else if (changes?.error === "snapshot_required") {
-      return "Library recovery required";
-    } else if (changes?.error) {
-      return "Couldn't check for updates";
-    } else if (changes?.updating || !status?.complete) {
-      return "Updating this device's library…";
-    } else if (changes?.lastCheckedAt) {
-      return "Up to date at last check";
-    }
+  if (label !== "Library status" && label !== "Changes waiting to sync") {
+    return label;
   }
-  return label;
+  const pending = Boolean(status?.pendingChanges);
+  if (!signedIn) {
+    return pending ? "Sign in to sync · Changes waiting" : "Sign in to sync";
+  }
+  const errorLabel = incomingFailureLabel(
+    status,
+    changes,
+    upload?.attentionError
+  );
+  if (errorLabel) {
+    return errorLabel;
+  }
+  if (changes?.updating || !status?.complete || status.replacement) {
+    return pending
+      ? "Updating this device's library… · Changes waiting"
+      : "Updating this device's library…";
+  }
+  return !pending && changes?.lastCheckedAt
+    ? "Up to date at last check"
+    : label;
 };
+const ConnectionDetails = ({
+  signedIn,
+  offline,
+  upload,
+  changes,
+}: {
+  signedIn: boolean;
+  offline: boolean;
+  upload?: UploadStatus;
+  changes?: ChangeStatus;
+}) => (
+  <>
+    {offline ||
+    changes?.error === "network_unavailable" ||
+    upload?.error === "network_unavailable" ? (
+      <p>
+        Offline. Durably saved work remains on this device and will retry when
+        connectivity returns.
+      </p>
+    ) : null}
+    {!signedIn ||
+    changes?.error === "authentication_required" ||
+    upload?.error === "authentication_required" ? (
+      <p>
+        Sign in to the same account on the same instance to sync. Local access
+        and pending work are preserved.
+      </p>
+    ) : null}
+  </>
+);
+const RejectedChanges = ({
+  upload,
+  onOpen,
+}: {
+  upload?: UploadStatus;
+  onOpen: (id: string) => void;
+}) => (
+  <ul>
+    {upload?.errors.map((entry) => {
+      const deleting = upload.pending.some(
+        (pending) => pending.promptId === entry.promptId && pending.deleting
+      );
+      return (
+        <li key={`${entry.promptId}:${entry.code}`}>
+          {deleting ? (
+            <p>Deletion pending</p>
+          ) : (
+            <button type="button" onClick={() => onOpen(entry.promptId)}>
+              Open retained prompt
+            </button>
+          )}
+          <RejectedChange entry={entry} deleting={deleting} />
+        </li>
+      );
+    })}
+  </ul>
+);
 const incomingExplanation = (error: string) => {
   if (error === "account_suspended") {
     return "Contact your instance operator. Suspension does not delete your local library.";
@@ -158,7 +244,7 @@ const IncomingError = ({ changes }: { changes?: ChangeStatus }) =>
   ) : null;
 const RecoveryError = ({ code }: { code?: string | null }) =>
   code ? (
-    <p role="alert">
+    <p>
       Search preparation could not finish.{" "}
       {upgradeRecoveryMessage(code) ??
         "Check storage access and restart pr0 to retry. Browsing and copying remain available; primary prompts and pending changes are preserved."}
@@ -179,6 +265,40 @@ const acceptedDownloadLabel = (upload: UploadStatus) => {
   }
   return `${upload.awaitingDownload} accepted operations are saved to server. Downloading current records.`;
 };
+const TransferDetails = ({
+  status,
+  upload,
+  changes,
+}: {
+  status?: DownloadStatus;
+  upload?: UploadStatus;
+  changes?: ChangeStatus;
+}) => (
+  <>
+    {changes?.updating ||
+    !status?.complete ||
+    status?.replacement ||
+    upload?.awaitingDownload ? (
+      <p>
+        Updating this device&apos;s library… Saved local work and open drafts
+        are retained.
+      </p>
+    ) : null}
+    <RecoveryError code={status?.recoveryError} />
+    <IncomingError changes={changes} />
+    {upload?.attentionError ? (
+      <p>
+        Could not refresh review notices. Previously downloaded reviews remain
+        available. Synchronization will retry.
+      </p>
+    ) : null}
+    {upload?.awaitingDownload ? <p>{acceptedDownloadLabel(upload)}</p> : null}
+    <UploadError code={upload?.error} />
+    {upload?.retryAfterMs ? (
+      <p>Retry available in {Math.ceil(upload.retryAfterMs / 1000)} seconds.</p>
+    ) : null}
+  </>
+);
 export const LocalLibraryStatus = ({
   status,
   signedIn,
@@ -187,6 +307,9 @@ export const LocalLibraryStatus = ({
   changes,
   onOpen,
   onRetry,
+  children,
+  organizationAttention = false,
+  saveFailure = false,
 }: {
   status?: DownloadStatus;
   signedIn: boolean;
@@ -195,46 +318,44 @@ export const LocalLibraryStatus = ({
   changes?: ChangeStatus;
   onOpen: (id: string) => void;
   onRetry: () => void;
+  children?: ReactNode;
+  organizationAttention?: boolean;
+  saveFailure?: boolean;
 }) => {
+  const details = useSyncDetails();
   const pendingChanges = status?.pendingChanges ?? 0;
-  const label =
-    admissionLabel(changes, upload) ??
-    incomingLabel(
-      status,
-      signedIn,
-      upload,
-      changes,
-      uploadLabel(signedIn, offline, pendingChanges, upload)
-    );
+  const label = organizationAttention
+    ? "Changes need attention · Changes waiting"
+    : (admissionLabel(changes, upload, pendingChanges) ??
+      incomingLabel(
+        status,
+        signedIn,
+        upload,
+        changes,
+        uploadLabel(signedIn, offline, pendingChanges, upload)
+      ));
   return (
-    <details>
-      <summary>{label}</summary>
+    <details ref={details}>
+      <summary>{saveFailure ? "Not saved · Unsaved draft" : label}</summary>
+      {saveFailure ? (
+        <p>
+          {label}. The draft could not be saved. Keep the editor open to retry
+          or copy its text; it may be lost after closing.
+        </p>
+      ) : null}
       <p>
         {pendingChanges} pending changes. Saved local changes await
         synchronization.
       </p>
       <LastChecked at={changes?.lastCheckedAt} />
-      <RecoveryError code={status?.recoveryError} />
-      <IncomingError changes={changes} />
-      {upload?.awaitingDownload ? <p>{acceptedDownloadLabel(upload)}</p> : null}
-      <UploadError code={upload?.error} />
-      {upload?.retryAfterMs ? (
-        <p>
-          Retry available in {Math.ceil(upload.retryAfterMs / 1000)} seconds.
-        </p>
-      ) : null}
-      {upload?.errors.length ? (
-        <ul>
-          {upload.errors.map((entry) => (
-            <li key={`${entry.promptId}:${entry.code}`}>
-              <button type="button" onClick={() => onOpen(entry.promptId)}>
-                Open retained prompt
-              </button>{" "}
-              {uploadFailureMessage(entry.code)}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <ConnectionDetails
+        signedIn={signedIn}
+        offline={offline}
+        upload={upload}
+        changes={changes}
+      />
+      <TransferDetails status={status} upload={upload} changes={changes} />
+      <RejectedChanges upload={upload} onOpen={onOpen} />
       <button
         type="button"
         disabled={!signedIn || Boolean(upload?.retryAfterMs)}
@@ -248,6 +369,7 @@ export const LocalLibraryStatus = ({
           Your library is near its capacity. Archiving does not free capacity.
         </p>
       ) : null}
+      {children}
     </details>
   );
 };

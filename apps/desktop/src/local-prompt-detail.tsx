@@ -70,6 +70,11 @@ export const LocalPromptDetail = ({
         <p className="whitespace-pre-wrap">{prompt.description}</p>
       ) : null}
       <PromptContent label="Prompt content" content={prompt.content} />
+      {prompt.sourceTitle ? (
+        <p className="break-words whitespace-pre-wrap">
+          Full source title: {prompt.sourceTitle}
+        </p>
+      ) : null}
       {value.pending ? (
         <>
           <p>Saved on this device</p>

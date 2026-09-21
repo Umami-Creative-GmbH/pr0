@@ -154,8 +154,9 @@ test("production launcher uses native offline search, keyboard copy and least pr
       .getByRole("button", { name: "Open quick launcher", exact: true })
       .click();
     await input.waitFor();
-    expect(await input.inputValue()).toBe("");
+    // The native window can be visible before its new opening reaches React.
     await launcher.locator('[data-search-query=""]').waitFor();
+    expect(await input.inputValue()).toBe("");
     expect(
       await launcher
         .getByRole("list", { name: "Launcher results" })

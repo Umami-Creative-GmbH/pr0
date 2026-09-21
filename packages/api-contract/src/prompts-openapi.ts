@@ -9,6 +9,7 @@ import {
   promptPageSchema,
   promptSchema,
   conflictPageSchema,
+  adjustmentPageSchema,
   organizationSnapshotSchema,
   organizationImpactSchema,
   organizationReviewSchema,
@@ -39,6 +40,30 @@ const errors = Object.fromEntries(
   ])
 );
 export const promptPaths = {
+  "/api/v1/library/adjustments": {
+    get: {
+      operationId: "getOrganizationAdjustments",
+      tags: ["Organization"],
+      security: librarySecurity,
+      description:
+        "Persistent unreviewed organization adjustments, newest first. Review with organization.review in the mutation envelope; reviewing preserves prompt text and affects no independent pending work.",
+      parameters: [
+        {
+          name: "limit",
+          in: "query",
+          schema: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+        },
+        { name: "cursor", in: "query", schema: { type: "string" } },
+      ],
+      responses: {
+        "200": response(
+          "AdjustmentPage",
+          "Owned adjustment notices and a revision-scoped continuation cursor."
+        ),
+        ...errors,
+      },
+    },
+  },
   "/api/v1/library/organization/impact": {
     get: {
       operationId: "getOrganizationImpact",
@@ -157,9 +182,9 @@ export const promptPaths = {
     get: {
       operationId: "listPromptConflicts",
       tags: ["Prompts"],
-      security: [{ BrowserSession: [] }],
+      security: librarySecurity,
       description:
-        "Durable unreviewed conflict notices, newest revision first with UUID ties. The full source title remains retained and quota-accounted. Scoped signed cursors use the same limit and revision checks as prompt pages; no title or notice expires. originalDeleted reports a permanent deletion marker for the original, so clients offer the surviving copy without promising original restoration. Review acknowledgement is reserved for the combined review surface.",
+        "Durable unreviewed conflict notices, newest revision first with UUID ties. The full source title remains retained and quota-accounted. Scoped signed cursors use the same limit and revision checks as prompt pages; no title or notice expires. originalDeleted reports a permanent deletion marker; originalArchived identifies an archived original. A conflict.review mutation acknowledges review without deleting either variant, changing text or resolving independent blocked work. Review remains replayable after the copy is deleted.",
       parameters: [
         {
           name: "limit",
@@ -345,6 +370,7 @@ export const promptSchemas = Object.fromEntries(
     OrganizationReview: organizationReviewSchema,
     OrganizationStates: organizationStatesSchema,
     ConflictPage: conflictPageSchema,
+    AdjustmentPage: adjustmentPageSchema,
     PromptPage: promptPageSchema,
     PromptError: promptErrorSchema,
     MutationEnvelope: mutationEnvelopeSchema,

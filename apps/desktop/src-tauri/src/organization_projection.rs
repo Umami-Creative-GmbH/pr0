@@ -4,6 +4,7 @@ fn project_organization(tx: &rusqlite::Transaction) -> Result<(), String> {
     let operations=organization_rows(tx,"SELECT json_set(payload,'$._modified',occurred_at,'$._receipt',json(receipt)) FROM organization_queue ORDER BY local_revision")?;
     for op in operations {
         let kind = op["kind"].as_str().ok_or("storage_unavailable")?;
+        if kind == "conflict.review" || kind == "organization.review" { continue; }
         let entity = if kind.starts_with("collection.") {
             "collection"
         } else {

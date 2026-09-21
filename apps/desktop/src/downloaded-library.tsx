@@ -14,6 +14,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DownloadedStatus } from "./downloaded-status";
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadStatus } from "./library-client";
+import { LocalAdjustments } from "./local-adjustments";
+import { LocalConflicts } from "./local-conflicts";
 import { DownloadControls } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
@@ -283,12 +285,9 @@ interface LibraryProps {
   editingDisabled: boolean;
   onEditing: (editing: boolean) => void;
 }
-const downloadNeedsAttention = (
-  status: DownloadStatus | undefined,
-  error: string
-) => Boolean(error || status?.error) || !status?.complete;
 
 export const DownloadedLibrary = (props: LibraryProps) => {
+  const [saveFailure, setSaveFailure] = useState(false);
   const { account, signedIn, editingDisabled, onEditing } = props;
   const {
     status,
@@ -320,6 +319,10 @@ export const DownloadedLibrary = (props: LibraryProps) => {
       <h2 className="sr-only">Downloaded library</h2>
       <div className="wf-status">
         <DownloadedStatus
+          saveFailure={saveFailure}
+          organization={organization}
+          onOrganizationSaved={organizationSaved}
+          onEditing={onEditing}
           status={status}
           upload={upload}
           changes={changes}
@@ -340,7 +343,23 @@ export const DownloadedLibrary = (props: LibraryProps) => {
           onOpen={(id) => {
             void open(id);
           }}
-        />
+        >
+          <DownloadControls
+            status={status}
+            signedIn={signedIn}
+            busy={busy}
+            errorText={errorText}
+            onPause={() => {
+              void pauseDownload();
+            }}
+            onRetry={refreshLibrary}
+          />
+          <LocalAdjustments
+            account={account}
+            refresh={retry}
+            onChanged={refreshLibrary}
+          />
+        </DownloadedStatus>
       </div>
       <LibraryWorkspace
         sidebar={
@@ -356,25 +375,13 @@ export const DownloadedLibrary = (props: LibraryProps) => {
             >
               New prompt
             </button>
-            <details open={downloadNeedsAttention(status, errorText)}>
-              <summary>
-                {status?.complete ? "Available offline" : "Download progress"}
-              </summary>
-              <DownloadControls
-                status={status}
-                signedIn={signedIn}
-                busy={busy}
-                errorText={errorText}
-                onPause={() => {
-                  void pauseDownload();
-                }}
-                onRetry={refreshLibrary}
-              />
-            </details>
             {status?.recoveryCount ? (
               <RecoveryLibrary count={status.recoveryCount} account={account} />
             ) : null}
             <SearchLibrary
+              attentionIds={
+                new Set(upload?.errors.map((entry) => entry.promptId))
+              }
               account={account}
               refresh={retry}
               organization={organization}
@@ -393,8 +400,17 @@ export const DownloadedLibrary = (props: LibraryProps) => {
           </>
         }
       >
+        <LocalConflicts
+          account={account}
+          refresh={retry}
+          onOpen={(id) => {
+            void open(id);
+          }}
+          onChanged={refreshLibrary}
+        />
         {editor ? (
           <LocalPromptEditor
+            onSaveFailure={setSaveFailure}
             initial={editor.initial}
             mappings={upload?.mappings}
             onOpenOriginal={(id) => {
@@ -402,10 +418,12 @@ export const DownloadedLibrary = (props: LibraryProps) => {
             }}
             account={account}
             onCancel={() => {
+              setSaveFailure(false);
               setEditor(undefined);
               onEditing(false);
             }}
             onSaved={(value) => {
+              setSaveFailure(false);
               promptSaved(value);
               onEditing(false);
             }}

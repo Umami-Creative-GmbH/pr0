@@ -14,6 +14,7 @@ import {
   deletedPartition,
 } from "./deleted-account-cache";
 import { EmailSettings } from "./email-settings";
+import { LibraryAttentionProvider } from "./library-attention";
 import { PromptLibrary } from "./prompt-library";
 import { RecoveryForm } from "./recovery-form";
 import { SessionSettings } from "./session-settings";
@@ -379,15 +380,19 @@ export const AccountScreen = ({
 
         {signedIn ? (
           <>
-            <PromptLibrary
-              quickOpen={quick.open}
-              onQuickClose={() => quick.close()}
-              accountChanged={accountChanged}
-              accountAvailable={copyAccountAvailable(library, accountChanged)}
+            <LibraryAttentionProvider
               key={`${signedIn.instance.id}:${signedIn.account.id}`}
-              library={signedIn}
-              onDirtyChange={retainDraft}
-            />
+            >
+              <PromptLibrary
+                quickOpen={quick.open}
+                onQuickClose={() => quick.close()}
+                accountChanged={accountChanged}
+                accountAvailable={copyAccountAvailable(library, accountChanged)}
+                key={`${signedIn.instance.id}:${signedIn.account.id}`}
+                library={signedIn}
+                onDirtyChange={retainDraft}
+              />
+            </LibraryAttentionProvider>
             {accountChanged ? (
               <p role="alert">
                 Your browser is now signed in to a different account. This draft

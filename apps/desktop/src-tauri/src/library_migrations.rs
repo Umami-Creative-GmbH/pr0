@@ -2,7 +2,7 @@ use super::library_storage::io;
 use rusqlite::{params, Connection, TransactionBehavior};
 use std::path::Path;
 
-pub const CURRENT_SCHEMA: u32 = 9;
+pub const CURRENT_SCHEMA: u32 = 10;
 
 pub fn migrate(
     db: &mut Connection,
@@ -140,6 +140,15 @@ pub fn migrate(
         super::local_search::flush(&tx).map_err(io)?;
     }
 
+    if version < 10 {
+        tx.execute_batch("CREATE TABLE attention_staging(kind TEXT NOT NULL,id TEXT NOT NULL,record TEXT NOT NULL,PRIMARY KEY(kind,id));").map_err(io)?;
+        tx.execute_batch("ALTER TABLE organization_queue ADD COLUMN failure TEXT;")
+            .map_err(io)?;
+        tx.execute_batch("CREATE TABLE organization_adjustment(id TEXT PRIMARY KEY,record TEXT NOT NULL,reviewed INTEGER NOT NULL DEFAULT 0);").map_err(io)?;
+        tx.execute_batch("ALTER TABLE outbox ADD COLUMN failure TEXT;")
+            .map_err(io)?;
+        tx.execute_batch("CREATE TABLE conflict_notice(id TEXT PRIMARY KEY,record TEXT NOT NULL,reviewed INTEGER NOT NULL DEFAULT 0); CREATE TABLE conflict_reviewed(id TEXT PRIMARY KEY); CREATE TABLE conflict_state(error TEXT,adjustment_error TEXT); INSERT INTO conflict_state VALUES(NULL,NULL); PRAGMA user_version=10;").map_err(io)?;
+    }
     #[cfg(test)]
     checkpoint(&tx)?;
     tx.commit().map_err(io)

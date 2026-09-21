@@ -11,7 +11,11 @@ export const PromptActionStatus = ({
   <>
     {actions.busy ? <output>Confirming action…</output> : null}
     {actions.error ? (
-      <div role="alert" className="space-y-3 rounded-md border p-4">
+      <div
+        id="prompt-action-recovery"
+        role="alert"
+        className="space-y-3 rounded-md border p-4"
+      >
         <p>{actions.error}</p>
         {actions.canRetry ? (
           <button

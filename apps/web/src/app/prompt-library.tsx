@@ -26,6 +26,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { CollectionControls } from "./collection-controls";
 import { LiveLibraryStatus } from "./live-library-status";
+import { OrganizationAdjustments } from "./organization-adjustments";
 import { PromptActionStatus } from "./prompt-action-status";
 import { PromptConflicts } from "./prompt-conflicts";
 import { PromptCopyStatus } from "./prompt-copy-status";
@@ -652,7 +653,9 @@ export const PromptLibrary = (
   return (
     <div>
       <div className="wf-status">
-        <LiveLibraryStatus status={live} />
+        <LiveLibraryStatus status={live}>
+          <OrganizationAdjustments library={library} />
+        </LiveLibraryStatus>
       </div>
       {quickOpen && onQuickClose ? (
         <QuickAccess

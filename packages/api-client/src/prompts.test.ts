@@ -564,3 +564,61 @@ test("conflict reads validate scope, HTTP failures, payloads, pagination input a
     aborted.getConflicts({}, controller.signal)
   ).rejects.toMatchObject({ name: "AbortError" });
 });
+test("adjustment reads validate scope, HTTP failures, payloads, pagination input and cancellation", async () => {
+  const scope = {
+    instanceId: crypto.randomUUID(),
+    accountId: crypto.randomUUID(),
+  };
+  const client = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json({
+          ...scope,
+          revision: "0",
+          notices: [],
+          nextCursor: null,
+        })
+      ),
+  });
+  expect(await client.getAdjustments({}, undefined, scope)).toMatchObject({
+    revision: "0",
+    notices: [],
+  });
+  await expect(
+    client.getAdjustments({}, undefined, {
+      ...scope,
+      accountId: crypto.randomUUID(),
+    })
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(client.getAdjustments({ limit: 101 })).rejects.toThrow();
+  const malformed = createApiClient({
+    fetcher: () =>
+      Promise.resolve(Response.json({ revision: "0", notices: [] })),
+  });
+  await expect(malformed.getAdjustments()).rejects.toThrow();
+  const failed = createApiClient({
+    fetcher: () =>
+      Promise.resolve(
+        Response.json(
+          {
+            code: "temporarily_unavailable",
+            message: "Retry later",
+            retryable: true,
+          },
+          { status: 503 }
+        )
+      ),
+  });
+  await expect(failed.getAdjustments()).rejects.toMatchObject({ status: 503 });
+  const controller = new AbortController();
+  controller.abort();
+  const aborted = createApiClient({
+    fetcher: (_url, init) => {
+      init.signal?.throwIfAborted();
+      return Promise.resolve(Response.json({}));
+    },
+  });
+  await expect(
+    aborted.getAdjustments({}, controller.signal)
+  ).rejects.toMatchObject({ name: "AbortError" });
+});

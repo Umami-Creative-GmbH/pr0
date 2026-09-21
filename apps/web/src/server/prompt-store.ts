@@ -13,6 +13,7 @@ import {
   promptStateFields,
   duplicatePromptTitle,
   conflictPageSchema,
+  adjustmentPageSchema,
   trimPromptText,
   utf8Bytes,
   promptViewSchema,
@@ -39,6 +40,7 @@ import {
   reconcileCollectionAssignment,
 } from "./collection-store";
 import { configuration } from "./config";
+import { reviewConflict } from "./conflict-review";
 import { database } from "./database";
 import { operationFingerprint } from "./operation-fingerprint";
 import { applyOrganizationCleanup } from "./organization-cleanup";
@@ -568,6 +570,12 @@ export const mutatePrompt = (
           if (operation.kind === "prompt.use") {
             return applyPromptUse(savepoint, envelope, operation, hash);
           }
+          if (
+            operation.kind === "conflict.review" ||
+            operation.kind === "organization.review"
+          ) {
+            return reviewConflict(savepoint, envelope, operation, hash);
+          }
           if (operation.kind === "prompt.delete") {
             return applyPromptDeletion({
               sql: savepoint,
@@ -621,7 +629,7 @@ const cursorSchema = z.strictObject({
   instance: z.string(),
   epoch: z.string(),
   version: z.literal(2),
-  kind: z.enum(["prompts", "conflicts"]),
+  kind: z.enum(["prompts", "conflicts", "adjustments"]),
   revision: z.string(),
   after: z.string().regex(/^\d+$/u),
   afterId: z.uuid(),
@@ -742,7 +750,7 @@ export const getPrompt = (browser: BrowserAccount, id: string) =>
     const library = await lockLibrary(tx, browser);
     const [row] = await tx<
       PromptRow[]
-    >`SELECT id, title, description, content, source_title, revision::text, created_at, modified_at, favorite, archived, collection_id, use_count, last_used_at FROM prompt
+    >`SELECT id, title, description, content, coalesce(source_title,(SELECT n.source_title FROM conflict_notice n WHERE n.instance_id=prompt.instance_id AND n.account_id=prompt.account_id AND n.copy_id=prompt.id LIMIT 1)) AS source_title, revision::text, created_at, modified_at, favorite, archived, collection_id, use_count, last_used_at FROM prompt
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND id = ${id}`;
     if (!row) {
       throw new PromptFailureError(
@@ -794,12 +802,16 @@ export const listConflicts = (
         id: string;
         original_id: string;
         original_deleted: boolean;
+        original_archived: boolean;
+        copy_deleted: boolean;
         copy_id: string;
         source_title: string;
         revision: string;
         created_at: Date;
       }[]
     >`SELECT id, original_id, copy_id, source_title, revision::text, created_at,
+      EXISTS(SELECT 1 FROM prompt p WHERE p.instance_id = conflict_notice.instance_id AND p.account_id = conflict_notice.account_id AND p.id = conflict_notice.original_id AND p.archived) AS original_archived,
+      EXISTS(SELECT 1 FROM prompt_deletion d WHERE d.instance_id = conflict_notice.instance_id AND d.account_id = conflict_notice.account_id AND d.prompt_id = conflict_notice.copy_id) AS copy_deleted,
       EXISTS(SELECT 1 FROM prompt_deletion d WHERE d.instance_id = conflict_notice.instance_id AND d.account_id = conflict_notice.account_id AND d.prompt_id = conflict_notice.original_id) AS original_deleted FROM conflict_notice
     WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND reviewed_at IS NULL
       AND (revision < ${page?.after ?? "9223372036854775807"}::bigint OR (revision = ${page?.after ?? "9223372036854775807"}::bigint AND id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
@@ -810,15 +822,64 @@ export const listConflicts = (
     return conflictPageSchema.parse({
       instanceId: library.instance_id,
       accountId: browser.accountId,
+      revision: library.revision,
       nextCursor,
       notices: visible.map((row) => ({
         id: row.id,
         originalId: row.original_id,
         originalDeleted: row.original_deleted,
+        originalArchived: row.original_archived,
+        copyDeleted: row.copy_deleted,
         copyId: row.copy_id,
         sourceTitle: row.source_title,
         revision: row.revision,
         createdAt: row.created_at.toISOString(),
+      })),
+    });
+  });
+
+export const listAdjustments = (
+  browser: BrowserAccount,
+  limit: number,
+  cursor?: string
+) =>
+  database().begin(async (tx) => {
+    const library = await lockLibrary(tx, browser);
+    const scope = {
+      account: browser.accountId,
+      instance: library.instance_id,
+      epoch: library.recovery_epoch,
+      revision: library.revision,
+      kind: "adjustments",
+      limit,
+    } as const;
+    const page = scopedCursor(cursor, scope);
+    const rows = await tx<
+      {
+        id: string;
+        prompt_id: string;
+        message: string;
+        revision: string;
+        accepted_at: Date;
+      }[]
+    >`SELECT o.operation_id AS id,o.prompt_id,o.organization_notice AS message,o.revision::text,o.accepted_at FROM library_operation o
+    WHERE o.instance_id=${library.instance_id} AND o.account_id=${browser.accountId} AND o.organization_notice IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM library_operation a WHERE a.instance_id=o.instance_id AND a.account_id=o.account_id AND a.kind='organization.review' AND a.conflict_notice_id=o.operation_id)
+    AND (o.revision < ${page?.after ?? "9223372036854775807"}::bigint OR (o.revision = ${page?.after ?? "9223372036854775807"}::bigint AND o.operation_id > ${page?.afterId ?? "00000000-0000-0000-0000-000000000000"}::uuid))
+    ORDER BY o.revision DESC,o.operation_id LIMIT ${limit + 1}`;
+    const visible = rows.slice(0, limit);
+    return adjustmentPageSchema.parse({
+      instanceId: library.instance_id,
+      accountId: browser.accountId,
+      revision: library.revision,
+      nextCursor:
+        rows.length > limit ? signCursor(scope, visible.at(-1)) : null,
+      notices: visible.map((row) => ({
+        id: row.id,
+        promptId: row.prompt_id,
+        message: row.message,
+        revision: row.revision,
+        createdAt: row.accepted_at.toISOString(),
       })),
     });
   });

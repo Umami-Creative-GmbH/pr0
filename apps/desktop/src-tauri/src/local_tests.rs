@@ -370,6 +370,12 @@ fn offline_command_worker() {
             "library_recover_search" => serde_json::from_value(input["request"].clone()).map_err(|_|"invalid_input".to_string()).and_then(|request| service.library_recover_search(request)).map(|_|json!(null)),
             "library_reconcile" => service.library_reconcile().map(|_| serde_json::Value::Null),
             "library_organization" => service.library_organization(),
+            "library_conflicts" => service.library_conflicts(input["offset"].as_u64().unwrap_or(0) as u32),
+            "library_adjustments" => service.library_adjustments(input["offset"].as_u64().unwrap_or(0) as u32),
+            "library_refresh_adjustments" => service.library_refresh_adjustments().map(|_| serde_json::Value::Null),
+            "library_review_adjustment" => serde_json::from_value(input["request"].clone()).map_err(|_| "invalid_input".to_string()).and_then(|r| service.library_review_adjustment(r)).map(|_| serde_json::Value::Null),
+            "library_refresh_conflicts" => service.library_refresh_conflicts().map(|_| serde_json::Value::Null),
+            "library_review_conflict" => serde_json::from_value(input["request"].clone()).map_err(|_| "invalid_input".to_string()).and_then(|r| service.library_review_conflict(r)).map(|_| serde_json::Value::Null),
             "library_organize" => serde_json::from_value(input["request"].clone())
                 .map_err(|_| "invalid_input".to_string())
                 .and_then(|r| service.library_organize(r)),

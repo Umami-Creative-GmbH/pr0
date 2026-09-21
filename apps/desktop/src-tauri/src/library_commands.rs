@@ -1,17 +1,32 @@
 // Included in auth's module so the active identity/connection share its generation lock.
 impl AuthService {
-    pub fn launcher_account(&self) -> Result<(Option<super::LauncherAccount>, bool), String> {
+    pub fn launcher_account(&self) -> Result<(Option<super::LauncherAccount>, bool, &'static str), String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
-        if state.clearing || state.signing_out { return Ok((None, false)); }
-        let Some(retained) = &state.retained else { return Ok((None, false)); };
-        if retained.cleanup_pending { return Ok((None, false)); }
+        if state.clearing || state.signing_out { return Ok((None, false,"Account transition in progress")); }
+        let Some(retained) = &state.retained else { return Ok((None, false,"Sign in to sync")); };
+        if retained.cleanup_pending { return Ok((None, false,"Account cleanup needs attention")); }
         let account = super::LauncherAccount {
             instance_id: retained.identity.instance.id.clone(),
             account_id: retained.identity.account.id.clone(),
             generation: state.generation,
         };
-        let complete = self.library(&mut state)?.status()?.complete;
-        Ok((Some(account), complete))
+        let signed_in=state.credential.is_some();
+        let store=self.library(&mut state)?;
+        let status=store.status()?;
+        let upload=store.upload_status()?;
+        let changes=store.change_status()?;
+        let organization=store.organization_snapshot()?;
+        let attention=organization["pending"].as_array().is_some_and(|items|items.iter().any(|item|!item["error"].is_null()));
+        let sync_status=if !upload.errors.is_empty() || attention {"Changes need attention"}
+            else if !signed_in {"Sign in to sync"}
+            else if upload.error.is_some() || changes.error.is_some() || status.error.is_some() || upload.attention_error.is_some() {"Couldn't sync"}
+            else if status.pending_changes>0 {"Changes waiting to sync"}
+            else if !status.complete || changes.updating {"Updating this device's library…"}
+            else if store.has_conflicts()? {"Conflicts to review"}
+            else if store.has_adjustments()? {"Organization adjustments to review"}
+            else if changes.last_checked_at.is_some() {"Up to date at last check"}
+            else {"Not yet checked"};
+        Ok((Some(account), status.complete, sync_status))
     }
     #[cfg(test)]
     pub fn launcher_search(&self, request: super::search_contract::SearchRequest) -> Result<super::search_contract::SearchPage, String> {
