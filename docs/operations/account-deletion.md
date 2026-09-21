@@ -34,6 +34,8 @@ All web replicas must use the **same search volume**. Search workers hold a Post
 
 ## Replay and restoration
 
+Use the complete [encrypted backup and restore coordinator](backup-restore.md) for a disaster recovery. `deletions replay` alone does not invalidate restored credentials, establish a new epoch, verify search readiness, or reopen admission.
+
 Stop public ingress and application/mail processes before restoring the ordinary database. Never restore either deletion ledger from an ordinary hourly backup. Preserve both ledgers and their full append-only history indefinitely; use storage replication/retained independent copies in addition to the acknowledged two-store path. Ordinary service backups still expire within thirty days.
 
 After restoring the ordinary database, keep ingress closed and run `docker compose run --rm deletions replay` using both current ledger stores and the shared search volume. Replay enumerates every intent with paginated key scans, reconciles missing records from the other store, reapplies purges and persists any missing completion. A missing store, missing pinned anchor, conflicting record or unavailable storage fails closed. Do not run `initialize` to bypass recovery failure. Resolve the storage failure and replay again. Both stores becoming stale together cannot be repaired from an older service backup; this is why ledger retention and independent failure domains are mandatory.

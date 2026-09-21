@@ -1,0 +1,14 @@
+{
+  "measuredAt": "2026-09-21T14:08:52.987Z",
+  "ordinaryLossWindowSeconds": 1.18,
+  "recoverySeconds": 6.764,
+  "acknowledgedDeletionsLost": 0,
+  "encryptedRoundTrip": true,
+  "unavailableLedgerRefused": true,
+  "bothLedgersBehindRefused": true,
+  "oneCurrentLedgerRepairedOther": true,
+  "failedPurgeRefused": true,
+  "interruptedRestoreStayedClosed": true,
+  "restoredSessionAndActionTokenRefused": true,
+  "signingKeyRotationReplayed": true
+}

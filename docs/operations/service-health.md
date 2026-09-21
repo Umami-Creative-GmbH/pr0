@@ -71,6 +71,8 @@ These commands measure filesystem capacity, including WAL, indexes, retained rec
 
 After the backup system has **verified** an independently recoverable checkpoint and checked every ordinary object version against the 30-day retention policy, report its checkpoint:
 
+The built-in [encrypted backup command](backup-restore.md) performs a scratch PostgreSQL restore and retention cleanup before recording this observation automatically. Manual reporting below is for another verified backup implementation, not a substitute for those checks.
+
 ```sh
 bun run --cwd apps/web operations record-backup 2026-09-21T10:00:00.000Z retention-ok
 bun run --cwd apps/web operations metrics

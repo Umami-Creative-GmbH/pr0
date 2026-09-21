@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { configuration, secret } from "./config";
 import { database } from "./database";
+import { assertRestoreMail } from "./restore-state";
 
 const key = () => {
   const value = secret("PR0_MAIL_SECRET");
@@ -321,6 +322,7 @@ const deliverQueuedMail = async () => {
 
 export const deliverMail = () =>
   database().begin(async (tx) => {
+    assertRestoreMail();
     await tx`SELECT pg_advisory_xact_lock(24004)`;
     await deliverQueuedMail();
   });

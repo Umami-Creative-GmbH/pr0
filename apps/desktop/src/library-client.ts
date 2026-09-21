@@ -26,9 +26,7 @@ import { z } from "zod";
 
 import { upgradeRecoveryMessage } from "./upgrade-recovery";
 
-const statusSchema = downloadStatusSchema.extend({
-  recoveryError: z.string().nullable().optional(),
-});
+const statusSchema = downloadStatusSchema;
 const summariesSchema = z
   .array(
     z.strictObject({ id: z.uuidv4(), title: z.string(), archived: z.boolean() })

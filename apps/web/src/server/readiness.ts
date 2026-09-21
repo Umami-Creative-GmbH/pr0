@@ -13,7 +13,9 @@ import { validateMailConfiguration } from "./mail";
 import { ensureSchemaCompatibility } from "./schema-compatibility";
 import { searchFileSignature } from "./search-location";
 
-export const readReadiness = async (): Promise<ReadinessResponse> => {
+export const readReadiness = async (
+  recoveryCheck = false
+): Promise<ReadinessResponse> => {
   const checks: ReadinessResponse["checks"] = {
     schema: "unavailable",
     deletionReplay: "unavailable",
@@ -21,7 +23,7 @@ export const readReadiness = async (): Promise<ReadinessResponse> => {
     search: "unavailable",
   };
   try {
-    await ensureSchemaCompatibility();
+    await ensureSchemaCompatibility(database(), recoveryCheck);
     configuration();
     const sql = database();
     const [instance] =
@@ -31,7 +33,7 @@ export const readReadiness = async (): Promise<ReadinessResponse> => {
       return { status: "unavailable", checks };
     }
     checks.schema = "ready";
-    await ensureDeletionRecovery();
+    await ensureDeletionRecovery(recoveryCheck);
     if (instance.deletion_anchor) {
       await readEvidence(instance.id, "health");
     }

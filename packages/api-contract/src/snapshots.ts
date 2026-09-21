@@ -67,6 +67,7 @@ export type SnapshotPage = z.infer<typeof snapshotPageSchema>;
 
 // Native command responses, scoped to the retained account partition.
 export const downloadStatusSchema = z.strictObject({
+  recoveryError: z.string().nullable().optional(),
   ...libraryScopeSchema.shape,
   pendingChanges: z.number().int().nonnegative(),
   textBytes: z.number().int().nonnegative(),

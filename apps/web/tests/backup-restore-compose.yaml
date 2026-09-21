@@ -1,0 +1,54 @@
+services:
+  backup:
+    image: pr0-migration-test-58
+    profiles: [operations]
+    entrypoint: [bun, --bun, /work/apps/web/.operations/backup.js]
+    working_dir: /work/apps/web
+    environment:
+      DATABASE_URL: postgres://pr0:local-deletion-test-only@database:5432/pr0
+      PR0_BACKUP_DIRECTORY: /var/lib/pr0-backups
+      PR0_RECOVERY_STATE_FILE: /recovery/recovery.json
+      PR0_BACKUP_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      PR0_BACKUP_RELEASE: rehearsal-61
+      BETTER_AUTH_SECRET: local-social-test-auth-secret-at-least-32-characters
+      PR0_MAIL_SECRET: local-social-test-mail-secret-at-least-32-characters
+    volumes:
+      - ../../..:/work:ro
+      - backup-data:/var/lib/pr0-backups
+      - ${PR0_REHEARSAL_DIRECTORY}:/recovery:ro
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: pr0
+      POSTGRES_PASSWORD: local-deletion-test-only
+    ports: ["127.0.0.1:55461:5432"]
+    tmpfs: /var/lib/postgresql/data
+
+  smtp:
+    image: axllent/mailpit@sha256:030f06031ce5c60913ac9363da1ab0d4be6fd2a78147dd0e1ca0fcac665d6b34
+    ports: ["127.0.0.1:18461:8025", "127.0.0.1:11461:1025"]
+  ledger-a:
+    image: postgres:17-alpine
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, pr0, -d, ledger]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: ledger
+      POSTGRES_PASSWORD: local-deletion-test-only
+    ports: ["127.0.0.1:55462:5432"]
+    tmpfs: /var/lib/postgresql/data
+  ledger-b:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: ledger
+      POSTGRES_PASSWORD: local-deletion-test-only
+    ports: ["127.0.0.1:55463:5432"]
+    tmpfs: /var/lib/postgresql/data
+
+volumes:
+  backup-data:

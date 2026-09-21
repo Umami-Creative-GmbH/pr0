@@ -1,11 +1,15 @@
 import "server-only";
 import { database } from "./database";
 import { resumeDeletions } from "./deletion-coordinator";
+import { assertRestoreAdmission } from "./restore-state";
 
 let startup: Promise<void> | undefined;
 let running = false;
 let worker: ReturnType<typeof setInterval> | undefined;
-export const ensureDeletionRecovery = async () => {
+export const ensureDeletionRecovery = async (recoveryCheck = false) => {
+  if (!recoveryCheck) {
+    assertRestoreAdmission();
+  }
   const configured =
     process.env.PR0_LEDGER_A_URL ||
     process.env.PR0_LEDGER_A_URL_FILE ||
@@ -32,6 +36,7 @@ export const ensureDeletionRecovery = async () => {
     running = true;
     void (async () => {
       try {
+        assertRestoreAdmission();
         await resumeDeletions(false);
       } catch {
         // Requests keep their pending status; no success or completion is invented.

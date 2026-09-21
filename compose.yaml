@@ -19,6 +19,8 @@ x-account-environment: &account-environment
   PR0_GITHUB_CLIENT_SECRET_FILE: "${PR0_GITHUB_CLIENT_SECRET_FILE:-}"
   PR0_INGRESS_SECRET: "${PR0_INGRESS_SECRET:-}"
   PR0_INGRESS_SECRET_FILE: "${PR0_INGRESS_SECRET_FILE:-}"
+  PR0_METRICS_SECRET: "${PR0_METRICS_SECRET:-}"
+  PR0_METRICS_SECRET_FILE: "${PR0_METRICS_SECRET_FILE:-}"
   SMTP_HOST: "${SMTP_HOST:-}"
   SMTP_PORT: "${SMTP_PORT:-587}"
   SMTP_TLS: "${SMTP_TLS:-starttls}"
@@ -26,6 +28,7 @@ x-account-environment: &account-environment
   SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
   SMTP_PASSWORD_FILE: "${SMTP_PASSWORD_FILE:-}"
   SMTP_FROM: "${SMTP_FROM:-}"
+  PR0_RECOVERY_STATE_FILE: /var/lib/pr0-recovery/admission.json
 
 services:
   database:
@@ -66,6 +69,8 @@ services:
     build:
       context: .
     environment: *account-environment
+    volumes:
+      - recovery-state:/var/lib/pr0-recovery:ro
     command: ["bun", "--bun", "apps/web/.operations/mail-worker.js"]
     restart: unless-stopped
     init: true
@@ -87,6 +92,46 @@ services:
     depends_on:
       database:
         condition: service_healthy
+  restore:
+    image: pr0-local
+    build:
+      context: .
+    profiles: ["operations"]
+    environment:
+      <<: *account-environment
+      PR0_SEARCH_DIRECTORY: /var/lib/pr0-search
+    volumes:
+      - recovery-state:/var/lib/pr0-recovery
+      - search-data:/var/lib/pr0-search
+    entrypoint: ["bun", "--bun", "apps/web/.operations/restore.js"]
+    command: ["close"]
+  backup:
+    image: pr0-migrations
+    build:
+      context: .
+      target: migration-runtime
+    profiles: ["operations"]
+    user: "1000:1000"
+    environment:
+      <<: *account-environment
+      PR0_BACKUP_DIRECTORY: /var/lib/pr0-backups
+      PR0_BACKUP_KEY_FILE: /run/secrets/backup_key
+      PR0_BACKUP_RELEASE: "${PR0_BACKUP_RELEASE:-}"
+    volumes:
+      - type: bind
+        source: "${PR0_BACKUP_MOUNT:-./.backup-mount-required}"
+        target: /var/lib/pr0-backups
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${PR0_BACKUP_KEY_PATH:-./.backup-key-required}"
+        target: /run/secrets/backup_key
+        read_only: true
+        bind:
+          create_host_path: false
+      - recovery-state:/var/lib/pr0-recovery:ro
+    entrypoint: ["bun", "--bun", "apps/web/.operations/backup.js"]
+    command: ["create"]
   web:
     image: pr0-local
     build:
@@ -98,6 +143,7 @@ services:
       API_ALLOWED_ORIGINS: "${API_ALLOWED_ORIGINS:-}"
     volumes:
       - search-data:/var/lib/pr0-search
+      - recovery-state:/var/lib/pr0-recovery:ro
     depends_on:
       database:
         condition: service_healthy
@@ -125,3 +171,4 @@ volumes:
   migration-backups:
   postgres-data:
   search-data:
+  recovery-state:

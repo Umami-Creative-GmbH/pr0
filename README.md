@@ -92,9 +92,12 @@ The web account slice runs under Bun with PostgreSQL and a durable SMTP worker. 
 docker compose build
 docker compose up -d database
 docker compose run --rm accounts migrate
+docker compose run --rm restore initialize
 docker compose run --rm accounts admit-first you@example.com
 docker compose up -d web mail
 ```
+
+Initialize independent deletion storage before offering account deletion or desktop sign-in. Follow [encrypted backups and deletion-safe restore](docs/operations/backup-restore.md) for off-server storage, key recovery, admission barriers and the pre-release/quarterly rehearsal. Existing installations adopt the barrier through the documented recovery sequence; `restore initialize` is only for a new empty instance.
 
 The named PostgreSQL volume retains accounts, sessions, and immutable instance identity across container recreation. `/api/v1/ready` checks schema and worker readiness; `/api/v1/health` remains liveness. The [deployment specification](docs/specs/deployment-self-hosting.md) retains the broader requirements for later MVP slices.
 

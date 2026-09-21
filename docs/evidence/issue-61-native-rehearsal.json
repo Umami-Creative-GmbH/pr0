@@ -1,0 +1,10 @@
+{
+  "measuredAt": "2026-09-21T14:09:32.486Z",
+  "windowsCredentialRevoked": true,
+  "reauthenticationBeforeUpload": true,
+  "pendingEditPreserved": true,
+  "pendingEditRequiresRecoveryReview": true,
+  "lostAcknowledgedRowRetainedForRecovery": true,
+  "wholesaleReupload": false,
+  "uploadOperations": 0
+}

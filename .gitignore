@@ -26,3 +26,4 @@ next-env.d.ts
 # Bundled Bun operational entry points
 **/.operations/
 **/.data/search/
+**/.data/rehearsal-61*/

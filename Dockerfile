@@ -47,7 +47,7 @@ COPY --from=build --chown=bun:bun /app/apps/web/public ./apps/web/public
 COPY --from=build --chown=bun:bun /app/apps/web/.operations ./apps/web/.operations
 COPY --from=build --chown=bun:bun /app/apps/web/migrations ./apps/web/migrations
 
-RUN mkdir -p /var/lib/pr0-search && chown bun:bun /var/lib/pr0-search
+RUN mkdir -p /var/lib/pr0-search /var/lib/pr0-recovery && chown bun:bun /var/lib/pr0-search /var/lib/pr0-recovery
 USER bun
 EXPOSE 3000
 CMD ["bun", "--bun", "apps/web/server.js"]
