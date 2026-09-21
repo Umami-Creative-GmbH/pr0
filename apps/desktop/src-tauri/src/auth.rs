@@ -67,6 +67,7 @@ fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, String> {
 }
 include!("library_commands.rs");
 include!("organization_commands.rs");
+include!("conflict_commands.rs");
 include!("upload_commands.rs");
 include!("change_commands.rs");
 include!("usage_commands.rs");

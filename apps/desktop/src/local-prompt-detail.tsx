@@ -27,6 +27,11 @@ export const LocalPromptDetail = ({
       className="space-y-3 rounded border p-4"
     >
       <h3 className="text-lg font-semibold">{prompt.title}</h3>
+      {prompt.sourceTitle ? (
+        <p className="break-words whitespace-pre-wrap">
+          Full source title: {prompt.sourceTitle}
+        </p>
+      ) : null}
       <LifecycleActions value={value} disabled={editing} onAction={onAction} />
       {value.pending ? (
         <>

@@ -257,6 +257,15 @@ const LauncherWindow = () => {
   const { status, revision, error, refresh } = useLauncherStatus();
   const [message, setMessage] = useState("");
   const opening = status?.opening;
+  const showDetails = async () => {
+    try {
+      await launcherClient.libraryDetails();
+    } catch {
+      setMessage(
+        "Could not open library details. Use Alt+Tab to open the library."
+      );
+    }
+  };
   const close = async () => {
     if (opening === undefined) {
       return;
@@ -293,6 +302,17 @@ const LauncherWindow = () => {
     <main className="space-y-3 p-5" data-opening={status?.opening}>
       <h1 className="text-xl font-semibold">Quick launcher</h1>
       <p>{status?.shortcut ?? "Global shortcut unavailable"}</p>
+      <p>
+        {status?.syncStatus ?? "Library status"}{" "}
+        <button
+          type="button"
+          onClick={() => {
+            void showDetails();
+          }}
+        >
+          Open library details
+        </button>
+      </p>
       {status?.visible && !status.focused ? (
         <div>
           <button
@@ -312,9 +332,9 @@ const LauncherWindow = () => {
       {status?.visible && status.account ? (
         <>
           {status.complete ? null : (
-            <output>
+            <p>
               Library download incomplete. Searching downloaded prompts only.
-            </output>
+            </p>
           )}
           <LauncherSearch
             key={`${status.opening}:${status.account.instanceId}:${status.account.accountId}:${status.account.generation}`}

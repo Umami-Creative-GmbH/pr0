@@ -6,6 +6,7 @@
   "permissions": [
     "allow-copy-template",
     "allow-launcher-status",
+    "allow-launcher-library-details",
     "allow-launcher-search",
     "allow-launcher-cancel-search",
     "allow-launcher-copy",

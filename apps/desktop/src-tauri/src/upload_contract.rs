@@ -24,9 +24,13 @@ pub struct Failure {
     pub code: String,
     pub message: String,
     pub retryable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_after: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub fields: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub resource: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<serde_json::Value>,
 }
 #[derive(Deserialize)]
@@ -57,6 +61,7 @@ pub struct Mapping {
 pub struct PendingError {
     pub prompt_id: String,
     pub code: String,
+    pub failure: Option<serde_json::Value>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +73,7 @@ pub struct PendingPrompt {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadStatus {
+    pub attention_error: Option<String>,
     pub last_checked_at: Option<String>,
     pub waiting: u32,
     pub awaiting_download: u32,

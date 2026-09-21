@@ -7,6 +7,7 @@ struct LauncherStatus {
     window: launcher_runtime::WindowStatus,
     account: Option<LauncherAccount>,
     complete: bool,
+    sync_status: &'static str,
     error: Option<&'static str>,
 }
 #[derive(serde::Serialize)]
@@ -99,21 +100,30 @@ async fn launcher_status(
     let view = window.state::<launcher_runtime::Launcher>().status()?;
     let service = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || match service.and_then(|s| s.launcher_account()) {
-        Ok((account, complete)) => Ok(LauncherStatus {
+        Ok((account, complete, sync_status)) => Ok(LauncherStatus {
             window: view,
             account,
             complete,
+            sync_status,
             error: None,
         }),
         Err(_) => Ok(LauncherStatus {
             window: view,
             account: None,
             complete: false,
+            sync_status: "Library status unavailable",
             error: Some("library_unavailable"),
         }),
     })
     .await
     .map_err(|_| "native_unavailable")?
+}
+#[tauri::command]
+fn launcher_library_details(window: tauri::WebviewWindow) -> Result<(),String> {
+    authorize_labels(&window,&["launcher"])?;
+    let main=window.app_handle().get_webview_window("main").ok_or("library_unavailable")?;
+    main.unminimize().and_then(|_|main.show()).and_then(|_|main.set_focus()).map_err(|_|"library_unavailable")?;
+    main.emit("show-sync-details",()).map_err(|_|"library_unavailable".into())
 }
 #[tauri::command]
 fn launcher_open(window: tauri::WebviewWindow) -> Result<(), String> {
@@ -196,7 +206,7 @@ async fn launcher_copy(
     app.state::<launcher_runtime::Launcher>().end_write(opening)?;
     let result = result.map_err(|_| "native_unavailable")??;
     // Clipboard success stays success even if hiding fails. Usage retry never copies again.
-    let same_partition = authority.launcher_account().ok().and_then(|(account, _)| account)
+    let same_partition = authority.launcher_account().ok().and_then(|(account, _, _)| account)
         .is_some_and(|account| account.instance_id == result.origin.instance_id
             && account.account_id == result.origin.account_id && account.generation == result.origin.generation);
     if same_partition { let _ = hide_launcher(&app, opening); }

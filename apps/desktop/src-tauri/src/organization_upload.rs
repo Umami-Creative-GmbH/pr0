@@ -157,8 +157,8 @@ impl LibraryStore {
                     i64::MAX
                 };
                 tx.execute(
-                    "UPDATE organization_queue SET error=?2,next_attempt=?3 WHERE id=?1",
-                    params![id, failure.code, next],
+                    "UPDATE organization_queue SET error=?2,next_attempt=?3,failure=?4 WHERE id=?1",
+                    params![id, failure.code, next, serde_json::to_string(&failure).map_err(|_|"invalid_response")?],
                 )
                 .map_err(io)?;
             }
@@ -197,7 +197,7 @@ impl LibraryStore {
                     if result["collectionId"] != op["collectionId"] {
                         return Err("invalid_response".into());
                     }
-                } else if kind.starts_with("prompt.") {
+                } else if kind.starts_with("prompt.") || kind == "conflict.review" || kind == "organization.review" {
                     if result["promptId"] != op["promptId"] {
                         return Err("invalid_response".into());
                     }
@@ -233,6 +233,7 @@ impl LibraryStore {
                     params![id, result.to_string()],
                 )
                 .map_err(io)?;
+                retain_adjustment(&tx, result)?;
                 tx.execute("UPDATE upload_state SET refresh=1", [])
                     .map_err(io)?;
             }

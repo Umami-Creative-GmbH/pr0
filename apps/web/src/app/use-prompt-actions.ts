@@ -12,6 +12,7 @@ import type {
 import { useEffect, useRef, useState } from "react";
 
 import { writeClipboard } from "./clipboard";
+import { useReportAttention } from "./library-attention";
 
 export type PromptAction = "favorite" | "archived" | "duplicate" | "delete";
 export const usePromptActions = ({
@@ -36,6 +37,7 @@ export const usePromptActions = ({
   const inFlight = useRef(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  useReportAttention(actionError, "prompt-action-recovery");
   const [knownRejected, setKnownRejected] = useState(false);
   const [retainedText, setRetainedText] = useState<PromptText | null>(null);
   const [copyMessage, setCopyMessage] = useState("");

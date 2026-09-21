@@ -12,6 +12,9 @@ import type { DesktopSearch } from "@pr0/api-contract/desktop-search";
 import { invoke } from "@tauri-apps/api/core";
 
 export const launcherClient = {
+  libraryDetails: async () => {
+    await invoke("launcher_library_details");
+  },
   status: async () =>
     launcherStatusSchema.parse(await invoke("launcher_status")),
   open: async () => {

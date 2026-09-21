@@ -23,6 +23,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { writeClipboard } from "./clipboard";
+import { useReportAttention } from "./library-attention";
 import { promptSaveNotice } from "./prompt-save-notice";
 
 type PromptDraft = PromptText & { collectionId: string | null };
@@ -79,6 +80,12 @@ export const usePromptEditor = ({
     fields: Record<string, string>;
     uncertain: boolean;
   }>({ status: "draft", message: "", fields: {}, uncertain: false });
+  useReportAttention(
+    state.status === "failed"
+      ? "Prompt not saved. Retry, correct the draft or copy its text in the editor."
+      : "",
+    "editor-heading"
+  );
   const [copyMessage, setCopyMessage] = useState("");
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const pending = useRef<

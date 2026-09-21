@@ -7,6 +7,7 @@ import {
   organizationEffectSchema,
   organizationStateSchema,
   promptSchema,
+  promptErrorSchema,
   revisionSchema,
 } from "./prompts";
 
@@ -68,6 +69,7 @@ export const localOrganizationSchema = z.strictObject({
       id: z.uuidv4(),
       operation: mutationEnvelopeSchema.shape.operations.element,
       error: z.string().nullable(),
+      failure: promptErrorSchema.nullable().optional(),
       accepted: z.boolean(),
     })
   ),

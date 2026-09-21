@@ -8,9 +8,11 @@ const refreshes = new WeakMap<
 
 const refreshQueries = async (client: QueryClient, scope: string[]) => {
   await Promise.all(
-    ["prompt", "prompts", "organization", "conflicts"].map(async (kind) => {
-      await client.cancelQueries({ queryKey: [kind, ...scope] });
-    })
+    ["prompt", "prompts", "organization", "conflicts", "adjustments"].map(
+      async (kind) => {
+        await client.cancelQueries({ queryKey: [kind, ...scope] });
+      }
+    )
   );
   await client.invalidateQueries(
     { queryKey: ["prompt", ...scope] },
@@ -40,6 +42,10 @@ const refreshQueries = async (client: QueryClient, scope: string[]) => {
   );
   await client.invalidateQueries(
     { queryKey: ["conflicts", ...scope] },
+    { throwOnError: true, cancelRefetch: false }
+  );
+  await client.invalidateQueries(
+    { queryKey: ["adjustments", ...scope] },
     { throwOnError: true, cancelRefetch: false }
   );
 };

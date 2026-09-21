@@ -51,7 +51,7 @@ export const captureChange = async (
   });
   const rows: ChangedPrompt[] = change.organization_effect
     ? []
-    : await sql`SELECT p.id,p.title,p.description,p.content,p.source_title,p.revision::text,p.created_at,p.modified_at,p.favorite,p.archived,p.collection_id,p.use_count,p.last_used_at,
+    : await sql`SELECT p.id,p.title,p.description,p.content,coalesce(p.source_title,(SELECT n.source_title FROM conflict_notice n WHERE n.instance_id=p.instance_id AND n.account_id=p.account_id AND n.copy_id=p.id LIMIT 1)) AS source_title,p.revision::text,p.created_at,p.modified_at,p.favorite,p.archived,p.collection_id,p.use_count,p.last_used_at,
     ARRAY(SELECT tag_id::text FROM prompt_tag t WHERE t.instance_id=p.instance_id AND t.account_id=p.account_id AND t.prompt_id=p.id AND t.add_revision>t.remove_revision ORDER BY tag_id) AS tag_ids
     FROM prompt p WHERE p.instance_id=${instanceId} AND p.account_id=${accountId} AND p.revision=${receipt.revision}::bigint ORDER BY p.id LIMIT 3`;
   const deleted =

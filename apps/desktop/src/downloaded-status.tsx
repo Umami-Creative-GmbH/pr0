@@ -1,9 +1,12 @@
 import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
+import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
+import type { ReactNode } from "react";
 
 import type { DownloadStatus } from "./library-client";
 import { LocalLibraryStatus } from "./local-library-status";
+import { OrganizationAttention } from "./organization-attention";
 import { PendingRecovery } from "./pending-recovery";
 import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
@@ -24,6 +27,11 @@ export const DownloadedStatus = ({
   onRetryUsage,
   onRetryUpload,
   onOpen,
+  organization,
+  onOrganizationSaved,
+  onEditing,
+  children,
+  saveFailure,
 }: {
   status?: DownloadStatus;
   upload?: UploadStatus;
@@ -39,6 +47,11 @@ export const DownloadedStatus = ({
   onRetryUsage: () => void;
   onRetryUpload: () => void;
   onOpen: (id: string) => void;
+  organization?: LocalOrganization;
+  onOrganizationSaved: () => Promise<void>;
+  onEditing: (value: boolean) => void;
+  children?: ReactNode;
+  saveFailure?: boolean;
 }) => (
   <>
     <output>{copyMessage}</output>
@@ -64,14 +77,8 @@ export const DownloadedStatus = ({
         </button>
       </div>
     ) : null}
-    <UsageStatus status={usage} onRetry={onRetryUsage} />
-    <PendingRecovery
-      account={account}
-      upload={upload}
-      onChanged={onRetry}
-      disabled={editing || lifecycle.busy}
-    />
     <LocalLibraryStatus
+      saveFailure={saveFailure}
       status={status}
       signedIn={signedIn}
       offline={offline}
@@ -79,6 +86,27 @@ export const DownloadedStatus = ({
       changes={changes}
       onOpen={onOpen}
       onRetry={onRetryUpload}
-    />
+      organizationAttention={organization?.pending.some((entry) =>
+        Boolean(entry.error)
+      )}
+    >
+      <UsageStatus status={usage} onRetry={onRetryUsage} />
+      <PendingRecovery
+        account={account}
+        upload={upload}
+        onChanged={onRetry}
+        disabled={editing || lifecycle.busy}
+      />
+      {organization ? (
+        <OrganizationAttention
+          account={account}
+          snapshot={organization}
+          onSaved={onOrganizationSaved}
+          disabled={editing || lifecycle.busy}
+          onEditing={onEditing}
+        />
+      ) : null}
+      {children}
+    </LocalLibraryStatus>
   </>
 );

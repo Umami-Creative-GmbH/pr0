@@ -21,8 +21,8 @@ export const uploadLabel = (
   if (failure) {
     return failure;
   }
-  if (!signedIn && pending) {
-    return "Sign in to sync · Changes waiting";
+  if (!signedIn || upload?.error === "authentication_required") {
+    return pending ? "Sign in to sync · Changes waiting" : "Sign in to sync";
   }
   if (upload?.errors.length) {
     return "Changes need attention · Changes waiting";
@@ -34,7 +34,9 @@ export const uploadLabel = (
     return "Couldn't sync · Changes waiting";
   }
   if (upload?.awaitingDownload) {
-    return "Updating this device's library…";
+    return pending
+      ? "Updating this device's library… · Changes waiting"
+      : "Updating this device's library…";
   }
   return pending ? "Changes waiting to sync" : "Library status";
 };

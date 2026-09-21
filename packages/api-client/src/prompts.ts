@@ -11,6 +11,7 @@ import {
   promptPageSchema,
   promptSchema,
   conflictPageSchema,
+  adjustmentPageSchema,
   organizationImpactInputSchema,
   organizationImpactSchema,
   organizationReviewSchema,
@@ -249,6 +250,22 @@ export const createPromptClient = (
       }
       const result = conflictPageSchema.parse(
         await request(`library/conflicts?${params}`, signal)
+      );
+      assertScope(result, scope);
+      return result;
+    },
+    async getAdjustments(
+      input: { cursor?: string; limit?: number } = {},
+      signal?: AbortSignal,
+      scope?: LibraryScope
+    ) {
+      const parsed = promptListInputSchema.parse(input);
+      const params = new URLSearchParams({ limit: String(parsed.limit) });
+      if (parsed.cursor) {
+        params.set("cursor", parsed.cursor);
+      }
+      const result = adjustmentPageSchema.parse(
+        await request(`library/adjustments?${params}`, signal)
       );
       assertScope(result, scope);
       return result;

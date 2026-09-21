@@ -48,12 +48,13 @@ impl LibraryStore {
                 |r| r.get(0),
             )
             .map_err(io)?;
-        let mut statement = self.db.prepare("SELECT prompt_id,coalesce(error,'dependency_blocked') FROM outbox o WHERE error IS NOT NULL OR EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox p ON p.id=d.value WHERE p.error IS NOT NULL) OR EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN organization_queue p ON p.id=d.value WHERE p.error IS NOT NULL) ORDER BY local_revision LIMIT 100").map_err(io)?;
+        let mut statement = self.db.prepare("SELECT prompt_id,coalesce(error,'dependency_blocked'),failure FROM outbox o WHERE error IS NOT NULL OR EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox p ON p.id=d.value WHERE p.error IS NOT NULL) OR EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN organization_queue p ON p.id=d.value WHERE p.error IS NOT NULL) ORDER BY local_revision LIMIT 10000").map_err(io)?;
         let errors = statement
             .query_map([], |r| {
                 Ok(PendingError {
                     prompt_id: r.get(0)?,
                     code: r.get(1)?,
+                    failure: r.get::<_,Option<String>>(2)?.and_then(|s|serde_json::from_str(&s).ok()),
                 })
             })
             .map_err(io)?
@@ -80,6 +81,7 @@ impl LibraryStore {
         let mut statement=self.db.prepare("SELECT l.id,l.title,EXISTS(SELECT 1 FROM local_deleted d WHERE d.id=l.id) FROM local_prompt l WHERE EXISTS(SELECT 1 FROM outbox o WHERE o.prompt_id=l.id AND o.state<>'accepted_awaiting_download') ORDER BY l.id LIMIT 10000").map_err(io)?;
         let pending=statement.query_map([],|r|Ok(super::upload_contract::PendingPrompt{prompt_id:r.get(0)?,title:r.get(1)?,deleting:r.get(2)?})).map_err(io)?.collect::<Result<Vec<_>,_>>().map_err(io)?;
         Ok(UploadStatus {
+            attention_error: self.db.query_row("SELECT coalesce(error,adjustment_error) FROM conflict_state",[],|r|r.get(0)).map_err(io)?,
             waiting,
             awaiting_download,
             error,
@@ -217,8 +219,8 @@ impl LibraryStore {
                     i64::MAX
                 };
                 tx.execute(
-                    "UPDATE outbox SET error=?2,next_attempt=?3 WHERE id=?1",
-                    params![sent.operation_id, error.code, retry],
+                    "UPDATE outbox SET error=?2,next_attempt=?3,failure=?4 WHERE id=?1",
+                    params![sent.operation_id, error.code, retry, serde_json::to_string(&error).map_err(|_|"invalid_response")?],
                 )
                 .map_err(io)?;
             }
@@ -241,6 +243,15 @@ impl LibraryStore {
                 {
                     return Err("invalid_response".into());
                 }
+                if let Some(conflict) = &receipt.conflict.as_ref().filter(|_| !matches!(sent.action, PendingAction::Delete)) {
+                    let notice = super::conflict_contract::ConflictNotice {
+                        id: conflict.notice_id.clone(), original_id: sent.prompt_id.clone(), copy_id: conflict.copy_id.clone(),
+                        source_title: sent.desired.title.clone(), created_at: receipt.accepted_at.clone(), revision: receipt.revision.clone(),
+                        original_deleted: matches!(sent.action, PendingAction::Delete), original_archived: false, copy_deleted: false,
+                    };
+                    tx.execute("INSERT INTO conflict_notice(id,record) VALUES(?1,?2) ON CONFLICT(id) DO UPDATE SET record=excluded.record",params![notice.id,serde_json::to_string(&notice).map_err(|_|"storage_unavailable")?]).map_err(io)?;
+                }
+                retain_adjustment(&tx, &serde_json::to_value(&receipt).map_err(|_|"invalid_response")?)?;
                 if matches!(sent.action, PendingAction::Delete) {
                     tx.execute("UPDATE outbox SET state='accepted_awaiting_download',receipt=?2,error=NULL WHERE id=?1",params![sent.operation_id,serde_json::to_string(&receipt).map_err(|_|"storage_unavailable")?]).map_err(io)?;
                     tx.execute("UPDATE upload_state SET refresh=1",[]).map_err(io)?;
@@ -298,6 +309,9 @@ impl LibraryStore {
                     prompt.title = baseline.title;
                 }
                 prompt.id = target.into();
+                if receipt.conflict.is_some() {
+                    prompt.source_title = Some(sent.desired.title.clone());
+                }
                 if matches!(sent.action,PendingAction::Create|PendingAction::Duplicate{..}) || receipt.conflict.is_some() {
                     prompt.revision = receipt.revision.clone();
                 }
