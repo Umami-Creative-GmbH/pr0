@@ -16,7 +16,10 @@ test("keyboard cancellation and confirmation work in active and archived views; 
   const account = await promptBrowser();
   const create = promptOperation();
   await account.mutate([create]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -106,7 +109,10 @@ test("active-list deletion preserves an unseen edit and leaves an open draft rec
   const create = promptOperation();
   await account.mutate([create]);
   const base = await client.getPrompt(create.promptId);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(
@@ -224,7 +230,10 @@ test("capacity-refused deletion retains the frozen intent for retry after freein
     throw new Error("Expected capacity prompts");
   }
   const base = await client.getPrompt(first.id);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },

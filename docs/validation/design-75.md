@@ -2,6 +2,35 @@
 
 Status: production design port implemented locally; automated checks and visual evidence recorded below. The user approved the design port on September 21, 2026; the deferred Windows checks remain pending. This is not release sign-off.
 
+## Revision 2 — rebuilt from the Claude Design documents (September 21, 2026)
+
+Issue #75 was reopened after PR #87. That port kept the earlier form-like markup and styled it through structural selectors (`.wf-sidebar section[aria-label=…]`), so colors and fonts matched while the composition did not. Revision 2 rebuilds the presentation from the design sources themselves: the Claude Design project's `pr0 Web-App`, `pr0 Desktop` and `pr0 Anmelden` documents and the Umami Creative design-system tokens they import. Values (surfaces, lines, ink levels, radii, type sizes, tracking, motion) are taken from those documents.
+
+### Surface map for revision 2
+
+| Design document | Production destination | Surface-specific parts |
+| --- | --- | --- |
+| `pr0 Web-App` | `apps/web/src/app/account-screen.tsx`, `prompt-library.tsx`, `prompt-results.tsx`, `prompt-search-controls.tsx`, `quick-access.tsx`, editor and variable dialogs | 60px app bar with the in-page quick-access pill (`Ctrl K`), real live-change state, theme and account menu. No browser-chrome mock, no native window controls, no claim of a registered global shortcut. |
+| `pr0 Desktop` | `apps/desktop/src/app.tsx`, `downloaded-library.tsx`, `search-library.tsx`, `local-prompt-detail.tsx`, editor and variable dialogs | 52px app bar with real sync/offline/attention state, the launcher entry showing the shortcut Windows actually registered (or that none is), Settings and Quit, theme and account menu. The OS title bar stays; decorative traffic lights are not reproduced. |
+| Launcher panel in both documents | Native: `apps/desktop/src/launcher.tsx` (dedicated 660×580 window). Browser: `apps/web/src/app/quick-access.tsx` (in-page dialog) | Same compact composition (search row, accent dot, title, collection, `↵`, key-hint footer). The native window adds real shortcut and library state, focus recovery, paging and variable entry in place; the browser overlay adds `Ctrl ↵` Open and stays an in-page dialog. |
+| `pr0 Anmelden` | Web sign-in in `account-screen.tsx`; desktop sign-in and browser approval in `apps/desktop/src/app.tsx` | Brand panel beside the form. Only supported methods appear: email/password and configured social providers on the web, server choice plus browser approval of a matching code on desktop. The design's passkey button and sign-up name field are not offered. |
+
+### What moved where
+
+- Shared presentation lives in `packages/ui`: tokens and component utilities in `styles/wayfinder.css`; `wayfinder-shell` (app bar, status and control slots, account menu), `search-box`, `prompt-row`, `prompt-header`, `prompt-content`, `wayfinder-dialog` (head/body/foot), `auth-layout`, chip-style `collection-picker`/`tag-picker`. Pure helpers in `lib/present.ts` (initials, stable collection accent, compact relative time, status tone) are unit-tested.
+- Variable highlighting uses `templateSpans` in `@pr0/api-contract/variables`. It shares one scanner with `parseTemplate`, so the highlight cannot disagree with substitution, typed tokens (`{{n|number}}`) stay whole and escaped tokens stay literal. The stored text remains a selectable read-only field; the highlight is a painted layer beneath it.
+- Real state is placed, not hidden: synchronization/attention status sits in the app bar with its full detail in a popover; copy results and retry controls appear as a toast; conflicts, action results and draft recovery stack above the detail; capacity sits in the detail footer.
+- Account settings (web) and account/connection (desktop) open from the account menu as a view beside the still-mounted library, so open drafts survive.
+
+### Deliberate differences from the design documents
+
+- The design shows a content preview in each row. List responses carry no content, so rows preview the description; collection, tags and modified time come from the existing summary fields. No API change was made for presentation.
+- Row copy and overflow actions appear on hover or keyboard focus (always on touch); the favorite star stays visible when set. All lifecycle actions remain reachable.
+- Variable tokens use a lighter pink on dark surfaces than the design's `#E60096`, which does not reach AA contrast on the navy background.
+- Copy feedback persists until the next action instead of disappearing after 2.2 seconds, because it can carry failure text and retry controls.
+- Sort, favorites-only, tag filters, management dialogs and paging have no counterpart in the design documents; they use the same chip, pill and eyebrow vocabulary. Picker search fields appear only when a list exceeds eight entries.
+- Light theme is the design's light token set; theme choice persists in `localStorage` and is shared by the desktop main and launcher windows.
+
 ## Reference and destination map (recorded before UI changes)
 
 Reference commit: `ae390cd8d2dd67b3ec6f9eb999a0f8e170cb9a57`, `packages/prototype-library`. Its source is unchanged. Captures use English controls and the original German fixture content.

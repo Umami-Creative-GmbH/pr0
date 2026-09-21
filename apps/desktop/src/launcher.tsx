@@ -166,11 +166,11 @@ const LauncherSearch = ({
   return (
     <section aria-label="Find and copy" className="wf-launcher">
       <PromptVariables copy={copying} />
-      <label className="wf-launcher-search">
+      <div className="wf-launcher-search">
         <Search aria-hidden="true" size={18} />
-        <span className="sr-only">Search prompts</span>
         <input
           ref={input}
+          aria-label="Search prompts"
           type="search"
           placeholder="Find a prompt and copy it with ↵…"
           value={search.query}
@@ -186,8 +186,10 @@ const LauncherSearch = ({
             Clear query
           </button>
         ) : null}
-        <kbd className="wf-kbd">esc</kbd>
-      </label>
+        <kbd aria-hidden="true" className="wf-kbd">
+          esc
+        </kbd>
+      </div>
       <LauncherFilters search={search} />
       <div className="wf-launcher-status">
         {copyMessage || search.error ? (

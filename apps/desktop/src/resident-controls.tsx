@@ -173,7 +173,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
   };
   return (
     <ResidentEditorContext value={registerEditor}>
-      <AppBarStatus>
+      <AppBarStatus slot="controls">
         <nav aria-label="Desktop controls" className="contents">
           <button
             aria-label="Settings"

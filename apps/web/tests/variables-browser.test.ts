@@ -326,9 +326,12 @@ test("many variables remain reachable at zoom with keyboard entry and cancellati
     expect(
       await dialog.getByLabel("field_99 (string)", { exact: true }).inputValue()
     ).toBe("value99");
-    expect(await dialog.evaluate((element) => element.scrollTop > 0)).toBe(
-      true
-    );
+    // The dialog keeps its heading and actions fixed; its body scrolls.
+    expect(
+      await dialog
+        .getByRole("group", { name: "Variable values", exact: true })
+        .evaluate((element) => (element.parentElement?.scrollTop ?? 0) > 0)
+    ).toBe(true);
     await page.screenshot({
       path: "docs/evidence/issue-52-variables-zoom.png",
       fullPage: true,

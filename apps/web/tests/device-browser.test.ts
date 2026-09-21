@@ -14,7 +14,10 @@ import { password } from "./http-fixture";
 test("system-browser page signs in with email, shows the matching code and requires explicit approval", async () => {
   const account = await verifiedBrowser();
   const code = await startDevice();
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const page = await browser.newPage({
       viewport: { width: 1000, height: 800 },

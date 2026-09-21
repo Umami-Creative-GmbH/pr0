@@ -15,7 +15,10 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
   const account = await promptBrowser();
   const create = promptOperation();
   await account.mutate([create]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -142,7 +145,10 @@ test("multiple externally archived selections refresh stale rows without cycling
     client.getPrompt(a.promptId),
     client.getPrompt(b.promptId),
   ]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(
@@ -198,7 +204,10 @@ test("automatic selection follows identity across reordering and checks archive 
     first,
   ]);
   const source = await client.getPrompt(first.promptId);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(
@@ -265,7 +274,10 @@ test("quota errors keep the duplicate snapshot available while archive changes p
     content: "Preserve this source",
   });
   await account.mutate([create]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       permissions: ["clipboard-read", "clipboard-write"],

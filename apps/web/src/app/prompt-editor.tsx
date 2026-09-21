@@ -149,167 +149,170 @@ export const PromptEditor = ({
         label={editorLabel}
         onRequestClose={requestClose}
       >
-        <DialogHead
-          eyebrow={prompt ? "Edit prompt" : "New prompt"}
-          title={prompt ? draft.title || prompt.title : "Create prompt"}
-          titleId="editor-heading"
-          closeLabel="Close editor"
-          closeDisabled={state.status === "saving"}
-          onClose={requestClose}
-        />
-        <form
-          aria-labelledby="editor-heading"
-          className="flex min-h-0 flex-1 flex-col"
-          noValidate
-          onSubmit={(event) => {
-            void save(event);
-          }}
-        >
-          <div className="wf-dialog-body">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                className="wf-btn-quiet"
-                type="button"
-                onClick={() => setBrowsing(true)}
-              >
-                Browse library (keep draft)
-              </button>
-              {savedActions}
-            </div>
-            <p className="wf-hint">
-              Only title and content are required. This draft stays in this open
-              tab; closing or reloading the tab may lose it.
-            </p>
-            {mappedOriginal ? (
-              <div className="wf-notice">
-                <p>You&apos;re editing the conflict copy.</p>
-                <PromptOriginal
-                  library={library}
-                  id={mappedOriginal}
-                  onOpen={(id) => {
-                    onOpen(id);
-                    setBrowsing(true);
-                  }}
-                />
-              </div>
-            ) : null}
-            {state.status === "draft" && state.message ? (
-              <output className="wf-notice">{state.message}</output>
-            ) : null}
-            <p
-              aria-live="polite"
-              className="wf-notice empty:hidden"
-              ref={statusRef}
-              tabIndex={-1}
-            >
-              {statusText}
-            </p>
-            {state.uncertain ? (
-              <p className="wf-hint">
-                Retry confirms the earlier Save with its original text. Any
-                newer edits still need their own Save. Copy text remains
-                available.
-              </p>
-            ) : null}
-            {nearingFieldLimit ? (
-              <p className="wf-hint">
-                A prompt field is at or above 90% of its limit. Input is never
-                truncated.
-              </p>
-            ) : null}
-            <PromptFields
-              errors={state.fields}
-              onChange={change}
-              readOnly={locked}
-              titleRef={titleRef}
-              value={draft}
-            >
-              <div className="wf-field-row">
-                <CollectionPicker
-                  collections={collections}
-                  label="Collection (optional)"
-                  emptyLabel="No collection"
-                  value={draft.collectionId}
-                  search={collectionMatches}
-                  disabled={locked}
-                  onChange={(collectionId) =>
-                    change({ ...draft, collectionId })
-                  }
-                />
-                {prompt ? null : (
-                  <TagPicker
-                    label="Tags (optional)"
-                    tags={tags}
-                    value={tagIds}
-                    onChange={changeTags}
-                    search={collectionMatches}
-                    disabled={state.status === "saving" || state.uncertain}
-                  />
-                )}
-              </div>
-              {state.fields.collectionId ? (
-                <p className="wf-error" role="alert">
-                  {state.fields.collectionId}
-                </p>
-              ) : null}
-              {tagIds.length > 20 ? (
-                <p className="wf-error" role="alert">
-                  Choose at most 20 tags.
-                </p>
-              ) : null}
-              {state.fields.tagIds ? (
-                <p className="wf-error" role="alert">
-                  {state.fields.tagIds}
-                </p>
-              ) : null}
-            </PromptFields>
-            {confirmDiscard ? (
-              <section
-                aria-label="Discard unsaved prompt"
-                className="wf-notice"
-                data-tone="attention"
-              >
-                <p>
-                  {state.uncertain
-                    ? "Discard this open-tab draft? The server may already have saved this prompt. Retry first to confirm its outcome."
-                    : "Discard this unsaved prompt? Your draft will be lost."}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  <button
-                    className="wf-btn wf-btn-danger"
-                    onClick={discard}
-                    type="button"
-                  >
-                    Discard draft
-                  </button>
-                  <button
-                    className={buttonClass}
-                    onClick={() => {
-                      setConfirmDiscard(false);
-                      titleRef.current?.focus();
-                    }}
-                    type="button"
-                  >
-                    Keep editing
-                  </button>
-                </div>
-              </section>
-            ) : null}
-            <p aria-live="polite" className="wf-hint empty:hidden">
-              {copyMessage}
-            </p>
-          </div>
-          <EditorFooter
-            content={draft.content}
-            saving={state.status === "saving"}
-            failed={state.status === "failed"}
-            saveDisabled={tagIds.length > 20}
-            onCancel={requestClose}
-            onCopy={() => {
-              void copy();
-            }}
+        {/* Journeys and assistive technology address the editor as a named region. */}
+        <section aria-label={editorLabel} className="contents">
+          <DialogHead
+            eyebrow={prompt ? "Edit prompt" : "New prompt"}
+            title={prompt ? draft.title || prompt.title : "Create prompt"}
+            titleId="editor-heading"
+            closeLabel="Close editor"
+            closeDisabled={state.status === "saving"}
+            onClose={requestClose}
           />
-        </form>
+          <form
+            aria-labelledby="editor-heading"
+            className="flex min-h-0 flex-1 flex-col"
+            noValidate
+            onSubmit={(event) => {
+              void save(event);
+            }}
+          >
+            <div className="wf-dialog-body">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  className="wf-btn-quiet"
+                  type="button"
+                  onClick={() => setBrowsing(true)}
+                >
+                  Browse library (keep draft)
+                </button>
+                {savedActions}
+              </div>
+              <p className="wf-hint">
+                Only title and content are required. This draft stays in this
+                open tab; closing or reloading the tab may lose it.
+              </p>
+              {mappedOriginal ? (
+                <div className="wf-notice">
+                  <p>You&apos;re editing the conflict copy.</p>
+                  <PromptOriginal
+                    library={library}
+                    id={mappedOriginal}
+                    onOpen={(id) => {
+                      onOpen(id);
+                      setBrowsing(true);
+                    }}
+                  />
+                </div>
+              ) : null}
+              {state.status === "draft" && state.message ? (
+                <output className="wf-notice">{state.message}</output>
+              ) : null}
+              <p
+                aria-live="polite"
+                className="wf-notice empty:hidden"
+                ref={statusRef}
+                tabIndex={-1}
+              >
+                {statusText}
+              </p>
+              {state.uncertain ? (
+                <p className="wf-hint">
+                  Retry confirms the earlier Save with its original text. Any
+                  newer edits still need their own Save. Copy text remains
+                  available.
+                </p>
+              ) : null}
+              {nearingFieldLimit ? (
+                <p className="wf-hint">
+                  A prompt field is at or above 90% of its limit. Input is never
+                  truncated.
+                </p>
+              ) : null}
+              <PromptFields
+                errors={state.fields}
+                onChange={change}
+                readOnly={locked}
+                titleRef={titleRef}
+                value={draft}
+              >
+                <div className="wf-field-row">
+                  <CollectionPicker
+                    collections={collections}
+                    label="Collection (optional)"
+                    emptyLabel="No collection"
+                    value={draft.collectionId}
+                    search={collectionMatches}
+                    disabled={locked}
+                    onChange={(collectionId) =>
+                      change({ ...draft, collectionId })
+                    }
+                  />
+                  {prompt ? null : (
+                    <TagPicker
+                      label="Tags (optional)"
+                      tags={tags}
+                      value={tagIds}
+                      onChange={changeTags}
+                      search={collectionMatches}
+                      disabled={state.status === "saving" || state.uncertain}
+                    />
+                  )}
+                </div>
+                {state.fields.collectionId ? (
+                  <p className="wf-error" role="alert">
+                    {state.fields.collectionId}
+                  </p>
+                ) : null}
+                {tagIds.length > 20 ? (
+                  <p className="wf-error" role="alert">
+                    Choose at most 20 tags.
+                  </p>
+                ) : null}
+                {state.fields.tagIds ? (
+                  <p className="wf-error" role="alert">
+                    {state.fields.tagIds}
+                  </p>
+                ) : null}
+              </PromptFields>
+              {confirmDiscard ? (
+                <section
+                  aria-label="Discard unsaved prompt"
+                  className="wf-notice"
+                  data-tone="attention"
+                >
+                  <p>
+                    {state.uncertain
+                      ? "Discard this open-tab draft? The server may already have saved this prompt. Retry first to confirm its outcome."
+                      : "Discard this unsaved prompt? Your draft will be lost."}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <button
+                      className="wf-btn wf-btn-danger"
+                      onClick={discard}
+                      type="button"
+                    >
+                      Discard draft
+                    </button>
+                    <button
+                      className={buttonClass}
+                      onClick={() => {
+                        setConfirmDiscard(false);
+                        titleRef.current?.focus();
+                      }}
+                      type="button"
+                    >
+                      Keep editing
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+              <p aria-live="polite" className="wf-hint empty:hidden">
+                {copyMessage}
+              </p>
+            </div>
+            <EditorFooter
+              content={draft.content}
+              saving={state.status === "saving"}
+              failed={state.status === "failed"}
+              saveDisabled={tagIds.length > 20}
+              onCancel={requestClose}
+              onCopy={() => {
+                void copy();
+              }}
+            />
+          </form>
+        </section>
       </WayfinderDialog>
     </>
   );

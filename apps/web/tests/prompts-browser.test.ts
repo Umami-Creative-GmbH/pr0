@@ -17,7 +17,10 @@ const cookies = (Cookie: string) =>
 
 test("browser retains a lost-response draft, reports real clipboard results, retries once and reopens after reload", async () => {
   const account = await promptBrowser();
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     permissions: ["clipboard-read", "clipboard-write"],
@@ -156,7 +159,10 @@ test("an account change in another tab preserves this draft and never saves it i
     promptBrowser(),
     promptBrowser(),
   ]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext();
   try {
     await context.addCookies(cookies(original.Cookie));
@@ -218,7 +224,10 @@ test("browser reaches later pages and keeps an unsaved draft when a changed libr
       })
     )
   );
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext();
   try {
     await context.addCookies(
@@ -281,7 +290,10 @@ test("browser reaches later pages and keeps an unsaved draft when a changed libr
 
 test("browser warns before limits, preserves invalid input and an open draft during list changes", async () => {
   const account = await promptBrowser();
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext({
     viewport: { width: 640, height: 900 },
   });
@@ -313,9 +325,17 @@ test("browser warns before limits, preserves invalid input and an open draft dur
       await page.getByLabel("Content (required)").getAttribute("aria-invalid")
     ).toBe("true");
     await account.mutate([promptOperation()]);
+    // The editor is modal; leave it mounted while reaching the account menu.
+    await page
+      .getByRole("button", { name: "Browse library (keep draft)", exact: true })
+      .click();
+    await page.getByLabel("Account menu", { exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page
       .getByRole("button", { name: "Keep editing", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Resume prompt draft", exact: true })
       .click();
     expect(await page.getByLabel("Title (required)").inputValue()).toBe(
       "🌍".repeat(201)

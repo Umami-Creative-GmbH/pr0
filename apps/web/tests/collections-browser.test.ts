@@ -17,7 +17,10 @@ import {
 } from "./prompt-fixture";
 
 const openLibrary = async (Cookie: string) => {
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext({
     viewport: { width: 640, height: 900 },
   });

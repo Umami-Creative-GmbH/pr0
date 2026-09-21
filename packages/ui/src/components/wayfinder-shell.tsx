@@ -2,7 +2,13 @@
 
 import { Command, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
-import { createContext, use, useState, useSyncExternalStore } from "react";
+import {
+  createContext,
+  use,
+  useState,
+  useSyncExternalStore,
+  useMemo,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { useDismissable } from "../hooks/use-dismissable";
@@ -31,15 +37,26 @@ const readTheme = () => {
 };
 const serverTheme = () => "dark";
 
-const StatusSlot = createContext<HTMLElement | null>(null);
+interface AppBarSlots {
+  status: HTMLElement | null;
+  controls: HTMLElement | null;
+}
+const StatusSlot = createContext<AppBarSlots>({ status: null, controls: null });
 
 /**
  * Renders real library state into the app bar from wherever that state lives,
  * so the shell does not need to own synchronization data.
  */
-export const AppBarStatus = ({ children }: { children: ReactNode }) => {
-  const slot = use(StatusSlot);
-  return slot ? createPortal(children, slot) : null;
+export const AppBarStatus = ({
+  children,
+  slot = "status",
+}: {
+  children: ReactNode;
+  /** `controls` sits after the surface entry point, before theme and account. */
+  slot?: keyof AppBarSlots;
+}) => {
+  const target = use(StatusSlot)[slot];
+  return target ? createPortal(children, target) : null;
 };
 
 export const Wordmark = ({ size }: { size?: "lg" }) => (
@@ -95,6 +112,11 @@ export const WayfinderShell = ({
 }) => {
   const theme = useSyncExternalStore(subscribe, readTheme, serverTheme);
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
+  const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
+  const slots = useMemo(
+    () => ({ status: statusSlot, controls: controlsSlot }),
+    [statusSlot, controlsSlot]
+  );
   const toggleTheme = () => {
     temporaryTheme = theme === "dark" ? "light" : "dark";
     try {
@@ -116,6 +138,7 @@ export const WayfinderShell = ({
           {status}
         </div>
         {desktop ? actions : null}
+        <div className="contents" ref={setControlsSlot} />
         <button
           className="wf-icon-btn"
           data-size="md"
@@ -148,7 +171,7 @@ export const WayfinderShell = ({
           </AppMenu>
         ) : null}
       </header>
-      <StatusSlot value={statusSlot}>{children}</StatusSlot>
+      <StatusSlot value={slots}>{children}</StatusSlot>
     </div>
   );
 };

@@ -34,7 +34,7 @@ export const TagPicker = ({
   return (
     <fieldset disabled={disabled} className="wf-field">
       <legend className={compact ? "sr-only" : "wf-label mb-2"}>{label}</legend>
-      <p hidden={compact} className="wf-hint">
+      <p hidden={compact || !tags.length} className="wf-hint">
         Counts are library-wide, including the archive, for the available
         snapshot.
       </p>
@@ -53,8 +53,11 @@ export const TagPicker = ({
           </button>
         ))}
       </div>
-      <PickerSearch compact={compact} label={label} count={tags.length}>
-        <label className="wf-hint mt-2 block" htmlFor={id}>
+      <PickerSearch count={tags.length}>
+        <label
+          className={compact ? "sr-only" : "wf-hint mt-2 block"}
+          htmlFor={id}
+        >
           Search {label.toLowerCase()}
         </label>
         <input
@@ -62,6 +65,7 @@ export const TagPicker = ({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="mt-1 w-full text-sm"
+          placeholder={compact ? `Search ${label.toLowerCase()}` : undefined}
         />
       </PickerSearch>{" "}
       <div

@@ -45,7 +45,7 @@ export const CollectionPicker = ({
   return (
     <fieldset disabled={disabled} className="wf-field">
       <legend className={compact ? "sr-only" : "wf-label mb-2"}>{label}</legend>
-      <p hidden={compact} className="wf-hint">
+      <p hidden={compact || !collections.length} className="wf-hint">
         Counts are library-wide, including the archive, for the available
         snapshot.
       </p>
@@ -61,13 +61,17 @@ export const CollectionPicker = ({
           </button>
         </div>
       ) : null}
-      <PickerSearch compact={compact} label={label} count={collections.length}>
-        <label className="wf-hint mt-2 block" htmlFor={id}>
+      <PickerSearch count={collections.length}>
+        <label
+          className={compact ? "sr-only" : "wf-hint mt-2 block"}
+          htmlFor={id}
+        >
           Search {label.toLowerCase()}
         </label>
         <input
           id={id}
           className="mt-1 w-full text-sm"
+          placeholder={compact ? `Search ${label.toLowerCase()}` : undefined}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />

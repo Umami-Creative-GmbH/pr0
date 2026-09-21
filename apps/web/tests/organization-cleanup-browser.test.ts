@@ -25,7 +25,10 @@ test("manager requires explicit merge, preserves filters and focus, and confirms
     unused,
     { ...create, desired: { ...create.desired, tagIds: [source.tagId] } },
   ]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -188,7 +191,10 @@ test("collection deletion reviews live assignments and keeps the deleted filter 
   await account.mutate(
     saved.slice(3).map((prompt) => promptState(prompt, "archived", true))
   );
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -297,7 +303,10 @@ test("remote deletion clears actionable detail even when the selected filter has
   });
   await account.mutate(creates.slice(0, 100));
   await account.mutate(creates.slice(100));
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(

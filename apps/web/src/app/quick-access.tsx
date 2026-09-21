@@ -101,18 +101,20 @@ export const QuickAccess = ({
     >
       <div className="wf-launcher">
         <div className="contents" hidden={Boolean(copy.interaction)}>
-          <label className="wf-launcher-search">
+          <div className="wf-launcher-search">
             <Search aria-hidden="true" size={18} />
-            <span className="sr-only">Find and copy a prompt</span>
             <input
+              aria-label="Find and copy a prompt"
               type="search"
               placeholder="Find a prompt and copy it with ↵…"
               value={quick.search.query}
               onChange={(event) => quick.search.changeQuery(event.target.value)}
               onKeyDown={(event) => move(event)}
             />
-            <kbd className="wf-kbd">esc</kbd>
-          </label>
+            <kbd aria-hidden="true" className="wf-kbd">
+              esc
+            </kbd>
+          </div>
           <details className="wf-launcher-filters" open={activeFilters > 0}>
             <summary>
               Filters{activeFilters ? ` (${activeFilters})` : ""}

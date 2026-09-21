@@ -88,7 +88,10 @@ test("records maximum-size five-field search including real debounce and renderi
     }
     rest.push({ query, samples, server });
   }
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const rendering = [];
   try {
     const context = await browser.newContext();

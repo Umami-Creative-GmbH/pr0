@@ -51,6 +51,13 @@ test("designed web library persists edits and theme; quick access retains failed
       .getByRole("button", { name: /^Text professionell umschreiben/u })
       .first()
       .click();
+    await page
+      .getByRole("heading", {
+        name: "Text professionell umschreiben",
+        exact: true,
+      })
+      .waitFor();
+    await page.getByLabel("Saved content").waitFor();
     await page.screenshot({
       path: "docs/evidence/design-75/production-web-light-detail.png",
     });

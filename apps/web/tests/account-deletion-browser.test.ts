@@ -33,7 +33,10 @@ const confirmDeletion = async (page: Page) => {
 
 test("reload recovers the pinned deletion receipt without a surviving session", async () => {
   const account = await freshSocialBrowser();
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     context.setDefaultTimeout(6000);
@@ -74,7 +77,10 @@ test("reload recovers the pinned deletion receipt without a surviving session", 
 test("a delayed old receipt cannot clear another account's unsaved draft", async () => {
   const account = await freshSocialBrowser();
   const nextAccount = await freshSocialBrowser();
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const gate = Promise.withResolvers<undefined>();
   const requested = Promise.withResolvers<undefined>();
   try {
@@ -152,7 +158,10 @@ test("a delayed old receipt cannot clear another account's unsaved draft", async
 
 test("keyboard confirmation can be cancelled and completion clears the browser library", async () => {
   const account = await freshSocialBrowser();
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },

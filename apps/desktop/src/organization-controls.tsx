@@ -50,19 +50,21 @@ export const OrganizationControls = ({
     onEditing(true);
   };
   return (
-    <section aria-label="Collections and tags" className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-2">
-        <div>
-          <h3>Collections</h3>
-          <button
-            type="button"
-            aria-label="Manage collections"
-            className="wf-btn"
-            disabled={disabled}
-            onClick={() => open("collections")}
-          >
-            Manage
-          </button>
+    <section aria-label="Collections and tags" className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
+          <div className="wf-section-head">
+            <h3 className="wf-eyebrow">Collections</h3>
+            <button
+              type="button"
+              aria-label="Manage collections"
+              className="wf-btn-quiet"
+              disabled={disabled}
+              onClick={() => open("collections")}
+            >
+              Manage
+            </button>
+          </div>
           <CollectionPicker
             compact
             collections={snapshot.collections}
@@ -79,17 +81,19 @@ export const OrganizationControls = ({
             }
           />
         </div>
-        <div>
-          <h3>Tags</h3>
-          <button
-            type="button"
-            aria-label="Manage tags"
-            className="wf-btn"
-            disabled={disabled}
-            onClick={() => open("tags")}
-          >
-            Manage
-          </button>
+        <div className="flex flex-col gap-2">
+          <div className="wf-section-head">
+            <h3 className="wf-eyebrow">Tags</h3>
+            <button
+              type="button"
+              aria-label="Manage tags"
+              className="wf-btn-quiet"
+              disabled={disabled}
+              onClick={() => open("tags")}
+            >
+              Manage
+            </button>
+          </div>
           <TagPicker
             compact
             tags={snapshot.tags}
