@@ -18,7 +18,8 @@
     "test": "bun --bun turbo run test",
     "lint": "bun --bun ultracite check",
     "check": "bun --bun ultracite check",
-    "fix": "bun --bun ultracite fix"
+    "fix": "bun --bun ultracite fix",
+    "doctor": "npx react-doctor@latest"
   },
   "devDependencies": {
     "@shadcn/lint": "^0.1.0",
