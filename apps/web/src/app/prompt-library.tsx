@@ -20,6 +20,7 @@ import { PromptContent } from "@pr0/ui/components/prompt-content";
 import { PromptDeleteDialog } from "@pr0/ui/components/prompt-delete-dialog";
 import { PromptHeader, PromptMeta } from "@pr0/ui/components/prompt-header";
 import { RelativeTime } from "@pr0/ui/components/prompt-row";
+import { Toast } from "@pr0/ui/components/toast";
 import {
   EmptyDetail,
   LibraryWorkspace,
@@ -64,6 +65,7 @@ const errorMessage = (error: Error) =>
   error instanceof PromptApiError
     ? error.message
     : "Could not load prompts. Try again.";
+const copiedMessage = "Copied. Usage recorded.";
 const lastUsedLabel = (prompt: Prompt) =>
   prompt.lastUsedAt ? (
     <>
@@ -186,7 +188,7 @@ const PromptDetail = ({
         </button>
         <PromptIconAction
           kind="favorite"
-          label={prompt.favorite ? "Unfavorite prompt" : "Favorite prompt"}
+          label="Favorite prompt"
           active={prompt.favorite}
           disabled={actionsBlocked}
           onClick={() => onAction(prompt, "favorite", !prompt.favorite)}
@@ -792,9 +794,16 @@ export const PromptLibrary = (
           <LibraryCapacity usage={usage} />
         </footer>
         {editing || quickOpen ? null : (
-          <div className="wf-toast">
+          <Toast
+            signal={`${copy.message}:${copy.busy}`}
+            transient={
+              copy.message === copiedMessage &&
+              !copy.retryId &&
+              !copy.usagePending
+            }
+          >
             <PromptCopyStatus copy={copy} />
-          </div>
+          </Toast>
         )}
       </LibraryWorkspace>
     </>

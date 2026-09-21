@@ -2,6 +2,7 @@ import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
+import { Toast } from "@pr0/ui/components/toast";
 import type { ReactNode } from "react";
 
 import type { DownloadStatus } from "./library-client";
@@ -14,6 +15,20 @@ import type { useLifecycle } from "./use-lifecycle";
 
 const usageInToast = (copyMessage: string, usage?: DesktopUsageStatus) =>
   Boolean(copyMessage) || Boolean(usage?.memoryOnly);
+
+/** Only a finished copy with nothing left to act on may leave the screen. */
+const plainSuccess = (
+  copyMessage: string,
+  lifecycle: ReturnType<typeof useLifecycle>,
+  usage?: DesktopUsageStatus
+) =>
+  copyMessage === "Copied." &&
+  !lifecycle.message &&
+  !lifecycle.failed &&
+  !usage?.memoryOnly &&
+  !usage?.waiting &&
+  !usage?.awaitingDownload &&
+  !usage?.error;
 
 export const DownloadedStatus = ({
   status,
@@ -57,7 +72,10 @@ export const DownloadedStatus = ({
   saveFailure?: boolean;
 }) => (
   <>
-    <div className="wf-toast">
+    <Toast
+      signal={`${copyMessage}:${lifecycle.message}`}
+      transient={plainSuccess(copyMessage, lifecycle, usage)}
+    >
       <output>{copyMessage}</output>
       <output>{lifecycle.message}</output>
       {/* Usage feedback accompanies the copy result. Uses held only in memory
@@ -86,7 +104,7 @@ export const DownloadedStatus = ({
           </button>
         </div>
       ) : null}
-    </div>
+    </Toast>
     <LocalLibraryStatus
       saveFailure={saveFailure}
       status={status}

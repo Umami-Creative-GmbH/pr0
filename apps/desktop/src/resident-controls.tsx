@@ -173,25 +173,23 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
   };
   return (
     <ResidentEditorContext value={registerEditor}>
-      <AppBarStatus slot="controls">
+      <AppBarStatus slot="menu">
         <nav aria-label="Desktop controls" className="contents">
           <button
-            aria-label="Settings"
-            className="wf-icon-btn"
-            data-size="md"
+            className="wf-menu-item"
             type="button"
             onClick={() => action("settings")}
           >
             <Settings aria-hidden="true" size={15} />
+            Settings
           </button>
           <button
-            aria-label="Quit pr0"
-            className="wf-icon-btn"
-            data-size="md"
+            className="wf-menu-item"
             type="button"
             onClick={() => action("quit")}
           >
             <Power aria-hidden="true" size={15} />
+            Quit pr0
           </button>
         </nav>
       </AppBarStatus>

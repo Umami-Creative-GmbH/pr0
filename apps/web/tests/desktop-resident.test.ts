@@ -6,6 +6,7 @@ import path from "node:path";
 import { residentStatusSchema } from "@pr0/api-contract/desktop-resident";
 import type { Page } from "playwright";
 
+import { chooseAccountAction } from "./app-menus";
 import { localNativeWorker } from "./local-native-worker";
 import { nativeWebview } from "./native-webview";
 
@@ -17,7 +18,7 @@ const openResidentAction = async (page: Page, name: string) => {
   if (await browse.isVisible()) {
     await browse.click();
   }
-  await page.getByRole("button", { name, exact: true }).click();
+  await chooseAccountAction(page, name);
 };
 
 test("resident quit cancels without losing a draft and saves offline before restart", async () => {
@@ -53,9 +54,7 @@ test("resident quit cancels without losing a draft and saves offline before rest
     await restarted.page
       .getByRole("heading", { name: "Resident draft", exact: true })
       .waitFor();
-    await restarted.page
-      .getByRole("button", { name: "Quit pr0", exact: true })
-      .click();
+    await chooseAccountAction(restarted.page, "Quit pr0");
     expect(await restarted.exited).toBe(0);
   } finally {
     await restarted.stop();
@@ -111,9 +110,7 @@ test("tray-style quit waits for an in-progress local save without a network ackn
     await restarted.page
       .getByRole("heading", { name: "In-flight quit", exact: true })
       .waitFor();
-    await restarted.page
-      .getByRole("button", { name: "Quit pr0", exact: true })
-      .click();
+    await chooseAccountAction(restarted.page, "Quit pr0");
     expect(await restarted.exited).toBe(0);
   } finally {
     await restarted.stop();
@@ -277,7 +274,7 @@ test("cancelling quit while a local save is pending ignores its later completion
     expect(await page.locator("html").getAttribute("data-quit-attempts")).toBe(
       "0"
     );
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await chooseAccountAction(page, "Settings");
     const settings = page.getByRole("dialog", {
       name: "Settings",
       exact: true,
@@ -293,7 +290,7 @@ test("cancelling quit while a local save is pending ignores its later completion
     await page
       .getByRole("button", { name: "Close Settings", exact: true })
       .click();
-    await page.getByRole("button", { name: "Quit pr0", exact: true }).click();
+    await chooseAccountAction(page, "Quit pr0");
     expect(await view.exited).toBe(0);
   } finally {
     await writeFile(control, "");

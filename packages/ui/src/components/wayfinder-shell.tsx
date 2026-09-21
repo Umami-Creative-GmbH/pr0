@@ -40,8 +40,13 @@ const serverTheme = () => "dark";
 interface AppBarSlots {
   status: HTMLElement | null;
   controls: HTMLElement | null;
+  menu: HTMLElement | null;
 }
-const StatusSlot = createContext<AppBarSlots>({ status: null, controls: null });
+const StatusSlot = createContext<AppBarSlots>({
+  status: null,
+  controls: null,
+  menu: null,
+});
 
 /**
  * Renders real library state into the app bar from wherever that state lives,
@@ -52,7 +57,7 @@ export const AppBarStatus = ({
   slot = "status",
 }: {
   children: ReactNode;
-  /** `controls` sits after the surface entry point, before theme and account. */
+  /** `controls` sits before theme and account; `menu` is inside the account menu. */
   slot?: keyof AppBarSlots;
 }) => {
   const target = use(StatusSlot)[slot];
@@ -145,9 +150,10 @@ export const WayfinderShell = ({
   const theme = useTheme();
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
   const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
+  const [menuSlot, setMenuSlot] = useState<HTMLElement | null>(null);
   const slots = useMemo(
-    () => ({ status: statusSlot, controls: controlsSlot }),
-    [statusSlot, controlsSlot]
+    () => ({ status: statusSlot, controls: controlsSlot, menu: menuSlot }),
+    [statusSlot, controlsSlot, menuSlot]
   );
   const desktop = surface === "desktop";
   return (
@@ -162,7 +168,7 @@ export const WayfinderShell = ({
         {desktop ? actions : null}
         <div className="contents" ref={setControlsSlot} />
         <ThemeToggle />
-        {identity || menu ? (
+        {identity || menu || desktop ? (
           <AppMenu
             label="Account menu"
             summary={
@@ -178,6 +184,7 @@ export const WayfinderShell = ({
               </p>
             ) : null}
             {menu}
+            <div className="contents" ref={setMenuSlot} />
           </AppMenu>
         ) : null}
       </header>

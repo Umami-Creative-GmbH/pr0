@@ -151,9 +151,9 @@ test("designed desktop keeps offline persistence, theme and a separate native la
     await launcher.screenshot({
       path: "docs/evidence/design-75/production-native-launcher-light-empty.png",
     });
-    await launcher
-      .getByRole("button", { name: "Switch to dark theme" })
-      .click();
+    // The launcher has no theme control; it follows the main window's choice.
+    await page.getByRole("button", { name: "Switch to dark theme" }).click();
+    await launcher.locator('.wf[data-theme="dark"]').waitFor();
     await launcher.screenshot({
       path: "docs/evidence/design-75/production-native-launcher-dark-empty.png",
     });
