@@ -2,7 +2,10 @@ import type { LauncherStatus } from "@pr0/api-contract/desktop-launcher";
 import { organizationSearch } from "@pr0/api-contract/organization";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
-import { WayfinderShell } from "@pr0/ui/components/wayfinder-shell";
+import {
+  ThemeToggle,
+  WayfinderShell,
+} from "@pr0/ui/components/wayfinder-shell";
 import { accentFor } from "@pr0/ui/lib/present";
 import { Search } from "lucide-react";
 import { StrictMode, useEffect, useEffectEvent, useRef, useState } from "react";
@@ -413,6 +416,7 @@ const LauncherWindow = () => {
             Open library details
           </button>
           <span className="wf-grow" />
+          <ThemeToggle size="sm" />
           <button
             className="wf-btn-quiet"
             type="button"

@@ -59,6 +59,38 @@ export const AppBarStatus = ({
   return target ? createPortal(children, target) : null;
 };
 
+const useTheme = () => useSyncExternalStore(subscribe, readTheme, serverTheme);
+
+/** Switches the theme shared by every pr0 window of this origin. */
+export const ThemeToggle = ({ size = "md" }: { size?: "sm" | "md" }) => {
+  const theme = useTheme();
+  const toggleTheme = () => {
+    temporaryTheme = theme === "dark" ? "light" : "dark";
+    try {
+      localStorage.setItem(themeKey, temporaryTheme);
+      temporaryTheme = undefined;
+    } catch {
+      // Keep a working in-memory theme when browser storage is disabled.
+    }
+    window.dispatchEvent(new Event("pr0-theme"));
+  };
+  return (
+    <button
+      className="wf-icon-btn"
+      data-size={size}
+      type="button"
+      onClick={toggleTheme}
+      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+    >
+      {theme === "dark" ? (
+        <Sun aria-hidden="true" size={15} />
+      ) : (
+        <Moon aria-hidden="true" size={15} />
+      )}
+    </button>
+  );
+};
+
 export const Wordmark = ({ size }: { size?: "lg" }) => (
   <span className="wf-wordmark" data-size={size}>
     pr<span>0</span>
@@ -110,23 +142,13 @@ export const WayfinderShell = ({
   /** Account menu content shown beneath the identity. */
   menu?: ReactNode;
 }) => {
-  const theme = useSyncExternalStore(subscribe, readTheme, serverTheme);
+  const theme = useTheme();
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
   const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
   const slots = useMemo(
     () => ({ status: statusSlot, controls: controlsSlot }),
     [statusSlot, controlsSlot]
   );
-  const toggleTheme = () => {
-    temporaryTheme = theme === "dark" ? "light" : "dark";
-    try {
-      localStorage.setItem(themeKey, temporaryTheme);
-      temporaryTheme = undefined;
-    } catch {
-      // Keep a working in-memory theme when browser storage is disabled.
-    }
-    window.dispatchEvent(new Event("pr0-theme"));
-  };
   const desktop = surface === "desktop";
   return (
     <div className="wf" data-theme={theme} data-surface={surface}>
@@ -139,19 +161,7 @@ export const WayfinderShell = ({
         </div>
         {desktop ? actions : null}
         <div className="contents" ref={setControlsSlot} />
-        <button
-          className="wf-icon-btn"
-          data-size="md"
-          type="button"
-          onClick={toggleTheme}
-          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-        >
-          {theme === "dark" ? (
-            <Sun aria-hidden="true" size={15} />
-          ) : (
-            <Moon aria-hidden="true" size={15} />
-          )}
-        </button>
+        <ThemeToggle />
         {identity || menu ? (
           <AppMenu
             label="Account menu"

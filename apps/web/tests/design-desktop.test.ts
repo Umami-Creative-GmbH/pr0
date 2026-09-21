@@ -123,9 +123,16 @@ test("designed desktop keeps offline persistence, theme and a separate native la
     } finally {
       await releaseClipboard();
     }
+    const previousOpening = await launcher
+      .locator("main")
+      .getAttribute("data-opening");
     await page
       .getByRole("button", { name: "Open quick launcher", exact: true })
       .press("Enter");
+    // Each opening remounts the search; type only into the new one.
+    await launcher
+      .locator(`main:not([data-opening="${previousOpening}"])`)
+      .waitFor();
     await search.fill("Text professionell");
     await launcher
       .getByRole("button", { name: /^Text professionell umschreiben Copy/u })
