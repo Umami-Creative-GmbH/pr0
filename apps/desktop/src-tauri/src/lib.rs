@@ -6,6 +6,7 @@ mod auth_tests;
 mod auth_transport;
 mod change_contract;
 mod clipboard;
+mod deletion_proof;
 mod library_contract;
 mod library_storage;
 mod local_contract;
@@ -153,17 +154,25 @@ pub fn run() {
                 std::thread::spawn(move || {
                     let _ = worker.restore();
                     let mut previous = String::new();
+                    let mut next_check = std::time::Instant::now();
                     loop {
                         let observed = worker.sync_generation();
+                        if std::time::Instant::now() >= next_check {
+                            let _ = worker.refresh();
+                            next_check =
+                                std::time::Instant::now() + std::time::Duration::from_secs(30);
+                        }
                         let _ = worker.library_upload();
                         let _ = worker.library_sync_usage();
                         let state = serde_json::to_string(&(
+                            worker.status(),
                             worker.library_upload_status(),
                             worker.library_status(),
                             worker.library_usage_status(),
                         ))
                         .unwrap_or_default();
                         if state != previous {
+                            let _ = handle.emit("auth-changed", ());
                             let _ = handle.emit("library-changed", ());
                             previous = state;
                         }

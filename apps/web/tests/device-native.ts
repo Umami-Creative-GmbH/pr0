@@ -30,7 +30,7 @@ const resultSchema = z.object({
     message: z.string(),
   }),
 });
-const worker = (
+export const worker = (
   executable: string,
   directory: string,
   certificate: string,
@@ -177,6 +177,14 @@ const verifyNativePeerChanges = async ({
   }
 };
 
+interface NativeSession {
+  native: ReturnType<typeof worker>;
+  page: Page;
+  origin: string;
+  directory: string;
+  traffic: { path: string; body: string }[];
+}
+
 const verifyNativeSuspension = async (
   native: ReturnType<typeof worker>,
   accountId: string
@@ -221,11 +229,11 @@ const verifyNativeSuspension = async (
 };
 
 const finishNativeJourney = async (
-  native: ReturnType<typeof worker>,
-  page: Page,
-  selectedOrigin: string,
-  recovery?: boolean
+  context: NativeSession,
+  recovery: boolean | undefined,
+  afterSession?: (context: NativeSession) => Promise<void>
 ) => {
+  const { native, page, origin: selectedOrigin } = context;
   if (recovery) {
     await verifyNativeRecovery({
       command: (name, args = {}) => native.library(name, z.json(), args),
@@ -236,6 +244,7 @@ const finishNativeJourney = async (
   }
   const refreshed = await native.command("refresh");
   assert.equal(refreshed.state, "signed_in");
+  await afterSession?.(context);
   const signedOut = await native.command("sign_out");
   assert.equal(signedOut.state, "signed_out");
   process.stdout.write(
@@ -252,9 +261,11 @@ export const verifyNativeHttps = async (
     live?: boolean;
     operations?: boolean;
     recovery?: boolean;
+    afterSession?: (context: NativeSession) => Promise<void>;
   } = {}
 ) => {
-  const { download, upload, usage, live, operations, recovery } = scenarios;
+  const { download, upload, usage, live, operations, recovery, afterSession } =
+    scenarios;
   const account = await verifiedBrowser();
   if (download) {
     await seedDownloadCapacity(account.library);
@@ -367,7 +378,8 @@ export const verifyNativeHttps = async (
       native.url(),
       `${selectedOrigin}/device?user_code=${begin.userCode}`
     );
-    const page = await browser.newPage({ ignoreHTTPSErrors: true });
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await context.newPage();
     await page.goto(native.url());
     await page.getByLabel("Email", { exact: true }).fill(account.email);
     await page.getByLabel("Password", { exact: true }).fill(password);
@@ -530,7 +542,17 @@ export const verifyNativeHttps = async (
     if (operations) {
       await verifyNativeSuspension(native, account.library.account.id);
     }
-    await finishNativeJourney(native, page, selectedOrigin, recovery);
+    await finishNativeJourney(
+      {
+        native,
+        page,
+        origin: selectedOrigin,
+        directory: path.join(directory, "state"),
+        traffic,
+      },
+      recovery,
+      afterSession
+    );
   } finally {
     try {
       await native.command("sign_out");
