@@ -176,3 +176,63 @@ fn migration_broken_index_retains_browsing_during_io_failure_then_recovers() {
     drop(service);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn migration_preserves_frozen_envelopes_and_successor_baselines() {
+    for version in [3, 4] {
+        let directory = std::env::temp_dir().join(format!("pr0-migrate-frozen-{}", uuid::Uuid::new_v4()));
+        let transport = upload_fixture(false, false);
+        transport.lose.store(true, std::sync::atomic::Ordering::SeqCst);
+        let vault = Arc::new(Vault::default());
+        let service = downloaded_upload_service(&directory, transport.clone(), vault.clone());
+        let mut request = save_request(&service);
+        let first = service.library_create(request.clone()).unwrap();
+        assert_eq!(service.library_upload().unwrap().error.as_deref(), Some("network_unavailable"));
+        request.operation_id = uuid::Uuid::new_v4().to_string();
+        request.expected_local_revision = Some(first.local_revision);
+        request.desired.content = "  Complete successor ß\n".into();
+        service.library_edit(request.clone()).unwrap();
+        let pending = serde_json::to_value(service.library_pending().unwrap()).unwrap();
+        if version == 4 { service.library_copy(copy_request(&service, "66666666-6666-4666-8666-666666666666"), |_| Ok(())).unwrap(); }
+        drop(service);
+        predecessor(&directory, version);
+        let service = AuthService::new(directory.clone(), transport.clone(), vault).unwrap();
+        assert_eq!(serde_json::to_value(service.library_pending().unwrap()).unwrap(), pending);
+        if version == 4 { assert_eq!(service.library_usage_status().unwrap().waiting, 1); }
+        std::thread::sleep(std::time::Duration::from_millis(service.library_upload_status().unwrap().retry_after_ms + 25));
+        assert!(service.library_upload().unwrap().error.is_none());
+        let traffic = transport.traffic.lock().unwrap();
+        assert!(traffic[1].0);
+        assert_eq!(traffic[0].1, traffic[1].1);
+        drop(traffic);
+        assert_eq!(service.library_detail(&request.prompt_id).unwrap().content, "  Complete successor ß\n");
+        assert_eq!(service.library_pending().unwrap()[1].payload["baseRevision"], "3");
+        drop(service);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
+fn migration_missing_short_postings_rebuilds_and_allows_saving() {
+    let (directory, service, _) = downloaded_change_fixture();
+    let request = save_request(&service);
+    service.library_create(request.clone()).unwrap();
+    let pending = serde_json::to_value(service.library_pending().unwrap()).unwrap();
+    drop(service);
+    let path = super::library_storage::library_path(&directory, &request.instance_id, &request.account_id).unwrap();
+    let db = rusqlite::Connection::open(path).unwrap();
+    db.execute_batch("DROP TABLE local_search_short").unwrap();
+    drop(db);
+    let service = AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+    assert!(service.library_status().unwrap().recovery_error.is_none());
+    assert_eq!(serde_json::to_value(service.library_pending().unwrap()).unwrap(), pending);
+    let mut next = save_request(&service);
+    next.prompt_id = uuid::Uuid::new_v4().to_string();
+    next.operation_id = uuid::Uuid::new_v4().to_string();
+    next.desired.content = "A fresh saved variant".into();
+    service.library_create(next.clone()).unwrap();
+    assert_eq!(service.library_detail(&next.prompt_id).unwrap().content, next.desired.content);
+    assert_eq!(service.library_detail(&request.prompt_id).unwrap().content, request.desired.content);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
