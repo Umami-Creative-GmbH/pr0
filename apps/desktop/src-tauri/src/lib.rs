@@ -5,18 +5,19 @@ mod auth_storage;
 mod auth_tests;
 mod auth_transport;
 mod change_contract;
+mod clipboard;
 mod library_contract;
 mod library_storage;
 mod local_contract;
 mod local_search;
 mod upload_contract;
+mod usage_contract;
 
 use auth::{AuthService, AuthView};
 use auth_storage::WindowsCredentials;
 use auth_transport::HttpsTransport;
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
-use tauri_plugin_clipboard_manager::ClipboardExt;
 
 type ManagedAuth = Result<Arc<AuthService>, String>;
 
@@ -90,8 +91,9 @@ async fn auth_refresh(
 async fn auth_sign_out(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, ManagedAuth>,
+    request: auth_contract::SignOutRequest,
 ) -> Result<AuthView, String> {
-    dispatch(window, state, AuthService::sign_out).await
+    dispatch(window, state, move |service| service.transition(request)).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -122,7 +124,11 @@ pub fn run() {
             library_editor,
             library_create,
             library_edit,
-            library_copy_draft
+            library_copy_draft,
+            library_copy,
+            library_recents,
+            library_usage_status,
+            library_retry_usage
         ])
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
@@ -147,9 +153,11 @@ pub fn run() {
                     loop {
                         let observed = worker.sync_generation();
                         let _ = worker.library_upload();
+                        let _ = worker.library_sync_usage();
                         let state = serde_json::to_string(&(
                             worker.library_upload_status(),
                             worker.library_status(),
+                            worker.library_usage_status(),
                         ))
                         .unwrap_or_default();
                         if state != previous {
@@ -205,6 +213,51 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("pr0 could not start");
+}
+
+#[tauri::command]
+async fn library_copy(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: usage_contract::CopyRequest,
+) -> Result<usage_contract::CopyResult, String> {
+    let _admission = clipboard::admit()?;
+    let app = window.app_handle().clone();
+    let events = app.clone();
+    let result = dispatch(window, state, move |service| {
+        service.library_copy(request, clipboard::write)
+    })
+    .await?;
+    let _ = events.emit("library-changed", ());
+    Ok(result)
+}
+#[tauri::command]
+async fn library_recents(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    offset: u32,
+) -> Result<Vec<library_contract::Summary>, String> {
+    dispatch(window, state, move |service| {
+        service.library_recents(offset)
+    })
+    .await
+}
+#[tauri::command]
+async fn library_usage_status(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<usage_contract::UsageStatus, String> {
+    dispatch(window, state, AuthService::library_usage_status).await
+}
+#[tauri::command]
+async fn library_retry_usage(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<usage_contract::UsageStatus, String> {
+    let app = window.app_handle().clone();
+    let result = dispatch(window, state, AuthService::library_retry_usage).await?;
+    let _ = app.emit("library-changed", ());
+    Ok(result)
 }
 
 #[tauri::command]
@@ -295,13 +348,15 @@ async fn library_copy_draft(
     generation: u64,
     text: String,
 ) -> Result<(), String> {
-    let app = window.app_handle().clone();
+    let _admission = clipboard::admit()?;
     dispatch(window, state, move |service| {
-        service.copy_draft(&instance_id, &account_id, generation, &text, |value| {
-            app.clipboard()
-                .write_text(value)
-                .map_err(|_| "clipboard_unavailable".into())
-        })
+        service.copy_draft(
+            &instance_id,
+            &account_id,
+            generation,
+            &text,
+            clipboard::write,
+        )
     })
     .await
 }

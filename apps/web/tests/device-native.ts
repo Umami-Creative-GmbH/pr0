@@ -7,6 +7,7 @@ import path from "node:path";
 import { uploadStatusSchema } from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
 import { chromium } from "playwright";
+import type { Page } from "playwright";
 import { z } from "zod";
 
 import { runAcceptance } from "./account-test-server";
@@ -17,6 +18,7 @@ import { origin, password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
 import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
 import { verifyNativeUploads } from "./uploads-native";
+import { verifyNativeUsage } from "./usage-native";
 
 const resultSchema = z.object({
   Ok: z.object({
@@ -119,10 +121,65 @@ const worker = (
   };
 };
 
+const verifyNativePeerChanges = async ({
+  executable,
+  directory,
+  certificate,
+  target,
+  page,
+  selectedOrigin,
+  native,
+}: {
+  executable: string;
+  directory: string;
+  certificate: string;
+  target: string;
+  page: Page;
+  selectedOrigin: string;
+  native: ReturnType<typeof worker>;
+}) => {
+  const peer = worker(
+    executable,
+    path.join(directory, "peer"),
+    certificate,
+    `${target}:peer`
+  );
+  try {
+    await peer.command("begin", selectedOrigin);
+    await page.goto(peer.url());
+    await page.getByRole("button", { name: "Approve matching code" }).click();
+    await page
+      .getByText("Desktop approved. Return to pr0 on your computer.")
+      .waitFor();
+    let peerStatus = await peer.command("poll");
+    for (
+      let attempt = 0;
+      peerStatus.state !== "signed_in" && attempt < 12;
+      attempt += 1
+    ) {
+      await Bun.sleep(1000);
+      peerStatus = await peer.command("poll");
+    }
+    assert.equal(peerStatus.state, "signed_in");
+    await verifyNativeChanges({
+      commands: [
+        (command, args = {}) => native.library(command, z.json(), args),
+        (command, args = {}) => peer.library(command, z.json(), args),
+      ],
+      page,
+      origin: selectedOrigin,
+    });
+  } finally {
+    await peer.command("sign_out");
+    await peer.stop();
+  }
+};
+
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
   download = false,
   upload = false,
+  usage = false,
   live = false
 ) => {
   const account = await verifiedBrowser();
@@ -366,43 +423,36 @@ export const verifyNativeHttps = async (
       assert.equal(uploadStatus.waiting, 0);
     }
     if (live) {
-      const peer = worker(
+      await verifyNativePeerChanges({
         executable,
-        path.join(directory, "peer"),
+        directory,
         certificate,
-        `${target}:peer`
-      );
-      try {
-        await peer.command("begin", selectedOrigin);
-        await page.goto(peer.url());
-        await page
-          .getByRole("button", { name: "Approve matching code" })
-          .click();
-        await page
-          .getByText("Desktop approved. Return to pr0 on your computer.")
-          .waitFor();
-        let peerStatus = await peer.command("poll");
-        for (
-          let attempt = 0;
-          peerStatus.state !== "signed_in" && attempt < 12;
-          attempt += 1
-        ) {
-          await Bun.sleep(1000);
-          peerStatus = await peer.command("poll");
-        }
-        assert.equal(peerStatus.state, "signed_in");
-        await verifyNativeChanges({
-          commands: [
-            (command, args = {}) => native.library(command, z.json(), args),
-            (command, args = {}) => peer.library(command, z.json(), args),
-          ],
-          page,
-          origin: selectedOrigin,
-        });
-      } finally {
-        await peer.command("sign_out");
-        await peer.stop();
-      }
+        target,
+        page,
+        selectedOrigin,
+        native,
+      });
+    }
+    if (usage) {
+      await verifyNativeUsage({
+        command: (name, args = {}) => native.library(name, z.json(), args),
+        restart: async () => {
+          await native.stop();
+          native = worker(
+            executable,
+            path.join(directory, "state"),
+            certificate,
+            target
+          );
+          await native.command("status");
+        },
+        lose: () => {
+          loseNextUpload = true;
+        },
+        traffic,
+        page,
+        origin: selectedOrigin,
+      });
     }
     const refreshed = await native.command("refresh");
     assert.equal(refreshed.state, "signed_in");

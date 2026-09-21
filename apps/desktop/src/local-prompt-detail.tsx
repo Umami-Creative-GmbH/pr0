@@ -4,10 +4,14 @@ export const LocalPromptDetail = ({
   value,
   editing,
   onEdit,
+  onCopy,
+  copying,
 }: {
   value: LocalPrompt;
   editing: boolean;
   onEdit: () => void;
+  onCopy: () => void;
+  copying: boolean;
 }) => {
   const { prompt } = value;
   return (
@@ -33,6 +37,9 @@ export const LocalPromptDetail = ({
       </p>
       <button type="button" disabled={editing} onClick={onEdit}>
         Edit prompt
+      </button>
+      <button type="button" disabled={copying} onClick={onCopy}>
+        Copy prompt
       </button>
       {prompt.description ? (
         <p className="whitespace-pre-wrap">{prompt.description}</p>

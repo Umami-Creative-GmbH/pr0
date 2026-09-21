@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     "./changes": "./src/changes.ts",
+    "./desktop-copy": "./src/desktop-copy.ts",
+    "./desktop-session": "./src/desktop-session.ts",
     "./local-prompts": "./src/local-prompts.ts",
     "./variables": "./src/variables.ts",
     "./variable-fixtures": "./src/variable-fixtures.json",

@@ -35,3 +35,17 @@ The native HTTPS journey uses two independent approved sessions, Windows Credent
 | Specification | List focus loss, idle-account retention, stale deleted desktop detail, pre-change read freshness, immediate native poll wakeup | 0 |
 
 Independent reviewers checked the corrections. The fixture can also run only `http`, `browser` or `native` by appending that argument. The browser case repeats three times to exercise startup and renewal concurrency. Transient busy responses from the preexisting account settings requests remain visible in fixture logs; all library freshness and preservation assertions pass.
+
+## Integration with desktop transitions and offline copy
+
+PR #74 was merged with `main` at `2ac68eb` on 2026-09-21. The resolution retains account transitions and offline copy/recents alongside live updates. SQLite migration 4 remains the usage migration from `main`; live change tracking uses migration 5. The upgrade test preserves downloaded content, a saved local prompt, pending usage and recents while resetting freshness for the first live check.
+
+Independent review identified a new ordering race between the live worker and usage acknowledgements. A usage receipt now retires atomically against the already-applied manifest, preventing a received live update from leaving the same copy counted as pending. The regression test failed before the correction and passed afterward.
+
+Validation of the combined tree:
+
+- Frozen-lockfile install, Ultracite fix/check, workspace type checks, workspace tests and both production builds passed. Builds used the CI placeholder API origin.
+- All 66 native tests passed, including migration preservation, change-before-receipt ordering, account transitions and offline usage. Rust formatting and `cargo check --locked` passed; the latter reported a non-fatal incremental-cache permission warning.
+- All six desktop browser/native journeys passed in headless Edge across the combined run and a focused rerun. The sign-out journey initially encountered a preset-server test configuration mismatch and passed after restarting Vite without a preset API origin. Draft preservation, competing windows, conflict copies, remote deletion and offline copy/recents passed in the combined run.
+
+The PostgreSQL/HTTPS live acceptance runner and built WebView2 shell were not rerun for this merge resolution.

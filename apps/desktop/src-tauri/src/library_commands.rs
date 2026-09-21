@@ -8,10 +8,12 @@ impl AuthService {
         text: &str,
         write: impl FnOnce(&str) -> Result<(), String>,
     ) -> Result<(), String> {
+        let _clipboard = self.clipboard.try_lock().map_err(|_| "clipboard_busy")?;
         // No queued overlapping writes, and account transitions cannot race this short OS call.
         let state = self.state.try_lock().map_err(|_| "clipboard_busy")?;
         let retained = state.retained.as_ref().ok_or("authentication_required")?;
         if state.clearing
+            || state.signing_out
             || retained.cleanup_pending
             || generation != state.generation
             || retained.identity.instance.id != instance
@@ -51,7 +53,13 @@ impl AuthService {
         }
         Ok(paths)
     }
-    fn review_library_cleanup(&self, state: &mut State) -> Result<(), String> {
+    fn review_library_cleanup(&self, state: &mut State, discard: bool) -> Result<(), String> {
+        if !discard
+            && !state.memory_usage.is_empty()
+            && !state.retained.as_ref().is_some_and(|r| r.cleanup_pending)
+        {
+            return Err("pending_work".into());
+        }
         let paths = self.library_cleanup_paths(state)?;
         for entry in std::fs::read_dir(&self.directory).map_err(|_| "storage_unavailable")? {
             let entry = entry.map_err(|_| "storage_unavailable")?;
@@ -68,8 +76,11 @@ impl AuthService {
                 return Err("local_data_requires_review".into());
             }
         }
-        // Pending work must survive until account-transition controls can resolve it.
-        if paths.first().is_some_and(|path| path.exists()) {
+        // Accepted receipts already prove server durability, even before a fresh download.
+        if !discard
+            && !state.retained.as_ref().is_some_and(|r| r.cleanup_pending)
+            && paths.first().is_some_and(|path| path.exists())
+        {
             let retained = state.retained.as_ref().ok_or("authentication_required")?;
             if state.library.is_none() {
                 state.library = Some(LibraryStore::open(
@@ -78,13 +89,8 @@ impl AuthService {
                     &retained.identity.account.id,
                 )?);
             }
-            if state
-                .library
-                .as_ref()
-                .ok_or("storage_unavailable")?
-                .pending_count()?
-                > 0
-            {
+            let store = state.library.as_ref().ok_or("storage_unavailable")?;
+            if store.upload_status()?.waiting > 0 || store.usage_status()?.waiting > 0 {
                 return Err("pending_work".into());
             }
         }
@@ -141,6 +147,9 @@ impl AuthService {
         create: bool,
     ) -> Result<super::local_contract::LocalPrompt, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.signing_out {
+            return Err("transition_in_progress".into());
+        }
         let retained = state.retained.as_ref().ok_or("authentication_required")?;
         if state.generation != request.generation
             || retained.identity.instance.id != request.instance_id
@@ -197,6 +206,20 @@ impl AuthService {
             return Err("operation_cancelled".into());
         }
         if let Err(error) = &result {
+            if matches!(endpoint, Endpoint::Snapshot | Endpoint::SnapshotPage)
+                && (matches!(error.as_str(), "network_unavailable" | "request_failed")
+                    || error.starts_with("retry_after:"))
+            {
+                let seconds = error
+                    .strip_prefix("retry_after:")
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .unwrap_or(30)
+                    .clamp(1, 86400);
+                state.next_download = Instant::now()
+                    + Duration::from_millis(
+                        seconds * 1000 + (uuid::Uuid::new_v4().as_u128() % 1000) as u64,
+                    );
+            }
             if error == "authentication_required" {
                 state.credential = None;
                 if let Some(retained) = &mut state.retained {
@@ -226,6 +249,10 @@ impl AuthService {
             if status.complete && !store.refresh_required()? {
                 return Ok(status);
             }
+            if state.next_download > Instant::now() {
+                return Err("download_backoff".into());
+            }
+            let store = self.library(&mut state)?;
             (
                 generation,
                 envelope,
@@ -256,6 +283,12 @@ impl AuthService {
                 let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
                 if state.generation != generation {
                     return Err("operation_cancelled".into());
+                }
+                if self
+                    .library(&mut state)?
+                    .confirm_unchanged_snapshot(&manifest)?
+                {
+                    return self.library(&mut state)?.status();
                 }
                 self.library(&mut state)?.begin(&manifest)?;
                 (manifest, 0)

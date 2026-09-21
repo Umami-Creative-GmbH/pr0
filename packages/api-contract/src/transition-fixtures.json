@@ -1,0 +1,101 @@
+[
+  {
+    "name": "synchronize",
+    "valid": true,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "33333333-3333-4333-8333-333333333333",
+      "generation": 2,
+      "choice": "synchronize",
+      "discardConfirmed": false
+    }
+  },
+  {
+    "name": "cancel",
+    "valid": true,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "33333333-3333-4333-8333-333333333333",
+      "generation": 2,
+      "choice": "cancel",
+      "discardConfirmed": false
+    }
+  },
+  {
+    "name": "explicit discard",
+    "valid": true,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "33333333-3333-4333-8333-333333333333",
+      "generation": 2,
+      "choice": "discard",
+      "discardConfirmed": true
+    }
+  },
+  {
+    "name": "unconfirmed discard",
+    "valid": false,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "33333333-3333-4333-8333-333333333333",
+      "generation": 2,
+      "choice": "discard",
+      "discardConfirmed": false
+    }
+  },
+  {
+    "name": "retry cleanup",
+    "valid": true,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "33333333-3333-4333-8333-333333333333",
+      "generation": 2,
+      "choice": "retry_cleanup",
+      "discardConfirmed": false
+    }
+  },
+  {
+    "name": "missing generation",
+    "valid": false,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "33333333-3333-4333-8333-333333333333",
+      "choice": "discard",
+      "discardConfirmed": true
+    }
+  },
+  {
+    "name": "unknown action",
+    "valid": false,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "33333333-3333-4333-8333-333333333333",
+      "generation": 2,
+      "choice": "force",
+      "discardConfirmed": true
+    }
+  },
+  {
+    "name": "renderer path forbidden",
+    "valid": false,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "33333333-3333-4333-8333-333333333333",
+      "generation": 2,
+      "choice": "discard",
+      "discardConfirmed": true,
+      "path": "C:/"
+    }
+  },
+  {
+    "name": "email is not account identity",
+    "valid": false,
+    "request": {
+      "instanceId": "11111111-1111-4111-8111-111111111111",
+      "accountId": "person@example.com",
+      "generation": 2,
+      "choice": "synchronize",
+      "discardConfirmed": false
+    }
+  }
+]

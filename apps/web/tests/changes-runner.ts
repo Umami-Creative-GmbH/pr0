@@ -37,7 +37,7 @@ try {
     ]);
   }
   if (!selected || selected === "native") {
-    await verifyNativeHttps(server, false, false, true);
+    await verifyNativeHttps(server, false, false, false, true);
   }
 } catch (error) {
   await runAcceptance([

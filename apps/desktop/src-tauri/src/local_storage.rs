@@ -60,7 +60,7 @@ impl LibraryStore {
     }
     pub fn pending_count(&self) -> Result<u32, String> {
         self.db
-            .query_row("SELECT count(*) FROM outbox", [], |r| r.get(0))
+            .query_row("SELECT (SELECT count(*) FROM outbox)+(SELECT count(*) FROM pending_usage)", [], |r| r.get(0))
             .map_err(io)
     }
     pub fn local_detail(&self, id: &str) -> Result<super::local_contract::LocalPrompt, String> {

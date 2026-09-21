@@ -331,7 +331,9 @@ fn offline_command_worker() {
         }
         let result: Result<serde_json::Value, String> = match input["command"].as_str().unwrap() {
             "auth_status" => service.status().map(|v| json!(v)),
-            "auth_sign_out" => service.sign_out().map(|v| json!(v)),
+            "auth_sign_out" => serde_json::from_value(input["request"].clone())
+                .map_err(|_| "invalid_transition".to_string())
+                .and_then(|request| service.transition(request)).map(|v| json!(v)),
             "library_status" => service.library_status().map(|v| json!(v)),
             "library_browse" => service
                 .library_browse(input["offset"].as_u64().unwrap_or(0) as u32)
@@ -368,6 +370,7 @@ fn offline_command_worker() {
                     |_| Ok(()),
                 )
                 .map(|_| json!(null)),
+            "library_copy"|"library_recents"|"library_usage_status"|"library_retry_usage"|"test_clipboard_text"=>usage_test_command(&service,&input),
             _ => Err("network_unavailable".into()),
         };
         println!("RESULT:{}", serde_json::to_string(&result).unwrap());

@@ -69,6 +69,12 @@ impl Transport for UploadFixture {
                     );
                 }
                 let mut receipt = json!({"status":"accepted","operationId":operation["operationId"],"promptId":operation["promptId"],"revision":"3","acceptedAt":"2026-09-20T12:00:00.000Z"});
+                if operation["kind"] == "prompt.use" {
+                    receipt["usedAt"] = json!(operation["occurredAt"]
+                        .as_str()
+                        .unwrap()
+                        .min("2026-09-20T12:00:00.000Z"));
+                }
                 if self.conflict && operation["promptId"] != "99999999-9999-4999-8999-999999999999"
                 {
                     receipt["conflict"] = json!({"copyId":"99999999-9999-4999-8999-999999999999","noticeId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"});

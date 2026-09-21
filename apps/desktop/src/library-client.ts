@@ -1,5 +1,11 @@
 import { changeStatusSchema } from "@pr0/api-contract/changes";
 import {
+  desktopCopySchema,
+  desktopCopyResultSchema,
+  desktopUsageStatusSchema,
+} from "@pr0/api-contract/desktop-copy";
+import type { DesktopCopy } from "@pr0/api-contract/desktop-copy";
+import {
   localPromptSchema,
   localSaveSchema,
   uploadStatusSchema,
@@ -34,6 +40,28 @@ export const libraryClient = {
   },
   changeStatus: async () =>
     changeStatusSchema.parse(await invoke("library_change_status")),
+  copy: async (request: DesktopCopy) => {
+    const input = desktopCopySchema.parse(request);
+    const result = desktopCopyResultSchema.safeParse(
+      await invoke("library_copy", { request: input })
+    );
+    if (
+      !result.success ||
+      result.data.origin.instanceId !== input.instanceId ||
+      result.data.origin.accountId !== input.accountId ||
+      result.data.origin.generation !== input.generation ||
+      result.data.origin.promptId !== input.promptId
+    ) {
+      throw new Error("copy_uncertain");
+    }
+    return result.data;
+  },
+  recents: async (offset: number) =>
+    summariesSchema.parse(await invoke("library_recents", { offset })),
+  usageStatus: async () =>
+    desktopUsageStatusSchema.parse(await invoke("library_usage_status")),
+  retryUsage: async () =>
+    desktopUsageStatusSchema.parse(await invoke("library_retry_usage")),
   upload: async () => uploadStatusSchema.parse(await invoke("library_upload")),
   uploadStatus: async () =>
     uploadStatusSchema.parse(await invoke("library_upload_status")),
@@ -80,6 +108,9 @@ export const libraryClient = {
 };
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
 export const downloadError = (error: unknown) => {
+  if (error === "download_backoff") {
+    return "Download paused after a connection or server error. Saved prompts remain available; retry shortly.";
+  }
   if (error === "request_failed") {
     return "The server could not complete the download. Retry later; downloaded prompts are preserved.";
   }
