@@ -645,6 +645,83 @@ const OrganizationNameForm = ({
   </form>
 );
 
+type OrganizationConfirmationState = NonNullable<
+  ReturnType<typeof useOrganizationManager>["confirmation"]
+>;
+
+const PendingOrganizationConfirmation = ({
+  confirmation,
+  busy,
+  entity,
+  onConfirm,
+  onCancel,
+}: {
+  confirmation: OrganizationConfirmationState | undefined;
+  busy: boolean;
+  entity: string;
+  onConfirm: (selected: OrganizationConfirmationState) => void;
+  onCancel: () => void;
+}) => {
+  if (!confirmation) {
+    return null;
+  }
+  return (
+    <OrganizationConfirmation
+      confirmation={confirmation}
+      busy={busy}
+      entity={entity}
+      onConfirm={() => onConfirm(confirmation)}
+      onCancel={onCancel}
+    />
+  );
+};
+
+const SelectedOrganizationReview = ({
+  result,
+  snapshot,
+}: {
+  result: { id: string; effect: OrganizationLocalImpact["effect"] } | undefined;
+  snapshot: LocalOrganization;
+}) => {
+  if (!result) {
+    return null;
+  }
+  return (
+    <OrganizationReview
+      operationId={result.id}
+      effect={result.effect}
+      snapshot={snapshot}
+    />
+  );
+};
+
+const OrganizationDiscardConfirmation = ({
+  open,
+  onDiscard,
+  onContinue,
+}: {
+  open: boolean;
+  onDiscard: () => void;
+  onContinue: () => void;
+}) => {
+  if (!open) {
+    return null;
+  }
+  return (
+    <section aria-label="Discard unsaved name">
+      <p>
+        Discard this unsaved name? Saved pending work remains on this device.
+      </p>
+      <button type="button" className={button} onClick={onDiscard}>
+        Discard name
+      </button>
+      <button type="button" className={button} onClick={onContinue}>
+        Keep editing
+      </button>
+    </section>
+  );
+};
+
 export const OrganizationManager = (props: ManagerProps) => {
   const { snapshot, onClose } = props;
   const {
@@ -760,53 +837,32 @@ export const OrganizationManager = (props: ManagerProps) => {
         }}
       />
       {replaces ? <p>Correcting a saved change that needs attention.</p> : null}
-      {confirmation ? (
-        <OrganizationConfirmation
-          confirmation={confirmation}
-          busy={busy}
-          entity={entity}
-          onConfirm={() => {
-            void save(
-              confirmation.action,
-              confirmation.impact.localRevision,
-              confirmation.replaces
-            );
-          }}
-          onCancel={() => setConfirmation(undefined)}
-        />
-      ) : null}
+      <PendingOrganizationConfirmation
+        confirmation={confirmation}
+        busy={busy}
+        entity={entity}
+        onConfirm={(selected) => {
+          void save(
+            selected.action,
+            selected.impact.localRevision,
+            selected.replaces
+          );
+        }}
+        onCancel={() => setConfirmation(undefined)}
+      />
       <SavedOrganizationChanges
         effects={snapshot.effects}
         onReview={setResult}
       />
-      {result ? (
-        <OrganizationReview
-          operationId={result.id}
-          effect={result.effect}
-          snapshot={snapshot}
-        />
-      ) : null}
+      <SelectedOrganizationReview result={result} snapshot={snapshot} />
       <button type="button" className={button} disabled={busy} onClick={close}>
         Close
       </button>
-      {discard ? (
-        <section aria-label="Discard unsaved name">
-          <p>
-            Discard this unsaved name? Saved pending work remains on this
-            device.
-          </p>
-          <button type="button" className={button} onClick={onClose}>
-            Discard name
-          </button>
-          <button
-            type="button"
-            className={button}
-            onClick={() => setDiscard(false)}
-          >
-            Keep editing
-          </button>
-        </section>
-      ) : null}
+      <OrganizationDiscardConfirmation
+        open={discard}
+        onDiscard={onClose}
+        onContinue={() => setDiscard(false)}
+      />
     </dialog>
   );
 };
