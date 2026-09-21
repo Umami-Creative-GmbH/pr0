@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 include!("local_tests.rs");
 include!("upload_tests.rs");
 include!("usage_tests.rs");
+include!("transition_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     serde_json::from_str(include_str!(

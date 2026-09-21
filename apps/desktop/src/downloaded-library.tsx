@@ -3,7 +3,6 @@ import type {
   LocalPrompt,
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DownloadedRows } from "./downloaded-rows";
@@ -15,16 +14,24 @@ import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
 import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
+import { useLibraryRefresh } from "./use-library-refresh";
 import { usePromptCopy } from "./use-prompt-copy";
+
+const editorIsBlocked = (editing: boolean, transition: boolean) =>
+  editing || transition;
 
 export const DownloadedLibrary = ({
   signedIn,
   refreshAuth,
   account,
+  editingDisabled,
+  onEditing,
 }: {
   account: Status;
   signedIn: boolean;
-  refreshAuth: (command: "auth_status") => Promise<void>;
+  refreshAuth: (command: "auth_status") => Promise<Status | undefined>;
+  editingDisabled: boolean;
+  onEditing: (editing: boolean) => void;
 }) => {
   const [status, setStatus] = useState<DownloadStatus>();
   const [upload, setUpload] = useState<UploadStatus>();
@@ -38,7 +45,9 @@ export const DownloadedLibrary = ({
   const [retry, setRetry] = useState(0);
   const [usage, setUsage] = useState<DesktopUsageStatus>();
   const [recents, setRecents] = useState(false);
-  const copy = usePromptCopy(account, () => setRetry((value) => value + 1));
+  const refreshLibrary = useCallback(() => setRetry((value) => value + 1), []);
+  const copy = usePromptCopy(account, refreshLibrary);
+  useLibraryRefresh(refreshLibrary);
   const alive = useRef(true);
   const selection = useRef(0);
   const browseRequest = useRef(0);
@@ -64,30 +73,6 @@ export const DownloadedLibrary = ({
     alive.current = true;
     return () => {
       alive.current = false;
-    };
-  }, []);
-  useEffect(() => {
-    let disposed = false;
-    let stop: (() => void) | undefined;
-    const refresh = () => setRetry((value) => value + 1);
-    const subscribe = async () => {
-      try {
-        const unlisten = await listen("library-changed", refresh);
-        if (disposed) {
-          unlisten();
-        } else {
-          stop = unlisten;
-        }
-      } catch {
-        // Focus and explicit retry still refresh authoritative state if event registration fails.
-      }
-    };
-    void subscribe();
-    window.addEventListener("focus", refresh);
-    return () => {
-      disposed = true;
-      stop?.();
-      window.removeEventListener("focus", refresh);
     };
   }, []);
   useEffect(() => {
@@ -246,8 +231,11 @@ export const DownloadedLibrary = ({
       <button
         type="button"
         className="rounded border px-4 py-2"
-        disabled={Boolean(editor)}
-        onClick={() => setEditor({})}
+        disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+        onClick={() => {
+          setEditor({});
+          onEditing(true);
+        }}
       >
         New prompt
       </button>
@@ -259,11 +247,15 @@ export const DownloadedLibrary = ({
             void open(id);
           }}
           account={account}
-          onCancel={() => setEditor(undefined)}
+          onCancel={() => {
+            setEditor(undefined);
+            onEditing(false);
+          }}
           onSaved={(value) => {
             selectedPrompt.current = value.prompt.id;
             selection.current += 1;
             setEditor(undefined);
+            onEditing(false);
             setLocalDetail(value);
             setRetry((count) => count + 1);
           }}
@@ -287,7 +279,7 @@ export const DownloadedLibrary = ({
         rows={rows}
         offset={offset}
         recents={recents}
-        copying={copy.busy}
+        copying={copy.busy || editingDisabled}
         onOpen={open}
         onCopy={copy.handleCopy}
         onBrowse={browse}
@@ -295,9 +287,12 @@ export const DownloadedLibrary = ({
       {localDetail ? (
         <LocalPromptDetail
           value={localDetail}
-          editing={Boolean(editor)}
-          onEdit={() => setEditor({ initial: localDetail })}
-          copying={copy.busy}
+          editing={editorIsBlocked(Boolean(editor), editingDisabled)}
+          onEdit={() => {
+            setEditor({ initial: localDetail });
+            onEditing(true);
+          }}
+          copying={copy.busy || editingDisabled}
           onCopy={() => {
             void copy.handleCopy(localDetail.prompt.id);
           }}

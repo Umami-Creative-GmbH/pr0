@@ -108,7 +108,8 @@ impl AuthService {
         let _clipboard = self.clipboard.try_lock().map_err(|_| "clipboard_busy")?;
         let mut state = self.state.try_lock().map_err(|_| "clipboard_busy")?;
         let retained = state.retained.as_ref().ok_or("authentication_required")?;
-        if request.generation != state.generation
+        if state.signing_out
+            || request.generation != state.generation
             || request.instance_id != retained.identity.instance.id
             || request.account_id != retained.identity.account.id
         {

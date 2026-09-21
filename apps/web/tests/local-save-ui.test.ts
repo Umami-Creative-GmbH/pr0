@@ -72,7 +72,10 @@ const connect = async (
 test("desktop editor retains a disk-full draft then commits and reopens pending text through native commands", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-save-ui-"));
   let native = await localNativeWorker(directory);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    headless: true,
+  });
   let fault = "disk_full";
   try {
     const page = await browser.newPage();
@@ -124,7 +127,7 @@ test("desktop editor retains a disk-full draft then commits and reopens pending 
       await page
         .getByRole("button", { name: "Sign out or change server" })
         .isEnabled()
-    ).toBe(false);
+    ).toBe(true);
     await page.screenshot({
       path: ".scratch/issue41-offline-save.png",
       fullPage: true,
@@ -148,10 +151,102 @@ test("desktop editor retains a disk-full draft then commits and reopens pending 
   }
 }, 60_000);
 
+test("settings cancel, failed synchronization and explicit offline discard preserve the correct library across restart", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-transition-ui-"));
+  let native = await localNativeWorker(directory);
+  const browser = await chromium.launch({
+    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    headless: true,
+  });
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(10_000);
+    await connect(page, native, () => "");
+    await page.getByRole("button", { name: "New prompt", exact: true }).click();
+    await page
+      .getByLabel("Title", { exact: true })
+      .fill("Pending during sign-out");
+    await page
+      .getByLabel("Content", { exact: true })
+      .fill("Keep my exact pending text\n");
+    expect(
+      await page
+        .getByRole("button", { name: "Sign out or change server" })
+        .isDisabled()
+    ).toBe(true);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByText("Saved on this device", { exact: true }).waitFor();
+    await page
+      .getByRole("button", { name: "Sign out or change server" })
+      .click();
+    await page
+      .getByRole("button", { name: "Cancel sign-out", exact: true })
+      .click();
+    expect(await page.getByLabel("Prompt content").inputValue()).toBe(
+      "Keep my exact pending text\n"
+    );
+    await page
+      .getByRole("button", { name: "Sign out or change server" })
+      .click();
+    await page
+      .getByRole("button", { name: "Synchronize first and sign out" })
+      .click();
+    await page
+      .getByText("Synchronization did not complete.", { exact: false })
+      .waitFor();
+    expect(await page.getByLabel("Prompt content").inputValue()).toBe(
+      "Keep my exact pending text\n"
+    );
+    await page.close();
+    await native.stop();
+    native = await localNativeWorker(directory);
+    const reopened = await browser.newPage();
+    await connect(reopened, native, () => "");
+    await reopened
+      .getByRole("button", { name: "Pending during sign-out", exact: true })
+      .click();
+    expect(await reopened.getByLabel("Prompt content").inputValue()).toBe(
+      "Keep my exact pending text\n"
+    );
+    await reopened
+      .getByRole("button", { name: "Sign out or change server" })
+      .click();
+    const discard = reopened.getByRole("button", {
+      name: "Discard local work and sign out",
+    });
+    expect(await discard.isDisabled()).toBe(true);
+    await reopened
+      .getByLabel(
+        "I understand that pending changes on this device will be lost"
+      )
+      .check();
+    await reopened.screenshot({
+      path: ".scratch/issue48-sign-out.png",
+      fullPage: true,
+    });
+    await discard.click();
+    await reopened
+      .getByRole("heading", { name: "Sign in to pr0", exact: true })
+      .waitFor();
+    await reopened
+      .getByText("Server revocation could not be confirmed", { exact: false })
+      .waitFor();
+    expect(await reopened.getByLabel("Downloaded library").count()).toBe(0);
+    expect(await reopened.getByLabel("HTTPS server").isEditable()).toBe(true);
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);
+
 test("two desktop windows keep competing drafts and an older save acknowledgement cannot certify newer typing", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-two-window-"));
   const native = await localNativeWorker(directory);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    headless: true,
+  });
   const { promise: held, resolve: release } =
     Promise.withResolvers<undefined>();
   let delay = false;
@@ -258,7 +353,10 @@ test("two desktop windows keep competing drafts and an older save acknowledgemen
 test("an open draft follows its conflict copy without replacing text and offers the retained original", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-upload-ui-"));
   const native = await localNativeWorker(directory, true);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    headless: true,
+  });
   try {
     const page = await browser.newPage();
     await connect(page, native, () => "");
