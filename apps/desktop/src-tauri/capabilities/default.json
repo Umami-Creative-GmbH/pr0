@@ -4,6 +4,7 @@
   "description": "Local main-window account commands only. Remote content has no native permissions.",
   "windows": ["main"],
   "permissions": [
+    "allow-copy-template",
     "allow-launcher-status",
     "allow-launcher-open",
     "allow-launcher-retry-shortcut",

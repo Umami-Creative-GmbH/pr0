@@ -122,8 +122,9 @@ bun run fix
 bun run typecheck
 bun run test
 bun run build
-cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
 ```
+
+`bun run check` and `bun run fix` include desktop Rust formatting as well as Ultracite. Install Rust through rustup; `rust-toolchain.toml` pins Rust 1.94.0 with rustfmt to match CI. Use `bun run check:rust` or `bun run fix:rust` for Rust formatting alone. For frontend-only work without Rust, use `bun run lint` or `bun x --bun ultracite fix`.
 
 Ultracite/Oxlint/Oxfmt configuration stays at the root. Tests use Bun's built-in runner. The narrow lint exceptions for the generated shadcn button preserve its standard component/variant exports and theme calculations. Native binaries, frontend output, caches, local environments and generated Tauri schemas are ignored. Commit both `bun.lock` and the desktop `Cargo.lock`.

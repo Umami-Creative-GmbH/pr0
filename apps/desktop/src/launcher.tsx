@@ -7,9 +7,10 @@ import type { KeyboardEvent } from "react";
 import { createRoot } from "react-dom/client";
 
 import { launcherClient } from "./launcher-client";
+import { PromptVariables } from "./prompt-variables";
 import { useLauncherStatus } from "./use-launcher-status";
 import { useLocalSearch } from "./use-local-search";
-import { copyError } from "./use-prompt-copy";
+import { usePromptCopy } from "./use-prompt-copy";
 
 import "./styles.css";
 
@@ -99,28 +100,24 @@ const LauncherSearch = ({
   const search = useLocalSearch(account, revision, select, "launcher");
   const input = useRef<HTMLInputElement>(null);
   const rows = useRef(new Map<string, HTMLButtonElement>());
-  const writing = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [copyMessage, setCopyMessage] = useState("");
+  const copying = usePromptCopy(
+    account,
+    () => {
+      // Native copy success hides this opening and publishes the library change.
+    },
+    status.opening
+  );
+  const { busy, message: copyMessage } = copying;
   useEffect(() => {
-    if (status.focused) {
+    if (status.focused && !copying.interaction) {
       input.current?.focus();
     }
-  }, [status.focused]);
+  }, [status.focused, copying.interaction]);
   const copy = async (id: string) => {
-    if (writing.current || search.busy) {
+    if (busy || search.busy) {
       return;
     }
-    writing.current = true;
-    setBusy(true);
-    setCopyMessage("");
-    try {
-      await launcherClient.copy({ ...account, promptId: id }, status.opening);
-    } catch (error) {
-      setCopyMessage(copyError(error));
-    }
-    writing.current = false;
-    setBusy(false);
+    await copying.handleCopy(id);
   };
   const move = (event: KeyboardEvent, id?: string) => {
     if (search.busy) {
@@ -151,6 +148,7 @@ const LauncherSearch = ({
   };
   return (
     <section aria-label="Find and copy" className="space-y-3">
+      <PromptVariables copy={copying} />
       <label className="block">
         Search prompts
         <input
