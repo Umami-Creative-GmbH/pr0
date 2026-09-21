@@ -30,6 +30,9 @@ export const uploadLabel = (
   return pending ? "Changes waiting to sync" : "Library status";
 };
 export const uploadFailureMessage = (code: string) => {
+  if (code === "recovery_required") {
+    return "The server was restored. This saved variant needs your review before recovery. Copy its text into a new prompt to preserve it separately; the original pending identity is retained.";
+  }
   if (code === "quota_exceeded") {
     return "Server capacity reached. Free capacity and retry; archiving does not free capacity. Your text remains available to edit or copy.";
   }
