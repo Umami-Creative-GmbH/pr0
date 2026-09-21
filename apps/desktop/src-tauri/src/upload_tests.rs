@@ -63,7 +63,7 @@ impl Transport for UploadFixture {
                     return Err("network_unavailable".into());
                 }
                 let operation = &body["operations"][0];
-                if self.quota && operation["desired"]["content"] == "Refused" {
+                if self.quota && (operation["desired"]["content"] == "Refused" || operation["kind"] == "prompt.delete") {
                     return Ok(
                         json!({"results":[{"status":"rejected","error":{"operationId":operation["operationId"],"code":"quota_exceeded","message":"Free capacity","retryable":true}}]}),
                     );

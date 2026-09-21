@@ -126,6 +126,27 @@ impl AuthService {
     ) -> Result<super::local_contract::LocalPrompt, String> {
         self.save_prompt(request, true)
     }
+    pub fn library_lifecycle(&self, request: super::lifecycle_contract::LifecycleRequest) -> Result<super::lifecycle_contract::LifecycleResult,String> {
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.signing_out { return Err("transition_in_progress".into()); }
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if state.generation != request.generation || retained.identity.instance.id != request.instance_id || retained.identity.account.id != request.account_id {
+            return Err("operation_cancelled".into());
+        }
+        let result = self.library(&mut state)?.lifecycle(request);
+        if result.is_err() { state.library = None; }
+        result
+    }
+    pub fn library_recover(&self, request: super::lifecycle_contract::RecoveryRequest) -> Result<(),String> {
+        let _worker = self.upload.try_lock().map_err(|_| "upload_in_progress")?;
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.signing_out { return Err("transition_in_progress".into()); }
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if state.generation != request.generation || retained.identity.instance.id != request.instance_id || retained.identity.account.id != request.account_id { return Err("operation_cancelled".into()); }
+        let result = self.library(&mut state)?.recover(request);
+        if result.is_err() { state.library = None; }
+        result
+    }
     pub fn library_edit(
         &self,
         request: super::local_contract::SaveRequest,
@@ -166,6 +187,14 @@ impl AuthService {
     pub fn library_browse(&self, offset: u32) -> Result<Vec<Summary>, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
         self.library(&mut state)?.browse(offset)
+    }
+    pub fn library_list(&self,offset:u32,view:super::lifecycle_contract::LibraryView)->Result<Vec<Summary>,String> {
+        let mut state=self.state.lock().map_err(|_|"state_unavailable")?;
+        self.library(&mut state)?.list(offset,view)
+    }
+    pub fn library_retained_prompt(&self,id:&str)->Result<Prompt,String> {
+        let mut state=self.state.lock().map_err(|_|"state_unavailable")?;
+        self.library(&mut state)?.retained_prompt(id)
     }
     pub fn library_detail(&self, id: &str) -> Result<Prompt, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;

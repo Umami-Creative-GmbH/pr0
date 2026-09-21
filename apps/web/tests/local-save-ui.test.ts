@@ -464,3 +464,85 @@ test("a remote deletion clears the saved desktop detail while preserving its ope
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("desktop lifecycle preserves an archived favorite, duplicates its snapshot and cancels deletion", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-lifecycle-ui-"));
+  const native = await localNativeWorker(directory);
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(10_000);
+    await connect(page, native, () => "");
+    await page.getByRole("button", { name: "New prompt", exact: true }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Lifecycle example");
+    await page
+      .getByLabel("Content", { exact: true })
+      .fill("  Original snapshot\n");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const detail = page.getByRole("article", { name: "Prompt detail" });
+    await detail.getByRole("button", { name: "Favorite", exact: true }).click();
+    await detail.getByRole("button", { name: "Archive", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Library views" })
+      .getByRole("button", { name: "Archive", exact: true })
+      .click();
+    await page
+      .getByRole("button", {
+        name: "Lifecycle example (Archived)",
+        exact: true,
+      })
+      .click();
+    await detail
+      .getByRole("button", { name: "Duplicate", exact: true })
+      .click();
+    await detail
+      .getByRole("heading", { name: "Lifecycle example (copy)", exact: true })
+      .waitFor();
+    expect(await page.getByLabel("Prompt content").inputValue()).toBe(
+      "  Original snapshot\n"
+    );
+    await detail
+      .getByRole("button", { name: "Delete permanently", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    expect(await page.getByLabel("Prompt content").inputValue()).toBe(
+      "  Original snapshot\n"
+    );
+    await detail
+      .getByRole("button", { name: "Delete permanently", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Permanently delete", exact: true })
+      .click();
+    await page
+      .getByText("Saved on this device. Deletion is waiting to sync.", {
+        exact: true,
+      })
+      .waitFor();
+    await page
+      .getByRole("button", {
+        name: "Lifecycle example (Archived)",
+        exact: true,
+      })
+      .click();
+    await detail.getByRole("button", { name: "Restore", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Library views" })
+      .getByRole("button", { name: "Favorites", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Lifecycle example", exact: true })
+      .waitFor();
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

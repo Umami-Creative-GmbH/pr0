@@ -5,7 +5,10 @@ import { chromium } from "playwright";
 import fixture from "../../../packages/api-contract/src/snapshot-fixtures.json";
 
 test("partial desktop download remains browsable with honest offline progress and keyboard detail", async () => {
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    headless: true,
+  });
   try {
     const page = await browser.newPage();
     await page.addInitScript(({ manifest, pages }) => {
@@ -45,6 +48,7 @@ test("partial desktop download remains browsable with honest offline progress an
               return Promise.resolve({
                 waiting: 0,
                 awaitingDownload: 0,
+                pending: [],
                 error: null,
                 retryAfterMs: 0,
                 errors: [],
@@ -69,7 +73,7 @@ test("partial desktop download remains browsable with honest offline progress an
                 accountId: manifest.accountId,
               });
             }
-            if (command === "library_browse") {
+            if (command === "library_browse" || command === "library_list") {
               return Promise.resolve(
                 downloaded
                   ? [{ id: prompt.id, title: prompt.title, archived: false }]

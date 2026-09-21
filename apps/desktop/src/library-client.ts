@@ -9,8 +9,16 @@ import {
   localPromptSchema,
   localSaveSchema,
   uploadStatusSchema,
+  localLifecycleSchema,
+  lifecycleResultSchema,
+  localRecoverySchema,
 } from "@pr0/api-contract/local-prompts";
-import type { LocalSave } from "@pr0/api-contract/local-prompts";
+import type {
+  LocalSave,
+  LocalLifecycle,
+  LocalRecovery,
+  LocalView,
+} from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
@@ -35,6 +43,32 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  retained: async (id: string) =>
+    promptSchema.parse(await invoke("library_retained_prompt", { id })),
+  lifecycle: async (request: LocalLifecycle) => {
+    const input = localLifecycleSchema.parse(request);
+    const result = lifecycleResultSchema.safeParse(
+      await invoke("library_lifecycle", { request: input })
+    );
+    const target =
+      input.action.kind === "duplicate" ? input.action.copyId : input.promptId;
+    if (!result.success || result.data.promptId !== target) {
+      throw new Error("commit_uncertain");
+    }
+    return result.data;
+  },
+  recover: async (request: LocalRecovery) => {
+    await invoke("library_recover", {
+      request: localRecoverySchema.parse(request),
+    });
+  },
+  list: async (offset: number, view: LocalView) =>
+    summariesSchema.parse(
+      await invoke(view === "recents" ? "library_recents" : "library_list", {
+        offset,
+        view,
+      })
+    ),
   sync: async () => {
     await invoke("library_sync");
   },

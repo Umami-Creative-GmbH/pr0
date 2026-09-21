@@ -6,6 +6,7 @@ include!("upload_tests.rs");
 include!("change_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
+include!("lifecycle_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     serde_json::from_str(include_str!(
@@ -544,6 +545,21 @@ fn live_https_worker() {
             "sign_out" => service.sign_out().map(|value| json!(value)),
             "refresh" => service.refresh().map(|value| json!(value)),
             "library_status" => service.library_status().map(|value| json!(value)),
+            "library_lifecycle" => service
+                .library_lifecycle(serde_json::from_value(input["request"].clone()).unwrap())
+                .map(|v| json!(v)),
+            "library_recover" => service
+                .library_recover(serde_json::from_value(input["request"].clone()).unwrap())
+                .map(|v| json!(v)),
+            "library_retained_prompt" => service
+                .library_retained_prompt(input["id"].as_str().unwrap())
+                .map(|v| json!(v)),
+            "library_list" => service
+                .library_list(
+                    input["offset"].as_u64().unwrap_or(0) as u32,
+                    serde_json::from_value(input["view"].clone()).unwrap(),
+                )
+                .map(|v| json!(v)),
             "library_download" => service.library_download().map(|value| json!(value)),
             "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
             "library_change_status" => service.library_change_status().map(|v| json!(v)),

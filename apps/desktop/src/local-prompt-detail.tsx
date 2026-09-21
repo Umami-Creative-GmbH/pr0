@@ -1,4 +1,9 @@
-import type { LocalPrompt } from "@pr0/api-contract/local-prompts";
+import type {
+  LifecycleAction,
+  LocalPrompt,
+} from "@pr0/api-contract/local-prompts";
+
+import { LifecycleActions } from "./lifecycle-actions";
 
 export const LocalPromptDetail = ({
   value,
@@ -6,12 +11,14 @@ export const LocalPromptDetail = ({
   onEdit,
   onCopy,
   copying,
+  onAction,
 }: {
   value: LocalPrompt;
   editing: boolean;
   onEdit: () => void;
   onCopy: () => void;
   copying: boolean;
+  onAction: (value: LocalPrompt, action: LifecycleAction) => void;
 }) => {
   const { prompt } = value;
   return (
@@ -20,6 +27,7 @@ export const LocalPromptDetail = ({
       className="space-y-3 rounded border p-4"
     >
       <h3 className="text-lg font-semibold">{prompt.title}</h3>
+      <LifecycleActions value={value} disabled={editing} onAction={onAction} />
       {value.pending ? (
         <>
           <p>Saved on this device</p>

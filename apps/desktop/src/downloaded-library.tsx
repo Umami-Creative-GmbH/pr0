@@ -2,20 +2,21 @@ import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 import type {
   LocalPrompt,
+  LocalView,
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DownloadedRows } from "./downloaded-rows";
+import { DownloadedStatus } from "./downloaded-status";
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadedSummary, DownloadStatus } from "./library-client";
 import { LibraryViews } from "./library-views";
-import { DownloadProgress, LocalLibraryStatus } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
-import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
 import { useLibraryRefresh } from "./use-library-refresh";
+import { useLifecycle } from "./use-lifecycle";
 import { usePromptCopy } from "./use-prompt-copy";
 
 const editorIsBlocked = (editing: boolean, transition: boolean) =>
@@ -46,7 +47,8 @@ export const DownloadedLibrary = ({
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const [usage, setUsage] = useState<DesktopUsageStatus>();
-  const [recents, setRecents] = useState(false);
+  const [view, setView] = useState<LocalView>("all");
+  const recents = view === "recents";
   const refreshLibrary = useCallback(() => setRetry((value) => value + 1), []);
   const copy = usePromptCopy(account, refreshLibrary);
   useLibraryRefresh(refreshLibrary);
@@ -75,6 +77,16 @@ export const DownloadedLibrary = ({
       }
     }
   }, []);
+  const lifecycle = useLifecycle(account, (id) => {
+    if (id) {
+      void open(id);
+    } else {
+      selectedPrompt.current = null;
+      selection.current += 1;
+      setLocalDetail(undefined);
+    }
+    refreshLibrary();
+  });
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -87,9 +99,7 @@ export const DownloadedLibrary = ({
       const requestedOffset = currentOffset.current;
       const [next, prompts, sync, incoming, uses] = await Promise.all([
         libraryClient.status(),
-        recents
-          ? libraryClient.recents(requestedOffset)
-          : libraryClient.browse(requestedOffset),
+        libraryClient.list(requestedOffset, view),
         libraryClient.uploadStatus(),
         libraryClient.changeStatus(),
         libraryClient.usageStatus(),
@@ -155,15 +165,13 @@ export const DownloadedLibrary = ({
       cancelled = true;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- An explicit Retry restarts this effect even when sign-in state is unchanged.
-  }, [signedIn, retry, refreshAuth, open, recents]);
+  }, [signedIn, retry, refreshAuth, open, view]);
   const browse = useCallback(
     async (next: number) => {
       browseRequest.current += 1;
       const request = browseRequest.current;
       try {
-        const prompts = await (recents
-          ? libraryClient.recents(next)
-          : libraryClient.browse(next));
+        const prompts = await libraryClient.list(next, view);
         if (alive.current && request === browseRequest.current) {
           currentOffset.current = next;
           setOffset(next);
@@ -175,7 +183,7 @@ export const DownloadedLibrary = ({
         }
       }
     },
-    [recents]
+    [view]
   );
   const retryUsage = async () => {
     try {
@@ -205,36 +213,40 @@ export const DownloadedLibrary = ({
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
       <LibraryViews
-        recents={recents}
+        view={view}
         onSelect={(value) => {
-          if (value === recents) {
+          if (value === view) {
             return;
           }
           browseRequest.current += 1;
           currentOffset.current = 0;
           setOffset(0);
           setRows([]);
-          setRecents(value);
+          setView(value);
         }}
       />
-      <output>{copy.message}</output>
-      <UsageStatus
-        status={usage}
-        onRetry={() => {
-          void retryUsage();
-        }}
-      />
-      <LocalLibraryStatus
+      <DownloadedStatus
         status={status}
-        signedIn={signedIn}
-        offline={offline}
         upload={upload}
         changes={changes}
+        usage={usage}
+        account={account}
+        lifecycle={lifecycle}
+        signedIn={signedIn}
+        offline={offline}
+        busy={busy}
+        editing={editingDisabled || Boolean(editor)}
+        error={errorText}
+        copyMessage={copy.message}
+        onRetry={refreshLibrary}
+        onRetryUsage={() => {
+          void retryUsage();
+        }}
+        onRetryUpload={() => {
+          void retryUpload();
+        }}
         onOpen={(id) => {
           void open(id);
-        }}
-        onRetry={() => {
-          void retryUpload();
         }}
       />
       <button
@@ -270,20 +282,6 @@ export const DownloadedLibrary = ({
           }}
         />
       ) : null}
-      <DownloadProgress status={status} signedIn={signedIn} />
-      {errorText ? <p role="alert">{errorText}</p> : null}
-      {!status?.complete && signedIn ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            setRetry((value) => value + 1);
-          }}
-          className="rounded border px-4 py-2"
-        >
-          Retry download
-        </button>
-      ) : null}
       <DownloadedRows
         rows={rows}
         offset={offset}
@@ -292,11 +290,16 @@ export const DownloadedLibrary = ({
         onOpen={open}
         onCopy={copy.handleCopy}
         onBrowse={browse}
+        onFavorite={lifecycle.handleFavorite}
+        changing={lifecycle.busy || Boolean(editor) || editingDisabled}
       />
       {localDetail ? (
         <LocalPromptDetail
           value={localDetail}
-          editing={editorIsBlocked(Boolean(editor), editingDisabled)}
+          editing={
+            editorIsBlocked(Boolean(editor), editingDisabled) || lifecycle.busy
+          }
+          onAction={lifecycle.handleAction}
           onEdit={() => {
             setEditor({ initial: localDetail });
             onEditing(true);

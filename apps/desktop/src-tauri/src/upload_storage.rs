@@ -80,6 +80,8 @@ impl LibraryStore {
             .db
             .query_row("SELECT last_checked FROM upload_state", [], |r| r.get(0))
             .map_err(io)?;
+        let mut statement=self.db.prepare("SELECT l.id,l.title,EXISTS(SELECT 1 FROM local_deleted d WHERE d.id=l.id) FROM local_prompt l WHERE EXISTS(SELECT 1 FROM outbox o WHERE o.prompt_id=l.id AND o.state<>'accepted_awaiting_download') ORDER BY l.id LIMIT 100").map_err(io)?;
+        let pending=statement.query_map([],|r|Ok(super::upload_contract::PendingPrompt{prompt_id:r.get(0)?,title:r.get(1)?,deleting:r.get(2)?})).map_err(io)?.collect::<Result<Vec<_>,_>>().map_err(io)?;
         Ok(UploadStatus {
             waiting,
             awaiting_download,
@@ -88,6 +90,7 @@ impl LibraryStore {
             errors,
             mappings,
             last_checked_at,
+            pending,
         })
     }
     pub fn upload_failed(&mut self, error: &str) -> Result<(), String> {
@@ -149,8 +152,9 @@ impl LibraryStore {
                 let installation: String = tx
                     .query_row("SELECT installation FROM local_state", [], |r| r.get(0))
                     .map_err(io)?;
-                let operation: serde_json::Value =
+                let operation: PendingOperation =
                     serde_json::from_str(&payload).map_err(|_| "storage_unavailable")?;
+                let operation = operation.wire()?;
                 serde_json::json!({"protocolVersion":1,"instanceId":self.instance,"accountId":self.account,"epoch":manifest.epoch,"installationId":installation,"operations":[operation]}).to_string()
             }
         };
@@ -158,7 +162,7 @@ impl LibraryStore {
             return Err("invalid_input".into());
         }
         tx.execute(
-            "UPDATE outbox SET state='in_flight',envelope=?2 WHERE id=?1",
+            "UPDATE outbox SET state='in_flight',envelope=?2,error=NULL WHERE id=?1",
             params![id, body],
         )
         .map_err(io)?;
@@ -175,8 +179,10 @@ impl LibraryStore {
         body: &serde_json::Value,
         outcome: Outcome,
     ) -> Result<(), String> {
-        let sent: PendingOperation = serde_json::from_value(body["operations"][0].clone())
-            .map_err(|_| "invalid_response")?;
+        let id = body["operations"][0]["operationId"].as_str().ok_or("invalid_response")?;
+        let payload: Option<String> = self.db.query_row("SELECT payload FROM outbox WHERE id=?1 AND envelope=?2",params![id,body.to_string()],|r|r.get(0)).optional().map_err(io)?;
+        let Some(payload) = payload else { return Ok(()); };
+        let sent: PendingOperation = serde_json::from_str(&payload).map_err(|_| "storage_unavailable")?;
         let tx = self
             .db
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -229,6 +235,15 @@ impl LibraryStore {
                 {
                     return Err("invalid_response".into());
                 }
+                if matches!(sent.action, PendingAction::Delete) {
+                    tx.execute("UPDATE outbox SET state='accepted_awaiting_download',receipt=?2,error=NULL WHERE id=?1",params![sent.operation_id,serde_json::to_string(&receipt).map_err(|_|"storage_unavailable")?]).map_err(io)?;
+                    tx.execute("UPDATE upload_state SET refresh=1",[]).map_err(io)?;
+                    let active:Option<String>=tx.query_row("SELECT manifest FROM download WHERE complete=1 AND id=(SELECT active FROM state)",[],|r|r.get(0)).optional().map_err(io)?;
+                    if let Some(active) = active {
+                        retire_downloaded_uploads(&tx,&serde_json::from_str(&active).map_err(|_|"storage_unavailable")?)?;
+                    }
+                    return tx.commit().map_err(io);
+                }
                 let target = receipt
                     .conflict
                     .as_ref()
@@ -241,38 +256,16 @@ impl LibraryStore {
                     )
                     .map_err(io)?;
                 let mut baseline = sent.desired.clone();
+                if matches!(sent.action,PendingAction::Duplicate{..}) {
+                    baseline.title=format!("{} (copy)",baseline.title.chars().take(193).collect::<String>());
+                }
                 if receipt.conflict.is_some() {
                     baseline.title = format!(
                         "{} (conflict copy)",
                         baseline.title.chars().take(184).collect::<String>()
                     );
                 }
-                let successor: Option<(String,String)> = tx.query_row("SELECT id,payload FROM outbox WHERE prompt_id=?1 AND state='unsent' ORDER BY local_revision LIMIT 1",[&sent.prompt_id],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(io)?;
-                if let Some((id, payload)) = &successor {
-                    let mut operation: PendingOperation =
-                        serde_json::from_str(payload).map_err(|_| "storage_unavailable")?;
-                    // Preserve the later intent. A generated conflict title is not a user edit.
-                    if operation.desired.title == sent.desired.title {
-                        operation.desired.title = baseline.title.clone();
-                    }
-                    operation.prompt_id = target.into();
-                    operation.base_revision = receipt.revision.clone();
-                    operation.depends_on.clear();
-                    operation.action = PendingAction::Update {
-                        base: baseline.clone(),
-                        changed_fields: vec![],
-                    };
-                    operation.update_desired(operation.desired.clone());
-                    tx.execute(
-                        "UPDATE outbox SET prompt_id=?2,payload=?3 WHERE id=?1",
-                        params![
-                            id,
-                            target,
-                            serde_json::to_string(&operation).map_err(|_| "storage_unavailable")?
-                        ],
-                    )
-                    .map_err(io)?;
-                }
+                let (has_successor,metadata) = rebase_successors(&tx,&sent,&receipt,target,&baseline)?;
                 let record: String = tx
                     .query_row(
                         "SELECT record FROM local_prompt WHERE id=?1",
@@ -286,11 +279,13 @@ impl LibraryStore {
                     prompt.title = baseline.title;
                 }
                 prompt.id = target.into();
-                prompt.revision = receipt.revision.clone();
-                if successor.is_none() {
+                if matches!(sent.action,PendingAction::Create|PendingAction::Duplicate{..}) || receipt.conflict.is_some() {
+                    prompt.revision = receipt.revision.clone();
+                }
+                if !has_successor {
                     prompt.modified_at = receipt.accepted_at.clone();
                 }
-                if matches!(sent.action, PendingAction::Create) || receipt.conflict.is_some() {
+                if matches!(sent.action, PendingAction::Create | PendingAction::Duplicate { .. }) || receipt.conflict.is_some() {
                     prompt.created_at = receipt.accepted_at.clone();
                 }
                 if receipt.conflict.is_some() {
@@ -299,6 +294,10 @@ impl LibraryStore {
                     prompt.use_count = 0;
                     prompt.last_used_at = None;
                     prompt.source_title = Some(sent.desired.title.clone());
+                    prompt.tag_ids.clear();
+                    for value in &metadata { value.apply(&mut prompt); }
+                    tx.execute("UPDATE local_deleted SET id=?2 WHERE id=?1",params![sent.prompt_id,target]).map_err(io)?;
+                    tx.execute("INSERT OR IGNORE INTO local_identity VALUES(?1)",[target]).map_err(io)?;
                     tx.execute(
                         "INSERT OR REPLACE INTO prompt_mapping VALUES(?1,?2,?3)",
                         params![sent.prompt_id, target, sent.operation_id],
@@ -323,7 +322,8 @@ impl LibraryStore {
                     ],
                 )
                 .map_err(io)?;
-                super::local_search::update(&tx, &prompt, revision).map_err(io)?;
+                let deleted:bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM local_deleted WHERE id=?1)",[target],|r|r.get(0)).map_err(io)?;
+                if !deleted { super::local_search::update(&tx, &prompt, revision).map_err(io)?; }
                 tx.execute("UPDATE outbox SET state='accepted_awaiting_download',prompt_id=?2,receipt=?3,error=NULL WHERE id=?1",params![sent.operation_id,target,serde_json::to_string(&receipt).map_err(|_|"storage_unavailable")?]).map_err(io)?;
                 tx.execute("UPDATE upload_state SET refresh=1", [])
                     .map_err(io)?;
@@ -340,6 +340,42 @@ impl LibraryStore {
         test_stage("upload_acknowledgement")?;
         tx.commit().map_err(io)
     }
+}
+// Retarget all successors; only the direct dependency gets an acknowledged base.
+fn rebase_successors(
+    tx: &rusqlite::Transaction,
+    sent: &PendingOperation,
+    receipt: &super::upload_contract::Receipt,
+    target: &str,
+    baseline: &super::local_contract::PromptText,
+) -> Result<(bool,Vec<super::lifecycle_contract::PendingMetadata>),String> {
+    let mut statement = tx.prepare("SELECT id,payload FROM outbox WHERE prompt_id=?1 AND state='unsent' ORDER BY local_revision").map_err(io)?;
+    let rows=statement.query_map([&sent.prompt_id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?))).map_err(io)?.collect::<Result<Vec<_>,_>>().map_err(io)?;
+    let has_successor=!rows.is_empty();
+    let mut metadata=Vec::new();
+    for (id,payload) in rows {
+        let mut operation:PendingOperation=serde_json::from_str(&payload).map_err(|_|"storage_unavailable")?;
+        let direct=operation.depends_on.contains(&sent.operation_id);
+        if receipt.conflict.is_some() || direct {
+            operation.prompt_id=target.into();
+            if operation.desired.title==sent.desired.title { operation.desired.title=baseline.title.clone(); }
+            if direct {
+                let deleting=matches!(operation.action,PendingAction::Delete);
+                // Metadata receipts do not prove that unseen text was observed.
+                if !deleting || matches!(sent.action,PendingAction::Create|PendingAction::Duplicate{..}) || receipt.conflict.is_some() {
+                    operation.base_revision=receipt.revision.clone();
+                }
+                operation.depends_on.retain(|dependency|dependency!=&sent.operation_id);
+                if !deleting {
+                    operation.action=PendingAction::Update{base:baseline.clone(),changed_fields:vec![]};
+                    operation.update_desired(operation.desired.clone());
+                }
+            }
+            tx.execute("UPDATE outbox SET prompt_id=?2,payload=?3 WHERE id=?1",params![id,target,serde_json::to_string(&operation).map_err(|_|"storage_unavailable")?]).map_err(io)?;
+        }
+        if let Some(value)=operation.metadata { metadata.push(value); }
+    }
+    Ok((has_successor,metadata))
 }
 fn retire_downloaded_uploads(
     tx: &rusqlite::Transaction,
@@ -363,6 +399,7 @@ fn retire_downloaded_uploads(
         tx.execute("DELETE FROM local_prompt WHERE id=?1", [id])
             .map_err(io)?;
     }
+    tx.execute("DELETE FROM local_deleted WHERE id NOT IN(SELECT prompt_id FROM outbox)",[]).map_err(io)?;
     tx.execute("UPDATE upload_state SET refresh=EXISTS(SELECT 1 FROM outbox WHERE state='accepted_awaiting_download')",[]).map_err(io)?;
     Ok(())
 }

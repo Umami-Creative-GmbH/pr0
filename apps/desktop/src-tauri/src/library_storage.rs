@@ -39,7 +39,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 5 {
+        if version > 6 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -128,6 +128,15 @@ impl LibraryStore {
                 INSERT INTO change_state(singleton) VALUES(1);
                 UPDATE upload_state SET last_checked=NULL;
                 PRAGMA user_version=5; COMMIT;").map_err(io)?;
+        }
+        if version < 6 {
+            db.execute_batch("BEGIN IMMEDIATE;
+                CREATE TABLE local_deleted(id TEXT PRIMARY KEY);
+                CREATE TABLE local_identity(id TEXT PRIMARY KEY);
+                INSERT OR IGNORE INTO local_identity SELECT id FROM local_prompt;
+                DROP VIEW visible_prompt;
+                CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt WHERE id NOT IN(SELECT id FROM local_deleted) UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt) AND id NOT IN(SELECT id FROM local_deleted);
+                PRAGMA user_version=6; COMMIT;").map_err(io)?;
         }
         Ok(Self {
             db,
@@ -314,12 +323,26 @@ impl LibraryStore {
         Ok(status)
     }
     pub fn browse(&self, offset: u32) -> Result<Vec<Summary>, String> {
+        self.list(offset, super::lifecycle_contract::LibraryView::All)
+    }
+    pub fn list(
+        &self,
+        offset: u32,
+        view: super::lifecycle_contract::LibraryView,
+    ) -> Result<Vec<Summary>, String> {
         if offset > 20000 {
             return Err("invalid_input".into());
         }
+        let filter = match view {
+            super::lifecycle_contract::LibraryView::All => "archived=0",
+            super::lifecycle_contract::LibraryView::Favorites => {
+                "archived=0 AND json_extract(record,'$.favorite')=1"
+            }
+            super::lifecycle_contract::LibraryView::Archive => "archived=1",
+        };
         let mut statement = self
             .db
-            .prepare("SELECT id,title,archived FROM visible_prompt ORDER BY id LIMIT 50 OFFSET ?1")
+            .prepare(&format!("SELECT id,title,archived FROM visible_prompt WHERE {filter} ORDER BY id LIMIT 50 OFFSET ?1"))
             .map_err(io)?;
         let result = statement
             .query_map([offset], |r| {
@@ -352,6 +375,8 @@ impl LibraryStore {
     }
 }
 include!("local_storage.rs");
+include!("lifecycle_storage.rs");
+include!("recovery_storage.rs");
 include!("upload_storage.rs");
 include!("change_storage.rs");
 include!("usage_storage.rs");

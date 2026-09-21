@@ -15,6 +15,7 @@ import type { accountTestServer } from "./account-test-server";
 import { verifyNativeChanges } from "./changes-native";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
+import { verifyNativeLifecycle } from "./lifecycle-native";
 import type { NativeArgs } from "./local-native-worker";
 import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
 import { verifyNativeUploads } from "./uploads-native";
@@ -175,17 +176,27 @@ const verifyNativePeerChanges = async ({
   }
 };
 
+const requestedJourneys = (usage: boolean, lifecycle: boolean) =>
+  [
+    { enabled: usage, verify: verifyNativeUsage },
+    { enabled: lifecycle, verify: verifyNativeLifecycle },
+  ].filter((entry) => entry.enabled);
+const nativeAccount = async (download: boolean) => {
+  const account = await verifiedBrowser();
+  if (download) {
+    await seedDownloadCapacity(account.library);
+  }
+  return account;
+};
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
   download = false,
   upload = false,
   usage = false,
-  live = false
+  live = false,
+  lifecycle = false
 ) => {
-  const account = await verifiedBrowser();
-  if (download) {
-    await seedDownloadCapacity(account.library);
-  }
+  const account = await nativeAccount(download);
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-device-live-"));
   const selectedOrigin =
     process.env.PR0_TEST_NATIVE_ORIGIN ?? "https://localhost:30440";
@@ -433,26 +444,28 @@ export const verifyNativeHttps = async (
         native,
       });
     }
-    if (usage) {
-      await verifyNativeUsage({
-        command: (name, args = {}) => native.library(name, z.json(), args),
-        restart: async () => {
-          await native.stop();
-          native = worker(
-            executable,
-            path.join(directory, "state"),
-            certificate,
-            target
-          );
-          await native.command("status");
-        },
-        lose: () => {
-          loseNextUpload = true;
-        },
-        traffic,
-        page,
-        origin: selectedOrigin,
-      });
+    const journey = {
+      command: (name: string, args: NativeArgs = {}) =>
+        native.library(name, z.json(), args),
+      restart: async () => {
+        await native.stop();
+        native = worker(
+          executable,
+          path.join(directory, "state"),
+          certificate,
+          target
+        );
+        await native.command("status");
+      },
+      lose: () => {
+        loseNextUpload = true;
+      },
+      traffic,
+      page,
+      origin: selectedOrigin,
+    };
+    for (const { verify } of requestedJourneys(usage, lifecycle)) {
+      await verify(journey);
     }
     const refreshed = await native.command("refresh");
     assert.equal(refreshed.state, "signed_in");

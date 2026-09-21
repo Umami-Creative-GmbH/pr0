@@ -34,6 +34,8 @@ pub struct PendingOperation {
     pub base_revision: String,
     pub depends_on: Vec<String>,
     pub desired: PromptText,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<super::lifecycle_contract::PendingMetadata>,
     #[serde(flatten)]
     pub action: PendingAction,
 }
@@ -42,6 +44,17 @@ pub struct PendingOperation {
 pub enum PendingAction {
     #[serde(rename = "prompt.create")]
     Create,
+    #[serde(rename = "prompt.delete")]
+    Delete,
+    #[serde(rename = "prompt.duplicate")]
+    Duplicate {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "collectionId")]
+        collection_id: Option<String>,
+        #[serde(rename = "tagIds")]
+        tag_ids: Vec<String>,
+    },
     #[serde(rename = "prompt.update")]
     Update {
         base: PromptText,
@@ -57,6 +70,42 @@ pub enum TextField {
     Content,
 }
 impl PendingOperation {
+    pub fn wire(&self) -> Result<serde_json::Value, String> {
+        let mut value = serde_json::to_value(self).map_err(|_| "storage_unavailable")?;
+        value
+            .as_object_mut()
+            .ok_or("storage_unavailable")?
+            .remove("metadata");
+        if matches!(self.action, PendingAction::Delete) {
+            value
+                .as_object_mut()
+                .ok_or("storage_unavailable")?
+                .remove("desired");
+        }
+        if let PendingAction::Duplicate {
+            collection_id,
+            tag_ids,
+            ..
+        } = &self.action
+        {
+            value["desired"]["collectionId"] = serde_json::json!(collection_id);
+            value["desired"]["tagIds"] = serde_json::json!(tag_ids);
+            let object = value.as_object_mut().ok_or("storage_unavailable")?;
+            object.remove("collectionId");
+            object.remove("tagIds");
+        }
+        if let Some(metadata) = &self.metadata {
+            use super::lifecycle_contract::PendingMetadata;
+            let (field, base, desired) = match metadata {
+                PendingMetadata::Favorite { base, desired } => ("favorite", base, desired),
+                PendingMetadata::Archived { base, desired } => ("archived", base, desired),
+            };
+            value["base"][field] = serde_json::json!(base);
+            value["desired"][field] = serde_json::json!(desired);
+            value["changedFields"] = serde_json::json!([field]);
+        }
+        Ok(value)
+    }
     pub fn new(
         operation_id: String,
         prompt_id: String,
@@ -81,6 +130,7 @@ impl PendingOperation {
             base_revision,
             depends_on: vec![],
             desired,
+            metadata: None,
             action,
         }
     }

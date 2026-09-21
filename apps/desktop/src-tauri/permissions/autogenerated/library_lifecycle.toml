@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-lifecycle"
+description = "Enables the library_lifecycle command without any pre-configured scope."
+commands.allow = ["library_lifecycle"]
+
+[[permission]]
+identifier = "deny-library-lifecycle"
+description = "Denies the library_lifecycle command without any pre-configured scope."
+commands.deny = ["library_lifecycle"]

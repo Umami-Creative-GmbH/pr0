@@ -140,22 +140,7 @@ impl LibraryStore {
         );
         let desired = request.desired.validate()?;
         #[cfg(test)]
-        TEST_FAULT.with(|fault| -> Result<(), String> {
-            match fault.borrow().as_str() {
-                "disk_full" => {
-                    let pages: i64 = self
-                        .db
-                        .query_row("PRAGMA page_count", [], |r| r.get(0))
-                        .map_err(io)?;
-                    self.db
-                        .pragma_update(None, "max_page_count", pages)
-                        .map_err(io)?;
-                }
-                "io_error" => self.db.execute_batch("PRAGMA query_only=ON").map_err(io)?,
-                _ => {}
-            };
-            Ok(())
-        })?;
+        apply_test_fault(&self.db)?;
         let tx = self
             .db
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -213,6 +198,9 @@ impl LibraryStore {
         let current_revision: i64 = tx
             .query_row("SELECT revision FROM local_state", [], |r| r.get(0))
             .map_err(io)?;
+        if create && tx.query_row("SELECT EXISTS(SELECT 1 FROM local_identity WHERE id=?1)",[&request.prompt_id],|r|r.get::<_,bool>(0)).map_err(io)? {
+            return Err("operation_identity_reused".into());
+        }
         if create == previous.is_some()
             || (!create
                 && request.expected_local_revision.as_deref()
@@ -289,6 +277,7 @@ impl LibraryStore {
             .map_err(io)?;
         let record = serde_json::to_string(&prompt).map_err(|_| "invalid_input")?;
         tx.execute("INSERT INTO local_prompt VALUES(?1,?2,?3,?4,?5) ON CONFLICT(id) DO UPDATE SET title=excluded.title,archived=excluded.archived,record=excluded.record,text_bytes=excluded.text_bytes",params![prompt.id,prompt.title,prompt.archived,record,bytes]).map_err(io)?;
+        tx.execute("INSERT OR IGNORE INTO local_identity VALUES(?1)",[&prompt.id]).map_err(io)?;
         super::local_search::update(&tx, &prompt, revision).map_err(io)?;
         #[cfg(test)]
         test_stage("after_projection")?;
@@ -299,8 +288,9 @@ impl LibraryStore {
             desired.clone(),
         );
         if let Some((id, payload, state)) = latest {
-            if state == "unsent" {
-                operation = serde_json::from_str(&payload).map_err(|_| "storage_unavailable")?;
+            let prior: super::local_contract::PendingOperation = serde_json::from_str(&payload).map_err(|_| "storage_unavailable")?;
+            if state == "unsent" && prior.metadata.is_none() && !matches!(prior.action,super::local_contract::PendingAction::Duplicate{..}|super::local_contract::PendingAction::Delete) {
+                operation = prior;
                 operation.operation_id = request.operation_id.clone();
                 tx.execute("DELETE FROM outbox WHERE id=?1", [id])
                     .map_err(io)?;
@@ -330,4 +320,23 @@ fn known_usage(db: &Connection) -> Result<(i64, i64), String> {
     let (baseline_count,baseline_bytes):(i64,i64)=db.query_row("SELECT coalesce((SELECT json_extract(manifest,'$.promptCount') FROM download WHERE id=(SELECT active FROM state)),0),max(coalesce((SELECT text_bytes FROM download WHERE id=(SELECT active FROM state)),0),coalesce((SELECT sum(text_bytes) FROM prompt WHERE snapshot=(SELECT active FROM state)),0)+coalesce((SELECT sum(length(cast(name AS BLOB))) FROM organization WHERE snapshot=(SELECT active FROM state)),0))",[],|r|Ok((r.get(0)?,r.get(1)?))).map_err(io)?;
     let (extra_count,extra_bytes):(i64,i64)=db.query_row("SELECT coalesce(sum(CASE WHEN p.id IS NULL THEN 1 ELSE 0 END),0),coalesce(sum(l.text_bytes-coalesce(p.text_bytes,0)),0) FROM local_prompt l LEFT JOIN prompt p ON p.id=l.id AND p.snapshot=(SELECT active FROM state)",[],|r|Ok((r.get(0)?,r.get(1)?))).map_err(io)?;
     Ok((baseline_count + extra_count, baseline_bytes + extra_bytes))
+}
+
+#[cfg(test)]
+fn apply_test_fault(db:&Connection)->Result<(),String>{
+TEST_FAULT.with(|fault| -> Result<(), String> {
+            match fault.borrow().as_str() {
+                "disk_full" => {
+                    let pages: i64 = db
+                        .query_row("PRAGMA page_count", [], |r| r.get(0))
+                        .map_err(io)?;
+                    db
+                        .pragma_update(None, "max_page_count", pages)
+                        .map_err(io)?;
+                }
+                "io_error" => db.execute_batch("PRAGMA query_only=ON").map_err(io)?,
+                _ => {}
+            };
+            Ok(())
+        })
 }
