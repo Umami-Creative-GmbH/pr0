@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { changeStatusSchema } from "@pr0/api-contract/changes";
 import { uploadStatusSchema } from "@pr0/api-contract/local-prompts";
 import { promptSchema } from "@pr0/api-contract/prompts";
 import { chromium } from "playwright";
@@ -176,6 +177,49 @@ const verifyNativePeerChanges = async ({
   }
 };
 
+const verifyNativeSuspension = async (
+  native: ReturnType<typeof worker>,
+  accountId: string
+) => {
+  const before = await native.library(
+    "library_browse",
+    z.array(z.object({ id: z.string(), title: z.string() }))
+  );
+  assert.ok(before.length > 0);
+  await runAcceptance([
+    "bun",
+    "--conditions=react-server",
+    "apps/web/scripts/accounts.ts",
+    "suspend",
+    accountId,
+  ]);
+  try {
+    const suspended = await native.library(
+      "library_changes",
+      changeStatusSchema
+    );
+    assert.equal(suspended.error, "account_suspended");
+    assert.deepEqual(
+      await native.library(
+        "library_browse",
+        z.array(z.object({ id: z.string(), title: z.string() }))
+      ),
+      before
+    );
+  } finally {
+    await runAcceptance([
+      "bun",
+      "--conditions=react-server",
+      "apps/web/scripts/accounts.ts",
+      "resume",
+      accountId,
+    ]);
+  }
+  process.stdout.write(
+    "PASS native HTTPS suspension is explicit and retains downloaded prompts\n"
+  );
+};
+
 const finishNativeJourney = async (
   native: ReturnType<typeof worker>,
   page: Page,
@@ -201,12 +245,16 @@ const finishNativeJourney = async (
 
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
-  download = false,
-  upload = false,
-  usage = false,
-  live = false,
-  recovery?: boolean
+  scenarios: {
+    download?: boolean;
+    upload?: boolean;
+    usage?: boolean;
+    live?: boolean;
+    operations?: boolean;
+    recovery?: boolean;
+  } = {}
 ) => {
+  const { download, upload, usage, live, operations, recovery } = scenarios;
   const account = await verifiedBrowser();
   if (download) {
     await seedDownloadCapacity(account.library);
@@ -478,6 +526,9 @@ export const verifyNativeHttps = async (
         page,
         origin: selectedOrigin,
       });
+    }
+    if (operations) {
+      await verifyNativeSuspension(native, account.library.account.id);
     }
     await finishNativeJourney(native, page, selectedOrigin, recovery);
   } finally {

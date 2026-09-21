@@ -10,10 +10,16 @@ import {
 } from "@pr0/api-contract/prompts";
 import type { MutationResult } from "@pr0/api-contract/prompts";
 
-import { AccountFailureError, admit, assertOrigin } from "./admission";
+import {
+  AccountFailureError,
+  admit,
+  admitApi,
+  assertOrigin,
+} from "./admission";
 import { authentication } from "./auth";
 import type { BrowserAccount } from "./browser-proof";
 import { nativeOrigin } from "./device-http";
+import { recordFailure } from "./operational-events";
 import {
   getOrganizationImpact,
   getOrganizationReview,
@@ -34,6 +40,7 @@ import {
 } from "./prompt-store";
 import { withRequestWork } from "./request-work";
 import { searchPrompts } from "./search-service";
+import { serviceLimit } from "./service-limits";
 
 const parseFavorite = (value: string | undefined) => {
   if (value === "true") {
@@ -106,8 +113,16 @@ const mutate = async (
   for (const operation of envelope.operations) {
     try {
       await admit([
-        { key: `mutation:minute:${browser.accountId}`, max: 1200, seconds: 60 },
-        { key: `mutation:burst:${browser.accountId}`, max: 200, seconds: 10 },
+        {
+          key: `mutation:minute:${browser.accountId}`,
+          max: serviceLimit("MUTATION_MINUTE", 1200),
+          seconds: 60,
+        },
+        {
+          key: `mutation:burst:${browser.accountId}`,
+          max: serviceLimit("MUTATION_BURST", 200),
+          seconds: 10,
+        },
       ]);
       results.push(
         await (lookup
@@ -115,6 +130,12 @@ const mutate = async (
           : mutatePrompt(browser, envelope, operation))
       );
     } catch (error) {
+      recordFailure(
+        "mutation",
+        promptFailure(
+          error instanceof Error ? error : new Error("Mutation failed")
+        ).detail.code
+      );
       results.push({
         status: "rejected",
         error: {
@@ -202,7 +223,7 @@ export const handlePrompts = async (
         throw new AccountFailureError("forbidden", 403);
       }
       await claimOwner(user.id);
-      await admit([{ key: `api:${user.id}`, max: 120, seconds: 60 }]);
+      await admitApi(user.id);
       const browser: BrowserAccount = {
         accountId: user.id,
         sessionId: session.id,
@@ -259,7 +280,7 @@ export const handlePrompts = async (
         headers.set("Server-Timing", searchTiming);
       }
       return Response.json(body, { headers });
-    });
+    }, request.signal);
   } catch (error) {
     return promptErrorResponse(
       error instanceof Error ? error : new Error("Prompt request failed")

@@ -1,1 +1,1 @@
-export { handleReadiness as GET } from "@/server/account-http";
+export { handleReadiness as GET } from "@/server/readiness";

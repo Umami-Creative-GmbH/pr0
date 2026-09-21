@@ -11,6 +11,7 @@ import { database } from "./database";
 import { PromptFailureError } from "./prompt-errors";
 import { lockLibrary } from "./prompt-store";
 import type { SearchInput, SearchJob, SearchPage } from "./search-types";
+import { withSearchWork } from "./search-work";
 
 const preparing = () =>
   new PromptFailureError(
@@ -50,8 +51,7 @@ const runSearch = (
   job: SearchJob,
   signal: AbortSignal
 ): Promise<{ page: SearchPage; timing: string }> => {
-  const slot =
-    Number.parseInt(job.scope.account.replaceAll("-", "").slice(-6), 16) % 2;
+  const slot = workers[0]?.busy ? 1 : 0;
   let owner = workers[slot];
   if (!owner) {
     owner = {
@@ -69,17 +69,8 @@ const runSearch = (
   current.busy = true;
   // oxlint-disable-next-line promise/avoid-new -- Adapt worker messages and request cancellation to a bounded asynchronous request.
   return new Promise((resolve, reject) => {
-    const abort = () => {
-      Atomics.store(new Int32Array(job.cancellation), 0, 1);
-      reject(preparing());
-    };
-    // Let a cold rebuild finish in the worker after returning an honest preparation state.
-    const timer = setTimeout(() => reject(preparing()), 2000);
-    signal.addEventListener("abort", abort, { once: true });
     const listeners = new AbortController();
     const cleanup = () => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", abort);
       current.busy = false;
       listeners.abort();
     };
@@ -113,6 +104,14 @@ const runSearch = (
       workers[slot] = undefined;
       reject(preparing());
     };
+    signal.addEventListener(
+      "abort",
+      () => {
+        Atomics.store(new Int32Array(job.cancellation), 0, 1);
+        handleError();
+      },
+      { once: true, signal: listeners.signal }
+    );
     current.worker.addEventListener("message", handleMessage, {
       once: true,
       signal: listeners.signal,
@@ -130,19 +129,29 @@ export const searchPrompts = async (
   signal: AbortSignal
 ) => {
   const library = await database().begin((tx) => lockLibrary(tx, browser));
-  const result = await runSearch(
-    {
-      input,
-      cancellation: new SharedArrayBuffer(4),
-      scope: {
-        instance: library.instance_id,
-        account: browser.accountId,
-        epoch: library.recovery_epoch,
-        revision: library.revision,
-      },
+  const job = {
+    input,
+    cancellation: new SharedArrayBuffer(4),
+    scope: {
+      instance: library.instance_id,
+      account: browser.accountId,
+      epoch: library.recovery_epoch,
+      revision: library.revision,
     },
-    signal
+  };
+  const pending = withSearchWork(browser.accountId, signal, () =>
+    runSearch(job, signal)
   );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let result;
+  try {
+    // A cold rebuild may continue, but keeps its global worker slot until completion.
+    const timeout = Promise.withResolvers<never>();
+    timer = setTimeout(() => timeout.reject(preparing()), 4000);
+    result = await Promise.race([pending, timeout.promise]);
+  } finally {
+    clearTimeout(timer);
+  }
   // Delayed responses must still belong to an active session and the admitted recovery generation.
   const current = await database().begin((tx) => lockLibrary(tx, browser));
   if (current.recovery_epoch !== library.recovery_epoch || signal.aborted) {

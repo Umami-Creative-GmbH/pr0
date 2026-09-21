@@ -61,6 +61,8 @@ const errors = {
     "Local files could not be safely identified for cleanup. Local work is retained. Check storage access and retry.",
   authentication_required:
     "Sign in again to resume this session. Local files are preserved.",
+  account_suspended:
+    "This account is suspended. Contact your instance operator. Local files and pending work are retained.",
   approval_failed:
     "Approval was denied, expired, or already used. Start a new sign-in.",
   redirect_rejected:
