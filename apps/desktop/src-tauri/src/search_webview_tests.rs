@@ -7,6 +7,8 @@ fn desktop_search_webview_worker() {
         return;
     };
     let directory = std::path::PathBuf::from(directory);
+    let Some(instance) = crate::resident_instance::Instance::acquire(&directory).unwrap() else { return; };
+    let instance = Arc::new(instance);
     let service: crate::ManagedAuth = Ok(Arc::new(
         AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap(),
     ));
@@ -18,6 +20,10 @@ fn desktop_search_webview_worker() {
         .manage(crate::launcher_runtime::Launcher::default())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            crate::resident_status,
+            crate::resident_action,
+            crate::resident_hide,
+            crate::resident_finish_quit,
             crate::launcher_status,
             crate::launcher_open,
             crate::launcher_hide,
@@ -62,6 +68,7 @@ fn desktop_search_webview_worker() {
             crate::library_retry_usage
         ])
         .setup(move |app| {
+            crate::setup_resident(app.handle(), directory.clone())?;
             tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
@@ -79,6 +86,7 @@ fn desktop_search_webview_worker() {
                 .data_directory(directory.join("webview"))
                 .build()?;
             crate::register_launcher_shortcut(app.handle())?;
+            instance.listen(app.handle().clone());
             if std::env::var("PR0_TEST_CLOSE_MAIN").as_deref() == Ok("true") {
                 let app = app.handle().clone();
                 std::thread::spawn(move || {
@@ -88,7 +96,7 @@ fn desktop_search_webview_worker() {
             }
             Ok(())
         })
-        .on_window_event(crate::launcher_window_event)
+        .on_window_event(crate::resident_window_event)
         .run(context)
         .expect("search validation WebView");
 }

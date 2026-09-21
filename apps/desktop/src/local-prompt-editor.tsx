@@ -9,6 +9,7 @@ import type { FormEvent } from "react";
 import { z } from "zod";
 
 import { libraryClient } from "./library-client";
+import { useResidentEditor } from "./resident-editor";
 import type { Status } from "./use-auth-session";
 
 const failures = {
@@ -36,6 +37,44 @@ const failures = {
 } satisfies Record<string, string>;
 const failureMessages = new Map(Object.entries(failures));
 
+const PromptFields = ({
+  draft,
+  change,
+}: {
+  draft: PromptText;
+  change: (field: keyof PromptText, value: string) => void;
+}) => (
+  <>
+    <label className="block" htmlFor="draft-title">
+      Title
+    </label>
+    <input
+      id="draft-title"
+      className="block w-full rounded border p-2"
+      value={draft.title}
+      onChange={(event) => change("title", event.target.value)}
+    />
+    <label className="block" htmlFor="draft-description">
+      Description
+    </label>
+    <textarea
+      id="draft-description"
+      className="block w-full rounded border p-2"
+      value={draft.description}
+      onChange={(event) => change("description", event.target.value)}
+    />
+    <label className="block" htmlFor="draft-content">
+      Content
+    </label>
+    <textarea
+      id="draft-content"
+      className="min-h-48 w-full rounded border p-2"
+      value={draft.content}
+      onChange={(event) => change("content", event.target.value)}
+    />
+  </>
+);
+
 export const LocalPromptEditor = ({
   initial,
   mappings,
@@ -57,6 +96,11 @@ export const LocalPromptEditor = ({
     content: initial?.prompt.content ?? "",
   }));
   const currentDraft = useRef(draft);
+  const savedDraft = useRef<string | null>(null);
+  if (savedDraft.current === null) {
+    savedDraft.current = JSON.stringify(draft);
+  }
+  const pendingSave = useRef<Promise<boolean> | null>(null);
   const target = useRef({
     id: initial?.prompt.id ?? crypto.randomUUID(),
     revision: initial?.localRevision ?? null,
@@ -133,10 +177,8 @@ export const LocalPromptEditor = ({
     setDraft(next);
     setCopyMessage("");
   };
-  const save = async () => {
-    if (saving) {
-      return;
-    }
+  const performSave = async (): Promise<boolean> => {
+    let saved = false;
     setSaving(true);
     setSaveError("");
     setConflict(false);
@@ -149,11 +191,13 @@ export const LocalPromptEditor = ({
       });
       target.current = { id: result.prompt.id, revision: result.localRevision };
       attempt.current = null;
+      savedDraft.current = JSON.stringify(request.desired);
       // Inputs remain editable during a native save. Its acknowledgement certifies only that submitted variant.
       if (
         active.current &&
         JSON.stringify(currentDraft.current) === JSON.stringify(request.desired)
       ) {
+        saved = true;
         onSaved(result);
       }
     } catch (error) {
@@ -190,7 +234,33 @@ export const LocalPromptEditor = ({
       }
     }
     setSaving(false);
+    return saved;
   };
+  const save = async (): Promise<boolean> => {
+    if (pendingSave.current) {
+      return await pendingSave.current;
+    }
+    pendingSave.current = performSave();
+    try {
+      const result = await pendingSave.current;
+      pendingSave.current = null;
+      return result;
+    } catch {
+      pendingSave.current = null;
+      setSaving(false);
+      setSaveError(
+        "The save could not be confirmed. Keep this draft open and retry, or copy the text."
+      );
+      return false;
+    }
+  };
+  useResidentEditor({
+    hasChanges: () =>
+      Boolean(attempt.current) ||
+      JSON.stringify(currentDraft.current) !== savedDraft.current,
+    pending: () => pendingSave.current,
+    save,
+  });
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void save();
@@ -224,33 +294,7 @@ export const LocalPromptEditor = ({
       <h3 className="text-lg font-semibold">
         {initial ? "Edit prompt" : "New prompt"}
       </h3>
-      <label className="block" htmlFor="draft-title">
-        Title
-      </label>
-      <input
-        id="draft-title"
-        className="block w-full rounded border p-2"
-        value={draft.title}
-        onChange={(event) => change("title", event.target.value)}
-      />
-      <label className="block" htmlFor="draft-description">
-        Description
-      </label>
-      <textarea
-        id="draft-description"
-        className="block w-full rounded border p-2"
-        value={draft.description}
-        onChange={(event) => change("description", event.target.value)}
-      />
-      <label className="block" htmlFor="draft-content">
-        Content
-      </label>
-      <textarea
-        id="draft-content"
-        className="min-h-48 w-full rounded border p-2"
-        value={draft.content}
-        onChange={(event) => change("content", event.target.value)}
-      />
+      <PromptFields draft={draft} change={change} />
       <p aria-live="polite">
         {saving ? "Saving…" : ""}
         {!saving && saveError ? "Not saved" : ""}

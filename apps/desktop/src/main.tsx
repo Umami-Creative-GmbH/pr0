@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
+import { ResidentControls } from "./resident-controls";
 
 import "./styles.css";
 
@@ -11,6 +12,8 @@ if (!root) {
 }
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <ResidentControls>
+      <App />
+    </ResidentControls>
   </StrictMode>
 );

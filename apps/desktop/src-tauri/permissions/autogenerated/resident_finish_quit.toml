@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-resident-finish-quit"
+description = "Enables the resident_finish_quit command without any pre-configured scope."
+commands.allow = ["resident_finish_quit"]
+
+[[permission]]
+identifier = "deny-resident-finish-quit"
+description = "Denies the resident_finish_quit command without any pre-configured scope."
+commands.deny = ["resident_finish_quit"]

@@ -300,7 +300,7 @@ for (const collisions of [1, 4]) {
   }, 60_000);
 }
 
-test("closing the library cannot strand a hidden launcher process before tray residency", async () => {
+test("closing the library offers residency and an explicit safe quit", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "pr0-launcher-close-"));
   const native = await localNativeWorker(directory, true);
   await native.stop();
@@ -309,8 +309,14 @@ test("closing the library cannot strand a hidden launcher process before tray re
   });
   try {
     await webview.page
-      .getByRole("button", { name: "Open quick launcher", exact: true })
+      .getByRole("dialog", { name: "Keep pr0 running", exact: true })
       .waitFor();
+    await webview.page
+      .getByRole("button", { name: "Keep library open", exact: true })
+      .click();
+    await webview.page
+      .getByRole("button", { name: "Quit pr0", exact: true })
+      .click();
     expect(await webview.exited).toBe(0);
   } finally {
     await webview.stop();

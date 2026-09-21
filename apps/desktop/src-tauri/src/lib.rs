@@ -14,6 +14,11 @@ mod lifecycle_contract;
 mod local_contract;
 mod local_search;
 mod launcher_runtime;
+mod resident;
+#[cfg(windows)]
+mod resident_instance;
+#[cfg(test)]
+mod resident_tests;
 mod migration_backup;
 mod organization_contract;
 mod search_contract;
@@ -30,6 +35,7 @@ use tauri::{Emitter, Manager};
 type ManagedAuth = Result<Arc<AuthService>, String>;
 
 include!("launcher_commands.rs");
+include!("resident_commands.rs");
 
 fn authorize(window: &tauri::WebviewWindow) -> Result<(), String> {
     authorize_labels(window, &["main"])
@@ -152,14 +158,20 @@ async fn auth_sign_out(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    #[cfg(windows)]
+    let instance = {
+        let directory = dirs::data_local_dir().expect("Windows local application data")
+            .join(&context.config().identifier);
+        let Some(instance) = resident_instance::Instance::acquire(&directory).expect("pr0 could not acquire its resident writer") else { return; };
+        Arc::new(instance)
+    };
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }))
         .invoke_handler(tauri::generate_handler![
+            resident_status,
+            resident_action,
+            resident_hide,
+            resident_finish_quit,
             launcher_status,
             launcher_open,
             launcher_hide,
@@ -208,7 +220,10 @@ pub fn run() {
             library_retry_usage
         ])
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .setup(|app| {
+        .setup(move |app| {
+            setup_resident(app.handle(), app.path().app_local_data_dir()?)?;
+            #[cfg(windows)]
+            instance.listen(app.handle().clone());
             let service: ManagedAuth = (|| {
                 let directory = app
                     .path()
@@ -297,14 +312,14 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            launcher_window_event(window, event);
+            resident_window_event(window, event);
             if matches!(event, tauri::WindowEvent::Focused(true)) {
                 if let Ok(service) = window.state::<ManagedAuth>().inner() {
                     service.wake_sync();
                 }
             }
         })
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("pr0 could not start");
 }
 
@@ -441,7 +456,10 @@ async fn save_command(
     create: bool,
 ) -> Result<local_contract::LocalPrompt, String> {
     let app = window.app_handle().clone();
+    app.state::<Resident>().begin_save()?;
     let result = dispatch(window, state, move |service| {
+        #[cfg(test)]
+        resident_tests::prepare_save();
         let result = if create {
             service.library_create(request)
         } else {
@@ -450,7 +468,10 @@ async fn save_command(
         service.wake_sync();
         result
     })
-    .await?;
+    .await;
+    app.state::<Resident>().end_save();
+    let _ = app.emit("resident-changed", ());
+    let result = result?;
     // Events only invalidate views. A lost event cannot change storage truth.
     let _ = app.emit("library-changed", &result.local_revision);
     Ok(result)
