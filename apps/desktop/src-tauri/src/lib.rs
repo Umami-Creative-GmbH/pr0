@@ -13,6 +13,7 @@ mod library_storage;
 mod lifecycle_contract;
 mod local_contract;
 mod local_search;
+mod launcher_runtime;
 mod migration_backup;
 mod organization_contract;
 mod search_contract;
@@ -28,12 +29,17 @@ use tauri::{Emitter, Manager};
 
 type ManagedAuth = Result<Arc<AuthService>, String>;
 
+include!("launcher_commands.rs");
+
 fn authorize(window: &tauri::WebviewWindow) -> Result<(), String> {
+    authorize_labels(window, &["main"])
+}
+fn authorize_labels(window: &tauri::WebviewWindow, labels: &[&str]) -> Result<(), String> {
     let url = window.url().map_err(|_| "forbidden")?;
     let local = url.scheme() == "tauri" && url.host_str() == Some("localhost")
         || url.scheme() == "http" && url.host_str() == Some("tauri.localhost")
         || cfg!(debug_assertions) && url.origin().ascii_serialization() == "http://localhost:1420";
-    if window.label() != "main" || !local {
+    if !labels.contains(&window.label()) || !local {
         return Err("forbidden".into());
     }
     Ok(())
@@ -154,6 +160,14 @@ pub fn run() {
             }
         }))
         .invoke_handler(tauri::generate_handler![
+            launcher_status,
+            launcher_open,
+            launcher_hide,
+            launcher_focus,
+            launcher_retry_shortcut,
+            launcher_search,
+            launcher_cancel_search,
+            launcher_copy,
             auth_status,
             auth_begin,
             auth_poll,
@@ -193,7 +207,7 @@ pub fn run() {
             library_usage_status,
             library_retry_usage
         ])
-        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             let service: ManagedAuth = (|| {
                 let directory = app
@@ -278,9 +292,12 @@ pub fn run() {
                 });
             }
             app.manage(service);
+            app.manage(launcher_runtime::Launcher::default());
+            register_launcher_shortcut(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| {
+            launcher_window_event(window, event);
             if matches!(event, tauri::WindowEvent::Focused(true)) {
                 if let Ok(service) = window.state::<ManagedAuth>().inner() {
                     service.wake_sync();

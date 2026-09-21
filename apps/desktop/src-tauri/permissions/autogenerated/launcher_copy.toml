@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-launcher-copy"
+description = "Enables the launcher_copy command without any pre-configured scope."
+commands.allow = ["launcher_copy"]
+
+[[permission]]
+identifier = "deny-launcher-copy"
+description = "Denies the launcher_copy command without any pre-configured scope."
+commands.deny = ["launcher_copy"]

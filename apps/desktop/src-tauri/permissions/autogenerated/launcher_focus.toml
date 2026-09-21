@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-launcher-focus"
+description = "Enables the launcher_focus command without any pre-configured scope."
+commands.allow = ["launcher_focus"]
+
+[[permission]]
+identifier = "deny-launcher-focus"
+description = "Denies the launcher_focus command without any pre-configured scope."
+commands.deny = ["launcher_focus"]

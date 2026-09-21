@@ -104,7 +104,7 @@ fn clipboard_rejects_overlapping_windows_and_obsolete_partition() {
     entered.wait();
     assert_eq!(
         service
-            .library_copy(request.clone(), |_| panic!("queued write"))
+            .launcher_copy(request.clone(), |_| panic!("queued launcher write"))
             .err()
             .as_deref(),
         Some("clipboard_busy")

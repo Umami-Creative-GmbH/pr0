@@ -18,6 +18,18 @@
         "height": 760,
         "minWidth": 640,
         "minHeight": 480
+      },
+      {
+        "label": "launcher",
+        "url": "launcher.html",
+        "title": "pr0 Quick launcher",
+        "width": 660,
+        "height": 580,
+        "minWidth": 420,
+        "minHeight": 360,
+        "visible": false,
+        "focus": false,
+        "center": true
       }
     ],
     "security": {

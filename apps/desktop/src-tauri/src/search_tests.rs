@@ -213,6 +213,18 @@ fn search_shared_sort_recency_scope_and_filter_fixtures() {
             })
             .collect();
         assert_eq!(ids, expected, "{case}");
+        if request.view == "all" && ["recently-used", "relevance"].contains(&request.sort.as_str()) {
+            request.cursor = None;
+            if request.sort == "recently-used" { request.query.clear(); }
+            let mut launcher_ids = Vec::new();
+            loop {
+                let page = service.launcher_search(request.clone()).unwrap();
+                launcher_ids.extend(page.prompts.into_iter().map(|p| p.id));
+                request.cursor = page.next_cursor;
+                if request.cursor.is_none() { break; }
+            }
+            assert_eq!(launcher_ids, expected, "launcher {case}");
+        }
     }
     drop(service);
     std::fs::remove_dir_all(directory).unwrap();

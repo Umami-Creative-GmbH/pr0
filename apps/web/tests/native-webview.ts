@@ -1,7 +1,11 @@
 // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Wait for this isolated WebView's debugging endpoint to start.
 import { chromium } from "playwright";
 
-export const nativeWebview = async (executable: string, directory: string) => {
+export const nativeWebview = async (
+  executable: string,
+  directory: string,
+  env: Record<string, string> = {}
+) => {
   const reservation = Bun.serve({ port: 0, fetch: () => new Response() });
   const { port } = reservation;
   await reservation.stop(true);
@@ -18,6 +22,7 @@ export const nativeWebview = async (executable: string, directory: string) => {
       stderr: "inherit",
       env: {
         ...process.env,
+        ...env,
         PR0_SEARCH_WEBVIEW_DIRECTORY: directory,
         WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}`,
       },
@@ -49,6 +54,7 @@ export const nativeWebview = async (executable: string, directory: string) => {
     return {
       browser,
       page,
+      exited: child.exited,
       async stop() {
         await browser.close();
         child.kill();

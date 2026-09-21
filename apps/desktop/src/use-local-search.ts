@@ -7,6 +7,7 @@ import { promptQuerySchema, promptSortSchema } from "@pr0/api-contract/prompts";
 import type { PromptSort, PromptView } from "@pr0/api-contract/prompts";
 import { useEffect, useRef, useState } from "react";
 
+import { launcherClient } from "./launcher-client";
 import { downloadError, libraryClient } from "./library-client";
 import type { Status } from "./use-auth-session";
 
@@ -22,12 +23,13 @@ const remembered = (key: string, view: PromptView): PromptSort => {
   return view === "recents" ? "recently-used" : "recently-modified";
 };
 export const useLocalSearch = (
-  account: Status,
+  account: Pick<Status, "instanceId" | "accountId" | "generation">,
   refresh: number,
   onSelect: (
     id: string | null,
     reason?: "refresh" | "navigation"
-  ) => Promise<void>
+  ) => Promise<void>,
+  mode: "library" | "launcher" = "library"
 ) => {
   const [view, setView] = useState<PromptView>("all");
   const [viewCollectionId, setViewCollectionId] = useState<string>();
@@ -38,7 +40,7 @@ export const useLocalSearch = (
   const [searchSort, setSearchSort] = useState<PromptSort>("relevance");
   const key = `pr0:desktop-sort:${account.instanceId}:${account.accountId}:${viewCollectionId ?? view}`;
   const [browseSort, setBrowseSort] = useState<PromptSort>(() =>
-    remembered(key, "all")
+    mode === "launcher" ? "recently-used" : remembered(key, "all")
   );
   const [cursors, setCursors] = useState<string[]>([]);
   const [page, setPage] = useState<DesktopSearchPage>();
@@ -96,7 +98,9 @@ export const useLocalSearch = (
           await onSelect(null);
           return;
         }
-        const result = await libraryClient.search(input, abort.signal);
+        const result = await (
+          mode === "launcher" ? launcherClient : libraryClient
+        ).search(input, abort.signal);
         if (abort.signal.aborted) {
           return;
         }
@@ -161,6 +165,7 @@ export const useLocalSearch = (
     retry,
     navigation,
     onSelect,
+    mode,
   ]);
   // oxlint-enable react/exhaustive-effect-dependencies
   const resetPage = () => {
@@ -246,6 +251,9 @@ export const useLocalSearch = (
     },
     clearFilters,
     previous: () => {
+      if (mode === "launcher") {
+        selected.current = null;
+      }
       setNavigation((value) => value + 1);
       setCursors((values) => values.slice(0, -1));
       setBusy(true);
@@ -253,6 +261,9 @@ export const useLocalSearch = (
     next: () => {
       const next = page?.nextCursor;
       if (next) {
+        if (mode === "launcher") {
+          selected.current = null;
+        }
         setNavigation((value) => value + 1);
         setCursors((values) => [...values, next]);
         setBusy(true);

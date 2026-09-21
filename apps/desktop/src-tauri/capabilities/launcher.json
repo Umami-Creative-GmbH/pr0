@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "launcher",
+  "description": "Local quick launcher: active search, guarded copy, status and its own lifecycle only.",
+  "windows": ["launcher"],
+  "permissions": [
+    "allow-launcher-status",
+    "allow-launcher-search",
+    "allow-launcher-cancel-search",
+    "allow-launcher-copy",
+    "allow-launcher-hide",
+    "allow-launcher-focus",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

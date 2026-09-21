@@ -11,6 +11,7 @@ include!("lifecycle_tests.rs");
 include!("compatibility_tests.rs");
 include!("migration_tests.rs");
 include!("search_tests.rs");
+include!("launcher_tests.rs");
 include!("search_fixture_transport.rs");
 #[cfg(feature = "search-webview-test")]
 include!("search_webview_tests.rs");

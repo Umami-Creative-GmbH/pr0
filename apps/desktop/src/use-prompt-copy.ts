@@ -4,7 +4,7 @@ import { libraryClient } from "./library-client";
 import type { Status } from "./use-auth-session";
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- IPC errors are untrusted; display only fixed messages.
-const copyError = (error: unknown) => {
+export const copyError = (error: unknown) => {
   if (error === "clipboard_busy") {
     return "Another copy is in progress. Wait for it to finish, then try again.";
   }
