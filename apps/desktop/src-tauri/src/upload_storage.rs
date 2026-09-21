@@ -3,10 +3,11 @@ use super::local_contract::{PendingAction, PendingOperation};
 use super::upload_contract::{now, Mapping, Outcome, PendingError, UploadStatus};
 impl LibraryStore {
     pub fn required_download_revision(&self) -> Result<String, String> {
-        let revision:i64=self.db.query_row("SELECT coalesce(max(cast(json_extract(receipt,'$.revision') AS INTEGER)),0) FROM (SELECT receipt FROM outbox WHERE state='accepted_awaiting_download' UNION ALL SELECT receipt FROM pending_usage WHERE receipt IS NOT NULL)",[],|r|r.get(0)).map_err(io)?;
+        let revision:i64=self.db.query_row("SELECT coalesce(max(cast(json_extract(receipt,'$.revision') AS INTEGER)),0) FROM (SELECT receipt,envelope FROM outbox WHERE state='accepted_awaiting_download' AND error IS NOT 'recovery_required' UNION ALL SELECT receipt,envelope FROM pending_usage WHERE receipt IS NOT NULL AND recovery=0) WHERE json_extract(envelope,'$.epoch')=?1",[self.active_epoch()?],|r|r.get(0)).map_err(io)?;
         Ok(revision.to_string())
     }
     pub fn upload_ready(&self) -> Result<bool, String> {
+        if self.recovering()? { return Ok(false); }
         self.db.query_row("SELECT EXISTS(SELECT 1 FROM outbox o WHERE state<>'accepted_awaiting_download' AND next_attempt<=?1 AND NOT EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox p ON p.id=d.value WHERE p.state<>'accepted_awaiting_download'))",[now()],|r|r.get(0)).map_err(io)
     }
     pub fn refresh_required(&self) -> Result<bool, String> {
@@ -15,16 +16,9 @@ impl LibraryStore {
             .map_err(io)
     }
     pub fn confirm_unchanged_snapshot(&self, manifest: &Manifest) -> Result<bool, String> {
-        let unchanged:bool=self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT active FROM state) AND complete=1 AND json_extract(manifest,'$.revision')=?1 AND json_extract(manifest,'$.epoch')=?2) AND NOT EXISTS(SELECT 1 FROM pending_usage WHERE receipt IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM outbox WHERE state='accepted_awaiting_download')",params![manifest.revision,manifest.epoch],|r|r.get(0)).map_err(io)?;
+        let unchanged:bool=self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT active FROM state) AND complete=1 AND json_extract(manifest,'$.revision')=?1 AND json_extract(manifest,'$.epoch')=?2 AND (?3=0 OR id=?4)) AND NOT EXISTS(SELECT 1 FROM state WHERE staging IS NOT NULL)",params![manifest.revision,manifest.epoch,self.recovering()?,manifest.id],|r|r.get(0)).map_err(io)?;
         if unchanged {
-            let checked = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now())
-                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-            self.db
-                .execute(
-                    "UPDATE upload_state SET last_checked=?1,refresh=0",
-                    [checked],
-                )
-                .map_err(io)?;
+            self.db.execute_batch("BEGIN IMMEDIATE; UPDATE recovery_state SET required=0; UPDATE change_state SET cursor=NULL,error=NULL,attempts=0,next_attempt=0,updating=1; UPDATE upload_state SET refresh=0; COMMIT;").map_err(io)?;
         }
         Ok(unchanged)
     }
@@ -121,6 +115,7 @@ impl LibraryStore {
         Ok(())
     }
     pub fn prepare_upload(&mut self) -> Result<Option<(serde_json::Value, bool)>, String> {
+        if self.recovering()? { return Ok(None); }
         let tx = self
             .db
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -177,6 +172,11 @@ impl LibraryStore {
     ) -> Result<(), String> {
         let sent: PendingOperation = serde_json::from_value(body["operations"][0].clone())
             .map_err(|_| "invalid_response")?;
+        if matches!(&outcome, Outcome::Rejected {error} if error.operation_id==sent.operation_id && error.code=="snapshot_required") {
+            self.change_failed("snapshot_required")?;
+        }
+        let blocked: bool = self.db.query_row("SELECT EXISTS(SELECT 1 FROM outbox WHERE id=?1 AND error='recovery_required')", [&sent.operation_id], |r|r.get(0)).map_err(io)?;
+        if blocked { return Err("recovery_required".into()); }
         let tx = self
             .db
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -345,8 +345,8 @@ fn retire_downloaded_uploads(
     tx: &rusqlite::Transaction,
     manifest: &Manifest,
 ) -> Result<(), String> {
-    tx.execute("DELETE FROM pending_usage WHERE receipt IS NOT NULL AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
-    tx.execute("DELETE FROM outbox WHERE state='accepted_awaiting_download' AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
+    tx.execute("DELETE FROM pending_usage WHERE recovery=0 AND receipt IS NOT NULL AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
+    tx.execute("DELETE FROM outbox WHERE error IS NOT 'recovery_required' AND state='accepted_awaiting_download' AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
     let ids = {
         let mut statement = tx
             .prepare("SELECT id FROM local_prompt WHERE id NOT IN(SELECT prompt_id FROM outbox)")

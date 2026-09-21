@@ -64,3 +64,31 @@ export const snapshotRecordsSchema = z.strictObject({
     .max(10_000),
 });
 export type SnapshotPage = z.infer<typeof snapshotPageSchema>;
+
+// Native command responses, scoped to the retained account partition.
+export const downloadStatusSchema = z.strictObject({
+  ...libraryScopeSchema.shape,
+  pendingChanges: z.number().int().nonnegative(),
+  textBytes: z.number().int().nonnegative(),
+  complete: z.boolean(),
+  replacement: z.boolean(),
+  catchingUp: z.boolean(),
+  paused: z.boolean(),
+  recoveryCount: z.number().int().nonnegative(),
+  error: z.string().nullable(),
+  downloaded: z.number().int().nonnegative(),
+  total: z.number().int().min(0).max(10_000),
+  appliedPages: z.number().int().min(0).max(snapshotLimits.pages),
+  totalPages: z.number().int().min(0).max(snapshotLimits.pages),
+  revision: revisionSchema.nullable(),
+});
+export const recoverySummariesSchema = z
+  .array(
+    z.strictObject({
+      snapshotId: z.uuidv4(),
+      promptId: z.uuidv4(),
+      title: z.string(),
+      capturedAt: z.iso.datetime(),
+    })
+  )
+  .max(50);

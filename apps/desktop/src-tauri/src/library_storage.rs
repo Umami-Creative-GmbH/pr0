@@ -39,7 +39,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 5 {
+        if version > 6 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -129,6 +129,18 @@ impl LibraryStore {
                 UPDATE upload_state SET last_checked=NULL;
                 PRAGMA user_version=5; COMMIT;").map_err(io)?;
         }
+        if version < 6 {
+            db.execute_batch("BEGIN IMMEDIATE;
+                CREATE TABLE recovery_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), required INTEGER NOT NULL DEFAULT 0, paused INTEGER NOT NULL DEFAULT 0, error TEXT);
+                INSERT INTO recovery_state(singleton) VALUES(1);
+                CREATE TABLE recovery_archive(snapshot TEXT PRIMARY KEY REFERENCES download(id), captured_at TEXT NOT NULL);
+                CREATE TABLE recovery_prompt(snapshot TEXT NOT NULL REFERENCES recovery_archive(snapshot), id TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(snapshot,id));
+                CREATE TABLE recovery_work(snapshot TEXT NOT NULL REFERENCES recovery_archive(snapshot), id TEXT NOT NULL, kind TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(snapshot,id));
+                CREATE TABLE recovery_blocked(prompt_id TEXT PRIMARY KEY);
+                ALTER TABLE pending_usage ADD COLUMN recovery INTEGER NOT NULL DEFAULT 0;
+                UPDATE recovery_state SET required=EXISTS(SELECT 1 FROM change_state WHERE error='snapshot_required');
+                PRAGMA user_version=6; COMMIT;").map_err(io)?;
+        }
         Ok(Self {
             db,
             instance: instance.into(),
@@ -136,7 +148,7 @@ impl LibraryStore {
         })
     }
     pub fn pending(&self) -> Result<Option<(Manifest, usize)>, String> {
-        let row: Option<(String,u32)> = self.db.query_row("SELECT manifest,applied FROM download WHERE id=(SELECT staging FROM state WHERE singleton=1) AND complete=0", [], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(io)?;
+        let row: Option<(String,u32)> = self.db.query_row("SELECT manifest,applied FROM download WHERE id=(SELECT staging FROM state WHERE singleton=1)", [], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(io)?;
         row.map(|(value, page)| {
             serde_json::from_str(&value)
                 .map(|manifest| (manifest, page as usize))
@@ -146,7 +158,7 @@ impl LibraryStore {
     }
     pub fn expire(&mut self) -> Result<(), String> {
         self.db
-            .execute("UPDATE state SET staging=NULL WHERE singleton=1", [])
+            .execute_batch("BEGIN IMMEDIATE; UPDATE state SET staging=NULL WHERE singleton=1; UPDATE recovery_state SET required=1; COMMIT;")
             .map_err(io)?;
         Ok(())
     }
@@ -156,11 +168,13 @@ impl LibraryStore {
             return Err("snapshot_expired".into());
         }
         let value = serde_json::to_string(manifest).map_err(|_| "invalid_response")?;
+        self.preflight_snapshot(manifest)?;
         let tx = self.db.transaction().map_err(io)?;
+        preserve_recovery_epoch(&tx, manifest)?;
         // At most one staging copy; the prior usable generation remains intact.
         tx.execute("UPDATE state SET staging=NULL WHERE singleton=1", [])
             .map_err(io)?;
-        tx.execute("DELETE FROM download WHERE id NOT IN(SELECT active FROM state WHERE active IS NOT NULL)",[]).map_err(io)?;
+        tx.execute("DELETE FROM download WHERE id NOT IN(SELECT active FROM state WHERE active IS NOT NULL) AND id NOT IN(SELECT snapshot FROM recovery_archive)",[]).map_err(io)?;
         tx.execute(
             "INSERT INTO download(id,manifest) VALUES(?1,?2)",
             params![manifest.id, value],
@@ -171,9 +185,22 @@ impl LibraryStore {
             [&manifest.id],
         )
         .map_err(io)?;
+        tx.execute(
+            "UPDATE change_state SET cursor=NULL,error=NULL,next_attempt=0,attempts=0,updating=1",
+            [],
+        )
+        .map_err(io)?;
+        tx.execute(
+            "UPDATE outbox SET error=NULL,next_attempt=0 WHERE error='snapshot_required'",
+            [],
+        )
+        .map_err(io)?;
         tx.commit().map_err(io)
     }
     pub fn apply(&mut self, manifest: &Manifest, index: usize, page: Page) -> Result<(), String> {
+        if manifest.expired() {
+            return Err("snapshot_expired".into());
+        }
         let expected = manifest.pages.get(index).ok_or("invalid_response")?;
         let digest = format!("{:x}", Sha256::digest(page.payload.as_bytes()));
         if page.id != manifest.id
@@ -268,7 +295,10 @@ impl LibraryStore {
             params![manifest.id, (index + 1) as u32, complete],
         )
         .map_err(io)?;
-        if complete {
+        let initial: bool = tx
+            .query_row("SELECT active=staging FROM state", [], |r| r.get(0))
+            .map_err(io)?;
+        if complete && initial {
             retire_downloaded_uploads(&tx, manifest)?;
             tx.execute("UPDATE change_state SET cursor=NULL,updating=1", [])
                 .map_err(io)?;
@@ -277,11 +307,15 @@ impl LibraryStore {
                 [&manifest.id],
             )
             .map_err(io)?;
-            tx.execute("DELETE FROM download WHERE id<>?1", [&manifest.id])
+            tx.execute("DELETE FROM download WHERE id<>?1 AND id NOT IN(SELECT snapshot FROM recovery_archive)", [&manifest.id])
+                .map_err(io)?;
+            tx.execute("UPDATE recovery_state SET required=0", [])
                 .map_err(io)?;
         }
         tx.execute("UPDATE local_state SET revision=revision+1", [])
             .map_err(io)?;
+        #[cfg(test)]
+        test_stage("snapshot_page_commit")?;
         tx.commit().map_err(io)
     }
     pub fn status(&self) -> Result<LibraryStatus, String> {
@@ -291,6 +325,11 @@ impl LibraryStore {
             .query_row("SELECT count(*) FROM visible_prompt", [], |r| r.get(0))
             .map_err(io)?;
         let mut status = LibraryStatus {
+            replacement: self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT active FROM state) AND complete=1) AND ((SELECT required FROM recovery_state) OR EXISTS(SELECT 1 FROM state WHERE staging IS NOT NULL))", [], |r|r.get(0)).map_err(io)?,
+            catching_up: self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT staging FROM state) AND complete=1)", [], |r|r.get(0)).map_err(io)?,
+            paused: self.db.query_row("SELECT paused FROM recovery_state", [], |r|r.get(0)).map_err(io)?,
+            error: self.db.query_row("SELECT error FROM recovery_state", [], |r|r.get(0)).map_err(io)?,
+            recovery_count: self.db.query_row("SELECT count(*) FROM recovery_prompt", [], |r|r.get(0)).map_err(io)?,
             complete: false,
             downloaded,
             total: 0,
@@ -305,7 +344,8 @@ impl LibraryStore {
         if let Some((value, applied, complete)) = row {
             let manifest: Manifest =
                 serde_json::from_str(&value).map_err(|_| "storage_unavailable")?;
-            status.complete = complete;
+            let recovering = self.recovering()?;
+            status.complete = complete && !recovering;
             status.total = manifest.prompt_count;
             status.applied_pages = applied;
             status.total_pages = manifest.pages.len() as u32;
@@ -355,3 +395,4 @@ include!("local_storage.rs");
 include!("upload_storage.rs");
 include!("change_storage.rs");
 include!("usage_storage.rs");
+include!("recovery_storage.rs");
