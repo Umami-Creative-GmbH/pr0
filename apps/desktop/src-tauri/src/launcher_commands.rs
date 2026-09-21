@@ -206,7 +206,7 @@ async fn launcher_copy(
     app.state::<launcher_runtime::Launcher>().end_write(opening)?;
     let result = result.map_err(|_| "native_unavailable")??;
     // Clipboard success stays success even if hiding fails. Usage retry never copies again.
-    let same_partition = authority.launcher_account().ok().and_then(|(account, _)| account)
+    let same_partition = authority.launcher_account().ok().and_then(|(account, _, _)| account)
         .is_some_and(|account| account.instance_id == result.origin.instance_id
             && account.account_id == result.origin.account_id && account.generation == result.origin.generation);
     if same_partition { let _ = hide_launcher(&app, opening); }
