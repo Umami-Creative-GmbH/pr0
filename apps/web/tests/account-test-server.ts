@@ -1,10 +1,28 @@
 // oxlint-disable eslint/no-await-in-loop -- Readiness polling and server lifecycle transitions are sequential.
 import path from "node:path";
 
+import { readinessResponseSchema } from "@pr0/api-contract/health";
+
 import { origin } from "./http-fixture";
 
 const root = path.resolve(import.meta.dir, "../../..");
 const web = path.join(root, "apps/web");
+const accountServicesReady = async (response: Response) => {
+  if (response.ok) {
+    return true;
+  }
+  if (response.status !== 503) {
+    return false;
+  }
+  const readiness = readinessResponseSchema.parse(await response.json());
+  // Recovery fixtures drive on-demand search preparation after restarting with retained data.
+  return (
+    readiness.checks.schema === "ready" &&
+    readiness.checks.deletionReplay === "ready" &&
+    readiness.checks.email === "ready" &&
+    readiness.checks.search === "search_preparing"
+  );
+};
 export const runAcceptance = async (
   command: string[],
   env: Record<string, string> = {}
@@ -83,7 +101,9 @@ export const accountTestServer = (
         const response = await fetch(`${origin}/api/v1/ready`, {
           signal: AbortSignal.timeout(2000),
         });
-        if (ready ? response.ok : response.status === 503) {
+        if (
+          ready ? await accountServicesReady(response) : response.status === 503
+        ) {
           return;
         }
       } catch {

@@ -10,7 +10,7 @@ import {
 } from "@pr0/api-contract/deletions";
 
 import { failure, readBody } from "./account-http";
-import { AccountFailureError, assertOrigin } from "./admission";
+import { AccountFailureError, admitApi, assertOrigin } from "./admission";
 import { authentication } from "./auth";
 import { assertIdentity, lockAccount, requireProof } from "./browser-proof";
 import { database } from "./database";
@@ -46,6 +46,7 @@ export const handleAccountDeletion = async (request: Request) => {
         sessionId: result.session.id,
       };
       await claimOwner(browser.accountId);
+      await admitApi(browser.accountId);
       if (new URL(request.url).search) {
         throw new AccountFailureError("invalid_input", 400);
       }

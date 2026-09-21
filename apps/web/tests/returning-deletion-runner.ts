@@ -19,15 +19,7 @@ const desktop = Bun.spawn(["bun", "run", "--cwd", "apps/desktop", "dev"], {
 });
 try {
   await server.setup();
-  await verifyNativeHttps(
-    server,
-    false,
-    false,
-    false,
-    false,
-    false,
-    verifyReturningDeletion
-  );
+  await verifyNativeHttps(server, { afterSession: verifyReturningDeletion });
 } finally {
   desktop.kill();
   await desktop.exited;

@@ -1,16 +1,18 @@
 // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop, react-doctor/server-sequential-independent-await -- Snapshot pages and projection checkpoints must be consumed in order.
 import { existsSync, mkdirSync, renameSync, rmSync, statfsSync } from "node:fs";
-import path from "node:path";
 
-import {
-  promptPageSchema,
-  searchNormalizationVersion,
-} from "@pr0/api-contract/prompts";
+import { promptPageSchema } from "@pr0/api-contract/prompts";
 import type { TransactionSQL } from "bun";
 
 import { database } from "./database";
 import { searchCursor } from "./search-cursor";
 import { openSearchIndex } from "./search-index";
+import {
+  indexVersion,
+  searchDirectory,
+  searchFilename,
+  searchFileSignature,
+} from "./search-location";
 import type { SearchJob, SearchRecord } from "./search-types";
 
 const readSearchSnapshot = async (tx: TransactionSQL, job: SearchJob) => {
@@ -34,15 +36,12 @@ const readSearchSnapshot = async (tx: TransactionSQL, job: SearchJob) => {
 
   return library;
 };
-const indexVersion = `4:${searchNormalizationVersion}`;
-export const searchDirectory = () =>
-  path.resolve(process.env.PR0_SEARCH_DIRECTORY ?? ".data/search");
 const invalidIndexes = new Set<string>();
 const projectSearch = async (job: SearchJob) => {
   const directory = searchDirectory();
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const key = `${job.scope.instance}-${job.scope.account}`;
-  const filename = path.join(directory, `${key}.sqlite`);
+  const filename = searchFilename(job.scope.instance, job.scope.account);
   const staging = `${filename}.building`;
   let index: ReturnType<typeof openSearchIndex> | undefined;
   let staged = false;
@@ -153,6 +152,9 @@ const projectSearch = async (job: SearchJob) => {
       index = openSearchIndex(filename);
     }
     invalidIndexes.delete(key);
+    await database()`INSERT INTO search_projection_health(account_id,epoch,revision,prepared_at,file_signature)
+      VALUES (${job.scope.account},${job.scope.epoch},${result.revision}::bigint,clock_timestamp(),${searchFileSignature(job.scope.instance, job.scope.account)})
+      ON CONFLICT(account_id) DO UPDATE SET epoch=excluded.epoch,revision=excluded.revision,prepared_at=excluded.prepared_at,file_signature=excluded.file_signature`;
     const indexMs = performance.now() - started;
     const cursor = searchCursor(
       { ...job.scope, revision: result.revision },

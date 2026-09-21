@@ -8,6 +8,47 @@ import { ApiError, createApiClient } from "./client";
 import type { ApiClient } from "./client";
 import { healthQueryOptions } from "./query-options";
 
+test("operational clients validate health failures, malformed payloads and request cancellation", async () => {
+  const unavailable = {
+    status: "unavailable",
+    checks: {
+      schema: "ready",
+      deletionReplay: "unavailable",
+      email: "ready",
+      search: "search_preparing",
+    },
+  } as const;
+  const client = createApiClient({
+    fetcher: () => Promise.resolve(Response.json(unavailable, { status: 503 })),
+  });
+  expect(await client.getReadiness()).toEqual(unavailable);
+  const invalid = createApiClient({
+    fetcher: () => Promise.resolve(Response.json({ status: "ready" })),
+  });
+  await expect(invalid.getReadiness()).rejects.toBeInstanceOf(ZodError);
+  await expect(
+    invalid.getOperationalMetrics("operator")
+  ).rejects.toBeInstanceOf(ZodError);
+  const denied = createApiClient({
+    fetcher: () => Promise.resolve(new Response(null, { status: 404 })),
+  });
+  await expect(denied.getOperationalMetrics("operator")).rejects.toMatchObject({
+    status: 404,
+  });
+  const reason = new Error("cancelled");
+  const signal = AbortSignal.abort(reason);
+  const cancelled = createApiClient({
+    fetcher: (_url, init) => {
+      expect(init.signal).toBe(signal);
+      return Promise.reject(reason);
+    },
+  });
+  await expect(cancelled.getReadiness(signal)).rejects.toBe(reason);
+  await expect(
+    cancelled.getOperationalMetrics("operator", signal)
+  ).rejects.toBe(reason);
+});
+
 test("device approval client validates requests, responses, HTTP failures and cancellation", async () => {
   const input = {
     userCode: "ABCD2345",

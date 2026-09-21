@@ -12,6 +12,7 @@ export interface BrowserAccount {
   provenance?: "device";
 }
 export interface AccountState {
+  suspended: boolean;
   email: string;
   email_version: number;
   instance_id: string;
@@ -24,7 +25,7 @@ export const lockAccount = async (
 ) => {
   const [owner] = await tx<
     AccountState[]
-  >`SELECT u.email, u.email_version, i.id AS instance_id,
+  >`SELECT u.email, u.email_version, u.suspended, i.id AS instance_id,
     (SELECT password FROM account WHERE user_id = u.id AND provider_id = 'credential' LIMIT 1) AS password
     FROM "user" u CROSS JOIN instance i WHERE u.id = ${browser.accountId} AND u.email_verified AND NOT u.deletion_pending FOR UPDATE OF u`;
   // Renewal updates non-key timestamps before its trigger locks the account.

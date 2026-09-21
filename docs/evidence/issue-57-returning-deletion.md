@@ -31,6 +31,15 @@ After merging `main` at `c4ff1ee` into PR #79, the native journey helper preserv
 - The returning-deletion HTTPS/UI journey passed again, including exact cleanup, draft invalidation and zero uploads.
 - The download-recovery HTTPS/UI journey also passed, including expired-snapshot recovery across restart, 91-day offline history, three retained prompts, accepted work awaiting download and intervening changes. This run used disposable Compose project `pr0-merge-79` and separate ports because the default test port was occupied; its temporary runner/configuration files and containers were removed afterward.
 
+## Integration with service operations
+
+After merging `main` at `fe93446`, the shared native test helper retains the new scenario-options interface and suspension check. The returning-deletion runner supplies its callback through `afterSession`; recovery remains available through its named option.
+
+- All 81 native tests, workspace tests and type checks passed. Changed-file Ultracite, Rust formatting and Git whitespace checks passed.
+- The returning-deletion HTTPS/UI journey passed again, including exact cleanup, draft invalidation and zero uploads.
+- `bun --env-file=apps/web/tests/operations.env apps/web/tests/operations-runner.ts native` passed its two-client live-change and suspension scenarios. Suspension returned the explicit error while preserving downloaded prompts; resume, refresh and sign-out succeeded.
+- Production builds passed with the existing search-directory tracing warning from `main`. Both disposable Compose projects were removed by their runners.
+
 ## Standards review
 
 No remaining actionable findings. The initial review passed; review of pagination requested shared named page-size constants, which were added.
