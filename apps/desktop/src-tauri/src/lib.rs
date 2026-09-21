@@ -6,6 +6,7 @@ mod auth_tests;
 mod auth_transport;
 mod change_contract;
 mod clipboard;
+mod deletion_proof;
 mod library_contract;
 mod library_storage;
 mod local_contract;
@@ -114,6 +115,9 @@ pub fn run() {
             auth_refresh,
             auth_sign_out,
             library_status,
+            library_recovery_browse,
+            library_recovery_detail,
+            library_pause_download,
             library_download,
             library_upload,
             library_upload_status,
@@ -150,17 +154,25 @@ pub fn run() {
                 std::thread::spawn(move || {
                     let _ = worker.restore();
                     let mut previous = String::new();
+                    let mut next_check = std::time::Instant::now();
                     loop {
                         let observed = worker.sync_generation();
+                        if std::time::Instant::now() >= next_check {
+                            let _ = worker.refresh();
+                            next_check =
+                                std::time::Instant::now() + std::time::Duration::from_secs(30);
+                        }
                         let _ = worker.library_upload();
                         let _ = worker.library_sync_usage();
                         let state = serde_json::to_string(&(
+                            worker.status(),
                             worker.library_upload_status(),
                             worker.library_status(),
                             worker.library_usage_status(),
                         ))
                         .unwrap_or_default();
                         if state != previous {
+                            let _ = handle.emit("auth-changed", ());
                             let _ = handle.emit("library-changed", ());
                             previous = state;
                         }
@@ -173,12 +185,14 @@ pub fn run() {
                     let mut previous = String::new();
                     loop {
                         let observed = worker.sync_generation();
-                        let progressed =
-                            if worker.library_status().is_ok_and(|status| !status.complete) {
-                                worker.library_download().is_ok()
-                            } else {
-                                worker.library_changes(25).is_ok()
-                            };
+                        let progressed = if worker
+                            .library_status()
+                            .is_ok_and(|status| !status.complete && !status.paused)
+                        {
+                            worker.library_download().is_ok()
+                        } else {
+                            worker.library_changes(25).is_ok()
+                        };
                         let state = serde_json::to_string(&(
                             worker.library_change_status(),
                             worker.library_status(),
@@ -190,6 +204,7 @@ pub fn run() {
                         }
                         // Drain complete pages immediately; pause only blocked or unavailable work.
                         let ready = progressed
+                            && worker.library_status().is_ok_and(|status| !status.paused)
                             && worker.library_change_status().is_ok_and(|status| {
                                 status.updating
                                     && status.error.is_none()
@@ -374,6 +389,40 @@ async fn library_download(
     state: tauri::State<'_, ManagedAuth>,
 ) -> Result<library_contract::LibraryStatus, String> {
     dispatch(window, state, AuthService::library_download).await
+}
+#[tauri::command]
+async fn library_recovery_browse(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    offset: u32,
+) -> Result<Vec<library_contract::RecoverySummary>, String> {
+    dispatch(window, state, move |service| {
+        service.library_recovery_browse(offset)
+    })
+    .await
+}
+#[tauri::command]
+async fn library_recovery_detail(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    snapshot_id: String,
+    id: String,
+) -> Result<library_contract::Prompt, String> {
+    dispatch(window, state, move |service| {
+        service.library_recovery_detail(&snapshot_id, &id)
+    })
+    .await
+}
+#[tauri::command]
+async fn library_pause_download(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    paused: bool,
+) -> Result<library_contract::LibraryStatus, String> {
+    dispatch(window, state, move |service| {
+        service.library_pause_download(paused)
+    })
+    .await
 }
 #[tauri::command]
 async fn library_browse(

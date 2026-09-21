@@ -28,6 +28,7 @@ import {
   socialSignInSchema,
   socialVerificationSchema,
 } from "./accounts";
+import { readinessResponseSchema } from "./health";
 
 const jsonResponse = (schema: string, description: string) => ({
   description,
@@ -388,7 +389,7 @@ const schemas = {
   AccountSuccess: successSchema,
   PrivateLibrary: librarySchema,
   EmptyRequest: z.strictObject({}),
-  Readiness: z.strictObject({ status: z.enum(["ready", "unavailable"]) }),
+  Readiness: readinessResponseSchema,
 };
 export const accountSchemas = Object.fromEntries(
   Object.entries(schemas).map(([name, schema]) => [

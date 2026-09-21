@@ -2,7 +2,18 @@ import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
 
 import type { DownloadStatus } from "./library-client";
+import { downloadError } from "./library-client";
 import { uploadLabel, uploadFailureMessage } from "./upload-status";
+
+const downloadLabel = (status?: DownloadStatus) => {
+  if (status?.replacement) {
+    return "Updating this device's library… Your existing library and saved local work remain available.";
+  }
+  if (status?.complete) {
+    return `Library downloaded at revision ${status.revision}. Available offline.`;
+  }
+  return `Downloading library: ${status?.downloaded ?? 0} prompts available. The offline library is incomplete.`;
+};
 
 export const DownloadProgress = ({
   status,
@@ -12,11 +23,16 @@ export const DownloadProgress = ({
   signedIn: boolean;
 }) => (
   <>
-    <output className="block">
-      {status?.complete
-        ? `Library downloaded at revision ${status.revision}. Available offline.`
-        : `Downloading library: ${status?.downloaded ?? 0} prompts available. The offline library is incomplete.`}
-    </output>
+    <output className="block">{downloadLabel(status)}</output>
+    {status?.paused ? (
+      <p>Download paused. Resume when you are ready; local work is retained.</p>
+    ) : null}
+    {status?.catchingUp ? (
+      <p>
+        Snapshot pages downloaded. Applying intervening changes before switching
+        libraries. Pending uploads may still need attention.
+      </p>
+    ) : null}
     {status && status.totalPages > 0 ? (
       <progress
         aria-label="Library download progress"
@@ -24,9 +40,52 @@ export const DownloadProgress = ({
         value={status.appliedPages}
       />
     ) : null}
+    {status && status.totalPages > 0 ? (
+      <p>
+        {status.appliedPages} of {status.totalPages} snapshot pages saved.
+      </p>
+    ) : null}
     {signedIn ? null : (
       <p>Sign in to resume downloading. Downloaded prompts remain available.</p>
     )}
+  </>
+);
+
+export const DownloadControls = ({
+  status,
+  signedIn,
+  busy,
+  errorText,
+  onPause,
+  onRetry,
+}: {
+  status?: DownloadStatus;
+  signedIn: boolean;
+  busy: boolean;
+  errorText: string;
+  onPause: () => void;
+  onRetry: () => void;
+}) => (
+  <>
+    <DownloadProgress status={status} signedIn={signedIn} />
+    {errorText || status?.error ? (
+      <p role="alert">{errorText || downloadError(status?.error)}</p>
+    ) : null}
+    {status?.complete ? null : (
+      <button type="button" onClick={onPause}>
+        {status?.paused ? "Resume download" : "Pause download"}
+      </button>
+    )}
+    {!status?.complete && signedIn ? (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onRetry}
+        className="rounded border px-4 py-2"
+      >
+        Retry download
+      </button>
+    ) : null}
   </>
 );
 
@@ -39,6 +98,22 @@ const LastChecked = ({ at }: { at?: string | null }) =>
   ) : (
     <p>Not yet checked for updates.</p>
   );
+
+const admissionLabel = (
+  changes: ChangeStatus | undefined,
+  upload: UploadStatus | undefined
+) => {
+  if (
+    changes?.error === "account_suspended" ||
+    upload?.error === "account_suspended"
+  ) {
+    return "Account suspended · Local work retained";
+  }
+  if (changes?.error?.startsWith("retry_after:") && changes.retryAfterMs > 0) {
+    return `Service busy · Retrying in ${Math.ceil(changes.retryAfterMs / 1000)} seconds`;
+  }
+  return null;
+};
 
 const incomingLabel = (
   status: DownloadStatus | undefined,
@@ -64,15 +139,28 @@ const incomingLabel = (
   }
   return label;
 };
+const incomingExplanation = (error: string) => {
+  if (error === "account_suspended") {
+    return "Contact your instance operator. Suspension does not delete your local library.";
+  }
+  if (error === "snapshot_required") {
+    return "This library needs a recovery download.";
+  }
+  return "Synchronization retries when the connection and account are available.";
+};
 const IncomingError = ({ changes }: { changes?: ChangeStatus }) =>
   changes?.error ? (
     <p>
       Incoming updates are paused. Saved local work and drafts are retained.{" "}
-      {changes.error === "snapshot_required"
-        ? "This library needs a recovery download."
-        : "Synchronization retries when the connection and account are available."}
+      {incomingExplanation(changes.error)}
     </p>
   ) : null;
+const acceptedDownloadLabel = (upload: UploadStatus) => {
+  if (upload.errors.some((entry) => entry.code === "recovery_required")) {
+    return `${upload.awaitingDownload} previously accepted variants are retained locally. The server was restored; review them because their earlier acknowledgement does not prove they survived the restore.`;
+  }
+  return `${upload.awaitingDownload} accepted operations are saved to server. Downloading current records.`;
+};
 export const LocalLibraryStatus = ({
   status,
   signedIn,
@@ -90,28 +178,26 @@ export const LocalLibraryStatus = ({
   onOpen: (id: string) => void;
   onRetry: () => void;
 }) => {
-  const label = incomingLabel(
-    status,
-    signedIn,
-    upload,
-    changes,
-    uploadLabel(signedIn, offline, status?.pendingChanges ?? 0, upload)
-  );
+  const pendingChanges = status?.pendingChanges ?? 0;
+  const label =
+    admissionLabel(changes, upload) ??
+    incomingLabel(
+      status,
+      signedIn,
+      upload,
+      changes,
+      uploadLabel(signedIn, offline, pendingChanges, upload)
+    );
   return (
     <details>
       <summary>{label}</summary>
       <p>
-        {status?.pendingChanges ?? 0} pending changes. Saved local changes await
+        {pendingChanges} pending changes. Saved local changes await
         synchronization.
       </p>
       <LastChecked at={changes?.lastCheckedAt} />
       <IncomingError changes={changes} />
-      {upload?.awaitingDownload ? (
-        <p>
-          {upload.awaitingDownload} accepted operations are saved to server.
-          Downloading current records.
-        </p>
-      ) : null}
+      {upload?.awaitingDownload ? <p>{acceptedDownloadLabel(upload)}</p> : null}
       {upload?.error ? (
         <p>
           {upload.error === "incompatible_instance"

@@ -28,6 +28,7 @@ import type {
 import type { TransactionSQL, SQL } from "bun";
 import { z } from "zod";
 
+import { AccountFailureError } from "./admission";
 import { lockAccount } from "./browser-proof";
 import type { BrowserAccount } from "./browser-proof";
 import { captureChange } from "./change-record";
@@ -70,7 +71,10 @@ export const lockLibrary = async (
   tx: TransactionSQL,
   browser: BrowserAccount
 ) => {
-  await lockAccount(tx, browser);
+  const owner = await lockAccount(tx, browser);
+  if (owner.suspended) {
+    throw new AccountFailureError("account_suspended", 403);
+  }
   const [library] = await tx<
     LibraryRow[]
   >`SELECT l.instance_id, i.recovery_epoch, l.revision::text, l.prompt_count, l.text_bytes::text

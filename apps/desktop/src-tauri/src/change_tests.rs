@@ -1,4 +1,29 @@
 // Exercise the typed service command boundary using real durable SQLite.
+#[test]
+fn service_admission_failures_preserve_downloaded_and_pending_work_after_restart() {
+    let failures: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/service-failure-fixtures.json"
+    )).unwrap();
+    for failure in failures.as_array().unwrap() {
+        let (directory, service, transport) = downloaded_change_fixture();
+        let saved = service.library_create(save_request(&service)).unwrap();
+        let before = service.library_status().unwrap();
+        let error = failure["nativeError"].as_str().unwrap();
+        transport.0.lock().unwrap().push(json!({"fixtureFailure":error}));
+        let status = service.library_changes(0).unwrap();
+        assert_eq!(status.error.as_deref(), Some(error));
+        assert!(status.retry_after_ms > 0);
+        assert_eq!(service.library_status().unwrap().pending_changes, before.pending_changes);
+        assert_eq!(service.library_editor(&saved.prompt.id).unwrap().prompt.content, saved.prompt.content);
+        drop(service);
+        let reopened = AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+        assert_eq!(reopened.library_status().unwrap().pending_changes, before.pending_changes);
+        assert_eq!(reopened.library_detail(&saved.prompt.id).unwrap().content, saved.prompt.content);
+        drop(reopened);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
 fn change_fixture() -> serde_json::Value {
     serde_json::from_str(include_str!(
         "../../../../packages/api-contract/src/change-fixtures.json"
@@ -45,7 +70,7 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     ).unwrap();
     let db = rusqlite::Connection::open(&path).unwrap();
     // Recreate main's version-4 schema with real downloaded and pending records.
-    db.execute_batch("DROP TABLE change_state; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
+    db.execute_batch("DROP TABLE change_state; DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
     drop(db);
     let store = super::library_storage::LibraryStore::open(
         &directory, &prompt.instance_id, &prompt.account_id,
@@ -60,7 +85,7 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     assert!(store.change_request(0).unwrap().is_some());
     drop(store);
     let db = rusqlite::Connection::open(path).unwrap();
-    assert_eq!(db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 5);
+    assert_eq!(db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 6);
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();
 }

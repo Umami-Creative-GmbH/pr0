@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-recovery-detail"
+description = "Enables the library_recovery_detail command without any pre-configured scope."
+commands.allow = ["library_recovery_detail"]
+
+[[permission]]
+identifier = "deny-library-recovery-detail"
+description = "Denies the library_recovery_detail command without any pre-configured scope."
+commands.deny = ["library_recovery_detail"]

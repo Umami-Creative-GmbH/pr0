@@ -6,7 +6,7 @@ impl AuthService {
         let (generation, envelope, trust) = {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
             let status = self.library(&mut state)?.usage_status()?;
-            if status.waiting == 0 || status.retry_after_ms > 0 {
+            if status.waiting == 0 || status.retry_after_ms > 0 || self.library(&mut state)?.recovering()? {
                 return Ok(status);
             }
             (
@@ -21,6 +21,9 @@ impl AuthService {
             )
         };
         let result: Result<(), String> = (|| {
+            if self.check_deletion()? {
+                return Err("operation_cancelled".into());
+            }
             let envelope = envelope.ok_or("authentication_required")?;
             let capabilities: Capabilities = decode(self.snapshot_request(
                 generation,
@@ -34,7 +37,7 @@ impl AuthService {
             {
                 return Err("incompatible_instance".into());
             }
-            self.refresh()?;
+            self.refresh_session()?;
             let prepared = {
                 let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
                 if generation != state.generation {
@@ -86,6 +89,7 @@ impl AuthService {
             return Err("operation_cancelled".into());
         }
         let store = self.library(&mut state)?;
+        if result.as_ref().err().is_some_and(|e|e=="snapshot_required") { store.change_failed("snapshot_required")?; }
         store.usage_attempt(result.err().as_deref())?;
         store.usage_status()
     }

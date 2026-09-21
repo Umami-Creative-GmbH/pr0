@@ -375,6 +375,7 @@ export type MutationEnvelope = z.infer<typeof mutationEnvelopeSchema>;
 export type CreatePrompt = z.infer<typeof createPromptSchema>;
 export const promptErrorSchema = z.strictObject({
   code: z.enum([
+    "account_suspended",
     "validation_failed",
     "name_conflict",
     "quota_exceeded",

@@ -85,6 +85,11 @@ pub struct Summary {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryStatus {
+    pub replacement: bool,
+    pub catching_up: bool,
+    pub paused: bool,
+    pub recovery_count: u32,
+    pub error: Option<String>,
     pub text_bytes: u64,
     pub pending_changes: u32,
     pub complete: bool,
@@ -95,6 +100,14 @@ pub struct LibraryStatus {
     pub revision: Option<String>,
     pub account_id: String,
     pub instance_id: String,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecoverySummary {
+    pub snapshot_id: String,
+    pub prompt_id: String,
+    pub title: String,
+    pub captured_at: String,
 }
 fn revision(value: &str) -> Option<u64> {
     let parsed = value.parse::<u64>().ok()?;

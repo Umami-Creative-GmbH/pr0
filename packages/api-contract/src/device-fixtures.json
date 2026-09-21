@@ -9,7 +9,7 @@
       "kid": "22222222-2222-4222-8222-222222222222",
       "kty": "OKP",
       "crv": "Ed25519",
-      "x": "11qYAYKxCrfVS_7TyWm3EoUgsH-uKkKn39RZOC2Io5o"
+      "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
     },
     "limits": { "credentialBytes": 2560, "responseBytes": 16384 }
   },
