@@ -10,6 +10,7 @@ mod library_contract;
 mod library_storage;
 mod local_contract;
 mod local_search;
+mod organization_contract;
 mod upload_contract;
 mod usage_contract;
 
@@ -114,6 +115,11 @@ pub fn run() {
             auth_refresh,
             auth_sign_out,
             library_status,
+            library_organization,
+            library_organize,
+            library_organization_review,
+            library_organization_impact,
+            library_organization_browse,
             library_download,
             library_upload,
             library_upload_status,
@@ -152,7 +158,9 @@ pub fn run() {
                     let mut previous = String::new();
                     loop {
                         let observed = worker.sync_generation();
-                        let _ = worker.library_upload();
+                        if worker.library_reconcile().is_ok() {
+                            let _ = worker.library_upload();
+                        }
                         let _ = worker.library_sync_usage();
                         let state = serde_json::to_string(&(
                             worker.library_upload_status(),
@@ -266,6 +274,64 @@ async fn library_upload_status(
     state: tauri::State<'_, ManagedAuth>,
 ) -> Result<upload_contract::UploadStatus, String> {
     dispatch(window, state, AuthService::library_upload_status).await
+}
+#[tauri::command]
+async fn library_organization(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+) -> Result<serde_json::Value, String> {
+    dispatch(window, state, AuthService::library_organization).await
+}
+#[tauri::command]
+async fn library_organize(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: organization_contract::OrganizeRequest,
+) -> Result<serde_json::Value, String> {
+    let app = window.app_handle().clone();
+    let result = dispatch(window, state, move |service| {
+        let result = service.library_organize(request);
+        service.wake_sync();
+        result
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
+    Ok(result)
+}
+#[tauri::command]
+async fn library_organization_review(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    id: String,
+    offset: u32,
+) -> Result<serde_json::Value, String> {
+    dispatch(window, state, move |service| {
+        service.library_organization_review(&id, offset)
+    })
+    .await
+}
+#[tauri::command]
+async fn library_organization_impact(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    action: organization_contract::OrganizationAction,
+    replaces: Option<String>,
+) -> Result<serde_json::Value, String> {
+    dispatch(window, state, move |service| {
+        service.library_organization_impact(action, replaces)
+    })
+    .await
+}
+#[tauri::command]
+async fn library_organization_browse(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: organization_contract::OrganizationBrowse,
+) -> Result<Vec<library_contract::Summary>, String> {
+    dispatch(window, state, move |service| {
+        service.library_organization_browse(request)
+    })
+    .await
 }
 #[tauri::command]
 async fn library_upload(

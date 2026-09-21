@@ -20,6 +20,7 @@
     "test:device": "bun --env-file=tests/device.env tests/device-runner.ts",
     "test:snapshots": "bun --env-file=tests/device.env tests/snapshots-runner.ts",
     "test:changes": "bun --env-file=tests/changes.env tests/changes-runner.ts",
+    "test:offline-organization": "bun --env-file=tests/changes.env tests/organization-native-runner.ts",
     "test:collections": "bun --env-file=tests/social.env tests/collections-runner.ts",
     "test:tags": "bun --env-file=tests/social.env tests/tags-runner.ts",
     "test:prompts": "bun --env-file=tests/social.env tests/prompts-runner.ts",

@@ -15,6 +15,7 @@ pub enum Endpoint {
     Mutations,
     Receipts,
     Changes,
+    OrganizationStates,
 }
 impl Endpoint {
     fn path(self) -> &'static str {
@@ -30,6 +31,7 @@ impl Endpoint {
             Self::Mutations => "/api/v1/sync/mutations",
             Self::Receipts => "/api/v1/sync/receipts",
             Self::Changes => "/api/v1/sync/changes",
+            Self::OrganizationStates => "/api/v1/library/organization/states",
         }
     }
 }
@@ -169,7 +171,7 @@ impl Transport for HttpsTransport {
         body: Option<Value>,
     ) -> Result<Value, String> {
         let url = format!("{}{}", origin, endpoint.path());
-        let mut request = if matches!(endpoint, Endpoint::Changes) {
+        let mut request = if matches!(endpoint, Endpoint::Changes | Endpoint::OrganizationStates) {
             self.client
                 .get(url)
                 .query(&body.unwrap_or_default())
@@ -210,7 +212,10 @@ impl Transport for HttpsTransport {
         let limit = match endpoint {
             Endpoint::Snapshot => 262144,
             Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
-            Endpoint::Mutations | Endpoint::Receipts | Endpoint::Changes => 4_194_304,
+            Endpoint::Mutations
+            | Endpoint::Receipts
+            | Endpoint::Changes
+            | Endpoint::OrganizationStates => 4_194_304,
             _ => 16384,
         };
         if result

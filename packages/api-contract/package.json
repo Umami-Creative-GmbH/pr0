@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./local-organization": "./src/local-organization.ts",
     "./changes": "./src/changes.ts",
     "./desktop-copy": "./src/desktop-copy.ts",
     "./desktop-session": "./src/desktop-session.ts",

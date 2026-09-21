@@ -92,8 +92,14 @@ export const getOrganizationReview = (
 
 export const getOrganizationStates = (browser: BrowserAccount, url: URL) =>
   database().begin(async (tx) => {
-    const { ids } = readInput(
+    const { ids, promptIds } = readInput(
       z.strictObject({
+        promptIds: z
+          .string()
+          .max(739)
+          .transform((value) => value.split(","))
+          .pipe(z.array(promptIdentitySchema).min(1).max(20))
+          .optional(),
         ids: z
           .string()
           .max(36_999)
@@ -140,8 +146,26 @@ export const getOrganizationStates = (browser: BrowserAccount, url: URL) =>
         });
       }
     }
+    const removals = promptIds?.length
+      ? await tx<
+          { prompt_id: string; tag_id: string; revision: string }[]
+        >`WITH RECURSIVE chain AS (
+      SELECT id AS root,id FROM tag WHERE instance_id=${scope.instanceId} AND account_id=${scope.accountId} AND id IN ${tx(ids)}
+      UNION SELECT id AS root,id FROM organization_removed WHERE instance_id=${scope.instanceId} AND account_id=${scope.accountId} AND id IN ${tx(ids)}
+      UNION SELECT c.root,r.target_id FROM organization_removed r JOIN chain c ON c.id=r.id WHERE r.instance_id=${scope.instanceId} AND r.account_id=${scope.accountId} AND r.target_id IS NOT NULL
+    ) SELECT p.prompt_id,c.root AS tag_id,max(p.remove_revision)::text AS revision FROM prompt_tag p JOIN chain c ON c.id=p.tag_id WHERE p.instance_id=${scope.instanceId} AND p.account_id=${scope.accountId} AND p.prompt_id IN ${tx(promptIds)} AND p.remove_revision>0 AND p.remove_revision<>p.merge_revision GROUP BY p.prompt_id,c.root ORDER BY p.prompt_id,c.root LIMIT 2001`
+      : [];
+    if (removals.length > 2000) {
+      throw invalidPromptRequest();
+    }
     return organizationStatesSchema.parse({
       ...scope,
+      revision: library.revision,
+      removals: removals.map((row) => ({
+        promptId: row.prompt_id,
+        tagId: row.tag_id,
+        revision: row.revision,
+      })),
       states: [...unique.values()],
     });
   });

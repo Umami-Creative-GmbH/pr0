@@ -59,6 +59,9 @@ impl LibraryStore {
             return Err("invalid_response".into());
         }
         for event in &page.changes {
+            for removal in &event.removed_memberships {
+                tx.execute("INSERT INTO organization_membership_removal VALUES(?1,?2,?3) ON CONFLICT(prompt_id,tag_id) DO UPDATE SET revision=max(revision,excluded.revision)",params![removal.prompt_id,removal.tag_id,event.revision.parse::<i64>().map_err(|_|"invalid_response")?]).map_err(io)?;
+            }
             tx.execute("DELETE FROM organization WHERE snapshot=?1", [&manifest.id])
                 .map_err(io)?;
             for (kind, entries) in [
@@ -80,6 +83,21 @@ impl LibraryStore {
                 }
             }
             if let Some(effect) = &event.effect {
+                tx.execute(
+                    "INSERT OR REPLACE INTO organization_removed VALUES(?1,?2,?3,?4,?5,0)",
+                    params![
+                        effect.source_id,
+                        if effect.kind == "collection.delete" {
+                            "collection"
+                        } else {
+                            "tag"
+                        },
+                        effect.source_name,
+                        effect.target_id,
+                        event.revision
+                    ],
+                )
+                .map_err(io)?;
                 apply_bulk_change(&tx, &manifest.id, event, effect)?;
             }
             for id in &event.deleted_prompt_ids {
@@ -90,6 +108,7 @@ impl LibraryStore {
                 .map_err(io)?;
             }
             for prompt in &event.prompts {
+                tx.execute("INSERT INTO organization_membership_removal SELECT ?1,t.value,?2 FROM prompt p,json_each(p.record,'$.tagIds') t WHERE p.snapshot=?3 AND p.id=?1 AND NOT EXISTS(SELECT 1 FROM json_each(?4) n WHERE n.value=t.value) ON CONFLICT(prompt_id,tag_id) DO UPDATE SET revision=excluded.revision",params![prompt.id,event.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.id,json!(prompt.tag_ids).to_string()]).map_err(io)?;
                 store_baseline_prompt(&tx, &manifest.id, prompt)?;
                 // Only text edits are currently exposed locally. Preserve that complete saved variant,
                 // while merging independent server metadata into its visible overlay.
@@ -159,6 +178,7 @@ impl LibraryStore {
             tx.execute("UPDATE local_state SET revision=revision+1", [])
                 .map_err(io)?;
         }
+        project_organization(&tx)?;
         tx.commit().map_err(io)
     }
 }

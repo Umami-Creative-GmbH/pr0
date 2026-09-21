@@ -39,7 +39,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 5 {
+        if version > 6 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -128,6 +128,9 @@ impl LibraryStore {
                 INSERT INTO change_state(singleton) VALUES(1);
                 UPDATE upload_state SET last_checked=NULL;
                 PRAGMA user_version=5; COMMIT;").map_err(io)?;
+        }
+        if version < 6 {
+            migrate_organization(&db)?;
         }
         Ok(Self {
             db,
@@ -282,6 +285,7 @@ impl LibraryStore {
         }
         tx.execute("UPDATE local_state SET revision=revision+1", [])
             .map_err(io)?;
+        project_organization(&tx)?;
         tx.commit().map_err(io)
     }
     pub fn status(&self) -> Result<LibraryStatus, String> {
@@ -355,3 +359,4 @@ include!("local_storage.rs");
 include!("upload_storage.rs");
 include!("change_storage.rs");
 include!("usage_storage.rs");
+include!("organization_storage.rs");

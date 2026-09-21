@@ -45,6 +45,54 @@ fn nfd(input: impl IntoIterator<Item = u32>) -> Vec<u32> {
     decomposed[start..].sort_by_key(|cp| class(*cp));
     decomposed
 }
+pub fn trim_name(value: &str) -> &str {
+    value.trim_matches(|c: char| unicode::WHITE_SPACE.contains(&u32::from(c)))
+}
+fn nfc(input: impl IntoIterator<Item = u32>) -> Vec<u32> {
+    let mut result: Vec<u32> = Vec::new();
+    let mut starter = 0;
+    let mut previous_class = 0;
+    for cp in nfd(input) {
+        let class = unicode::COMBINING
+            .binary_search_by_key(&cp, |e| e.0)
+            .map_or(0, |i| unicode::COMBINING[i].1);
+        let composed = result.get(starter).and_then(|a| {
+            if (0x1100..0x1113).contains(a) && (0x1161..0x1176).contains(&cp) {
+                return Some(0xac00 + (a - 0x1100) * 588 + (cp - 0x1161) * 28);
+            }
+            if (0xac00..0xd7a4).contains(a)
+                && (a - 0xac00) % 28 == 0
+                && (0x11a8..0x11c3).contains(&cp)
+            {
+                return Some(a + cp - 0x11a7);
+            }
+            unicode::COMPOSITION
+                .iter()
+                .find(|e| e.0 == (*a, cp))
+                .map(|e| e.1)
+        });
+        if let Some(composed) = composed.filter(|_| previous_class == 0 || previous_class < class) {
+            result[starter] = composed;
+        } else {
+            if class == 0 {
+                starter = result.len();
+            }
+            result.push(cp);
+            previous_class = class;
+        }
+    }
+    result
+}
+pub fn organization_identity(value: &str) -> String {
+    let folded = nfc(trim_name(value).chars().map(u32::from))
+        .into_iter()
+        .flat_map(|cp| {
+            unicode::CASEFOLD
+                .binary_search_by_key(&cp, |e| e.0)
+                .map_or_else(|_| vec![cp], |i| unicode::CASEFOLD[i].1.to_vec())
+        });
+    nfc(folded).into_iter().filter_map(char::from_u32).collect()
+}
 pub fn normalize(value: &str) -> String {
     let mut folded = Vec::new();
     for cp in nfd(value.chars().map(u32::from)) {
