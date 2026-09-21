@@ -1,6 +1,6 @@
 # Accepted design port — issue #75
 
-Status: production design port implemented locally; automated checks and visual evidence recorded below. Human visual approval and the deferred Windows checks remain pending. This is not release sign-off.
+Status: production design port implemented locally; automated checks and visual evidence recorded below. The user approved the design port on September 21, 2026; the deferred Windows checks remain pending. This is not release sign-off.
 
 ## Reference and destination map (recorded before UI changes)
 
@@ -86,6 +86,6 @@ Production-only save errors: [web dark](../evidence/design-75/production-web-dar
 
 The WebView test executable needs `apps/web/tests/webview.manifest` embedded with the Windows SDK manifest tool after rebuilding. Browser runs use `PR0_BROWSER_CHANNEL=msedge` on this machine. The integration server and credentials are isolated test fixtures.
 
-## Remaining human validation
+## Approval and remaining Windows validation
 
-Review the paired screenshots against the accepted design in the actual app. Verify Windows OS titlebar, tray, native shortcut/focus behavior and the remaining #54 matrix in a normal desktop session. User explicitly deferred those checks until after this port. No issue closure, installer validation or final visual-parity approval is claimed here.
+The user approved the presented design port and comparison evidence on September 21, 2026. This records design acceptance, not a claim that every manual Windows check was performed. Verify Windows OS titlebar, tray, native shortcut/focus behavior and the remaining #54 matrix in a normal desktop session. Those checks were explicitly deferred until after the port. No issue closure or installer validation is claimed here.
