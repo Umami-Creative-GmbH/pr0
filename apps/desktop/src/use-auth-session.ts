@@ -11,6 +11,8 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
+import { upgradeRecoveryMessage } from "./upgrade-recovery";
+
 export type Status = DesktopStatus;
 export type Command =
   | "auth_status"
@@ -73,7 +75,7 @@ const errors = {
 };
 const errorMessages = new Map(Object.entries(errors));
 const messageFor = (code: string | undefined) =>
-  code ? errorMessages.get(code) : undefined;
+  code ? (upgradeRecoveryMessage(code) ?? errorMessages.get(code)) : undefined;
 export const useAuthSession = () => {
   const [status, setStatus] = useState<Status>();
   const [busy, setBusy] = useState(false);

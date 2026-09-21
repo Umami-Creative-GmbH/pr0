@@ -7,6 +7,8 @@ include!("change_tests.rs");
 include!("recovery_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
+include!("compatibility_tests.rs");
+include!("migration_tests.rs");
 include!("search_tests.rs");
 include!("search_fixture_transport.rs");
 #[cfg(feature = "search-webview-test")]

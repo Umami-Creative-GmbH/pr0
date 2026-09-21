@@ -1,0 +1,32 @@
+[
+  {
+    "name": "preceding release on current server",
+    "protocols": [1],
+    "normalization": "pr0-search-v1-ucd17",
+    "compatible": true
+  },
+  {
+    "name": "new desktop on legacy self-hosted server",
+    "protocols": [1],
+    "normalization": "pr0-search-v1-ucd17",
+    "compatible": true
+  },
+  {
+    "name": "server retains old protocol alongside new",
+    "protocols": [2, 1],
+    "normalization": "pr0-search-v1-ucd17",
+    "compatible": true
+  },
+  {
+    "name": "no common protocol",
+    "protocols": [2],
+    "normalization": "pr0-search-v1-ucd17",
+    "compatible": false
+  },
+  {
+    "name": "normalization changed without retained semantics",
+    "protocols": [1],
+    "normalization": "pr0-search-v2",
+    "compatible": false
+  }
+]

@@ -118,6 +118,7 @@ impl LibraryStore {
         create: bool,
     ) -> Result<super::local_contract::LocalPrompt, String> {
         use super::local_contract::{uuid4, LocalPrompt, PromptText};
+        if let Some(error) = &self.recovery_error { return Err(error.clone()); }
         if !uuid4(&request.operation_id)
             || !uuid4(&request.prompt_id)
             || create != request.expected_local_revision.is_none()

@@ -20,6 +20,18 @@ COPY apps/web ./apps/web
 COPY packages ./packages
 RUN bun run --cwd apps/web build
 
+# The explicit Bun coordinator also needs native PostgreSQL backup tools.
+# Application containers continue to run only the Bun application runtime.
+FROM postgres:17-bookworm@sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652 AS migration-runtime
+WORKDIR /app
+COPY --from=base /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=build --chown=postgres:postgres /app/apps/web/.operations ./apps/web/.operations
+COPY --from=build --chown=postgres:postgres /app/apps/web/migrations ./apps/web/migrations
+RUN mkdir -p /var/lib/pr0-backups && chown postgres:postgres /var/lib/pr0-backups
+USER postgres
+ENTRYPOINT ["bun", "--bun", "apps/web/.operations/accounts.js"]
+CMD ["migrate"]
+
 FROM base AS runtime
 WORKDIR /app
 

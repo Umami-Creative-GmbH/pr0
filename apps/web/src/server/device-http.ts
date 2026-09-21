@@ -4,6 +4,7 @@ import { emptyRequestSchema } from "@pr0/api-contract/accounts";
 import type { AccountRequest } from "@pr0/api-contract/accounts";
 import {
   capabilitiesSchema,
+  compatibilityPolicy,
   desktopSessionSchema,
   deviceApprovalSchema,
   deviceCancelSchema,
@@ -221,6 +222,12 @@ export const handleCapabilities = async (request: Request) => {
           deviceAuthorization: true,
           deletionKey: keys.anchor,
           limits: { credentialBytes: 2560, responseBytes: 16_384 },
+          // Legacy desktops reject additional fields. Discovery is opt-in until
+          // the last strict legacy release leaves the support window.
+          compatibility:
+            new URL(request.url).searchParams.get("negotiation") === "1"
+              ? compatibilityPolicy
+              : undefined,
         })
       );
     });

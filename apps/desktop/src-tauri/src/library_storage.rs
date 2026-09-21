@@ -7,8 +7,9 @@ pub struct LibraryStore {
     db: Connection,
     instance: String,
     account: String,
+    recovery_error: Option<String>,
 }
-fn io(error: rusqlite::Error) -> String {
+pub(crate) fn io(error: rusqlite::Error) -> String {
     match error.sqlite_error_code() {
         Some(rusqlite::ErrorCode::DiskFull) => "disk_full",
         Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked) => {
@@ -35,7 +36,9 @@ impl LibraryStore {
             } else {
                 "search_recovery_required".into()
             }
-        })
+        })?;
+        self.recovery_error = None;
+        Ok(())
     }
     pub fn search(
         &mut self,
@@ -52,13 +55,13 @@ impl LibraryStore {
         if std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink()) {
             return Err("storage_unavailable".into());
         }
-        let mut db = Connection::open(path).map_err(io)?;
+        let mut db = Connection::open(&path).map_err(io)?;
         db.busy_timeout(std::time::Duration::from_millis(250))
             .map_err(io)?;
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 8 {
+        if version > super::library_migrations::CURRENT_SCHEMA {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -77,113 +80,13 @@ impl LibraryStore {
         if mode != "wal" || full != 2 || foreign != 1 {
             return Err("storage_unavailable".into());
         }
-        if version == 0 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                CREATE TABLE identity(singleton INTEGER PRIMARY KEY CHECK(singleton=1), instance TEXT NOT NULL, account TEXT NOT NULL);
-                CREATE TABLE download(id TEXT PRIMARY KEY, manifest TEXT NOT NULL, applied INTEGER NOT NULL DEFAULT 0, complete INTEGER NOT NULL DEFAULT 0);
-                CREATE TABLE state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), active TEXT REFERENCES download(id), staging TEXT REFERENCES download(id));
-                INSERT INTO state VALUES(1,NULL,NULL);
-                CREATE TABLE organization(snapshot TEXT NOT NULL REFERENCES download(id) ON DELETE CASCADE, kind TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(snapshot,kind,id));
-                CREATE TABLE prompt(snapshot TEXT NOT NULL REFERENCES download(id) ON DELETE CASCADE, id TEXT NOT NULL, title TEXT NOT NULL, archived INTEGER NOT NULL, record TEXT NOT NULL, text_bytes INTEGER NOT NULL, PRIMARY KEY(snapshot,id));
-                PRAGMA user_version=1;").map_err(io)?;
-            db.execute(
-                "INSERT INTO identity VALUES(1,?1,?2)",
-                params![instance, account],
-            )
-            .map_err(io)?;
-            db.execute_batch("COMMIT").map_err(io)?;
-        }
-        let valid: bool = db
-            .query_row(
-                "SELECT instance=?1 AND account=?2 FROM identity WHERE singleton=1",
-                params![instance, account],
-                |r| r.get(0),
-            )
-            .map_err(io)?;
-        if !valid {
-            return Err("snapshot_identity_mismatch".into());
-        }
-        if version < 2 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                ALTER TABLE download ADD COLUMN text_bytes INTEGER NOT NULL DEFAULT 0;
-                CREATE TABLE local_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL CHECK(revision>=0), installation TEXT NOT NULL);
-                CREATE TABLE local_prompt(id TEXT PRIMARY KEY,title TEXT NOT NULL,archived INTEGER NOT NULL,record TEXT NOT NULL,text_bytes INTEGER NOT NULL);
-                CREATE TABLE outbox(id TEXT PRIMARY KEY,prompt_id TEXT NOT NULL,payload TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('unsent','in_flight','accepted_awaiting_download')),local_revision INTEGER NOT NULL);
-                CREATE INDEX outbox_prompt ON outbox(prompt_id,local_revision);
-                CREATE TABLE local_receipt(id TEXT PRIMARY KEY,fingerprint TEXT NOT NULL,result TEXT NOT NULL);
-                CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt);
-                PRAGMA user_version=2;").map_err(io)?;
-            db.execute(
-                "INSERT INTO local_state VALUES(1,0,?1)",
-                [uuid::Uuid::new_v4().to_string()],
-            )
-            .map_err(io)?;
-            super::local_search::migrate(&db).map_err(io)?;
-            db.execute_batch("COMMIT").map_err(io)?;
-        }
-        if version < 3 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                ALTER TABLE outbox ADD COLUMN envelope TEXT;
-                ALTER TABLE outbox ADD COLUMN receipt TEXT;
-                ALTER TABLE outbox ADD COLUMN error TEXT;
-                ALTER TABLE outbox ADD COLUMN next_attempt INTEGER NOT NULL DEFAULT 0;
-                CREATE TABLE upload_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL DEFAULT 0, error TEXT, refresh INTEGER NOT NULL DEFAULT 0, last_checked TEXT);
-                INSERT INTO upload_state(singleton) VALUES(1);
-                CREATE TABLE prompt_mapping(original TEXT PRIMARY KEY, copy TEXT NOT NULL, operation TEXT NOT NULL);
-                PRAGMA user_version=3;
-                COMMIT;").map_err(io)?;
-        }
-        if version < 4 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                CREATE TABLE pending_usage(id TEXT PRIMARY KEY,prompt_id TEXT NOT NULL,occurred_at TEXT NOT NULL,envelope TEXT,receipt TEXT);
-                CREATE INDEX usage_prompt ON pending_usage(prompt_id);
-                CREATE TABLE usage_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1),attempts INTEGER NOT NULL DEFAULT 0,next_attempt INTEGER NOT NULL DEFAULT 0,error TEXT);
-                INSERT INTO usage_state(singleton) VALUES(1);
-                PRAGMA user_version=4; COMMIT;").map_err(io)?;
-        }
-        if version < 5 {
-            db.execute_batch("BEGIN IMMEDIATE;
-                CREATE TABLE change_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), cursor TEXT, attempts INTEGER NOT NULL DEFAULT 0, next_attempt INTEGER NOT NULL DEFAULT 0, error TEXT, updating INTEGER NOT NULL DEFAULT 1);
-                INSERT INTO change_state(singleton) VALUES(1);
-                UPDATE upload_state SET last_checked=NULL;
-                PRAGMA user_version=5; COMMIT;").map_err(io)?;
-        }
-        // Earlier branches reused versions 6 and 7 for different feature combinations.
-        // Inspect the schema so either existing database upgrades without losing work.
-        let has_recovery: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='recovery_state')", [], |r| r.get(0)).map_err(io)?;
-        if version < 8 && !has_recovery {
-            db.execute_batch("BEGIN IMMEDIATE;
-                CREATE TABLE recovery_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), required INTEGER NOT NULL DEFAULT 0, paused INTEGER NOT NULL DEFAULT 0, error TEXT);
-                INSERT INTO recovery_state(singleton) VALUES(1);
-                CREATE TABLE recovery_archive(snapshot TEXT PRIMARY KEY REFERENCES download(id), captured_at TEXT NOT NULL);
-                CREATE TABLE recovery_prompt(snapshot TEXT NOT NULL REFERENCES recovery_archive(snapshot), id TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(snapshot,id));
-                CREATE TABLE recovery_work(snapshot TEXT NOT NULL REFERENCES recovery_archive(snapshot), id TEXT NOT NULL, kind TEXT NOT NULL, record TEXT NOT NULL, PRIMARY KEY(snapshot,id));
-                CREATE TABLE recovery_blocked(prompt_id TEXT PRIMARY KEY);
-                ALTER TABLE pending_usage ADD COLUMN recovery INTEGER NOT NULL DEFAULT 0;
-                UPDATE recovery_state SET required=EXISTS(SELECT 1 FROM change_state WHERE error='snapshot_required');
-                PRAGMA user_version=6; COMMIT;").map_err(io)?;
-        }
-        if version < 8 {
-            let has_organization: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='organization_queue')", [], |r| r.get(0)).map_err(io)?;
-            if !has_organization {
-                migrate_organization(&db)?;
-            }
-            let indexed: bool = db
-                .query_row(
-                    "SELECT version=2 FROM local_search_version WHERE singleton=1",
-                    [],
-                    |r| r.get(0),
-                )
-                .map_err(io)?;
-            if !indexed {
-                super::local_search::upgrade(&mut db).map_err(io)?;
-            }
-            super::local_search::integrate_organization(&mut db).map_err(io)?;
-        }
+        super::library_migrations::migrate(&mut db, &path, instance, account)?;
+        let recovery_error = super::local_search::recover(&mut db, &path).err();
         db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;")
             .map_err(io)?;
         Ok(Self {
             db,
+            recovery_error,
             instance: instance.into(),
             account: account.into(),
         })
@@ -367,6 +270,7 @@ impl LibraryStore {
             .query_row("SELECT count(*) FROM visible_prompt", [], |r| r.get(0))
             .map_err(io)?;
         let mut status = LibraryStatus {
+            recovery_error: self.recovery_error.clone(),
             replacement: self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT active FROM state) AND complete=1) AND ((SELECT required FROM recovery_state) OR EXISTS(SELECT 1 FROM state WHERE staging IS NOT NULL))", [], |r|r.get(0)).map_err(io)?,
             catching_up: self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT staging FROM state) AND complete=1)", [], |r|r.get(0)).map_err(io)?,
             paused: self.db.query_row("SELECT paused FROM recovery_state", [], |r|r.get(0)).map_err(io)?,

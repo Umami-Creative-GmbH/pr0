@@ -9,7 +9,8 @@ export const localNativeWorker = async (
   uploadFixture = false,
   organizationCapacity = false,
   recoveryFixture = false,
-  profile: "debug" | "release" = "debug"
+  profile: "debug" | "release" = "debug",
+  compatibilityMismatch = false
 ) => {
   const artifactsDirectory = `apps/desktop/src-tauri/target/${profile}/deps`;
   const artifacts = [
@@ -49,6 +50,7 @@ export const localNativeWorker = async (
         PR0_LOCAL_TEST_DIRECTORY: directory,
         PR0_ORGANIZATION_CAPACITY: String(organizationCapacity),
         PR0_UPLOAD_UI_FIXTURE: String(uploadFixture),
+        PR0_COMPATIBILITY_UI_FIXTURE: String(compatibilityMismatch),
         PR0_RECOVERY_UI_FIXTURE: String(recoveryFixture),
       },
     }

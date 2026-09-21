@@ -74,10 +74,11 @@ impl AuthService {
             .file_name()
             .ok_or("storage_unavailable")?
             .to_string_lossy();
-        let paths: Vec<_> = ["", "-wal", "-shm"]
+        let mut paths: Vec<_> = ["", "-wal", "-shm"]
             .iter()
             .map(|suffix| self.directory.join(format!("{name}{suffix}")))
             .collect();
+        paths.extend(super::migration_backup::paths(&path));
         for path in &paths {
             if path.parent() != Some(self.directory.as_path())
                 || std::fs::symlink_metadata(path)

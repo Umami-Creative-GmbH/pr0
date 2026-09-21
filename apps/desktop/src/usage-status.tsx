@@ -1,5 +1,7 @@
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 
+import { upgradeRecoveryMessage } from "./upgrade-recovery";
+
 export const UsageStatus = ({
   status,
   onRetry,
@@ -22,9 +24,10 @@ export const UsageStatus = ({
     ) : null}
     {status?.error ? (
       <p>
-        {status.error === "recovery_required"
-          ? "The server was restored. Earlier usage is retained for recovery and will not be replayed automatically."
-          : "Usage sync is paused. Check your connection and sign-in; saved uses will retry automatically."}
+        {upgradeRecoveryMessage(status.error) ??
+          (status.error === "recovery_required"
+            ? "The server was restored. Earlier usage is retained for recovery and will not be replayed automatically."
+            : "Usage sync is paused. Check your connection and sign-in; saved uses will retry automatically.")}
       </p>
     ) : null}
     {status?.memoryOnly ? (

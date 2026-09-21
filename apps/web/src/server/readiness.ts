@@ -10,6 +10,7 @@ import { database } from "./database";
 import { readEvidence } from "./deletion-ledger";
 import { ensureDeletionRecovery } from "./deletion-recovery";
 import { validateMailConfiguration } from "./mail";
+import { ensureSchemaCompatibility } from "./schema-compatibility";
 import { searchFileSignature } from "./search-location";
 
 export const readReadiness = async (): Promise<ReadinessResponse> => {
@@ -20,6 +21,7 @@ export const readReadiness = async (): Promise<ReadinessResponse> => {
     search: "unavailable",
   };
   try {
+    await ensureSchemaCompatibility();
     configuration();
     const sql = database();
     const [instance] =

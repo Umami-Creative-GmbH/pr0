@@ -1,0 +1,42 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: pr0
+      POSTGRES_PASSWORD: local-social-test-only
+    ports: ["127.0.0.1:58458:5432"]
+    volumes: ["database-data:/var/lib/postgresql/data"]
+  migrate:
+    image: pr0-migration-test-58
+    profiles: [operations]
+    environment:
+      DATABASE_URL: postgres://pr0:local-social-test-only@database:5432/pr0
+      BETTER_AUTH_SECRET: local-social-test-auth-secret-at-least-32-characters
+      PR0_MIGRATION_BACKUPS: /var/lib/pr0-backups
+      PR0_DATABASE_VOLUME: /var/lib/postgresql/data
+    volumes:
+      - migration-backups:/var/lib/pr0-backups
+      - database-data:/var/lib/postgresql/data:ro
+  smtp:
+    image: axllent/mailpit@sha256:030f06031ce5c60913ac9363da1ab0d4be6fd2a78147dd0e1ca0fcac665d6b34
+    ports: ["127.0.0.1:19458:8025", "127.0.0.1:12458:1025"]
+  ledger-a:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: ledger
+      POSTGRES_PASSWORD: local-social-test-only
+    ports: ["127.0.0.1:58459:5432"]
+    tmpfs: /var/lib/postgresql/data
+  ledger-b:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: ledger
+      POSTGRES_PASSWORD: local-social-test-only
+    ports: ["127.0.0.1:58460:5432"]
+    tmpfs: /var/lib/postgresql/data
+volumes:
+  migration-backups:
+  database-data:

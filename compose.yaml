@@ -44,11 +44,18 @@ services:
       timeout: 5s
       retries: 10
   accounts:
-    image: pr0-local
+    image: pr0-migrations
     build:
       context: .
+      target: migration-runtime
     profiles: ["operations"]
-    environment: *account-environment
+    environment:
+      <<: *account-environment
+      PR0_MIGRATION_BACKUPS: /var/lib/pr0-backups
+      PR0_DATABASE_VOLUME: /var/lib/postgresql/data
+    volumes:
+      - migration-backups:/var/lib/pr0-backups
+      - postgres-data:/var/lib/postgresql/data:ro
     entrypoint: ["bun", "--bun", "apps/web/.operations/accounts.js"]
     command: ["migrate"]
     depends_on:
@@ -115,5 +122,6 @@ services:
         max-file: "3"
 
 volumes:
+  migration-backups:
   postgres-data:
   search-data:
