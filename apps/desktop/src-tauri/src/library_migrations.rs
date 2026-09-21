@@ -2,7 +2,7 @@ use super::library_storage::io;
 use rusqlite::{params, Connection, TransactionBehavior};
 use std::path::Path;
 
-pub const CURRENT_SCHEMA: u32 = 8;
+pub const CURRENT_SCHEMA: u32 = 9;
 
 pub fn migrate(
     db: &mut Connection,
@@ -125,6 +125,19 @@ pub fn migrate(
             super::local_search::upgrade(&tx).map_err(io)?;
         }
         super::local_search::integrate_organization(&tx).map_err(io)?;
+    }
+
+    if version < 9 {
+        tx.execute_batch("CREATE TABLE IF NOT EXISTS local_deleted(id TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS local_identity(id TEXT PRIMARY KEY);
+            INSERT OR IGNORE INTO local_identity SELECT id FROM local_prompt;
+            DROP VIEW base_visible_prompt;
+            CREATE VIEW base_visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt WHERE id NOT IN(SELECT id FROM local_deleted) UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt) AND id NOT IN(SELECT id FROM local_deleted);
+            CREATE TRIGGER IF NOT EXISTS search_deleted_insert AFTER INSERT ON local_deleted BEGIN INSERT INTO search_dirty VALUES(NEW.id,1) ON CONFLICT(id) DO UPDATE SET text_changed=1; END;
+            CREATE TRIGGER IF NOT EXISTS search_deleted_delete AFTER DELETE ON local_deleted BEGIN INSERT INTO search_dirty VALUES(OLD.id,1) ON CONFLICT(id) DO UPDATE SET text_changed=1; END;
+            INSERT INTO search_dirty SELECT id,1 FROM local_deleted WHERE true ON CONFLICT(id) DO UPDATE SET text_changed=1;
+            PRAGMA user_version=9;").map_err(io)?;
+        super::local_search::flush(&tx).map_err(io)?;
     }
 
     #[cfg(test)]

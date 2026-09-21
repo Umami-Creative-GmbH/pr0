@@ -97,7 +97,7 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     assert_eq!(
         db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
             .unwrap(),
-        8
+        super::library_migrations::CURRENT_SCHEMA
     );
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();

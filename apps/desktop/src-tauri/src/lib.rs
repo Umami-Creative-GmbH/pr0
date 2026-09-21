@@ -10,6 +10,7 @@ mod deletion_proof;
 mod library_contract;
 mod library_migrations;
 mod library_storage;
+mod lifecycle_contract;
 mod local_contract;
 mod local_search;
 mod migration_backup;
@@ -182,6 +183,10 @@ pub fn run() {
             library_editor,
             library_create,
             library_edit,
+            library_lifecycle,
+            library_recover,
+            library_list,
+            library_retained_prompt,
             library_copy_draft,
             library_copy,
             library_recents,
@@ -467,6 +472,61 @@ async fn library_edit(
     request: local_contract::SaveRequest,
 ) -> Result<local_contract::LocalPrompt, String> {
     save_command(window, state, request, false).await
+}
+#[tauri::command]
+async fn library_lifecycle(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: lifecycle_contract::LifecycleRequest,
+) -> Result<lifecycle_contract::LifecycleResult, String> {
+    let app = window.app_handle().clone();
+    let result = dispatch(window, state, move |service| {
+        let result = service.library_lifecycle(request);
+        service.wake_sync();
+        result
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
+    Ok(result)
+}
+#[tauri::command]
+async fn library_recover(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: lifecycle_contract::RecoveryRequest,
+) -> Result<(), String> {
+    let app = window.app_handle().clone();
+    dispatch(window, state, move |service| {
+        let result = service.library_recover(request);
+        service.wake_sync();
+        result
+    })
+    .await?;
+    let _ = app.emit("library-changed", ());
+    Ok(())
+}
+#[tauri::command]
+async fn library_list(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    offset: u32,
+    view: lifecycle_contract::LibraryView,
+) -> Result<Vec<library_contract::Summary>, String> {
+    dispatch(window, state, move |service| {
+        service.library_list(offset, view)
+    })
+    .await
+}
+#[tauri::command]
+async fn library_retained_prompt(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    id: String,
+) -> Result<library_contract::Prompt, String> {
+    dispatch(window, state, move |service| {
+        service.library_retained_prompt(&id)
+    })
+    .await
 }
 #[tauri::command]
 async fn library_copy_draft(

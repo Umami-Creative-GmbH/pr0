@@ -15,7 +15,7 @@ export const connect = async (
   page: Page,
   native: Awaited<ReturnType<typeof localNativeWorker>>,
   fault: () => string,
-  after: (command: string) => Promise<void> = async () => {
+  after: (command: string) => void | Promise<void> = () => {
     /* No post-command hook requested. */
   }
 ) => {

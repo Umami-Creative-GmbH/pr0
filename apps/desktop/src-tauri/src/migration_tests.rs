@@ -1,9 +1,49 @@
 // Build predecessor fixtures with public command-created records. Schema surgery
 // below is fixture setup only; preservation is observed through native commands.
+#[test]
+fn migration_legacy_lifecycle_six_preserves_deletion_and_pending_metadata() {
+    let (directory, service, _) = downloaded_change_fixture();
+    let id = "66666666-6666-4666-8666-666666666666";
+    let saved = service.library_create(save_request(&service)).unwrap();
+    service.library_lifecycle(lifecycle_request(&service, &saved.prompt.id, json!({"kind":"favorite","value":true}))).unwrap();
+    service.library_lifecycle(lifecycle_request(&service, id, json!({"kind":"delete","confirmed":true}))).unwrap();
+    let pending = serde_json::to_value(service.library_pending().unwrap()).unwrap();
+    let path = super::library_storage::library_path(&directory, &saved.prompt.instance_id, &saved.prompt.account_id).unwrap();
+    drop(service);
+    predecessor(&directory, 6);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    // Recreate the original lifecycle branch's version-6 layout, which predates
+    // recovery and organization but already owns durable deletion tombstones.
+    db.execute_batch("DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery;
+        CREATE TABLE local_deleted(id TEXT PRIMARY KEY); CREATE TABLE local_identity(id TEXT PRIMARY KEY);
+        INSERT INTO local_identity SELECT id FROM local_prompt;
+        DROP VIEW visible_prompt;
+        CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt WHERE id NOT IN(SELECT id FROM local_deleted) UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt) AND id NOT IN(SELECT id FROM local_deleted);").unwrap();
+    db.execute("INSERT INTO local_deleted VALUES(?1)", [id]).unwrap();
+    drop(db);
+    let service = AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+    assert!(service.library_detail(id).is_err());
+    assert!(service.library_detail(&saved.prompt.id).unwrap().favorite);
+    assert_eq!(serde_json::to_value(service.library_pending().unwrap()).unwrap(), pending);
+    let results = service.library_search(search_request(&service, "Hello")).unwrap();
+    assert_eq!(results.prompts.len(), 1);
+    assert_eq!(results.prompts[0].id, "77777777-7777-4777-8777-777777777777");
+    assert!(path.with_extension("backup-v6.sqlite").is_file());
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
 fn predecessor(directory: &std::path::Path, version: u32) {
     let path = super::library_storage::library_path(directory,
         "11111111-1111-4111-8111-111111111111", "33333333-3333-4333-8333-333333333333").unwrap();
     let db = rusqlite::Connection::open(path).unwrap();
+    db.execute_batch("DROP VIEW base_visible_prompt;
+        CREATE VIEW base_visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt);
+        DROP TABLE local_deleted; DROP TABLE local_identity;").unwrap();
+    if version == 8 {
+        db.pragma_update(None, "user_version", version).unwrap();
+        return;
+    }
     downgrade_search_fixture(&db);
     if version < 7 {
         db.execute_batch("DROP VIEW visible_prompt; DROP VIEW base_visible_prompt;
@@ -22,7 +62,7 @@ fn predecessor(directory: &std::path::Path, version: u32) {
 
 #[test]
 fn migration_every_predecessor_preserves_exact_pending_work_and_consistent_backup() {
-    for version in 1..=7 {
+    for version in 1..=8 {
         let (directory, service, _) = downloaded_change_fixture();
         let request = save_request(&service);
         if version >= 2 { service.library_create(request.clone()).unwrap(); }
@@ -66,7 +106,7 @@ fn migration_normalization_rebuild_preserves_primary_variants_and_resets_checkpo
     assert_eq!(service.library_detail(&request.prompt_id).unwrap().content, "  My complete draft\n");
     assert_eq!(serde_json::to_value(service.library_pending().unwrap()).unwrap(), pending);
     assert!(service.library_change_status().unwrap().last_checked_at.is_none());
-    assert!(path.with_extension("backup-v8.sqlite").is_file());
+    assert!(path.with_extension("backup-v9.sqlite").is_file());
     drop(service);
     std::fs::remove_dir_all(directory).unwrap();
 }
@@ -105,7 +145,7 @@ fn migration_refuses_newer_schema_and_backup_io_failure_without_changing_primary
 
 #[test]
 fn migration_full_volume_and_io_roll_back_every_predecessor() {
-    for version in 1..=7 {
+    for version in 1..=8 {
         for fault in ["full", "io"] {
             let (directory, service, _) = downloaded_change_fixture();
             let request = save_request(&service);
@@ -139,7 +179,7 @@ fn migration_kill_worker() {
 fn migration_interruption_rolls_back_every_predecessor() {
     use std::io::{BufRead, BufReader};
     use std::process::{Command, Stdio};
-    for version in 1..=7 {
+    for version in 1..=8 {
         let (directory, service, _) = downloaded_change_fixture();
         let request = save_request(&service);
         if version >= 2 { service.library_create(request.clone()).unwrap(); }
@@ -170,7 +210,7 @@ fn migration_broken_index_retains_browsing_during_io_failure_then_recovers() {
     let db = rusqlite::Connection::open(&path).unwrap();
     db.execute_batch("DROP TABLE local_f_content").unwrap();
     drop(db);
-    let blocked = path.with_extension("backup-v8.preparing");
+    let blocked = path.with_extension("backup-v9.preparing");
     std::fs::create_dir(&blocked).unwrap();
     let service = AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
     assert_eq!(service.library_status().unwrap().recovery_error.as_deref(), Some("migration_backup_failed"));

@@ -8,6 +8,8 @@ export const DownloadedRows = ({
   onOpen,
   onCopy,
   onBrowse,
+  onFavorite,
+  changing,
 }: {
   rows: DownloadedSummary[];
   offset: number;
@@ -16,11 +18,24 @@ export const DownloadedRows = ({
   onOpen: (id: string) => Promise<void>;
   onCopy: (id: string) => Promise<void>;
   onBrowse: (offset: number) => Promise<void>;
+  onFavorite: (id: string) => Promise<void>;
+  changing: boolean;
 }) => (
   <>
     <ul className="space-y-2">
       {rows.map((row) => (
-        <li key={row.id}>
+        <li key={row.id} className="flex flex-wrap gap-2">
+          <button
+            className="rounded border px-3 py-2 disabled:opacity-50"
+            type="button"
+            disabled={changing}
+            aria-label={`Toggle favorite for ${row.title}`}
+            onClick={() => {
+              void onFavorite(row.id);
+            }}
+          >
+            Favorite
+          </button>
           <button
             className="rounded border px-3 py-2 text-left"
             type="button"

@@ -16,6 +16,7 @@ import type { accountTestServer } from "./account-test-server";
 import { verifyNativeChanges } from "./changes-native";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
+import { verifyNativeLifecycle } from "./lifecycle-native";
 import type { NativeArgs } from "./local-native-worker";
 import { verifyNativeOrganization } from "./organization-native";
 import { verifyNativeRecovery } from "./recovery-native";
@@ -180,6 +181,11 @@ const verifyNativePeerChanges = async ({
   }
 };
 
+const requestedJourneys = (usage: boolean, lifecycle: boolean) =>
+  [
+    { enabled: usage, verify: verifyNativeUsage },
+    { enabled: lifecycle, verify: verifyNativeLifecycle },
+  ].filter((entry) => entry.enabled);
 interface NativeSession {
   native: ReturnType<typeof worker>;
   page: Page;
@@ -255,24 +261,46 @@ const finishNativeJourney = async (
   );
 };
 
+const nativeAccount = async (download: boolean | undefined) => {
+  const account = await verifiedBrowser();
+  if (download) {
+    await seedDownloadCapacity(account.library);
+  }
+  return account;
+};
+
+const raceAdmissionLimits = (
+  lifecycle: boolean,
+  live?: boolean | "organization"
+): Record<string, string> =>
+  lifecycle || live === "organization"
+    ? { PR0_LIMIT_AUTH_BURST: "1000", PR0_LIMIT_AUTH_MINUTE: "1000" }
+    : {};
+
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
   scenarios: {
     download?: boolean;
     upload?: boolean;
     usage?: boolean;
+    lifecycle?: boolean;
     live?: boolean | "organization";
     operations?: boolean;
     recovery?: boolean;
     afterSession?: (context: NativeSession) => Promise<void>;
   } = {}
 ) => {
-  const { download, upload, usage, live, operations, recovery, afterSession } =
-    scenarios;
-  const account = await verifiedBrowser();
-  if (download) {
-    await seedDownloadCapacity(account.library);
-  }
+  const {
+    download,
+    upload,
+    usage = false,
+    lifecycle = false,
+    live,
+    operations,
+    recovery,
+    afterSession,
+  } = scenarios;
+  const account = await nativeAccount(download);
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-device-live-"));
   const selectedOrigin =
     process.env.PR0_TEST_NATIVE_ORIGIN ?? "https://localhost:30440";
@@ -375,17 +403,12 @@ export const verifyNativeHttps = async (
       PR0_ORIGIN: selectedOrigin,
       SMTP_TLS: "starttls",
     };
-    // Organization races issue discovery requests faster than interactive use.
+    // Organization and lifecycle races issue discovery requests faster than interactive use.
     // Admission limits are exercised separately by the operations scenarios.
-    await server.startServer(
-      live === "organization"
-        ? {
-            ...serverEnvironment,
-            PR0_LIMIT_AUTH_BURST: "1000",
-            PR0_LIMIT_AUTH_MINUTE: "1000",
-          }
-        : serverEnvironment
-    );
+    await server.startServer({
+      ...serverEnvironment,
+      ...raceAdmissionLimits(lifecycle, live),
+    });
     const begin = await native.command("begin", selectedOrigin);
     assert.equal(begin.state, "awaiting_approval");
     assert.equal(
@@ -533,26 +556,28 @@ export const verifyNativeHttps = async (
         organization: live === "organization",
       });
     }
-    if (usage) {
-      await verifyNativeUsage({
-        command: (name, args = {}) => native.library(name, z.json(), args),
-        restart: async () => {
-          await native.stop();
-          native = worker(
-            executable,
-            path.join(directory, "state"),
-            certificate,
-            target
-          );
-          await native.command("status");
-        },
-        lose: () => {
-          loseNextUpload = true;
-        },
-        traffic,
-        page,
-        origin: selectedOrigin,
-      });
+    const journey = {
+      command: (name: string, args: NativeArgs = {}) =>
+        native.library(name, z.json(), args),
+      restart: async () => {
+        await native.stop();
+        native = worker(
+          executable,
+          path.join(directory, "state"),
+          certificate,
+          target
+        );
+        await native.command("status");
+      },
+      lose: () => {
+        loseNextUpload = true;
+      },
+      traffic,
+      page,
+      origin: selectedOrigin,
+    };
+    for (const { verify } of requestedJourneys(usage, lifecycle)) {
+      await verify(journey);
     }
     if (operations) {
       await verifyNativeSuspension(native, account.library.account.id);

@@ -5,7 +5,10 @@ import { chromium } from "playwright";
 import fixture from "../../../packages/api-contract/src/snapshot-fixtures.json";
 
 test("partial desktop download remains browsable with honest offline progress and keyboard detail", async () => {
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    headless: true,
+  });
   try {
     const page = await browser.newPage();
     await page.addInitScript(({ manifest, pages }) => {
@@ -20,6 +23,51 @@ test("partial desktop download remains browsable with honest offline progress an
           invoke: (command: string) => {
             if (command.startsWith("plugin:event|")) {
               return Promise.resolve(1);
+            }
+            if (command === "library_cancel_search") {
+              return Promise.resolve(null);
+            }
+            if (command === "library_organization") {
+              return Promise.resolve({
+                instanceId: manifest.instanceId,
+                accountId: manifest.accountId,
+                revision: "2",
+                localRevision: "0",
+                collections: [],
+                tags: [],
+                textBytes: 0,
+                complete: false,
+                states: [],
+                effects: [],
+                pending: [],
+              });
+            }
+            if (command === "library_search") {
+              return Promise.resolve({
+                instanceId: manifest.instanceId,
+                accountId: manifest.accountId,
+                revision: "2",
+                prompts: downloaded
+                  ? [
+                      {
+                        id: prompt.id,
+                        title: prompt.title,
+                        description: prompt.description,
+                        revision: prompt.revision,
+                        createdAt: prompt.createdAt,
+                        modifiedAt: prompt.modifiedAt,
+                        favorite: prompt.favorite,
+                        archived: prompt.archived,
+                        collectionId: prompt.collectionId,
+                        tagIds: prompt.tagIds,
+                      },
+                    ]
+                  : [],
+                nextCursor: null,
+                selectedId: downloaded ? prompt.id : null,
+                collections: [],
+                tags: [],
+              });
             }
             if (command === "auth_status") {
               return Promise.resolve({
@@ -45,11 +93,29 @@ test("partial desktop download remains browsable with honest offline progress an
               return Promise.resolve({
                 waiting: 0,
                 awaitingDownload: 0,
+                pending: [],
                 error: null,
                 retryAfterMs: 0,
                 errors: [],
                 mappings: [],
                 lastCheckedAt: null,
+              });
+            }
+            if (command === "library_change_status") {
+              return Promise.resolve({
+                error: null,
+                retryAfterMs: 0,
+                updating: false,
+                lastCheckedAt: null,
+              });
+            }
+            if (command === "library_usage_status") {
+              return Promise.resolve({
+                waiting: 0,
+                awaitingDownload: 0,
+                memoryOnly: 0,
+                error: null,
+                retryAfterMs: 0,
               });
             }
             if (
@@ -58,6 +124,11 @@ test("partial desktop download remains browsable with honest offline progress an
             ) {
               return Promise.resolve({
                 complete: false,
+                replacement: false,
+                catchingUp: false,
+                paused: false,
+                recoveryCount: 0,
+                error: null,
                 pendingChanges: 0,
                 textBytes: 0,
                 downloaded,
@@ -69,7 +140,7 @@ test("partial desktop download remains browsable with honest offline progress an
                 accountId: manifest.accountId,
               });
             }
-            if (command === "library_browse") {
+            if (command === "library_browse" || command === "library_list") {
               return Promise.resolve(
                 downloaded
                   ? [{ id: prompt.id, title: prompt.title, archived: false }]
