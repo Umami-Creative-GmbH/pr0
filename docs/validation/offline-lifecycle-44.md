@@ -18,12 +18,29 @@ Implemented on Windows with Bun 1.4.2 and Rust/Tauri. Native SQLite commands per
 | Bun workspace tests | All 8 tasks passed (including unchanged cached suites). |
 | Workspace typecheck | All 6 tasks passed. |
 | Ultracite fix | Passed after extracting status rendering and fixing reported lint issues. |
-| Full native suite | 75 passed; 1 existing OS clipboard test failed with `clipboard_unavailable`, including an isolated rerun. |
-| Lifecycle native regression tests | All 10 passed within the native suite. |
+| Full native suite | Final run: all 79 passed, including real Windows clipboard and Credential Manager process-restart tests. |
+| Lifecycle native regression tests | All 13 passed after review corrections, including create/copy/edit dependencies, dependent discard, and recovery of more than 100 pending deletions. |
 | REST lifecycle/deletion integration | 18 passed, 116 assertions against isolated PostgreSQL and the production Bun/Next.js server. |
-| Native HTTPS lifecycle journey | Passed: browser device approval, Windows Credential Manager, SQLite process restarts, reconnect, both text/delete arrival orders, metadata refusal/discard, lost conflict receipt with successor editing, later deletion/replay, and usage retention. |
-| Desktop browser/native journeys | All 6 passed in headless Edge, including lifecycle and cancellation. |
+| Native HTTPS lifecycle journey | Passed again after review: browser device approval, Windows Credential Manager, SQLite process restarts, reconnect, offline create/copy/source-edit dependencies, both text/delete arrival orders, metadata refusal/discard, lost conflict receipt with successor editing, later deletion/replay, and usage retention. |
+| Desktop browser/native journeys | All 7 passed in headless Edge, including lifecycle, uncertain local commit retry, cancellation, and partial offline download. The lifecycle journey was repeated after visual spacing changes. |
+| Desktop debug build | Tauri debug executable built successfully; no installer or signed release was generated. |
 
 The red/green native tests exposed and then verified corrections for missing lifecycle commands, loss of metadata during text coalescing and live updates, lost successor chains, retained duplicate titles and local I/O rollback. The REST suite also verifies quota refusals and atomic storage-failure rollback before preservation/deletion can commit.
 
-The HTTPS lifecycle journey controls the external clipboard write boundary explicitly; it does not certify OS clipboard availability. The production clipboard implementation is unchanged. No release-signed installation, Windows reboot or power-loss claim is made.
+The HTTPS lifecycle journey controls the external clipboard write boundary explicitly. The separate native OS clipboard test passed in the final full run; earlier attempts encountered `clipboard_unavailable`. A sandboxed full run also encountered `credential_unavailable`; the final run with Credential Manager access passed all tests. The production clipboard implementation is unchanged. No release-signed installation, Windows reboot or power-loss claim is made.
+
+## Review corrections
+
+The independent Standards and Spec reviews found a source-create dependency being removed by coalescing, discard orphaning dependent copies, and an uncertain local commit incorrectly labelled unsaved. Regression tests reproduced these problems before correction. Referenced operation identities now remain stable, discard refuses pending dependent copies, and uncertain UI actions retain their identity until Retry confirms the result. Recovery includes the full 10,000-prompt capacity with 50-row UI pages.
+
+![Offline lifecycle actions and pending recovery](../evidence/issue-44-offline-lifecycle.png)
+
+## Standards
+
+No actionable remaining findings in the corrections relative to `2b15620`. Both dependency defects are addressed; the reviewer found no regressions in recovery pagination, uncertainty handling, or UI changes.
+
+## Spec
+
+No remaining actionable spec findings in the corrections relative to `2b15620`. Referenced create operations are preserved, dependencies of pending copies cannot be discarded, uncertain commits are reported honestly, and recovery is accessible beyond 100 prompts.
+
+Final review: Standards 0 remaining findings; Spec 0 remaining findings.

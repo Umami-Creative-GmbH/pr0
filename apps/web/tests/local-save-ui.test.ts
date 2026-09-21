@@ -465,17 +465,18 @@ test("a remote deletion clears the saved desktop detail while preserving its ope
   }
 });
 
-test("desktop lifecycle preserves an archived favorite, duplicates its snapshot and cancels deletion", async () => {
+test("desktop lifecycle resolves an uncertain commit before another action, preserves an archived favorite and cancels deletion", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-lifecycle-ui-"));
   const native = await localNativeWorker(directory);
   const browser = await chromium.launch({
     channel: browserChannel,
     headless: true,
   });
+  let fault = "";
   try {
     const page = await browser.newPage();
     page.setDefaultTimeout(10_000);
-    await connect(page, native, () => "");
+    await connect(page, native, () => fault);
     await page.getByRole("button", { name: "New prompt", exact: true }).click();
     await page.getByLabel("Title", { exact: true }).fill("Lifecycle example");
     await page
@@ -483,7 +484,24 @@ test("desktop lifecycle preserves an archived favorite, duplicates its snapshot 
       .fill("  Original snapshot\n");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     const detail = page.getByRole("article", { name: "Prompt detail" });
+    fault = "after_commit_error";
     await detail.getByRole("button", { name: "Favorite", exact: true }).click();
+    await page
+      .getByText(
+        "The result could not be confirmed. Retry to check this same action safely.",
+        { exact: true }
+      )
+      .waitFor();
+    expect(await page.getByText("Not saved.", { exact: false }).count()).toBe(
+      0
+    );
+    fault = "";
+    await page
+      .getByRole("button", { name: "Retry action", exact: true })
+      .click();
+    await detail
+      .getByRole("button", { name: "Favorite", exact: true, pressed: true })
+      .waitFor();
     await detail.getByRole("button", { name: "Archive", exact: true }).click();
     await page
       .getByRole("navigation", { name: "Library views" })
@@ -540,6 +558,11 @@ test("desktop lifecycle preserves an archived favorite, duplicates its snapshot 
     await page
       .getByRole("button", { name: "Lifecycle example", exact: true })
       .waitFor();
+    await page.getByText("Review pending changes", { exact: false }).click();
+    await page.screenshot({
+      path: "docs/evidence/issue-44-offline-lifecycle.png",
+      fullPage: true,
+    });
   } finally {
     await browser.close();
     await native.stop();

@@ -1,4 +1,74 @@
 // Public typed commands over durable SQLite; HTTPS is the controlled external boundary.
+#[test]
+fn lifecycle_recovery_includes_deletions_beyond_the_first_hundred_prompts() {
+    let directory = std::env::temp_dir().join(format!("pr0-pending-list-{}", uuid::Uuid::new_v4()));
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), Arc::new(Vault::default()));
+    for _ in 0..101 {
+        let mut request = save_request(&service);
+        request.prompt_id = uuid::Uuid::new_v4().to_string();
+        request.operation_id = uuid::Uuid::new_v4().to_string();
+        service.library_create(request.clone()).unwrap();
+        service.library_lifecycle(lifecycle_request(&service,&request.prompt_id,json!({"kind":"delete","confirmed":true}))).unwrap();
+    }
+    let pending = service.library_upload_status().unwrap().pending;
+    assert_eq!(pending.len(),101);
+    assert!(pending.iter().all(|entry| entry.deleting));
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn lifecycle_source_edit_preserves_the_creation_dependency_of_an_offline_copy() {
+    let directory = std::env::temp_dir().join(format!("pr0-copy-dependency-{}", uuid::Uuid::new_v4()));
+    let transport = upload_fixture(false, false);
+    let service = downloaded_upload_service(&directory, transport.clone(), Arc::new(Vault::default()));
+    let request = save_request(&service);
+    service.library_create(request.clone()).unwrap();
+    let copy_id = uuid::Uuid::new_v4().to_string();
+    service.library_lifecycle(lifecycle_request(&service, &request.prompt_id, json!({"kind":"duplicate","copyId":copy_id}))).unwrap();
+    let mut edit = request.clone();
+    edit.operation_id = uuid::Uuid::new_v4().to_string();
+    edit.expected_local_revision = Some(service.library_editor(&request.prompt_id).unwrap().local_revision);
+    edit.desired.content = "Later source text".into();
+    service.library_edit(edit).unwrap();
+    for _ in 0..3 {
+        service.library_upload().unwrap();
+    }
+    let traffic = transport.traffic.lock().unwrap();
+    assert_eq!(traffic.len(), 3);
+    assert_eq!(traffic[0].1["operations"][0]["operationId"], request.operation_id);
+    assert_eq!(traffic[1].1["operations"][0]["dependsOn"], json!([request.operation_id]));
+    assert_eq!(traffic[1].1["operations"][0]["desired"]["content"], request.desired.content);
+    assert_eq!(service.library_detail(&copy_id).unwrap().content, request.desired.content);
+    drop(traffic);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn lifecycle_discard_refuses_to_orphan_a_dependent_copy() {
+    let directory = std::env::temp_dir().join(format!("pr0-copy-discard-{}", uuid::Uuid::new_v4()));
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), Arc::new(Vault::default()));
+    let request = save_request(&service);
+    service.library_create(request.clone()).unwrap();
+    let copy_id = uuid::Uuid::new_v4().to_string();
+    service.library_lifecycle(lifecycle_request(&service, &request.prompt_id, json!({"kind":"duplicate","copyId":copy_id}))).unwrap();
+    let mut recovery = super::lifecycle_contract::RecoveryRequest {
+        instance_id: request.instance_id, account_id: request.account_id, generation: request.generation,
+        prompt_id: request.prompt_id.clone(), action: super::lifecycle_contract::RecoveryAction::Discard, confirmed: true,
+    };
+    assert_eq!(service.library_recover(recovery.clone()).err().as_deref(), Some("dependent_changes_pending"));
+    assert_eq!(service.library_retained_prompt(&copy_id).unwrap().content, request.desired.content);
+    assert_eq!(service.library_status().unwrap().pending_changes, 2);
+    recovery.prompt_id = copy_id;
+    service.library_recover(recovery.clone()).unwrap();
+    recovery.prompt_id = request.prompt_id;
+    service.library_recover(recovery).unwrap();
+    assert_eq!(service.library_status().unwrap().pending_changes, 0);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
 fn lifecycle_request(
     service: &AuthService,
     id: &str,

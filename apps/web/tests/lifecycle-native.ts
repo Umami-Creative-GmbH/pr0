@@ -71,7 +71,7 @@ export const verifyNativeLifecycle = async ({
   };
   const editor = async (id: string) =>
     localPromptSchema.parse(await command("library_editor", { id }));
-  const create = async (title: string) => {
+  const create = async (title: string, sync = true) => {
     const request = {
       ...(await identity()),
       operationId: crypto.randomUUID(),
@@ -80,7 +80,9 @@ export const verifyNativeLifecycle = async ({
       desired: { title, description: "", content: "  Selected snapshot\n" },
     };
     await command("library_create", { request });
-    await flush();
+    if (sync) {
+      await flush();
+    }
     return editor(request.promptId);
   };
   const action = async (id: string, selected: LifecycleAction) => {
@@ -145,6 +147,16 @@ export const verifyNativeLifecycle = async ({
     });
   };
   await download();
+  const parent = await create("Offline parent", false);
+  const childId = crypto.randomUUID();
+  await action(parent.prompt.id, { kind: "duplicate", copyId: childId });
+  await edit(parent.prompt.id, "Edited after copying");
+  await restart();
+  await flush();
+  const savedChild = await web(childId);
+  const savedParent = await web(parent.prompt.id);
+  assert.equal(savedChild.content, parent.prompt.content);
+  assert.equal(savedParent.content, "Edited after copying");
   const source = await create("Offline lifecycle");
   await command("library_copy", {
     fault: "clipboard_fixture",

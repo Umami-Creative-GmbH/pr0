@@ -43,12 +43,24 @@ export const LocalPromptDetail = ({
           {new Date(prompt.modifiedAt).toLocaleString()}
         </time>
       </p>
-      <button type="button" disabled={editing} onClick={onEdit}>
-        Edit prompt
-      </button>
-      <button type="button" disabled={copying} onClick={onCopy}>
-        Copy prompt
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          className="rounded border px-3 py-2 disabled:opacity-50"
+          type="button"
+          disabled={editing}
+          onClick={onEdit}
+        >
+          Edit prompt
+        </button>
+        <button
+          className="rounded border px-3 py-2 disabled:opacity-50"
+          type="button"
+          disabled={copying}
+          onClick={onCopy}
+        >
+          Copy prompt
+        </button>
+      </div>
       {prompt.description ? (
         <p className="whitespace-pre-wrap">{prompt.description}</p>
       ) : null}

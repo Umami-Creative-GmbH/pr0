@@ -17,7 +17,7 @@ export const LifecycleActions = ({
   const [deleting, setDeleting] = useState<LocalPrompt>();
   const { prompt } = value;
   return (
-    <div className="flex flex-wrap gap-3">
+    <div className="[&>button[aria-pressed=true]]:bg-secondary flex flex-wrap gap-3 [&>button]:rounded [&>button]:border [&>button]:px-3 [&>button]:py-2 [&>button:disabled]:opacity-50">
       <button
         type="button"
         disabled={disabled}

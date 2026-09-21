@@ -335,7 +335,12 @@ fn offline_command_worker() {
                 .map_err(|_| "invalid_transition".to_string())
                 .and_then(|request| service.transition(request)).map(|v| json!(v)),
             "library_status" => service.library_status().map(|v| json!(v)),
-            "library_lifecycle" => service.library_lifecycle(serde_json::from_value(input["request"].clone()).unwrap()).map(|v|json!(v)),
+            "library_lifecycle" => {
+                super::library_storage::set_test_fault(input["fault"].as_str().unwrap_or(""));
+                let result = service.library_lifecycle(serde_json::from_value(input["request"].clone()).unwrap()).map(|v|json!(v));
+                super::library_storage::set_test_fault("");
+                result
+            },
             "library_retained_prompt" => service.library_retained_prompt(input["id"].as_str().unwrap()).map(|v|json!(v)),
             "library_recover" => service.library_recover(serde_json::from_value(input["request"].clone()).unwrap()).map(|v|json!(v)),
             "library_list" => service.library_list(input["offset"].as_u64().unwrap_or(0) as u32,serde_json::from_value(input["view"].clone()).unwrap()).map(|v|json!(v)),

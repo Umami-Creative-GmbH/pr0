@@ -80,7 +80,7 @@ impl LibraryStore {
             .db
             .query_row("SELECT last_checked FROM upload_state", [], |r| r.get(0))
             .map_err(io)?;
-        let mut statement=self.db.prepare("SELECT l.id,l.title,EXISTS(SELECT 1 FROM local_deleted d WHERE d.id=l.id) FROM local_prompt l WHERE EXISTS(SELECT 1 FROM outbox o WHERE o.prompt_id=l.id AND o.state<>'accepted_awaiting_download') ORDER BY l.id LIMIT 100").map_err(io)?;
+        let mut statement=self.db.prepare("SELECT l.id,l.title,EXISTS(SELECT 1 FROM local_deleted d WHERE d.id=l.id) FROM local_prompt l WHERE EXISTS(SELECT 1 FROM outbox o WHERE o.prompt_id=l.id AND o.state<>'accepted_awaiting_download') ORDER BY l.id LIMIT 10000").map_err(io)?;
         let pending=statement.query_map([],|r|Ok(super::upload_contract::PendingPrompt{prompt_id:r.get(0)?,title:r.get(1)?,deleting:r.get(2)?})).map_err(io)?.collect::<Result<Vec<_>,_>>().map_err(io)?;
         Ok(UploadStatus {
             waiting,

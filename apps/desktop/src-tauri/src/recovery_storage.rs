@@ -42,6 +42,10 @@ impl LibraryStore {
                 if accepted {
                     return Err("accepted_effect_pending_download".into());
                 }
+                let dependent:bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM outbox child,json_each(child.payload,'$.dependsOn') d JOIN outbox parent ON parent.id=d.value WHERE parent.prompt_id=?1 AND child.prompt_id<>?1)",[&request.prompt_id],|r|r.get(0)).map_err(io)?;
+                if dependent {
+                    return Err("dependent_changes_pending".into());
+                }
                 tx.execute(
                     "DELETE FROM outbox WHERE prompt_id=?1",
                     [&request.prompt_id],

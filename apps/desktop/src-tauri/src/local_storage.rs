@@ -289,7 +289,8 @@ impl LibraryStore {
         );
         if let Some((id, payload, state)) = latest {
             let prior: super::local_contract::PendingOperation = serde_json::from_str(&payload).map_err(|_| "storage_unavailable")?;
-            if state == "unsent" && prior.metadata.is_none() && !matches!(prior.action,super::local_contract::PendingAction::Duplicate{..}|super::local_contract::PendingAction::Delete) {
+            let referenced: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM outbox o,json_each(o.payload,'$.dependsOn') d WHERE d.value=?1)",[&id],|r|r.get(0)).map_err(io)?;
+            if !referenced && state == "unsent" && prior.metadata.is_none() && !matches!(prior.action,super::local_contract::PendingAction::Duplicate{..}|super::local_contract::PendingAction::Delete) {
                 operation = prior;
                 operation.operation_id = request.operation_id.clone();
                 tx.execute("DELETE FROM outbox WHERE id=?1", [id])

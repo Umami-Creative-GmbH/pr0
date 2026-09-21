@@ -37,16 +37,21 @@ export const useLifecycle = (
     source: LocalPrompt;
   } | null>(null);
   const active = useRef(false);
+  const uncertain = useRef(false);
   const execute = async () => {
     if (active.current || !attempt.current) {
       return;
     }
     active.current = true;
     setBusy(true);
-    const { request } = attempt.current;
+    const request = {
+      ...attempt.current.request,
+      generation: account.generation,
+    };
     try {
       const result = await libraryClient.lifecycle(request);
       attempt.current = null;
+      uncertain.current = false;
       setFailed(false);
       setMessage(
         request.action.kind === "delete"
@@ -58,14 +63,32 @@ export const useLifecycle = (
       setFailed(true);
       const parsed = z.string().safeParse(error);
       const code = parsed.success ? parsed.data : "commit_uncertain";
+      uncertain.current = ![
+        "quota_exceeded",
+        "local_revision_conflict",
+        "disk_full",
+        "storage_busy",
+        "storage_unavailable",
+        "invalid_input",
+        "confirmation_required",
+        "operation_identity_reused",
+      ].includes(code);
       setMessage(
-        `Not saved. ${errors.get(code) ?? "Check storage access and retry. The chosen action and source text remain available here."}`
+        uncertain.current
+          ? "The result could not be confirmed. Retry to check this same action safely."
+          : `Not saved. ${errors.get(code) ?? "Check storage access and retry. The chosen action and source text remain available here."}`
       );
     }
     active.current = false;
     setBusy(false);
   };
   const handleAction = (source: LocalPrompt, action: LifecycleAction) => {
+    if (uncertain.current) {
+      setMessage(
+        "Resolve the unconfirmed action with Retry action before choosing another action. Your source text is retained."
+      );
+      return;
+    }
     if (active.current || !account.instanceId || !account.accountId) {
       return;
     }

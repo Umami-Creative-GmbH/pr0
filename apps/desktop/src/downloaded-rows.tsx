@@ -24,8 +24,9 @@ export const DownloadedRows = ({
   <>
     <ul className="space-y-2">
       {rows.map((row) => (
-        <li key={row.id}>
+        <li key={row.id} className="flex flex-wrap gap-2">
           <button
+            className="rounded border px-3 py-2 disabled:opacity-50"
             type="button"
             disabled={changing}
             aria-label={`Toggle favorite for ${row.title}`}

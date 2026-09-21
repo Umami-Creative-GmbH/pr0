@@ -69,7 +69,7 @@ export const uploadStatusSchema = z.strictObject({
         deleting: z.boolean(),
       })
     )
-    .max(100),
+    .max(10_000),
   lastCheckedAt: z.iso.datetime().nullable(),
   waiting: z.number().int().nonnegative(),
   awaitingDownload: z.number().int().nonnegative(),
