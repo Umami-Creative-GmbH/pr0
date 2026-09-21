@@ -1,0 +1,85 @@
+{
+  "prompts": [
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "title": "",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "modifiedAt": "2026-01-01T00:00:00.000Z",
+      "lastUsedAt": null,
+      "favorite": true,
+      "archived": false,
+      "tags": [0, 1],
+      "collection": 0
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "title": "𐀀",
+      "createdAt": "2026-01-02T00:00:00.000Z",
+      "modifiedAt": "2026-01-02T00:00:00.000Z",
+      "lastUsedAt": null,
+      "favorite": false,
+      "archived": false,
+      "tags": [0],
+      "collection": 0
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "title": "Same",
+      "createdAt": "2026-01-03T00:00:00.000Z",
+      "modifiedAt": "2026-01-05T00:00:00.000Z",
+      "lastUsedAt": "1960-01-06T00:00:00.000Z",
+      "favorite": false,
+      "archived": false,
+      "tags": [0, 1],
+      "collection": 1
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "title": "Same",
+      "createdAt": "2026-01-04T00:00:00.000Z",
+      "modifiedAt": "2026-01-04T00:00:00.000Z",
+      "lastUsedAt": "1960-01-06T00:00:00.000Z",
+      "favorite": true,
+      "archived": false,
+      "tags": [1],
+      "collection": 0
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "title": "Archived",
+      "createdAt": "2026-01-05T00:00:00.000Z",
+      "modifiedAt": "2026-01-06T00:00:00.000Z",
+      "lastUsedAt": "2026-01-06T00:00:00.000Z",
+      "favorite": true,
+      "archived": true,
+      "tags": [0, 1],
+      "collection": 0
+    }
+  ],
+  "cases": [
+    { "sort": "relevance", "view": "all", "expected": [2, 3, 1, 0] },
+    { "sort": "title", "view": "all", "expected": [3, 2, 0, 1] },
+    { "sort": "recently-used", "view": "all", "expected": [3, 2, 1, 0] },
+    { "sort": "recently-modified", "view": "all", "expected": [2, 3, 1, 0] },
+    { "sort": "newest", "view": "all", "expected": [3, 2, 1, 0] },
+    { "sort": "oldest", "view": "all", "expected": [0, 1, 2, 3] },
+    { "sort": "recently-used", "view": "recents", "expected": [3, 2] },
+    { "sort": "title", "view": "favorites", "expected": [3, 0] },
+    { "sort": "title", "view": "archive", "expected": [4] },
+    {
+      "sort": "title",
+      "view": "all",
+      "tags": [0, 1],
+      "collection": 0,
+      "favorite": true,
+      "expected": [0]
+    },
+    {
+      "sort": "title",
+      "view": "collection",
+      "viewCollection": 1,
+      "collection": 0,
+      "expected": []
+    }
+  ]
+}

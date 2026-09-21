@@ -311,6 +311,7 @@ fn offline_command_worker() {
     let organization_capacity = std::env::var("PR0_ORGANIZATION_CAPACITY").as_deref() == Ok("true");
     let upload_fixture_enabled = std::env::var("PR0_UPLOAD_UI_FIXTURE").as_deref() == Ok("true");
     let recovery_fixture_enabled = std::env::var("PR0_RECOVERY_UI_FIXTURE").as_deref() == Ok("true");
+    let search_fixture_enabled = std::env::var_os("PR0_SEARCH_FIXTURE_DIRECTORY").is_some();
     let recovery_transport = approval();
     if recovery_fixture_enabled {
         let data: serde_json::Value = serde_json::from_str(include_str!("../../../../packages/api-contract/src/snapshot-fixtures.json")).unwrap();
@@ -325,6 +326,10 @@ fn offline_command_worker() {
         upload_fixture(true, false)
     } else {
         approval()
+    };
+    let transport: Arc<dyn Transport> = match std::env::var("PR0_SEARCH_FIXTURE_DIRECTORY") {
+        Ok(directory)=>Arc::new(SearchFixtureTransport{directory:directory.into(),fallback:transport}),
+        Err(_)=>transport,
     };
     let service = AuthService::new(directory, transport, vault).unwrap();
     if view(&service)["state"] == "signed_out" {
@@ -350,6 +355,10 @@ fn offline_command_worker() {
                 .and_then(|request| service.transition(request))
                 .map(|v| json!(v)),
             "library_status" => service.library_status().map(|v| json!(v)),
+            "library_download" if recovery_fixture_enabled || search_fixture_enabled => service.library_download().map(|v|json!(v)),
+            "library_search" => serde_json::from_value(input["request"].clone()).map_err(|_|"invalid_input".to_string()).and_then(|request| service.library_search(request)).map(|v|json!(v)),
+            "library_cancel_search" => service.cancel_search(input["id"].as_str().unwrap()).map(|_|json!(null)),
+            "library_recover_search" => serde_json::from_value(input["request"].clone()).map_err(|_|"invalid_input".to_string()).and_then(|request| service.library_recover_search(request)).map(|_|json!(null)),
             "library_reconcile" => service.library_reconcile().map(|_| serde_json::Value::Null),
             "library_organization" => service.library_organization(),
             "library_organize" => serde_json::from_value(input["request"].clone())
@@ -380,7 +389,6 @@ fn offline_command_worker() {
                 service.library_changes(0).unwrap();
                 service.library_pause_download(true).map(|v|json!(v))
             }
-            "library_download" if recovery_fixture_enabled => service.library_download().map(|v|json!(v)),
             "library_pause_download" => service.library_pause_download(input["paused"].as_bool().unwrap()).map(|v|json!(v)),
             "library_recovery_browse" => service.library_recovery_browse(input["offset"].as_u64().unwrap_or(0) as u32).map(|v|json!(v)),
             "library_recovery_detail" => service.library_recovery_detail(input["snapshotId"].as_str().unwrap(), input["id"].as_str().unwrap()).map(|v|json!(v)),

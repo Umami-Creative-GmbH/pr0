@@ -140,6 +140,9 @@ fn project_organization(tx: &rusqlite::Transaction) -> Result<(), String> {
     // True deletion wins over stale assignments, including a deleted merge target.
     tx.execute("UPDATE organization_assignment SET collection_id=NULL WHERE collection_id NOT IN(SELECT id FROM organization_local WHERE kind='collection')",[]).map_err(io)?;
     tx.execute("UPDATE organization_assignment SET tags=(SELECT coalesce(json_group_array(value),'[]') FROM json_each(tags) WHERE value IN(SELECT id FROM organization_local WHERE kind='tag'))",[]).map_err(io)?;
+    // Projection replay replaces its intermediate rows. Queue only final changes,
+    // using compact assignments so a name-only rename never rewrites prompt metadata.
+    tx.execute("INSERT INTO search_dirty SELECT a.id,0 FROM organization_assignment a LEFT JOIN search_metadata m ON m.id=a.id WHERE m.id IS NULL OR m.collection_id IS NOT a.collection_id OR m.tags<>a.tags OR m.modified<a.modified ON CONFLICT(id) DO NOTHING",[]).map_err(io)?;
     Ok(())
 }
 fn resolve_local_tag(db: &Connection, id: &str) -> Result<Option<Vec<String>>, String> {

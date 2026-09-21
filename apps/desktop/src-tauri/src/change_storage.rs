@@ -216,7 +216,7 @@ impl LibraryStore {
         project_organization(&tx)?;
         #[cfg(test)]
         if staging && !page.has_more { test_stage("snapshot_activation")?; }
-        tx.commit().map_err(io)?;
+        commit_search(tx)?;
         #[cfg(test)]
         if staging && !page.has_more { test_stage("snapshot_activated")?; }
         Ok(())
@@ -265,10 +265,7 @@ fn store_overlay_prompt(tx: &rusqlite::Transaction, prompt: &Prompt) -> Result<(
         ],
     )
     .map_err(io)?;
-    let revision: i64 = tx
-        .query_row("SELECT revision FROM local_state", [], |r| r.get(0))
-        .map_err(io)?;
-    super::local_search::update(tx, prompt, revision + 1).map_err(io)?;
+
     Ok(())
 }
 fn apply_bulk_change(

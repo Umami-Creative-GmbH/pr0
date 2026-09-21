@@ -6,6 +6,11 @@ import {
 } from "@pr0/api-contract/desktop-copy";
 import type { DesktopCopy } from "@pr0/api-contract/desktop-copy";
 import {
+  desktopSearchSchema,
+  desktopSearchPageSchema,
+} from "@pr0/api-contract/desktop-search";
+import type { DesktopSearch } from "@pr0/api-contract/desktop-search";
+import {
   localPromptSchema,
   localSaveSchema,
   uploadStatusSchema,
@@ -28,6 +33,38 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  search: async (request: DesktopSearch, signal: AbortSignal) => {
+    const input = desktopSearchSchema.parse(request);
+    signal.throwIfAborted();
+    const cancel = async () => {
+      try {
+        await invoke("library_cancel_search", { id: input.requestId });
+      } catch {
+        /* The aborted response is still rejected below if native cancellation fails. */
+      }
+    };
+    signal.addEventListener("abort", cancel, { once: true });
+    try {
+      const page = desktopSearchPageSchema.parse(
+        await invoke("library_search", { request: input })
+      );
+      signal.throwIfAborted();
+      if (
+        page.instanceId !== input.instanceId ||
+        page.accountId !== input.accountId
+      ) {
+        throw new Error("invalid_native_response");
+      }
+      return page;
+    } finally {
+      signal.removeEventListener("abort", cancel);
+    }
+  },
+  recoverSearch: async (request: DesktopSearch) => {
+    await invoke("library_recover_search", {
+      request: desktopSearchSchema.parse(request),
+    });
+  },
   pauseDownload: async (paused: boolean) =>
     statusSchema.parse(await invoke("library_pause_download", { paused })),
   recoveryBrowse: async (offset: number) =>
@@ -109,12 +146,29 @@ export const libraryClient = {
   detail: async (id: string) =>
     promptSchema.parse(await invoke("library_detail", { id })),
 };
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
-export const downloadError = (error: unknown) => {
-  if (error === "operation_cancelled" || error === "download_in_progress") {
+export const downloadError = (
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
+  error: unknown,
+  context: "download" | "search" = "download"
+) => {
+  if (error === "operation_cancelled") {
+    return context === "search"
+      ? "The account changed. Refresh the connection before searching again."
+      : "Download paused or already running. Saved prompts and pending work are retained.";
+  }
+  if (error === "disk_full") {
+    return "There is not enough free disk space. Free some space and retry; saved prompts and pending changes are preserved.";
+  }
+  if (error === "search_recovery_required") {
+    return "Search needs recovery. Rebuild the search index; saved prompts and pending changes are preserved.";
+  }
+  if (error === "search_busy" || error === "search_preparing") {
+    return "Preparing search. Please retry shortly.";
+  }
+  if (error === "download_in_progress") {
     return "Download paused or already running. Saved prompts and pending work are retained.";
   }
-  if (error === "insufficient_scratch_space" || error === "disk_full") {
+  if (error === "insufficient_scratch_space") {
     return "Not enough free disk space to stage the library. Free disk space and retry; saved prompts and pending work are retained.";
   }
   if (error === "download_backoff") {

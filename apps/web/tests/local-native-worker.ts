@@ -8,18 +8,16 @@ export const localNativeWorker = async (
   directory: string,
   uploadFixture = false,
   organizationCapacity = false,
-  recoveryFixture = false
+  recoveryFixture = false,
+  profile: "debug" | "release" = "debug"
 ) => {
+  const artifactsDirectory = `apps/desktop/src-tauri/target/${profile}/deps`;
   const artifacts = [
-    ...new Bun.Glob("pr0_desktop_lib-*.exe").scanSync(
-      "apps/desktop/src-tauri/target/debug/deps"
-    ),
+    ...new Bun.Glob("pr0_desktop_lib-*.exe").scanSync(artifactsDirectory),
   ];
   const builds = await Promise.all(
     artifacts.map(async (name) => {
-      const file = await Bun.file(
-        `apps/desktop/src-tauri/target/debug/deps/${name}`
-      ).stat();
+      const file = await Bun.file(`${artifactsDirectory}/${name}`).stat();
       return { name, modified: file.mtimeMs };
     })
   );
@@ -37,7 +35,7 @@ export const localNativeWorker = async (
   }
   const child = Bun.spawn(
     [
-      `apps/desktop/src-tauri/target/debug/deps/${artifact}`,
+      `${artifactsDirectory}/${artifact}`,
       "--exact",
       "auth_tests::offline_command_worker",
       "--nocapture",
@@ -77,6 +75,7 @@ export const localNativeWorker = async (
   }
   let chain = Promise.resolve();
   return {
+    executable: `${artifactsDirectory}/${artifact}`,
     async command(command: string, args: NativeArgs = {}) {
       const previous = chain;
       const next = Promise.withResolvers<undefined>();

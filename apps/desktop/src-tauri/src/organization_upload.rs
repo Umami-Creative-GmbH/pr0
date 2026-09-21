@@ -112,7 +112,7 @@ impl LibraryStore {
             params![id, envelope.to_string()],
         )
         .map_err(io)?;
-        tx.commit().map_err(io)?;
+        commit_search(tx)?;
         Ok(Some((envelope, replay)))
     }
     pub fn acknowledge_organization_upload(
@@ -254,7 +254,7 @@ impl LibraryStore {
             retire_downloaded_uploads(&tx, &manifest)?;
         }
         project_organization(&tx)?;
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
 }
 fn replace_identity(value: &mut Value, source: &str, target: &str) {

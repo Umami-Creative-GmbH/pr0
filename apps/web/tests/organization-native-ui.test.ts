@@ -52,7 +52,10 @@ test("full native organization pickers stay searchable at 200 collections and 10
     await page
       .getByLabel("Search tag filters", { exact: true })
       .fill("Tag 0999");
-    await page.getByRole("checkbox", { name: /Tag 0999/u }).check();
+    await page
+      .getByRole("region", { name: "Collections and tags", exact: true })
+      .getByRole("checkbox", { name: /Tag 0999/u })
+      .check();
     await page
       .getByRole("button", { name: "Remove tag Tag 0999", exact: true })
       .waitFor();

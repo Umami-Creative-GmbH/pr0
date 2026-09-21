@@ -12,6 +12,8 @@ mod library_storage;
 mod local_contract;
 mod local_search;
 mod organization_contract;
+mod search_contract;
+mod search_query;
 mod upload_contract;
 mod usage_contract;
 
@@ -52,6 +54,47 @@ async fn auth_status(
     state: tauri::State<'_, ManagedAuth>,
 ) -> Result<AuthView, String> {
     dispatch(window, state, AuthService::restore).await
+}
+
+#[tauri::command]
+async fn library_search(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: search_contract::SearchRequest,
+) -> Result<search_contract::SearchPage, String> {
+    authorize(&window)?;
+    request.validate()?;
+    let service = state.inner().clone()?;
+    let cancelled = service.admit_search(&request.request_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        service.library_search_admitted(request, cancelled)
+    })
+    .await
+    .map_err(|_| "native_unavailable".to_string())?
+}
+#[tauri::command]
+fn library_cancel_search(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    id: String,
+) -> Result<(), String> {
+    authorize(&window)?;
+    state
+        .inner()
+        .as_ref()
+        .map_err(Clone::clone)?
+        .cancel_search(&id)
+}
+#[tauri::command]
+async fn library_recover_search(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: search_contract::SearchRequest,
+) -> Result<(), String> {
+    dispatch(window, state, move |service| {
+        service.library_recover_search(request)
+    })
+    .await
 }
 #[tauri::command]
 async fn auth_begin(
@@ -130,6 +173,9 @@ pub fn run() {
             library_change_status,
             library_sync,
             library_browse,
+            library_search,
+            library_cancel_search,
+            library_recover_search,
             library_detail,
             library_editor,
             library_create,

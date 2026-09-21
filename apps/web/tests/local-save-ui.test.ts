@@ -59,8 +59,14 @@ test("recovery retains the selected prompt and open draft through pause and epoc
       .getByRole("button", { name: "Show retained prompts", exact: true })
       .click();
     await page
+      .locator("details")
+      .filter({
+        has: page.getByRole("button", {
+          name: "Show retained prompts",
+          exact: true,
+        }),
+      })
       .getByRole("button", { name: "First", exact: true })
-      .last()
       .click();
     expect(await page.getByLabel("Retained prompt").textContent()).toContain(
       "  Hello offline\n"
@@ -429,7 +435,7 @@ test("an open draft follows its conflict copy without replacing text and offers 
   }
 });
 
-test("a remote deletion clears the saved desktop detail while preserving its open unsaved draft", async () => {
+test("a remote deletion selects the remaining result while preserving the deleted prompt's open unsaved draft", async () => {
   const directory = await mkdtemp(
     path.join(os.tmpdir(), "pr0-live-delete-ui-")
   );
@@ -458,7 +464,16 @@ test("a remote deletion clears the saved desktop detail while preserving its ope
     await draft.fill("Keep this unsaved draft");
     await native.command("library_changes");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await page.getByLabel("Prompt content").waitFor({ state: "detached" });
+    await page
+      .getByRole("article", { name: "Prompt detail" })
+      .getByRole("heading", { name: "Second", exact: true })
+      .waitFor();
+    expect(
+      await page
+        .getByRole("article", { name: "Prompt detail" })
+        .getByRole("heading", { name: original.prompt.title, exact: true })
+        .count()
+    ).toBe(0);
     expect(await draft.inputValue()).toBe("Keep this unsaved draft");
     expect(
       await draft.evaluate((element) => element === document.activeElement)

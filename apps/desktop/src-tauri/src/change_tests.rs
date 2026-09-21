@@ -72,6 +72,7 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
             .unwrap();
     let db = rusqlite::Connection::open(&path).unwrap();
     // Recreate main's version-4 schema with real downloaded and pending records.
+    downgrade_search_fixture(&db);
     db.execute_batch("DROP VIEW visible_prompt; CREATE VIEW visible_prompt AS SELECT * FROM base_visible_prompt; DROP TABLE organization_known; DROP TABLE organization_checkpoint; DROP TABLE organization_ack; DROP TABLE organization_queue; DROP TABLE organization_local; DROP TABLE organization_receipt; DROP TABLE organization_removed; DROP TABLE organization_affected; DROP TABLE organization_assignment; DROP TABLE organization_membership_removal; DROP VIEW visible_prompt; DROP VIEW base_visible_prompt; CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt); DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery; DROP TABLE change_state; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
     drop(db);
     let store = super::library_storage::LibraryStore::open(
@@ -96,7 +97,7 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     assert_eq!(
         db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0))
             .unwrap(),
-        7
+        8
     );
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();

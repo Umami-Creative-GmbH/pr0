@@ -163,7 +163,7 @@ impl LibraryStore {
             params![id, body],
         )
         .map_err(io)?;
-        tx.commit().map_err(io)?;
+        commit_search(tx)?;
         #[cfg(test)]
         test_stage("upload_frozen")?;
         Ok(Some((
@@ -251,7 +251,7 @@ impl LibraryStore {
                     .conflict
                     .as_ref()
                     .map_or(sent.prompt_id.as_str(), |c| c.copy_id.as_str());
-                let revision: i64 = tx
+                let _revision: i64 = tx
                     .query_row(
                         "UPDATE local_state SET revision=revision+1 RETURNING revision",
                         [],
@@ -323,7 +323,6 @@ impl LibraryStore {
                         params![sent.prompt_id, target, sent.operation_id],
                     )
                     .map_err(io)?;
-                    super::local_search::remove(&tx, &sent.prompt_id).map_err(io)?;
                     tx.execute("DELETE FROM local_prompt WHERE id=?1", [&sent.prompt_id])
                         .map_err(io)?;
                 }
@@ -342,7 +341,6 @@ impl LibraryStore {
                     ],
                 )
                 .map_err(io)?;
-                super::local_search::update(&tx, &prompt, revision).map_err(io)?;
                 tx.execute("UPDATE outbox SET state='accepted_awaiting_download',prompt_id=?2,receipt=?3,error=NULL WHERE id=?1",params![sent.operation_id,target,serde_json::to_string(&receipt).map_err(|_|"storage_unavailable")?]).map_err(io)?;
                 tx.execute("UPDATE upload_state SET refresh=1", [])
                     .map_err(io)?;
@@ -358,7 +356,7 @@ impl LibraryStore {
         #[cfg(test)]
         test_stage("upload_acknowledgement")?;
         project_organization(&tx)?;
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
 }
 fn retire_downloaded_uploads(
@@ -380,7 +378,6 @@ fn retire_downloaded_uploads(
         ids
     };
     for id in ids {
-        super::local_search::remove(tx, &id).map_err(io)?;
         tx.execute("DELETE FROM local_prompt WHERE id=?1", [id])
             .map_err(io)?;
     }

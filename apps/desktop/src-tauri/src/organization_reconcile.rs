@@ -105,6 +105,6 @@ impl LibraryStore {
         tx.execute("UPDATE local_state SET revision=revision+1", [])
             .map_err(io)?;
         project_organization(&tx)?;
-        tx.commit().map_err(io)
+        commit_search(tx)
     }
 }

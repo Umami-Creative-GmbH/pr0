@@ -117,8 +117,10 @@ fn recovery_stages_catches_up_and_switches_without_losing_pending_identities() {
     service.library_download().unwrap();
     assert_eq!(service.library_browse(0).unwrap().len(), 3);
     assert!(!service.library_download().unwrap().complete);
+    assert!(service.library_search(search_request(&service,"Remote content")).unwrap().prompts.is_empty());
     assert_eq!(service.library_detail("66666666-6666-4666-8666-666666666666").unwrap().title, "First");
     assert!(service.library_download().unwrap().complete);
+    assert_eq!(service.library_search(search_request(&service,"Remote content")).unwrap().prompts.len(),1);
     assert_eq!(service.library_detail("66666666-6666-4666-8666-666666666666").unwrap().content, "Remote content");
     assert_eq!(service.library_detail(&saved.prompt.id).unwrap().content, saved.prompt.content);
     assert_eq!(serde_json::to_value(service.library_pending().unwrap()).unwrap(), pending);

@@ -6,6 +6,9 @@ edition = "2021"
 rust-version = "1.94"
 publish = false
 
+[features]
+search-webview-test = ["tauri/custom-protocol"]
+
 [lib]
 name = "pr0_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

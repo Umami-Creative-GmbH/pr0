@@ -46,6 +46,8 @@ struct State {
     restore_pending: bool,
 }
 pub struct AuthService {
+    search: Mutex<Option<(String, Arc<std::sync::atomic::AtomicBool>)>>,
+    search_gate: Mutex<()>,
     wake: (Mutex<u64>, Condvar),
     changes: Mutex<()>,
     clipboard: Mutex<()>,
@@ -155,6 +157,8 @@ impl AuthService {
             String::new()
         };
         Ok(Self {
+            search: Mutex::new(None),
+            search_gate: Mutex::new(()),
             clipboard: Mutex::new(()),
             transition: Mutex::new(()),
             upload: Mutex::new(()),

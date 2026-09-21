@@ -7,6 +7,10 @@ include!("change_tests.rs");
 include!("recovery_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
+include!("search_tests.rs");
+include!("search_fixture_transport.rs");
+#[cfg(feature = "search-webview-test")]
+include!("search_webview_tests.rs");
 include!("organization_tests.rs");
 include!("deletion_tests.rs");
 

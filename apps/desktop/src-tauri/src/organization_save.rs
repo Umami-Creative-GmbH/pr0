@@ -318,7 +318,7 @@ impl LibraryStore {
         .map_err(io)?;
         #[cfg(test)]
         test_stage("before_commit")?;
-        tx.commit().map_err(io)?;
+        commit_search(tx)?;
         Ok(result)
     }
 }
