@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { SignInForm, SignOutControl } from "./auth-panels";
 import { DownloadedLibrary } from "./downloaded-library";
 import type { Status } from "./use-auth-session";
@@ -6,9 +8,13 @@ import { useAuthSession } from "./use-auth-session";
 const RetainedLibrary = ({
   status,
   refreshAuth,
+  editingDisabled,
+  onEditing,
 }: {
   status?: Status;
-  refreshAuth: (command: "auth_status") => Promise<void>;
+  refreshAuth: (command: "auth_status") => Promise<Status | undefined>;
+  editingDisabled: boolean;
+  onEditing: (editing: boolean) => void;
 }) =>
   status?.accountId && status.state !== "cleanup_required" ? (
     <DownloadedLibrary
@@ -16,11 +22,18 @@ const RetainedLibrary = ({
       signedIn={status.state === "signed_in"}
       account={status}
       refreshAuth={refreshAuth}
+      editingDisabled={editingDisabled}
+      onEditing={onEditing}
     />
   ) : null;
 
+const blocksEditing = (open: boolean, busy: boolean, status?: Status) =>
+  open || busy || status?.state === "synchronizing_sign_out";
+
 export const App = () => {
   const { status, busy, error, notice, run } = useAuthSession();
+  const [editing, setEditing] = useState(false);
+  const [transitionOpen, setTransitionOpen] = useState(false);
   return (
     <main className="mx-auto max-w-xl space-y-6 p-8">
       <h1 className="text-3xl font-semibold">pr0</h1>
@@ -33,6 +46,7 @@ export const App = () => {
           <h2 className="text-lg font-medium">Current account</h2>
           <p>{status.email}</p>
           <p className="break-all">Server: {status.origin}</p>
+          <p className="text-sm break-all">Account ID: {status.accountId}</p>
         </section>
       ) : null}
       {status?.state === "signed_in" ? (
@@ -51,7 +65,12 @@ export const App = () => {
           </button>
         </section>
       ) : null}
-      <RetainedLibrary status={status} refreshAuth={run} />
+      <RetainedLibrary
+        status={status}
+        refreshAuth={run}
+        onEditing={setEditing}
+        editingDisabled={blocksEditing(transitionOpen, busy, status)}
+      />
       {status?.state === "signed_out" ||
       status?.state === "authentication_required" ? (
         <SignInForm busy={busy} run={run} status={status} />
@@ -91,7 +110,13 @@ export const App = () => {
         </section>
       ) : null}
       {status && (status.accountId || status.state === "cleanup_required") ? (
-        <SignOutControl busy={busy} run={run} status={status} />
+        <SignOutControl
+          busy={busy}
+          run={run}
+          status={status}
+          editing={editing}
+          onTransition={setTransitionOpen}
+        />
       ) : null}
       {status ? null : (
         <button

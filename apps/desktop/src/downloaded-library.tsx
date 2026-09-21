@@ -12,14 +12,21 @@ import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
 import type { Status } from "./use-auth-session";
 
+const editorIsBlocked = (editing: boolean, transition: boolean) =>
+  editing || transition;
+
 export const DownloadedLibrary = ({
   signedIn,
   refreshAuth,
   account,
+  editingDisabled,
+  onEditing,
 }: {
   account: Status;
   signedIn: boolean;
-  refreshAuth: (command: "auth_status") => Promise<void>;
+  refreshAuth: (command: "auth_status") => Promise<Status | undefined>;
+  editingDisabled: boolean;
+  onEditing: (editing: boolean) => void;
 }) => {
   const [status, setStatus] = useState<DownloadStatus>();
   const [upload, setUpload] = useState<UploadStatus>();
@@ -189,8 +196,11 @@ export const DownloadedLibrary = ({
       <button
         type="button"
         className="rounded border px-4 py-2"
-        disabled={Boolean(editor)}
-        onClick={() => setEditor({})}
+        disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+        onClick={() => {
+          setEditor({});
+          onEditing(true);
+        }}
       >
         New prompt
       </button>
@@ -202,11 +212,15 @@ export const DownloadedLibrary = ({
             void open(id);
           }}
           account={account}
-          onCancel={() => setEditor(undefined)}
+          onCancel={() => {
+            setEditor(undefined);
+            onEditing(false);
+          }}
           onSaved={(value) => {
             selectedPrompt.current = value.prompt.id;
             selection.current += 1;
             setEditor(undefined);
+            onEditing(false);
             setLocalDetail(value);
             setRetry((count) => count + 1);
           }}
@@ -284,8 +298,11 @@ export const DownloadedLibrary = ({
       {localDetail ? (
         <LocalPromptDetail
           value={localDetail}
-          editing={Boolean(editor)}
-          onEdit={() => setEditor({ initial: localDetail })}
+          editing={editorIsBlocked(Boolean(editor), editingDisabled)}
+          onEdit={() => {
+            setEditor({ initial: localDetail });
+            onEditing(true);
+          }}
         />
       ) : null}
     </section>

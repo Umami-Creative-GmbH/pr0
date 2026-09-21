@@ -1,5 +1,37 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SignOutChoice {
+    Cancel,
+    Synchronize,
+    Discard,
+    RetryCleanup,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SignOutRequest {
+    pub instance_id: String,
+    pub account_id: String,
+    pub generation: u64,
+    pub choice: SignOutChoice,
+    pub discard_confirmed: bool,
+}
+impl SignOutRequest {
+    pub fn validate(&self) -> Result<(), String> {
+        if !valid_id(&self.instance_id)
+            || !valid_id(&self.account_id)
+            || self.generation > 9_007_199_254_740_991
+        {
+            return Err("invalid_transition".into());
+        }
+        if self.choice == SignOutChoice::Discard && !self.discard_confirmed {
+            return Err("discard_confirmation_required".into());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DeletionKey {
