@@ -32,6 +32,7 @@ struct Attempt {
     polling: bool,
 }
 struct State {
+    next_download: Instant,
     memory_usage: Vec<super::usage_contract::Usage>,
     library: Option<LibraryStore>,
     generation: u64,
@@ -144,6 +145,7 @@ impl AuthService {
             download: Mutex::new(()),
             restoration: Mutex::new(()),
             state: Mutex::new(State {
+                next_download: Instant::now(),
                 memory_usage: vec![],
                 library: None,
                 generation: 1,

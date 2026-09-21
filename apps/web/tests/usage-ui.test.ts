@@ -107,6 +107,10 @@ test("desktop list/detail Copy preserves failure, retries usage only and shows d
     ).toBe(1);
     await page.getByRole("button", { name: "Recents", exact: true }).click();
     await page.getByRole("button", { name: "First", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Recents", exact: true }).click();
+    expect(
+      await page.getByRole("button", { name: "First", exact: true }).count()
+    ).toBe(1);
     await page.getByRole("button", { name: "Copy First", exact: true }).focus();
     await page.keyboard.press("Enter");
     await page.getByText("Copied.", { exact: true }).waitFor();
@@ -126,6 +130,10 @@ test("desktop list/detail Copy preserves failure, retries usage only and shows d
       await page.getByRole("button", { name: "First", exact: true }).count()
     ).toBe(1);
     holdCopy = true;
+    await page.getByRole("button", { name: "New prompt", exact: true }).click();
+    await page
+      .getByLabel("Title", { exact: true })
+      .fill("Retain this draft during sign-in");
     await page.getByRole("button", { name: "Copy First", exact: true }).click();
     await started.promise;
     generationChanged = true;
@@ -143,6 +151,9 @@ test("desktop list/detail Copy preserves failure, retries usage only and shows d
         )?.disabled
     );
     held.resolve();
+    expect(await page.getByLabel("Title", { exact: true }).inputValue()).toBe(
+      "Retain this draft during sign-in"
+    );
     await page.getByRole("button", { name: "Copy First", exact: true }).click();
     await page
       .getByText("The account changed. Select the prompt again before copying.")

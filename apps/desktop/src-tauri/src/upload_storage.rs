@@ -11,8 +11,22 @@ impl LibraryStore {
     }
     pub fn refresh_required(&self) -> Result<bool, String> {
         self.db
-            .query_row("SELECT refresh OR EXISTS(SELECT 1 FROM pending_usage WHERE receipt IS NOT NULL) FROM upload_state", [], |r| r.get(0))
+            .query_row("SELECT refresh OR EXISTS(SELECT 1 FROM pending_usage WHERE receipt IS NOT NULL) OR last_checked IS NULL OR (julianday('now')-julianday(last_checked))*86400>=30 FROM upload_state", [], |r| r.get(0))
             .map_err(io)
+    }
+    pub fn confirm_unchanged_snapshot(&self, manifest: &Manifest) -> Result<bool, String> {
+        let unchanged:bool=self.db.query_row("SELECT EXISTS(SELECT 1 FROM download WHERE id=(SELECT active FROM state) AND complete=1 AND json_extract(manifest,'$.revision')=?1 AND json_extract(manifest,'$.epoch')=?2) AND NOT EXISTS(SELECT 1 FROM pending_usage WHERE receipt IS NOT NULL) AND NOT EXISTS(SELECT 1 FROM outbox WHERE state='accepted_awaiting_download')",params![manifest.revision,manifest.epoch],|r|r.get(0)).map_err(io)?;
+        if unchanged {
+            let checked = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now())
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+            self.db
+                .execute(
+                    "UPDATE upload_state SET last_checked=?1,refresh=0",
+                    [checked],
+                )
+                .map_err(io)?;
+        }
+        Ok(unchanged)
     }
     pub fn upload_status(&self) -> Result<UploadStatus, String> {
         let (error, next): (Option<String>, i64) = self

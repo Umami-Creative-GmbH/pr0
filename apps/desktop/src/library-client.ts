@@ -102,6 +102,9 @@ export const libraryClient = {
 };
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
 export const downloadError = (error: unknown) => {
+  if (error === "download_backoff") {
+    return "Download paused after a connection or server error. Saved prompts remain available; retry shortly.";
+  }
   if (error === "request_failed") {
     return "The server could not complete the download. Retry later; downloaded prompts are preserved.";
   }

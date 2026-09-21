@@ -189,6 +189,20 @@ impl AuthService {
             return Err("operation_cancelled".into());
         }
         if let Err(error) = &result {
+            if matches!(endpoint, Endpoint::Snapshot | Endpoint::SnapshotPage)
+                && (matches!(error.as_str(), "network_unavailable" | "request_failed")
+                    || error.starts_with("retry_after:"))
+            {
+                let seconds = error
+                    .strip_prefix("retry_after:")
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .unwrap_or(30)
+                    .clamp(1, 86400);
+                state.next_download = Instant::now()
+                    + Duration::from_millis(
+                        seconds * 1000 + (uuid::Uuid::new_v4().as_u128() % 1000) as u64,
+                    );
+            }
             if error == "authentication_required" {
                 state.credential = None;
                 if let Some(retained) = &mut state.retained {
@@ -218,6 +232,10 @@ impl AuthService {
             if status.complete && !store.refresh_required()? {
                 return Ok(status);
             }
+            if state.next_download > Instant::now() {
+                return Err("download_backoff".into());
+            }
+            let store = self.library(&mut state)?;
             (
                 generation,
                 envelope,
@@ -248,6 +266,12 @@ impl AuthService {
                 let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
                 if state.generation != generation {
                     return Err("operation_cancelled".into());
+                }
+                if self
+                    .library(&mut state)?
+                    .confirm_unchanged_snapshot(&manifest)?
+                {
+                    return self.library(&mut state)?.status();
                 }
                 self.library(&mut state)?.begin(&manifest)?;
                 (manifest, 0)

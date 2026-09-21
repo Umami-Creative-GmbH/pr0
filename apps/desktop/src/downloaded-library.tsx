@@ -10,7 +10,7 @@ import { DownloadedRows } from "./downloaded-rows";
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadedSummary, DownloadStatus } from "./library-client";
 import { LibraryViews } from "./library-views";
-import { LocalLibraryStatus } from "./local-library-status";
+import { DownloadProgress, LocalLibraryStatus } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
 import { UsageStatus } from "./usage-status";
@@ -106,7 +106,10 @@ export const DownloadedLibrary = ({
         setStatus(next);
         setUpload(sync);
         setUsage(uses);
-        if (sync.error === "authentication_required") {
+        if (
+          sync.error === "authentication_required" ||
+          uses.error === "authentication_required"
+        ) {
           await refreshAuth("auth_status");
         }
         if (requestedOffset === currentOffset.current) {
@@ -211,6 +214,9 @@ export const DownloadedLibrary = ({
       <LibraryViews
         recents={recents}
         onSelect={(value) => {
+          if (value === recents) {
+            return;
+          }
           browseRequest.current += 1;
           currentOffset.current = 0;
           setOffset(0);
@@ -263,23 +269,7 @@ export const DownloadedLibrary = ({
           }}
         />
       ) : null}
-      <output className="block">
-        {status?.complete
-          ? `Library downloaded at revision ${status.revision}. Available offline.`
-          : `Downloading library: ${status?.downloaded ?? 0} prompts available. The offline library is incomplete.`}
-      </output>
-      {status && status.totalPages > 0 ? (
-        <progress
-          aria-label="Library download progress"
-          max={status.totalPages}
-          value={status.appliedPages}
-        />
-      ) : null}
-      {signedIn ? null : (
-        <p>
-          Sign in to resume downloading. Downloaded prompts remain available.
-        </p>
-      )}
+      <DownloadProgress status={status} signedIn={signedIn} />
       {errorText ? <p role="alert">{errorText}</p> : null}
       {!status?.complete && signedIn ? (
         <button

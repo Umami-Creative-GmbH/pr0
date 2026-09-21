@@ -22,9 +22,15 @@ const copyError = (error: unknown) => {
 
 export const usePromptCopy = (account: Status, refresh: () => void) => {
   const active = useRef(true);
-  const writing = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const writing = useRef<{ generation: number } | null>(null);
+  const [copyState, setCopyState] = useState({
+    generation: account.generation,
+    busy: false,
+    message: "",
+  });
+  const busy = copyState.generation === account.generation && copyState.busy;
+  const message =
+    copyState.generation === account.generation ? copyState.message : "";
   useEffect(() => {
     active.current = true;
     return () => {
@@ -35,16 +41,23 @@ export const usePromptCopy = (account: Status, refresh: () => void) => {
     if (message !== "Copied.") {
       return;
     }
-    const timer = setTimeout(() => setMessage(""), 3000);
+    const timer = setTimeout(
+      () => setCopyState((current) => ({ ...current, message: "" })),
+      3000
+    );
     return () => clearTimeout(timer);
   }, [message]);
   const handleCopy = async (promptId: string) => {
-    if (writing.current || !account.instanceId || !account.accountId) {
+    if (
+      writing.current?.generation === account.generation ||
+      !account.instanceId ||
+      !account.accountId
+    ) {
       return;
     }
-    writing.current = true;
-    setBusy(true);
-    setMessage("");
+    const attempt = { generation: account.generation };
+    writing.current = attempt;
+    setCopyState({ ...attempt, busy: true, message: "" });
     try {
       const result = await libraryClient.copy({
         instanceId: account.instanceId,
@@ -52,22 +65,23 @@ export const usePromptCopy = (account: Status, refresh: () => void) => {
         generation: account.generation,
         promptId,
       });
-      if (active.current) {
-        setMessage(
-          result.usageSaved
+      if (active.current && writing.current === attempt) {
+        setCopyState({
+          ...attempt,
+          busy: false,
+          message: result.usageSaved
             ? "Copied."
-            : "Copied. Usage could not be saved. Retry usage without copying again; this retry may be lost if the app closes."
-        );
+            : "Copied. Usage could not be saved. Retry usage without copying again; this retry may be lost if the app closes.",
+        });
         refresh();
       }
     } catch (error) {
-      if (active.current) {
-        setMessage(copyError(error));
+      if (active.current && writing.current === attempt) {
+        setCopyState({ ...attempt, busy: false, message: copyError(error) });
       }
     }
-    writing.current = false;
-    if (active.current) {
-      setBusy(false);
+    if (writing.current === attempt) {
+      writing.current = null;
     }
   };
   return {
@@ -75,6 +89,10 @@ export const usePromptCopy = (account: Status, refresh: () => void) => {
     message,
     handleCopy,
     usageRetried: () =>
-      setMessage("Usage saved. The clipboard was not written again."),
+      setCopyState({
+        generation: account.generation,
+        busy: false,
+        message: "Usage saved. The clipboard was not written again.",
+      }),
   };
 };

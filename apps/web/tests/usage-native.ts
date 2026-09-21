@@ -154,6 +154,30 @@ export const verifyNativeUsage = async ({
     );
   };
   web = await fetchPrompt();
+  await mutate([
+    {
+      kind: "prompt.use",
+      operationId: crypto.randomUUID(),
+      promptId: input.promptId,
+      baseRevision: "0",
+      dependsOn: [],
+      occurredAt: promptUseFixtures.future,
+    },
+  ]);
+  // Incoming web-only use must reach an idle desktop without manufacturing another local copy.
+  await Bun.sleep(30_100);
+  await download();
+  web = await fetchPrompt();
+  local = promptSchema.parse(
+    await command("library_detail", { id: input.promptId })
+  );
+  assert.equal(local.useCount, 3);
+  assert.equal(local.lastUsedAt, web.lastUsedAt);
+  assert.equal(
+    desktopUsageStatusSchema.parse(await command("library_usage_status"))
+      .waiting,
+    0
+  );
   await mutate([promptState(web, "archived", true)]);
   // A further local use forces a current replacement snapshot, including the remote archive.
   await command("library_copy", {
@@ -169,7 +193,7 @@ export const verifyNativeUsage = async ({
   await download();
   assert.deepEqual(await command("library_recents"), []);
   web = await fetchPrompt();
-  assert.equal(web.useCount, 4);
+  assert.equal(web.useCount, 5);
   await mutate([promptState(web, "archived", false)]);
   await command("library_copy", {
     request: { ...identity, promptId: input.promptId },
