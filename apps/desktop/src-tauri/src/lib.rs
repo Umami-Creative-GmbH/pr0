@@ -7,13 +7,13 @@ mod auth_transport;
 mod change_contract;
 mod clipboard;
 mod deletion_proof;
+mod launcher_runtime;
 mod library_contract;
 mod library_migrations;
 mod library_storage;
 mod lifecycle_contract;
 mod local_contract;
 mod local_search;
-mod launcher_runtime;
 mod migration_backup;
 mod organization_contract;
 mod search_contract;
@@ -326,11 +326,14 @@ async fn copy_template(
     authorize_labels(&window, &["main", "launcher"])?;
     let active_only = window.label() == "launcher";
     if active_only {
-        window.state::<launcher_runtime::Launcher>().require_opening(opening.ok_or("operation_cancelled")?)?;
+        window
+            .state::<launcher_runtime::Launcher>()
+            .require_opening(opening.ok_or("operation_cancelled")?)?;
     }
     let service = state.inner().clone()?;
     tauri::async_runtime::spawn_blocking(move || service.copy_template(&request, active_only))
-        .await.map_err(|_| "native_unavailable")?
+        .await
+        .map_err(|_| "native_unavailable")?
 }
 
 #[tauri::command]
