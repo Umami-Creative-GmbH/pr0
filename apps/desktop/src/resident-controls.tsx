@@ -56,7 +56,6 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
   const [status, setStatus] = useState<ResidentStatus>();
   const [error, setError] = useState("");
   const [waiting, setWaiting] = useState(false);
-  const quitting = useRef(false);
   const refresh = useCallback(async () => {
     try {
       setStatus(await residentClient.status());
@@ -115,34 +114,39 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
   };
   useEffect(() => {
     if (!status?.quitRequested) {
-      quitting.current = false;
       return;
     }
-    if (quitting.current) {
-      return;
-    }
-    quitting.current = true;
+    let cancelled = false;
     const resolve = async () => {
       setWaiting(true);
       try {
-        // Await the renderer acknowledgement too: native completion alone does
-        // not certify a draft edited while that save was in flight.
-        const { current } = editor;
-        const pending = current?.pending();
+        // A pending save certifies only the submitted variant. Recheck the
+        // committed editor and this quit request before acting on its result.
+        const pending = editor.current?.pending();
         if (pending) {
           await pending;
+        }
+        if (cancelled) {
+          return;
         }
         if (!editor.current?.hasChanges()) {
           await residentClient.finishQuit();
         }
       } catch {
-        setError(
-          "The save or quit could not be confirmed. Your draft remains open."
-        );
+        if (!cancelled) {
+          setError(
+            "The save or quit could not be confirmed. Your draft remains open."
+          );
+        }
       }
-      setWaiting(false);
+      if (!cancelled) {
+        setWaiting(false);
+      }
     };
     void resolve();
+    return () => {
+      cancelled = true;
+    };
   }, [status?.quitRequested]);
   const saveAndQuit = async () => {
     setWaiting(true);

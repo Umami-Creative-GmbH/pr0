@@ -222,3 +222,81 @@ test("failed Save and quit retains the complete draft and permits recovery", asy
     await view.stop();
   }
 }, 60_000);
+
+test("cancelling quit while a local save is pending ignores its later completion", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "pr0-resident-cancel-"));
+  const control = path.join(directory, "save-control");
+  await writeFile(control, "wait");
+  const native = await localNativeWorker(directory, true);
+  await native.stop();
+  const view = await nativeWebview(native.executable, directory, {
+    PR0_RESIDENT_SAVE_CONTROL: control,
+  });
+  try {
+    const { page } = view;
+    await page.getByRole("button", { name: "New prompt", exact: true }).click();
+    await page.getByLabel("Title", { exact: true }).fill("Cancelled quit save");
+    await page
+      .getByLabel("Content", { exact: true })
+      .fill("Keep this saved work and keep the app open");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByText("Saving…", { exact: true }).waitFor();
+    await page.evaluate(() => {
+      const { invoke } = window.__TAURI_INTERNALS__;
+      document.documentElement.dataset.quitAttempts = "0";
+      window.__TAURI_INTERNALS__.invoke = (command, args) => {
+        if (command === "resident_finish_quit") {
+          document.documentElement.dataset.quitAttempts = String(
+            Number(document.documentElement.dataset.quitAttempts) + 1
+          );
+        }
+        return invoke(command, args);
+      };
+    });
+    await page.evaluate(() =>
+      window.__TAURI_INTERNALS__.invoke("resident_action", { action: "quit" })
+    );
+    await page
+      .getByText("Waiting for the local save…", { exact: true })
+      .waitFor();
+    await page.evaluate(() =>
+      window.__TAURI_INTERNALS__.invoke("resident_action", {
+        action: "cancel_quit",
+      })
+    );
+    await page
+      .getByRole("dialog", { name: "Quit pr0", exact: true })
+      .waitFor({ state: "detached" });
+    await writeFile(control, "");
+    await page
+      .getByRole("heading", { name: "Cancelled quit save", exact: true })
+      .waitFor();
+    await page.evaluate(() =>
+      window.__TAURI_INTERNALS__.invoke("resident_status", {})
+    );
+    expect(await page.locator("html").getAttribute("data-quit-attempts")).toBe(
+      "0"
+    );
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    const settings = page.getByRole("dialog", {
+      name: "Settings",
+      exact: true,
+    });
+    await settings.waitFor();
+    expect(await settings.getByRole("alert").count()).toBe(0);
+    const status = residentStatusSchema.parse(
+      await page.evaluate(() =>
+        window.__TAURI_INTERNALS__.invoke("resident_status", {})
+      )
+    );
+    expect(status.quitRequested).toBe(false);
+    await page
+      .getByRole("button", { name: "Close Settings", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Quit pr0", exact: true }).click();
+    expect(await view.exited).toBe(0);
+  } finally {
+    await writeFile(control, "");
+    await view.stop();
+  }
+}, 60_000);

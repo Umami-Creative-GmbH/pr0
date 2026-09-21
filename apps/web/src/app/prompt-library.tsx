@@ -503,16 +503,14 @@ const usePromptLibrary = ({
   };
 };
 
-export const PromptLibrary = (
-  props: Parameters<typeof usePromptLibrary>[0]
-) => {
-  const { library, quickOpen, onQuickClose } = props;
+const LibrarySidebar = ({
+  model,
+  library,
+}: {
+  model: ReturnType<typeof usePromptLibrary>;
+  library: PrivateLibrary;
+}) => {
   const {
-    quick,
-    live,
-    deleting,
-    setDeleting,
-    actions,
     noticeRef,
     notice,
     editing,
@@ -538,8 +536,103 @@ export const PromptLibrary = (
     prompts,
     selectedId,
     setSelected,
+    actions,
+    setDeleting,
     queryClient,
     queryKey,
+  } = model;
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p aria-live="polite" ref={noticeRef} tabIndex={-1}>
+          {notice}
+        </p>
+        <button
+          className={buttonClass}
+          disabled={Boolean(editing)}
+          onClick={() => {
+            setEditing("create");
+            setNotice("");
+          }}
+          ref={createRef}
+          type="button"
+        >
+          Create prompt
+        </button>
+      </div>
+      <PromptViewNavigation view={view} onChange={changeView} />
+      <PromptSearchControls search={search} />
+      <PromptExtraFilters
+        favorite={favorite}
+        hasExtraFilters={hasExtraFilters}
+        onFavorite={(value) => setFilters({ ...filters, favorite: value })}
+        onClear={() =>
+          setFilters({
+            ...filters,
+            collectionId: null,
+            tagIds: [],
+            favorite: false,
+          })
+        }
+      />
+      {restarted ? (
+        <output>
+          Your library changed. Results restarted from the first page.
+        </output>
+      ) : null}
+      <CollectionControls
+        tagIds={tagIds}
+        onTagsChange={(ids) => {
+          setFilters({ ...filters, tagIds: ids });
+        }}
+        viewCollectionId={viewCollectionId}
+        onNavigateCollection={(id) => {
+          changeView(id ? "collection" : "all", id);
+        }}
+        library={library}
+        organization={organization}
+        onAccepted={accepted}
+        onAllPrompts={() => changeView("all")}
+        collectionId={collectionId}
+        onSelect={(id) => {
+          setFilters({ ...filters, collectionId: id });
+        }}
+        onDirtyChange={(dirty) => markDraft("organization", dirty)}
+      />
+      <PromptResults
+        copy={copy}
+        restricted={search.searching || hasExtraFilters}
+        pendingSearch={search.pending || Boolean(search.error)}
+        view={view}
+        collectionId={viewCollectionId}
+        list={list}
+        prompts={prompts}
+        selectedId={selectedId}
+        setSelected={setSelected}
+        actions={actions}
+        onDelete={setDeleting}
+        onRefresh={() => {
+          void queryClient.resetQueries({ queryKey });
+        }}
+      />
+    </>
+  );
+};
+
+export const PromptLibrary = (
+  props: Parameters<typeof usePromptLibrary>[0]
+) => {
+  const { library, quickOpen, onQuickClose } = props;
+  const model = usePromptLibrary(props);
+  const {
+    quick,
+    live,
+    deleting,
+    setDeleting,
+    actions,
+    editing,
+    setEditing,
+    setNotice,
     tagEditing,
     tags,
     setTagEditing,
@@ -551,7 +644,11 @@ export const PromptLibrary = (
     searchBlocked,
     detail,
     detailUnavailable,
-  } = usePromptLibrary(props);
+    copy,
+    selectedId,
+    markDraft,
+    accepted,
+  } = model;
   return (
     <div>
       <div className="wf-status">
@@ -581,84 +678,7 @@ export const PromptLibrary = (
         />
       ) : null}
       <LibraryWorkspace
-        sidebar={
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p aria-live="polite" ref={noticeRef} tabIndex={-1}>
-                {notice}
-              </p>
-              <button
-                className={buttonClass}
-                disabled={Boolean(editing)}
-                onClick={() => {
-                  setEditing("create");
-                  setNotice("");
-                }}
-                ref={createRef}
-                type="button"
-              >
-                Create prompt
-              </button>
-            </div>
-            <PromptViewNavigation view={view} onChange={changeView} />
-            <PromptSearchControls search={search} />
-            <PromptExtraFilters
-              favorite={favorite}
-              hasExtraFilters={hasExtraFilters}
-              onFavorite={(value) =>
-                setFilters({ ...filters, favorite: value })
-              }
-              onClear={() =>
-                setFilters({
-                  ...filters,
-                  collectionId: null,
-                  tagIds: [],
-                  favorite: false,
-                })
-              }
-            />
-            {restarted ? (
-              <output>
-                Your library changed. Results restarted from the first page.
-              </output>
-            ) : null}
-            <CollectionControls
-              tagIds={tagIds}
-              onTagsChange={(ids) => {
-                setFilters({ ...filters, tagIds: ids });
-              }}
-              viewCollectionId={viewCollectionId}
-              onNavigateCollection={(id) => {
-                changeView(id ? "collection" : "all", id);
-              }}
-              library={library}
-              organization={organization}
-              onAccepted={accepted}
-              onAllPrompts={() => changeView("all")}
-              collectionId={collectionId}
-              onSelect={(id) => {
-                setFilters({ ...filters, collectionId: id });
-              }}
-              onDirtyChange={(dirty) => markDraft("organization", dirty)}
-            />
-            <PromptResults
-              copy={copy}
-              restricted={search.searching || hasExtraFilters}
-              pendingSearch={search.pending || Boolean(search.error)}
-              view={view}
-              collectionId={viewCollectionId}
-              list={list}
-              prompts={prompts}
-              selectedId={selectedId}
-              setSelected={setSelected}
-              actions={actions}
-              onDelete={setDeleting}
-              onRefresh={() => {
-                void queryClient.resetQueries({ queryKey });
-              }}
-            />
-          </>
-        }
+        sidebar={<LibrarySidebar model={model} library={library} />}
       >
         {tagEditing ? (
           <PromptTags

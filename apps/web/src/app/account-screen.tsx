@@ -5,7 +5,7 @@ import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { WayfinderShell } from "@pr0/ui/components/wayfinder-shell";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, RefObject } from "react";
 
 import { AccountDeletionSettings } from "./account-deletion-settings";
 import { accountErrorMessage, methodResultMessage } from "./account-errors";
@@ -128,6 +128,122 @@ const AccountSettings = ({
   </details>
 );
 
+const AccountSignIn = ({
+  mode,
+  busy,
+  pending,
+  formRef,
+  onSubmit,
+  onResend,
+  onToggle,
+}: {
+  mode: "login" | "register";
+  busy: boolean;
+  pending: boolean;
+  formRef: RefObject<HTMLFormElement | null>;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onResend: () => void;
+  onToggle: () => void;
+}) => {
+  const submitLabel = mode === "login" ? "Sign in" : "Create account";
+  return (
+    <section aria-labelledby="form-title" className="wf-auth">
+      <h2 className="text-xl font-medium" id="form-title">
+        {mode === "login" ? "Sign in" : "Create an account"}
+      </h2>
+      <p className="text-muted-foreground mt-2 text-sm">
+        Verify your email before accessing your library. Registration depends on
+        this instance’s admission settings.
+      </p>
+      <SocialSignIn />
+      <form className="mt-6 space-y-4" onSubmit={onSubmit} ref={formRef}>
+        <div className="space-y-2">
+          <label className="block font-medium" htmlFor="email">
+            Email
+          </label>
+          <input
+            autoComplete="email"
+            className="bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+            disabled={busy}
+            id="email"
+            maxLength={254}
+            name="email"
+            required
+            type="email"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="block font-medium" htmlFor="password">
+            Password
+          </label>
+          <input
+            aria-describedby="password-help"
+            autoComplete={
+              mode === "login" ? "current-password" : "new-password"
+            }
+            className="bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+            disabled={busy}
+            id="password"
+            maxLength={128}
+            minLength={12}
+            name="password"
+            required
+            type="password"
+          />
+          <p className="text-muted-foreground text-sm" id="password-help">
+            Use 12–128 characters.
+          </p>
+        </div>
+        <button
+          className="bg-primary text-primary-foreground rounded-md px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+          disabled={busy || pending}
+          type="submit"
+        >
+          {busy ? "Please wait…" : submitLabel}
+        </button>
+        <button
+          className="block text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
+          disabled={busy}
+          onClick={onResend}
+          type="button"
+        >
+          Send another verification email
+        </button>
+      </form>
+      <button
+        className="mt-6 text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
+        disabled={busy}
+        onClick={onToggle}
+        type="button"
+      >
+        {mode === "login"
+          ? "Create a new account"
+          : "Already registered? Sign in"}
+      </button>
+    </section>
+  );
+};
+
+const LibraryLoadError = ({
+  error,
+  onRetry,
+}: {
+  error: Error | null;
+  onRetry: () => void;
+}) => {
+  if (!error || (error instanceof ApiError && error.status === 401)) {
+    return null;
+  }
+  return (
+    <p role="alert">
+      Unable to open your library.{" "}
+      <button className="underline" type="button" onClick={onRetry}>
+        Retry
+      </button>
+    </p>
+  );
+};
+
 export const AccountScreen = ({
   verification,
   socialError,
@@ -237,7 +353,6 @@ export const AccountScreen = ({
   };
   const accountChanged = changedLibrary(draftLibrary, library.data);
   const quick = useQuickAccess(quickAvailable(signedIn, draftOpen));
-  const submitLabel = mode === "login" ? "Sign in" : "Create account";
   return (
     <WayfinderShell
       surface="web"
@@ -290,100 +405,26 @@ export const AccountScreen = ({
             )}
           </>
         ) : (
-          <section aria-labelledby="form-title" className="wf-auth">
-            <h2 className="text-xl font-medium" id="form-title">
-              {mode === "login" ? "Sign in" : "Create an account"}
-            </h2>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Verify your email before accessing your library. Registration
-              depends on this instance’s admission settings.
-            </p>
-            <SocialSignIn />
-            <form className="mt-6 space-y-4" onSubmit={submit} ref={formRef}>
-              <div className="space-y-2">
-                <label className="block font-medium" htmlFor="email">
-                  Email
-                </label>
-                <input
-                  autoComplete="email"
-                  className="bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-                  disabled={busy}
-                  id="email"
-                  maxLength={254}
-                  name="email"
-                  required
-                  type="email"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block font-medium" htmlFor="password">
-                  Password
-                </label>
-                <input
-                  aria-describedby="password-help"
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
-                  className="bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-                  disabled={busy}
-                  id="password"
-                  maxLength={128}
-                  minLength={12}
-                  name="password"
-                  required
-                  type="password"
-                />
-                <p className="text-muted-foreground text-sm" id="password-help">
-                  Use 12–128 characters.
-                </p>
-              </div>
-              <button
-                className="bg-primary text-primary-foreground rounded-md px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-                disabled={busy || library.isPending}
-                type="submit"
-              >
-                {busy ? "Please wait…" : submitLabel}
-              </button>
-              <button
-                className="block text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
-                disabled={busy}
-                onClick={resend}
-                type="button"
-              >
-                Send another verification email
-              </button>
-            </form>
-            <button
-              className="mt-6 text-sm underline focus-visible:outline-2 focus-visible:outline-offset-2"
-              disabled={busy}
-              onClick={() => {
-                setMode(mode === "login" ? "register" : "login");
-                setErrorText("");
-              }}
-              type="button"
-            >
-              {mode === "login"
-                ? "Create a new account"
-                : "Already registered? Sign in"}
-            </button>
-          </section>
+          <AccountSignIn
+            mode={mode}
+            busy={busy}
+            pending={library.isPending}
+            formRef={formRef}
+            onSubmit={submit}
+            onResend={resend}
+            onToggle={() => {
+              setMode(mode === "login" ? "register" : "login");
+              setErrorText("");
+            }}
+          />
         )}
         {!signedIn && !library.isPending ? <RecoveryForm /> : null}
-        {library.isError &&
-        !(library.error instanceof ApiError && library.error.status === 401) ? (
-          <p role="alert">
-            Unable to open your library.{" "}
-            <button
-              className="underline"
-              onClick={() => {
-                void library.refetch();
-              }}
-              type="button"
-            >
-              Retry
-            </button>
-          </p>
-        ) : null}
+        <LibraryLoadError
+          error={library.error}
+          onRetry={() => {
+            void library.refetch();
+          }}
+        />
         <details className="wf-settings" open={!signedIn}>
           <summary>Account deletion and recovery</summary>{" "}
           <AccountDeletionSettings

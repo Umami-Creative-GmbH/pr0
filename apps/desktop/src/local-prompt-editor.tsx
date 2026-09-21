@@ -135,10 +135,7 @@ export const LocalPromptEditor = ({
     content: initial?.prompt.content ?? "",
   }));
   const currentDraft = useRef(draft);
-  const savedDraft = useRef<string | null>(null);
-  if (savedDraft.current === null) {
-    savedDraft.current = JSON.stringify(draft);
-  }
+  const savedDraft = useRef(draft);
   const pendingSave = useRef<Promise<boolean> | null>(null);
   const target = useRef({
     id: initial?.prompt.id ?? crypto.randomUUID(),
@@ -230,7 +227,7 @@ export const LocalPromptEditor = ({
       });
       target.current = { id: result.prompt.id, revision: result.localRevision };
       attempt.current = null;
-      savedDraft.current = JSON.stringify(request.desired);
+      savedDraft.current = request.desired;
       // Inputs remain editable during a native save. Its acknowledgement certifies only that submitted variant.
       if (
         active.current &&
@@ -296,7 +293,8 @@ export const LocalPromptEditor = ({
   useResidentEditor({
     hasChanges: () =>
       Boolean(attempt.current) ||
-      JSON.stringify(currentDraft.current) !== savedDraft.current,
+      JSON.stringify(currentDraft.current) !==
+        JSON.stringify(savedDraft.current),
     pending: () => pendingSave.current,
     save,
   });
