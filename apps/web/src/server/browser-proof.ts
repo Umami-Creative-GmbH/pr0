@@ -27,9 +27,11 @@ export const lockAccount = async (
   >`SELECT u.email, u.email_version, i.id AS instance_id,
     (SELECT password FROM account WHERE user_id = u.id AND provider_id = 'credential' LIMIT 1) AS password
     FROM "user" u CROSS JOIN instance i WHERE u.id = ${browser.accountId} AND u.email_verified AND NOT u.deletion_pending FOR UPDATE OF u`;
+  // Renewal updates non-key timestamps before its trigger locks the account.
+  // KEY SHARE blocks revocation/deletion without creating the reverse lock dependency.
   const active =
     await tx`SELECT id FROM session WHERE id = ${browser.sessionId} AND user_id = ${browser.accountId}
-    AND provenance = ${browser.provenance ?? "browser"} AND expires_at > clock_timestamp() FOR UPDATE`;
+    AND provenance = ${browser.provenance ?? "browser"} AND expires_at > clock_timestamp() FOR KEY SHARE`;
   if (!owner || !active.length) {
     throw new AccountFailureError("unauthenticated", 401);
   }

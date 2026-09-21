@@ -1,3 +1,4 @@
+import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 import type {
   LocalPrompt,
@@ -35,6 +36,7 @@ export const DownloadedLibrary = ({
 }) => {
   const [status, setStatus] = useState<DownloadStatus>();
   const [upload, setUpload] = useState<UploadStatus>();
+  const [changes, setChanges] = useState<ChangeStatus>();
   const [rows, setRows] = useState<DownloadedSummary[]>([]);
   const [localDetail, setLocalDetail] = useState<LocalPrompt>();
   const [editor, setEditor] = useState<{ initial?: LocalPrompt }>();
@@ -64,7 +66,11 @@ export const DownloadedLibrary = ({
         setLocalDetail(value);
       }
     } catch (error) {
-      if (alive.current) {
+      if (alive.current && request === selection.current) {
+        if (error === "prompt_not_found" || error === "prompt_unavailable") {
+          selectedPrompt.current = null;
+          setLocalDetail(undefined);
+        }
         setErrorText(downloadError(error));
       }
     }
@@ -79,17 +85,19 @@ export const DownloadedLibrary = ({
     let cancelled = false;
     const refresh = async () => {
       const requestedOffset = currentOffset.current;
-      const [next, prompts, sync, uses] = await Promise.all([
+      const [next, prompts, sync, incoming, uses] = await Promise.all([
         libraryClient.status(),
         recents
           ? libraryClient.recents(requestedOffset)
           : libraryClient.browse(requestedOffset),
         libraryClient.uploadStatus(),
+        libraryClient.changeStatus(),
         libraryClient.usageStatus(),
       ]);
       if (!cancelled) {
         setStatus(next);
         setUpload(sync);
+        setChanges(incoming);
         setUsage(uses);
         if (
           sync.error === "authentication_required" ||
@@ -221,6 +229,7 @@ export const DownloadedLibrary = ({
         signedIn={signedIn}
         offline={offline}
         upload={upload}
+        changes={changes}
         onOpen={(id) => {
           void open(id);
         }}

@@ -30,6 +30,7 @@ import { z } from "zod";
 
 import { lockAccount } from "./browser-proof";
 import type { BrowserAccount } from "./browser-proof";
+import { captureChange } from "./change-record";
 import {
   applyCollection,
   readOrganization,
@@ -505,70 +506,87 @@ export const mutatePrompt = (
       VALUES (${library.instance_id}, ${browser.accountId}, ${operation.operationId}, ${hash}) ON CONFLICT DO NOTHING`;
     try {
       return await tx.savepoint(async (savepoint) => {
-        const parsed = promptTextSchema.safeParse(desired);
-        if (desired && !parsed.success) {
-          const fields = Object.fromEntries(
-            parsed.error.issues.map((issue) => [
-              String(issue.path[0]),
-              issue.message,
-            ])
-          );
-          throw new PromptFailureError({
-            code: "validation_failed",
-            message: "Correct the highlighted prompt fields.",
-            retryable: false,
-            fields,
-          });
-        }
-        if (BigInt(operation.baseRevision) > BigInt(library.revision)) {
-          throw invalidPromptRequest();
-        }
-        if (operation.dependsOn.length) {
-          const [dependencies] =
-            await savepoint`SELECT count(*)::int AS count FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id IN ${savepoint(operation.dependsOn)}`;
-          if (dependencies.count !== new Set(operation.dependsOn).size) {
-            throw new PromptFailureError(
-              {
-                code: "dependency_blocked",
-                message: "A required earlier operation has not been accepted.",
-                retryable: true,
-              },
-              409
+        const receipt = await (async () => {
+          const parsed = promptTextSchema.safeParse(desired);
+          if (desired && !parsed.success) {
+            const fields = Object.fromEntries(
+              parsed.error.issues.map((issue) => [
+                String(issue.path[0]),
+                issue.message,
+              ])
+            );
+            throw new PromptFailureError({
+              code: "validation_failed",
+              message: "Correct the highlighted prompt fields.",
+              retryable: false,
+              fields,
+            });
+          }
+          if (BigInt(operation.baseRevision) > BigInt(library.revision)) {
+            throw invalidPromptRequest();
+          }
+          if (operation.dependsOn.length) {
+            const [dependencies] =
+              await savepoint`SELECT count(*)::int AS count FROM library_operation WHERE instance_id = ${library.instance_id} AND account_id = ${browser.accountId} AND operation_id IN ${savepoint(operation.dependsOn)}`;
+            if (dependencies.count !== new Set(operation.dependsOn).size) {
+              throw new PromptFailureError(
+                {
+                  code: "dependency_blocked",
+                  message:
+                    "A required earlier operation has not been accepted.",
+                  retryable: true,
+                },
+                409
+              );
+            }
+          }
+          if (
+            operation.kind === "collection.delete" ||
+            operation.kind === "tag.delete" ||
+            operation.kind === "tag.merge"
+          ) {
+            return applyOrganizationCleanup(
+              savepoint,
+              envelope,
+              operation,
+              hash
             );
           }
-        }
-        if (
-          operation.kind === "collection.delete" ||
-          operation.kind === "tag.delete" ||
-          operation.kind === "tag.merge"
-        ) {
-          return applyOrganizationCleanup(savepoint, envelope, operation, hash);
-        }
-        if ("collectionId" in operation) {
-          return applyCollection(savepoint, envelope, operation, hash);
-        }
-        if ("tagId" in operation) {
-          return applyTag(savepoint, envelope, operation, hash);
-        }
-        if (operation.kind === "prompt.tags") {
-          return applyTagAssignments(savepoint, envelope, operation, hash);
-        }
-        if (operation.kind === "prompt.use") {
-          return applyPromptUse(savepoint, envelope, operation, hash);
-        }
-        if (operation.kind === "prompt.delete") {
-          return applyPromptDeletion({
-            sql: savepoint,
-            envelope,
-            operation,
-            hash,
-          });
-        }
-        if (!desired) {
-          throw invalidPromptRequest();
-        }
-        if (operation.kind === "prompt.update") {
-          return applyPromptUpdate({
+          if ("collectionId" in operation) {
+            return applyCollection(savepoint, envelope, operation, hash);
+          }
+          if ("tagId" in operation) {
+            return applyTag(savepoint, envelope, operation, hash);
+          }
+          if (operation.kind === "prompt.tags") {
+            return applyTagAssignments(savepoint, envelope, operation, hash);
+          }
+          if (operation.kind === "prompt.use") {
+            return applyPromptUse(savepoint, envelope, operation, hash);
+          }
+          if (operation.kind === "prompt.delete") {
+            return applyPromptDeletion({
+              sql: savepoint,
+              envelope,
+              operation,
+              hash,
+            });
+          }
+          if (!desired) {
+            throw invalidPromptRequest();
+          }
+          if (operation.kind === "prompt.update") {
+            return applyPromptUpdate({
+              savepoint,
+              browser,
+              library,
+              envelope,
+              operation,
+              desired,
+              hash,
+            });
+          }
+          return applyPromptCreation({
             savepoint,
             browser,
             library,
@@ -577,16 +595,9 @@ export const mutatePrompt = (
             desired,
             hash,
           });
-        }
-        return applyPromptCreation({
-          savepoint,
-          browser,
-          library,
-          envelope,
-          operation,
-          desired,
-          hash,
-        });
+        })();
+        await captureChange(savepoint, envelope, receipt);
+        return receipt;
       });
     } catch (error) {
       return {

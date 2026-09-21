@@ -126,6 +126,19 @@ impl LibraryStore {
             ],
         )
         .map_err(io)?;
+        let active: Option<String> = tx
+            .query_row(
+                "SELECT manifest FROM download WHERE complete=1 AND id=(SELECT active FROM state)",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(io)?;
+        if let Some(active) = active {
+            let active: Manifest =
+                serde_json::from_str(&active).map_err(|_| "storage_unavailable")?;
+            retire_downloaded_uploads(&tx, &active)?;
+        }
         tx.commit().map_err(io)
     }
     pub fn record_usage(&mut self, usage: &Usage) -> Result<(), String> {

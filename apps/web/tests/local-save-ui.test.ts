@@ -10,6 +10,8 @@ import type { Page } from "playwright";
 import { localNativeWorker } from "./local-native-worker";
 import type { NativeArgs } from "./local-native-worker";
 
+const browserChannel = process.env.PR0_TEST_BROWSER ?? "chrome";
+
 declare global {
   interface Window {
     nativeCommand: (
@@ -73,7 +75,7 @@ test("desktop editor retains a disk-full draft then commits and reopens pending 
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-save-ui-"));
   let native = await localNativeWorker(directory);
   const browser = await chromium.launch({
-    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    channel: browserChannel,
     headless: true,
   });
   let fault = "disk_full";
@@ -244,7 +246,7 @@ test("two desktop windows keep competing drafts and an older save acknowledgemen
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-two-window-"));
   const native = await localNativeWorker(directory);
   const browser = await chromium.launch({
-    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    channel: browserChannel,
     headless: true,
   });
   const { promise: held, resolve: release } =
@@ -354,7 +356,7 @@ test("an open draft follows its conflict copy without replacing text and offers 
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-upload-ui-"));
   const native = await localNativeWorker(directory, true);
   const browser = await chromium.launch({
-    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    channel: browserChannel,
     headless: true,
   });
   try {
@@ -415,6 +417,47 @@ test("an open draft follows its conflict copy without replacing text and offers 
       await native.command("library_editor", { id: original.prompt.id })
     );
     expect(preserved.prompt.content).toBe(original.prompt.content);
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a remote deletion clears the saved desktop detail while preserving its open unsaved draft", async () => {
+  const directory = await mkdtemp(
+    path.join(os.tmpdir(), "pr0-live-delete-ui-")
+  );
+  const native = await localNativeWorker(directory, true);
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  try {
+    const page = await browser.newPage();
+    await connect(page, native, () => "");
+    const original = localPromptSchema.parse(
+      await native.command("library_editor", {
+        id: "66666666-6666-4666-8666-666666666666",
+      })
+    );
+    await page
+      .getByRole("button", { name: original.prompt.title, exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Edit prompt", exact: true })
+      .click();
+    const draft = page
+      .getByRole("form", { name: "Prompt editor" })
+      .getByLabel("Content", { exact: true });
+    await draft.fill("Keep this unsaved draft");
+    await native.command("library_changes");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.getByLabel("Prompt content").waitFor({ state: "detached" });
+    expect(await draft.inputValue()).toBe("Keep this unsaved draft");
+    expect(
+      await draft.evaluate((element) => element === document.activeElement)
+    ).toBe(true);
   } finally {
     await browser.close();
     await native.stop();
