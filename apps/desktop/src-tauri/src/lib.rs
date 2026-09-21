@@ -11,9 +11,9 @@ mod library_contract;
 mod library_storage;
 mod local_contract;
 mod local_search;
+mod organization_contract;
 mod search_contract;
 mod search_query;
-mod organization_contract;
 mod upload_contract;
 mod usage_contract;
 

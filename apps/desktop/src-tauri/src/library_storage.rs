@@ -168,13 +168,20 @@ impl LibraryStore {
             if !has_organization {
                 migrate_organization(&db)?;
             }
-            let indexed: bool = db.query_row("SELECT version=2 FROM local_search_version WHERE singleton=1", [], |r| r.get(0)).map_err(io)?;
+            let indexed: bool = db
+                .query_row(
+                    "SELECT version=2 FROM local_search_version WHERE singleton=1",
+                    [],
+                    |r| r.get(0),
+                )
+                .map_err(io)?;
             if !indexed {
                 super::local_search::upgrade(&mut db).map_err(io)?;
             }
             super::local_search::integrate_organization(&mut db).map_err(io)?;
         }
-        db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;").map_err(io)?;
+        db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;")
+            .map_err(io)?;
         Ok(Self {
             db,
             instance: instance.into(),
