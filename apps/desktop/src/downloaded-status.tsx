@@ -12,6 +12,9 @@ import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
 import type { useLifecycle } from "./use-lifecycle";
 
+const usageInToast = (copyMessage: string, usage?: DesktopUsageStatus) =>
+  Boolean(copyMessage) || Boolean(usage?.memoryOnly);
+
 export const DownloadedStatus = ({
   status,
   upload,
@@ -57,6 +60,11 @@ export const DownloadedStatus = ({
     <div className="wf-toast">
       <output>{copyMessage}</output>
       <output>{lifecycle.message}</output>
+      {/* Usage feedback accompanies the copy result. Uses held only in memory
+          can be lost on exit, so their retry always stays in view. */}
+      {usageInToast(copyMessage, usage) ? (
+        <UsageStatus status={usage} onRetry={onRetryUsage} />
+      ) : null}
       {lifecycle.failed ? (
         <div role="alert" className="flex gap-3">
           <button
@@ -92,7 +100,9 @@ export const DownloadedStatus = ({
         Boolean(entry.error)
       )}
     >
-      <UsageStatus status={usage} onRetry={onRetryUsage} />
+      {usageInToast(copyMessage, usage) ? null : (
+        <UsageStatus status={usage} onRetry={onRetryUsage} />
+      )}
       <PendingRecovery
         account={account}
         upload={upload}

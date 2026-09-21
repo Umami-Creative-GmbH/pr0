@@ -73,6 +73,8 @@ test("designed desktop keeps offline persistence, theme and a separate native la
       path: "docs/evidence/design-75/production-desktop-dark-detail.png",
     });
     await page.getByRole("button", { name: "Switch to light theme" }).click();
+    // Let the theme transition finish before capturing evidence.
+    await page.waitForTimeout(400);
     await page.screenshot({
       path: "docs/evidence/design-75/production-desktop-light-detail.png",
     });
@@ -189,6 +191,8 @@ test("designed desktop keeps offline persistence, theme and a separate native la
   }
   const reopened = await nativeWebview(native.executable, directory);
   try {
+    // Size the restarted window like the first session before judging visibility.
+    await reopened.page.setViewportSize({ width: 1440, height: 1000 });
     await reopened.page
       .getByRole("heading", {
         name: "Text professionell umschreiben",

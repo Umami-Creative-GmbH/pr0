@@ -58,6 +58,8 @@ test("designed web library persists edits and theme; quick access retains failed
       })
       .waitFor();
     await page.getByLabel("Saved content").waitFor();
+    // Let the theme transition finish before capturing evidence.
+    await page.waitForTimeout(400);
     await page.screenshot({
       path: "docs/evidence/design-75/production-web-light-detail.png",
     });
