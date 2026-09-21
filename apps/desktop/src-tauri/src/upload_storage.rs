@@ -3,12 +3,15 @@ use super::local_contract::{PendingAction, PendingOperation};
 use super::upload_contract::{now, Mapping, Outcome, PendingError, UploadStatus};
 impl LibraryStore {
     pub fn required_download_revision(&self) -> Result<String, String> {
-        let revision:i64=self.db.query_row("SELECT coalesce(max(cast(json_extract(receipt,'$.revision') AS INTEGER)),0) FROM (SELECT receipt,envelope FROM outbox WHERE state='accepted_awaiting_download' AND error IS NOT 'recovery_required' UNION ALL SELECT receipt,envelope FROM pending_usage WHERE receipt IS NOT NULL AND recovery=0) WHERE json_extract(envelope,'$.epoch')=?1",[self.active_epoch()?],|r|r.get(0)).map_err(io)?;
+        let revision:i64=self.db.query_row("SELECT coalesce(max(cast(json_extract(receipt,'$.revision') AS INTEGER)),0) FROM (SELECT receipt,envelope FROM outbox WHERE state='accepted_awaiting_download' AND error IS NOT 'recovery_required' UNION ALL SELECT receipt,envelope FROM pending_usage WHERE receipt IS NOT NULL AND recovery=0 UNION ALL SELECT receipt,envelope FROM organization_queue WHERE receipt IS NOT NULL AND error IS NOT 'recovery_required') WHERE json_extract(envelope,'$.epoch')=?1",[self.active_epoch()?],|r|r.get(0)).map_err(io)?;
         Ok(revision.to_string())
     }
     pub fn upload_ready(&self) -> Result<bool, String> {
         if self.recovering()? { return Ok(false); }
-        self.db.query_row("SELECT EXISTS(SELECT 1 FROM outbox o WHERE state<>'accepted_awaiting_download' AND next_attempt<=?1 AND NOT EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox p ON p.id=d.value WHERE p.state<>'accepted_awaiting_download'))",[now()],|r|r.get(0)).map_err(io)
+        if self.organization_upload_ready()? {
+            return Ok(true);
+        }
+        self.db.query_row("SELECT EXISTS(SELECT 1 FROM outbox o WHERE state<>'accepted_awaiting_download' AND next_attempt<=?1 AND NOT EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox p ON p.id=d.value WHERE p.state<>'accepted_awaiting_download') AND NOT EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN organization_queue p ON p.id=d.value WHERE p.receipt IS NULL))",[now()],|r|r.get(0)).map_err(io)
     }
     pub fn refresh_required(&self) -> Result<bool, String> {
         self.db
@@ -32,7 +35,7 @@ impl LibraryStore {
         let waiting = self
             .db
             .query_row(
-                "SELECT count(*) FROM outbox WHERE state<>'accepted_awaiting_download'",
+                "SELECT (SELECT count(*) FROM outbox WHERE state<>'accepted_awaiting_download')+(SELECT count(*) FROM organization_queue WHERE receipt IS NULL)",
                 [],
                 |r| r.get(0),
             )
@@ -40,12 +43,12 @@ impl LibraryStore {
         let awaiting_download = self
             .db
             .query_row(
-                "SELECT count(*) FROM outbox WHERE state='accepted_awaiting_download'",
+                "SELECT (SELECT count(*) FROM outbox WHERE state='accepted_awaiting_download')+(SELECT count(*) FROM organization_queue WHERE receipt IS NOT NULL)",
                 [],
                 |r| r.get(0),
             )
             .map_err(io)?;
-        let mut statement = self.db.prepare("SELECT prompt_id,coalesce(error,'dependency_blocked') FROM outbox o WHERE error IS NOT NULL OR EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox p ON p.id=d.value WHERE p.error IS NOT NULL) ORDER BY local_revision LIMIT 100").map_err(io)?;
+        let mut statement = self.db.prepare("SELECT prompt_id,coalesce(error,'dependency_blocked') FROM outbox o WHERE error IS NOT NULL OR EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox p ON p.id=d.value WHERE p.error IS NOT NULL) OR EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN organization_queue p ON p.id=d.value WHERE p.error IS NOT NULL) ORDER BY local_revision LIMIT 100").map_err(io)?;
         let errors = statement
             .query_map([], |r| {
                 Ok(PendingError {
@@ -116,6 +119,9 @@ impl LibraryStore {
     }
     pub fn prepare_upload(&mut self) -> Result<Option<(serde_json::Value, bool)>, String> {
         if self.recovering()? { return Ok(None); }
+        if let Some(prepared) = self.prepare_organization_upload()? {
+            return Ok(Some(prepared));
+        }
         let tx = self
             .db
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -133,7 +139,7 @@ impl LibraryStore {
         };
         let manifest: Manifest =
             serde_json::from_str(&manifest).map_err(|_| "storage_unavailable")?;
-        let row: Option<(String,String,Option<String>)> = tx.query_row("SELECT o.id,o.payload,o.envelope FROM outbox o WHERE o.state<>'accepted_awaiting_download' AND o.next_attempt<=?1 AND NOT EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox parent ON parent.id=d.value WHERE parent.state<>'accepted_awaiting_download') ORDER BY o.local_revision LIMIT 1",[now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(io)?;
+        let row: Option<(String,String,Option<String>)> = tx.query_row("SELECT o.id,o.payload,o.envelope FROM outbox o WHERE o.state<>'accepted_awaiting_download' AND o.next_attempt<=?1 AND NOT EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN outbox parent ON parent.id=d.value WHERE parent.state<>'accepted_awaiting_download') AND NOT EXISTS(SELECT 1 FROM json_each(o.payload,'$.dependsOn') d JOIN organization_queue p ON p.id=d.value WHERE p.receipt IS NULL) ORDER BY o.local_revision LIMIT 1",[now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional().map_err(io)?;
         let Some((id, payload, frozen)) = row else {
             return Ok(None);
         };
@@ -229,6 +235,18 @@ impl LibraryStore {
                 {
                     return Err("invalid_response".into());
                 }
+                tx.execute(
+                    "INSERT OR REPLACE INTO organization_ack VALUES(?1,?2,?3)",
+                    params![
+                        sent.operation_id,
+                        receipt
+                            .revision
+                            .parse::<i64>()
+                            .map_err(|_| "invalid_response")?,
+                        "{\"kind\":\"prompt.text\"}"
+                    ],
+                )
+                .map_err(io)?;
                 let target = receipt
                     .conflict
                     .as_ref()
@@ -242,6 +260,7 @@ impl LibraryStore {
                     .map_err(io)?;
                 let mut baseline = sent.desired.clone();
                 if receipt.conflict.is_some() {
+                    map_organization_identity(&tx, &sent.prompt_id, target)?;
                     baseline.title = format!(
                         "{} (conflict copy)",
                         baseline.title.chars().take(184).collect::<String>()
@@ -336,6 +355,7 @@ impl LibraryStore {
         }
         #[cfg(test)]
         test_stage("upload_acknowledgement")?;
+        project_organization(&tx)?;
         commit_search(tx)
     }
 }
@@ -343,6 +363,7 @@ fn retire_downloaded_uploads(
     tx: &rusqlite::Transaction,
     manifest: &Manifest,
 ) -> Result<(), String> {
+    tx.execute("DELETE FROM organization_queue WHERE error IS NOT 'recovery_required' AND receipt IS NOT NULL AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
     tx.execute("DELETE FROM pending_usage WHERE recovery=0 AND receipt IS NOT NULL AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
     tx.execute("DELETE FROM outbox WHERE error IS NOT 'recovery_required' AND state='accepted_awaiting_download' AND cast(json_extract(receipt,'$.revision') AS INTEGER)<=?1 AND json_extract(envelope,'$.epoch')=?2",params![manifest.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.epoch]).map_err(io)?;
     let ids = {
@@ -360,6 +381,6 @@ fn retire_downloaded_uploads(
         tx.execute("DELETE FROM local_prompt WHERE id=?1", [id])
             .map_err(io)?;
     }
-    tx.execute("UPDATE upload_state SET refresh=EXISTS(SELECT 1 FROM outbox WHERE state='accepted_awaiting_download')",[]).map_err(io)?;
+    tx.execute("UPDATE upload_state SET refresh=EXISTS(SELECT 1 FROM outbox WHERE state='accepted_awaiting_download') OR EXISTS(SELECT 1 FROM organization_queue WHERE receipt IS NOT NULL) OR EXISTS(SELECT 1 FROM pending_usage WHERE receipt IS NOT NULL)",[]).map_err(io)?;
     Ok(())
 }

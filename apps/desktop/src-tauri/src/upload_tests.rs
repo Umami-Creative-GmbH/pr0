@@ -21,6 +21,7 @@ impl Transport for UploadFixture {
     ) -> Result<serde_json::Value, String> {
         let data = fixtures();
         match endpoint {
+            Endpoint::DeletionLookup => Ok(json!({"status":"absent"})),
             Endpoint::Capabilities => Ok(data["capabilities"].clone()),
             Endpoint::Code => Ok(data["code"].clone()),
             Endpoint::Token => Ok(data["token"].clone()),

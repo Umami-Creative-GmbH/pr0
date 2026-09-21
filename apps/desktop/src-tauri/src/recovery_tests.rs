@@ -11,6 +11,90 @@ fn replacement_fixture() -> serde_json::Value {
 }
 
 #[test]
+fn recovery_organization_staged_changes_do_not_modify_the_visible_baseline() {
+    let (directory, service, transport) = downloaded_change_fixture();
+    let tag = uuid::Uuid::new_v4().to_string();
+    let prompt = "66666666-6666-4666-8666-666666666666";
+    service.library_organize(organization_request(&service,json!({"kind":"tag.create","id":tag,"name":"Kept during staging"}))).unwrap();
+    service.library_organize(organization_request(&service,json!({"kind":"prompt.tags","id":prompt,"add":[tag],"remove":[]}))).unwrap();
+    transport.0.lock().unwrap().push(json!({"fixtureFailure":"snapshot_required"}));
+    service.library_changes(0).unwrap();
+    let data = replacement_fixture();
+    let mut changes = change_fixture();
+    changes["hasMore"] = json!(true);
+    changes["headRevision"] = json!("4");
+    changes["changes"][0]["prompts"] = json!([]);
+    changes["changes"][0]["removedMemberships"] = json!([{"promptId":prompt,"tagId":tag}]);
+    changes["changes"][0]["effect"] = json!({"kind":"tag.delete","sourceId":tag,"sourceName":"Kept during staging","targetId":null,"targetName":null,"activeCount":1,"archivedCount":0,"targetActiveCount":0,"targetArchivedCount":0});
+    transport.0.lock().unwrap().extend([data["manifest"].clone(),data["pages"][0].clone(),data["pages"][1].clone(),changes]);
+    for _ in 0..3 { service.library_download().unwrap(); }
+    assert!(!service.library_status().unwrap().complete);
+    assert_eq!(service.library_detail(prompt).unwrap().tag_ids,vec![tag]);
+    assert!(service.library_organization().unwrap()["states"].as_array().unwrap().is_empty());
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn recovery_organization_epoch_change_retains_and_blocks_old_pending_work() {
+    let (directory, service, transport) = downloaded_change_fixture();
+    let tag = uuid::Uuid::new_v4().to_string();
+    let request = organization_request(&service, json!({"kind":"tag.create","id":tag,"name":"Offline tag"}));
+    let operation_id = request.operation_id.clone();
+    service.library_organize(request).unwrap();
+    transport.0.lock().unwrap().push(json!({"fixtureFailure":"snapshot_required"}));
+    service.library_changes(0).unwrap();
+    let mut data = replacement_fixture();
+    data["manifest"]["epoch"] = json!("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+    let mut changes = change_fixture();
+    changes["epoch"] = data["manifest"]["epoch"].clone();
+    transport.0.lock().unwrap().extend([data["manifest"].clone(),data["pages"][0].clone(),data["pages"][1].clone(),changes]);
+    for _ in 0..3 { service.library_download().unwrap(); }
+    let snapshot = service.library_organization().unwrap();
+    assert_eq!(snapshot["pending"][0]["id"], operation_id);
+    assert_eq!(snapshot["pending"][0]["error"], "recovery_required");
+    let prompt = service.library_detail("66666666-6666-4666-8666-666666666666").unwrap();
+    drop(service);
+    let mut store = super::library_storage::LibraryStore::open(&directory,&prompt.instance_id,&prompt.account_id).unwrap();
+    assert!(!store.upload_ready().unwrap());
+    assert!(store.prepare_upload().unwrap().is_none());
+    assert_eq!(store.organization_snapshot().unwrap()["pending"][0]["id"], operation_id);
+    drop(store);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn recovery_organization_upgrades_both_version_six_schemas_without_losing_work() {
+    for organization_schema in [false, true] {
+        let (directory, service, _) = downloaded_change_fixture();
+        let saved = service.library_create(save_request(&service)).unwrap();
+        let operation = organization_request(&service,json!({"kind":"tag.create","id":uuid::Uuid::new_v4().to_string(),"name":"Kept through migration"}));
+        let operation_id = operation.operation_id.clone();
+        if organization_schema { service.library_organize(operation).unwrap(); }
+        let prompt = saved.prompt;
+        drop(service);
+        let path = super::library_storage::library_path(&directory,&prompt.instance_id,&prompt.account_id).unwrap();
+        let db = rusqlite::Connection::open(path).unwrap();
+        if organization_schema {
+            db.execute_batch("DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery;").unwrap();
+        } else {
+            db.execute_batch("DROP VIEW visible_prompt; DROP VIEW base_visible_prompt; CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt); DROP TABLE organization_known; DROP TABLE organization_checkpoint; DROP TABLE organization_ack; DROP TABLE organization_queue; DROP TABLE organization_local; DROP TABLE organization_receipt; DROP TABLE organization_removed; DROP TABLE organization_affected; DROP TABLE organization_assignment; DROP TABLE organization_membership_removal;").unwrap();
+        }
+        db.pragma_update(None,"user_version",6).unwrap();
+        drop(db);
+        let store = super::library_storage::LibraryStore::open(&directory,&prompt.instance_id,&prompt.account_id).unwrap();
+        assert_eq!(store.detail(&prompt.id).unwrap().content,prompt.content);
+        assert_eq!(store.pending_changes().unwrap().len(),1);
+        assert!(store.recovery_browse(0).unwrap().is_empty());
+        let organization = store.organization_snapshot().unwrap();
+        if organization_schema { assert_eq!(organization["pending"][0]["id"],operation_id); }
+        else { assert!(organization["pending"].as_array().unwrap().is_empty()); }
+        drop(store);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
 fn recovery_stages_catches_up_and_switches_without_losing_pending_identities() {
     let (directory, service, transport) = downloaded_change_fixture();
     let mut checkpoint = change_fixture();

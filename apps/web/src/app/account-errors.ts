@@ -1,7 +1,10 @@
 import { ApiError } from "@pr0/api-client/client";
 
-export const accountErrorMessage = (error: Error) => {
+const accountFailureMessage = (error: Error) => {
   if (error instanceof ApiError) {
+    if (error.code === "account_suspended") {
+      return "This account is suspended. Contact your instance operator. Your retained work has not been deleted.";
+    }
     if (error.code === "fresh_auth_required") {
       return "Confirm your identity again before changing account settings. This request made no changes.";
     }
@@ -49,6 +52,13 @@ export const accountErrorMessage = (error: Error) => {
     }
   }
   return "The service could not complete this request. Please try again.";
+};
+
+export const accountErrorMessage = (error: Error) => {
+  if (error instanceof ApiError && error.code === "unavailable") {
+    return `The service is temporarily unavailable. Retry in ${error.retryAfter ?? 30} seconds. Keep this tab open to retain your work.`;
+  }
+  return accountFailureMessage(error);
 };
 
 export const methodResultMessage = (result?: string) => {

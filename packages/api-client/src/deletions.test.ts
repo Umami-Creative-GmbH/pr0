@@ -1,7 +1,38 @@
 import { expect, test } from "bun:test";
 import { generateKeyPairSync, sign } from "node:crypto";
 
+import {
+  deletionClaimsSchema,
+  deletionTrustSchema,
+} from "@pr0/api-contract/deletions";
+
+import vectors from "../../api-contract/src/deletion-proof-fixtures.json";
 import { verifyDeletionReceipt } from "./deletions";
+
+test("native and browser receipt vectors share irreversible deletion and signed rotation semantics", async () => {
+  const claims = deletionClaimsSchema.parse(vectors.claims);
+  const trust = deletionTrustSchema.parse({
+    ...vectors.verification,
+    accountId: vectors.claims.accountId,
+    handle: vectors.claims.handle,
+  });
+  expect(await verifyDeletionReceipt(vectors.receipt, trust)).toEqual(claims);
+  expect(await verifyDeletionReceipt(vectors.rotatedReceipt, trust)).toEqual(
+    claims
+  );
+  for (const receipt of vectors.invalidReceipts) {
+    // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each independently invalid signed vector must fail.
+    await expect(
+      verifyDeletionReceipt(receipt, { ...trust, rotations: [] })
+    ).rejects.toThrow();
+  }
+  await expect(
+    verifyDeletionReceipt(vectors.rotatedReceipt, {
+      ...trust,
+      rotations: [...trust.rotations, ...trust.rotations],
+    })
+  ).rejects.toThrow();
+});
 
 test("receipt verification rejects other identities, unsigned evidence and the wrong JOSE type", async () => {
   const pair = generateKeyPairSync("ed25519");

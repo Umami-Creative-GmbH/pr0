@@ -17,7 +17,7 @@ impl AuthService {
             }
             (
                 state.generation,
-                state.credential.clone().ok_or("authentication_required")?,
+                state.credential.clone(),
                 state
                     .retained
                     .as_ref()
@@ -26,7 +26,17 @@ impl AuthService {
                     .clone(),
             )
         };
+        if envelope.is_none() {
+            if self.check_deletion()? {
+                return Err("operation_cancelled".into());
+            }
+            return Err("authentication_required".into());
+        }
         let result: Result<(), String> = (|| {
+            if self.check_deletion()? {
+                return Err("operation_cancelled".into());
+            }
+            let envelope = envelope.ok_or("authentication_required")?;
             let capabilities: Capabilities = decode(self.snapshot_request(
                 generation,
                 &envelope,
@@ -39,7 +49,7 @@ impl AuthService {
             {
                 return Err("incompatible_instance".into());
             }
-            self.refresh()?;
+            self.refresh_session()?;
             let prepared = {
                 let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
                 if generation != state.generation {
@@ -58,34 +68,38 @@ impl AuthService {
                     },
                     body.clone(),
                 )?;
-                let mut response: super::upload_contract::Response = decode(response)?;
-                if response.results.len() != 1 {
+                let mut response = response;
+                if response["results"].as_array().map(Vec::len) != Some(1) {
                     return Err("invalid_response".into());
                 }
-                if let super::upload_contract::Outcome::Unknown { operation_id } =
-                    &response.results[0]
-                {
+                if response["results"][0]["status"] == "unknown" {
                     if !replay
-                        || body["operations"][0]["operationId"].as_str() != Some(operation_id)
+                        || body["operations"][0]["operationId"]
+                            != response["results"][0]["operationId"]
                     {
                         return Err("invalid_response".into());
                     }
-                    response = decode(self.snapshot_request(
+                    response = self.snapshot_request(
                         generation,
                         &envelope,
                         Endpoint::Mutations,
                         body.clone(),
-                    )?)?;
+                    )?;
                 }
-                if response.results.len() != 1 {
+                if response["results"].as_array().map(Vec::len) != Some(1) {
                     return Err("invalid_response".into());
                 }
                 let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
                 if generation != state.generation {
                     return Err("operation_cancelled".into());
                 }
-                self.library(&mut state)?
-                    .acknowledge_upload(&body, response.results.remove(0))?;
+                let store = self.library(&mut state)?;
+                if store.is_organization_upload(&body)? {
+                    store.acknowledge_organization_upload(&body, &response["results"][0])?;
+                } else {
+                    let mut response: super::upload_contract::Response = decode(response)?;
+                    store.acknowledge_upload(&body, response.results.remove(0))?;
+                }
             }
             Ok(())
         })();

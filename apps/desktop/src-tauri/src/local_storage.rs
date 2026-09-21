@@ -60,7 +60,7 @@ impl LibraryStore {
     }
     pub fn pending_count(&self) -> Result<u32, String> {
         self.db
-            .query_row("SELECT (SELECT count(*) FROM outbox)+(SELECT count(*) FROM pending_usage)", [], |r| r.get(0))
+            .query_row("SELECT (SELECT count(*) FROM outbox)+(SELECT count(*) FROM pending_usage)+(SELECT count(*) FROM organization_queue)", [], |r| r.get(0))
             .map_err(io)
     }
     pub fn local_detail(&self, id: &str) -> Result<super::local_contract::LocalPrompt, String> {
@@ -71,7 +71,7 @@ impl LibraryStore {
         let pending = self
             .db
             .query_row(
-                "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND (state<>'accepted_awaiting_download' OR error='recovery_required'))",
+                "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND (state<>'accepted_awaiting_download' OR error='recovery_required')) OR EXISTS(SELECT 1 FROM organization_queue WHERE entity_id=?1 AND receipt IS NULL)",
                 [id],
                 |r| r.get(0),
             )
@@ -301,6 +301,7 @@ impl LibraryStore {
             if state == "unsent" {
                 operation = serde_json::from_str(&payload).map_err(|_| "storage_unavailable")?;
                 operation.operation_id = request.operation_id.clone();
+                map_organization_identity(&tx, &id, &request.operation_id)?;
                 tx.execute("DELETE FROM outbox WHERE id=?1", [id])
                     .map_err(io)?;
             } else {
@@ -333,5 +334,8 @@ fn known_usage(db: &Connection) -> Result<(i64, i64), String> {
     // The manifest and first-page quota cover records not downloaded yet.
     let (baseline_count,baseline_bytes):(i64,i64)=db.query_row("SELECT coalesce((SELECT json_extract(manifest,'$.promptCount') FROM download WHERE id=(SELECT active FROM state)),0),max(coalesce((SELECT text_bytes FROM download WHERE id=(SELECT active FROM state)),0),coalesce((SELECT sum(text_bytes) FROM prompt WHERE snapshot=(SELECT active FROM state)),0)+coalesce((SELECT sum(length(cast(name AS BLOB))) FROM organization WHERE snapshot=(SELECT active FROM state)),0))",[],|r|Ok((r.get(0)?,r.get(1)?))).map_err(io)?;
     let (extra_count,extra_bytes):(i64,i64)=db.query_row("SELECT coalesce(sum(CASE WHEN p.id IS NULL THEN 1 ELSE 0 END),0),coalesce(sum(l.text_bytes-coalesce(p.text_bytes,0)),0) FROM local_prompt l LEFT JOIN prompt p ON p.id=l.id AND p.snapshot=(SELECT active FROM state)",[],|r|Ok((r.get(0)?,r.get(1)?))).map_err(io)?;
-    Ok((baseline_count + extra_count, baseline_bytes + extra_bytes))
+    Ok((
+        baseline_count + extra_count,
+        baseline_bytes + extra_bytes + organization_byte_delta(db)?,
+    ))
 }

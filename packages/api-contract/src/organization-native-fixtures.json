@@ -1,0 +1,10 @@
+[
+  { "first": "Straße", "second": "STRASSE", "same": true },
+  { "first": "Café", "second": "Café", "same": true },
+  { "first": "Σ", "second": "ς", "same": true },
+  { "first": "  Writing ", "second": "writing", "same": true },
+  { "first": "Café", "second": "Cafe", "same": false },
+  { "first": "One  two", "second": "One two", "same": false },
+  { "first": "İ", "second": "i̇", "same": true },
+  { "first": "각", "second": "각", "same": true }
+]

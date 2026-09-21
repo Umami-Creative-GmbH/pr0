@@ -232,7 +232,7 @@ fn organization_entries(
     kind: &str,
 ) -> rusqlite::Result<Vec<super::library_contract::OrganizationEntry>> {
     let mut entries = Vec::new();
-    let mut statement=db.prepare("SELECT o.record,(SELECT count(*) FROM search_membership x JOIN search_metadata m USING(slot) WHERE x.kind=o.kind AND x.id=o.id AND m.archived=0),(SELECT count(*) FROM search_membership x JOIN search_metadata m USING(slot) WHERE x.kind=o.kind AND x.id=o.id AND m.archived=1) FROM organization o WHERE snapshot=(SELECT active FROM state) AND kind=?1 ORDER BY name COLLATE BINARY,id")?;
+    let mut statement=db.prepare("SELECT json_object('id',o.id,'name',o.name,'revision',o.revision,'activeCount',0,'archivedCount',0,'totalCount',0),(SELECT count(*) FROM search_membership x JOIN search_metadata m USING(slot) WHERE x.kind=o.kind AND x.id=o.id AND m.archived=0),(SELECT count(*) FROM search_membership x JOIN search_metadata m USING(slot) WHERE x.kind=o.kind AND x.id=o.id AND m.archived=1) FROM organization_local o WHERE kind=?1 ORDER BY name COLLATE BINARY,id")?;
     for row in statement.query_map([kind], |r| {
         Ok((
             r.get::<_, String>(0)?,

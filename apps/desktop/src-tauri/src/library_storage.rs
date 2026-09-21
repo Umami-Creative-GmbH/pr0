@@ -58,7 +58,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 7 {
+        if version > 8 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -148,10 +148,10 @@ impl LibraryStore {
                 UPDATE upload_state SET last_checked=NULL;
                 PRAGMA user_version=5; COMMIT;").map_err(io)?;
         }
-        // Both pre-merge branches used version 6. Recognize the search-only preview
-        // so upgrading it also preserves its ready index and pending work.
-        let recovery_schema: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='recovery_state')", [], |r|r.get(0)).map_err(io)?;
-        if version < 6 || (version == 6 && !recovery_schema) {
+        // Earlier branches reused versions 6 and 7 for different feature combinations.
+        // Inspect the schema so either existing database upgrades without losing work.
+        let has_recovery: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='recovery_state')", [], |r| r.get(0)).map_err(io)?;
+        if version < 8 && !has_recovery {
             db.execute_batch("BEGIN IMMEDIATE;
                 CREATE TABLE recovery_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1), required INTEGER NOT NULL DEFAULT 0, paused INTEGER NOT NULL DEFAULT 0, error TEXT);
                 INSERT INTO recovery_state(singleton) VALUES(1);
@@ -163,22 +163,18 @@ impl LibraryStore {
                 UPDATE recovery_state SET required=EXISTS(SELECT 1 FROM change_state WHERE error='snapshot_required');
                 PRAGMA user_version=6; COMMIT;").map_err(io)?;
         }
-        if version < 7 {
-            let indexed: bool = db
-                .query_row(
-                    "SELECT version=2 FROM local_search_version WHERE singleton=1",
-                    [],
-                    |r| r.get(0),
-                )
-                .map_err(io)?;
-            if indexed {
-                db.execute_batch("PRAGMA user_version=7;").map_err(io)?;
-            } else {
+        if version < 8 {
+            let has_organization: bool = db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='organization_queue')", [], |r| r.get(0)).map_err(io)?;
+            if !has_organization {
+                migrate_organization(&db)?;
+            }
+            let indexed: bool = db.query_row("SELECT version=2 FROM local_search_version WHERE singleton=1", [], |r| r.get(0)).map_err(io)?;
+            if !indexed {
                 super::local_search::upgrade(&mut db).map_err(io)?;
             }
+            super::local_search::integrate_organization(&mut db).map_err(io)?;
         }
-        db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;")
-            .map_err(io)?;
+        db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;").map_err(io)?;
         Ok(Self {
             db,
             instance: instance.into(),
@@ -352,6 +348,7 @@ impl LibraryStore {
         }
         tx.execute("UPDATE local_state SET revision=revision+1", [])
             .map_err(io)?;
+        project_organization(&tx)?;
         #[cfg(test)]
         test_stage("snapshot_page_commit")?;
         commit_search(tx)
@@ -437,4 +434,5 @@ fn commit_search(tx: rusqlite::Transaction<'_>) -> Result<(), String> {
 include!("upload_storage.rs");
 include!("change_storage.rs");
 include!("usage_storage.rs");
+include!("organization_storage.rs");
 include!("recovery_storage.rs");

@@ -6,6 +6,7 @@ import { changePaths, changeSchemas } from "./changes-openapi";
 import { deletionPaths, deletionSchemas } from "./deletions-openapi";
 import { devicePaths, deviceSchemas } from "./device-openapi";
 import { healthPath, healthResponseSchema } from "./health";
+import { operationalMetricsSchema } from "./operations";
 import { promptPaths, promptSchemas } from "./prompts-openapi";
 import { snapshotPaths, snapshotSchemas } from "./snapshots-openapi";
 
@@ -24,6 +25,34 @@ export const openApiDocument = {
     { name: "Prompts", description: "Owned prompt creation and retrieval" },
   ],
   paths: {
+    "/api/v1/operations/metrics": {
+      get: {
+        operationId: "getOperationalMetrics",
+        tags: ["System"],
+        summary:
+          "Private aggregate operational metrics; no account or prompt content",
+        security: [{ OperatorMetrics: [] }],
+        responses: {
+          "200": {
+            description:
+              "Operational observations, including missing coverage and alerts",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/OperationalMetrics" },
+              },
+            },
+          },
+          "404": {
+            description:
+              "Metrics disabled or operator credential absent/invalid",
+          },
+          "503": {
+            description:
+              "Metrics unavailable; retry after the Retry-After header",
+          },
+        },
+      },
+    },
     ...changePaths,
     ...snapshotPaths,
     ...devicePaths,
@@ -51,6 +80,12 @@ export const openApiDocument = {
   },
   components: {
     securitySchemes: {
+      OperatorMetrics: {
+        type: "http",
+        scheme: "bearer",
+        description:
+          "Separate private operator metrics credential; never a user session",
+      },
       DesktopSession: {
         type: "http",
         scheme: "bearer",
@@ -66,6 +101,10 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      // SAFETY: Zod emits JSON Schema 2020-12, supported by OpenAPI 3.1.
+      OperationalMetrics: z.toJSONSchema(
+        operationalMetricsSchema
+      ) as OpenAPIV3_1.SchemaObject,
       ...changeSchemas,
       ...snapshotSchemas,
       ...deviceSchemas,

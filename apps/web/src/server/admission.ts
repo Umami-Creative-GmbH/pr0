@@ -5,8 +5,10 @@ import { isIP } from "node:net";
 
 import { configuration, secret } from "./config";
 import { database } from "./database";
+import { serviceLimit } from "./service-limits";
 
 type FailureCode =
+  | "account_suspended"
   | "provider_owned"
   | "last_login_method"
   | "method_already_linked"
@@ -143,15 +145,53 @@ export const refundAdmission = async (receipts: AdmissionReceipt[]) => {
 
 export const admitEmail = (email: string, ip: string) =>
   admit([
-    { key: `email:destination:${email}`, max: 3, seconds: 3600 },
-    { key: `email:ip:${ip}`, max: 20, seconds: 3600 },
+    {
+      key: `email:destination:${email}`,
+      max: serviceLimit("EMAIL_DESTINATION", 3),
+      seconds: 3600,
+    },
+    { key: `email:ip:${ip}`, max: serviceLimit("EMAIL_IP", 20), seconds: 3600 },
+  ]);
+
+export const admitAnonymous = (request: Request) => {
+  const ip = clientBucket(request);
+  return admit([
+    {
+      key: `auth:minute:${ip}`,
+      max: serviceLimit("AUTH_MINUTE", 60),
+      seconds: 60,
+    },
+    {
+      key: `auth:burst:${ip}`,
+      max: serviceLimit("AUTH_BURST", 10),
+      seconds: 10,
+    },
+  ]);
+};
+
+export const admitApi = (account: string) =>
+  admit([
+    {
+      key: `api:${account}`,
+      max: serviceLimit("API_MINUTE", 120),
+      seconds: 60,
+    },
+  ]);
+
+export const admitSignup = (ip: string) =>
+  admit([
+    { key: `signup:${ip}`, max: serviceLimit("SIGNUP_HOUR", 5), seconds: 3600 },
   ]);
 
 export const assertRegistration = async (email: string) => {
+  const sql = database();
+  const [instance] = await sql`SELECT registration_paused FROM instance`;
+  if (!instance || instance.registration_paused) {
+    throw new AccountFailureError("registration_closed", 403);
+  }
   if (configuration().registration === "open") {
     return;
   }
-  const sql = database();
   const admission =
     await sql`SELECT email FROM registration_admission WHERE email = ${email}
       AND (${configuration().registration === "allowlist"} OR (first_account AND NOT EXISTS (SELECT 1 FROM "user")))`;

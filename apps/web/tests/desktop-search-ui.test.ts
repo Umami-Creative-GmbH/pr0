@@ -54,6 +54,7 @@ test("desktop search preserves scope, selection, sort memory and explicit no-mat
       name: "Search downloaded prompts",
     });
     await search.fill("Second", { timeout: 3000 });
+    await page.locator('[data-search-query="Second"]').waitFor();
     await page.getByRole("button", { name: "Second", exact: true }).waitFor();
     expect(
       await page.getByRole("button", { name: "First", exact: true }).count()

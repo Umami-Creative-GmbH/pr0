@@ -228,6 +228,15 @@ impl AuthService {
         endpoint: Endpoint,
         body: Value,
     ) -> Result<Value, String> {
+        {
+            let state = self.state.lock().map_err(|_| "state_unavailable")?;
+            if state.generation != generation
+                || state.clearing
+                || state.retained.as_ref().is_some_and(|r| r.cleanup_pending)
+            {
+                return Err("operation_cancelled".into());
+            }
+        }
         let observed = self.sync_generation();
         let result = if matches!(endpoint, Endpoint::Changes) {
             self.transport

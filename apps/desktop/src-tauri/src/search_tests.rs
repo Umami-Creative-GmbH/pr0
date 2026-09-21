@@ -1,5 +1,80 @@
 // Public typed commands over the real persisted library, using the approved native seam.
 #[test]
+fn search_tracks_offline_organization_names_assignments_and_removal() {
+    let (directory, service, _) = downloaded_change_fixture();
+    let id = "66666666-6666-4666-8666-666666666666";
+    let tag = uuid::Uuid::new_v4().to_string();
+    let apply = |action| {
+        service
+            .library_organize(organization_request(&service, action))
+            .unwrap()
+    };
+    apply(json!({"kind":"tag.create","id":tag,"name":"Unique search tag"}));
+    apply(json!({"kind":"prompt.tags","id":id,"add":[tag],"remove":[]}));
+    let page = service
+        .library_search(search_request(&service, "Unique search tag"))
+        .unwrap();
+    assert_eq!(page.prompts.len(), 1);
+    assert_eq!(page.prompts[0].id, id);
+    assert_eq!(
+        page.tags
+            .iter()
+            .find(|entry| entry.id == tag)
+            .unwrap()
+            .active_count,
+        1
+    );
+    let identity = search_request(&service, "");
+    let db = rusqlite::Connection::open(
+        super::library_storage::library_path(
+            &directory,
+            &identity.instance_id,
+            &identity.account_id,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    db.execute_batch("CREATE TABLE search_write_audit(id TEXT); CREATE TRIGGER audit_search_metadata AFTER INSERT ON search_metadata BEGIN INSERT INTO search_write_audit VALUES(NEW.id); END;").unwrap();
+    apply(json!({"kind":"tag.rename","id":tag,"name":"Renamed offline tag"}));
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM search_write_audit", [], |r| r
+            .get::<_, u32>(0))
+            .unwrap(),
+        0,
+        "A name-only rename must not rewrite any prompt metadata"
+    );
+    assert!(service
+        .library_search(search_request(&service, "Unique search tag"))
+        .unwrap()
+        .prompts
+        .is_empty());
+    assert_eq!(
+        service
+            .library_search(search_request(&service, "Renamed offline tag"))
+            .unwrap()
+            .prompts
+            .len(),
+        1
+    );
+    apply(json!({"kind":"prompt.tags","id":id,"add":[],"remove":[tag]}));
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM search_write_audit", [], |r| r
+            .get::<_, u32>(0))
+            .unwrap(),
+        1,
+        "Only the changed assignment is reindexed"
+    );
+    assert!(service
+        .library_search(search_request(&service, "Renamed offline tag"))
+        .unwrap()
+        .prompts
+        .is_empty());
+    drop(db);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn search_reopen_rejects_incompatible_normalization_until_recovery() {
     let directory =
         std::env::temp_dir().join(format!("pr0-search-version-{}", uuid::Uuid::new_v4()));
@@ -48,6 +123,17 @@ fn search_shared_sort_recency_scope_and_filter_fixtures() {
     ))
     .unwrap();
     let org:Vec<_>=(0..2).map(|index|json!({"id":format!("aaaaaaaa-aaaa-4aaa-8aaa-{index:012}"),"name":format!("Organization {index}"),"revision":"1","activeCount":0,"archivedCount":0,"totalCount":0})).collect();
+    let collections: Vec<_> = org
+        .iter()
+        .map(|entry| {
+            let mut value = entry.clone();
+            value["id"] = json!(entry["id"]
+                .as_str()
+                .unwrap()
+                .replace("aaaaaaaa-aaaa-4aaa-8aaa", "bbbbbbbb-bbbb-4bbb-8bbb"));
+            value
+        })
+        .collect();
     let prompts = data["prompts"]
         .as_array()
         .unwrap()
@@ -74,14 +160,14 @@ fn search_shared_sort_recency_scope_and_filter_fixtures() {
                 .map(|v| org[v.as_u64().unwrap() as usize]["id"].clone())
                 .collect::<Vec<_>>());
             prompt["collectionId"] =
-                org[fixture["collection"].as_u64().unwrap() as usize]["id"].clone();
+                collections[fixture["collection"].as_u64().unwrap() as usize]["id"].clone();
             prompt
         })
         .collect();
     let directory = std::env::temp_dir().join(format!("pr0-search-order-{}", uuid::Uuid::new_v4()));
     let service = search_download(
         &directory,
-        search_snapshot(prompts, org.clone(), org.clone()),
+        search_snapshot(prompts, org.clone(), collections.clone()),
     );
     for case in data["cases"].as_array().unwrap() {
         let mut request = search_request(&service, "needle");
@@ -91,10 +177,10 @@ fn search_shared_sort_recency_scope_and_filter_fixtures() {
         request.favorite = case["favorite"].as_bool();
         request.collection_id = case["collection"]
             .as_u64()
-            .map(|i| org[i as usize]["id"].as_str().unwrap().into());
+            .map(|i| collections[i as usize]["id"].as_str().unwrap().into());
         request.view_collection_id = case["viewCollection"]
             .as_u64()
-            .map(|i| org[i as usize]["id"].as_str().unwrap().into());
+            .map(|i| collections[i as usize]["id"].as_str().unwrap().into());
         request.tag_ids = case["tags"].as_array().map_or(vec![], |tags| {
             tags.iter()
                 .map(|v| {
@@ -278,6 +364,88 @@ fn downgrade_search_fixture(db: &rusqlite::Connection) {
 }
 
 #[test]
+fn search_upgrades_both_version_seven_layouts_with_pending_work() {
+    for organization_layout in [false, true] {
+        let (directory, service, _) = downloaded_change_fixture();
+        let saved = service.library_create(save_request(&service)).unwrap();
+        let tag = uuid::Uuid::new_v4().to_string();
+        if organization_layout {
+            service
+                .library_organize(organization_request(
+                    &service,
+                    json!({"kind":"tag.create","id":tag,"name":"Migration tag"}),
+                ))
+                .unwrap();
+            service
+                .library_organize(organization_request(
+                    &service,
+                    json!({"kind":"prompt.tags","id":saved.prompt.id,"add":[tag],"remove":[]}),
+                ))
+                .unwrap();
+        }
+        let path = super::library_storage::library_path(
+            &directory,
+            &saved.prompt.instance_id,
+            &saved.prompt.account_id,
+        )
+        .unwrap();
+        drop(service);
+        let db = rusqlite::Connection::open(&path).unwrap();
+        if organization_layout {
+            downgrade_search_fixture(&db);
+        } else {
+            for action in ["INSERT", "UPDATE", "DELETE"] {
+                db.execute_batch(&format!("DROP TRIGGER search_projected_org_{action};"))
+                    .unwrap();
+            }
+            db.execute_batch("DROP VIEW visible_prompt; DROP VIEW base_visible_prompt;
+                CREATE VIEW visible_prompt AS SELECT id,title,archived,record,text_bytes FROM local_prompt UNION ALL SELECT id,title,archived,record,text_bytes FROM prompt WHERE snapshot=(SELECT active FROM state) AND id NOT IN(SELECT id FROM local_prompt);
+                DROP TABLE organization_known; DROP TABLE organization_checkpoint; DROP TABLE organization_ack; DROP TABLE organization_queue; DROP TABLE organization_local; DROP TABLE organization_receipt; DROP TABLE organization_removed; DROP TABLE organization_affected; DROP TABLE organization_assignment; DROP TABLE organization_membership_removal;").unwrap();
+        }
+        db.pragma_update(None, "user_version", 7).unwrap();
+        drop(db);
+        let service =
+            AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+        assert_eq!(
+            service.library_detail(&saved.prompt.id).unwrap().content,
+            saved.prompt.content
+        );
+        assert_eq!(service.library_pending().unwrap().len(), 1);
+        assert_eq!(
+            service
+                .library_search(search_request(&service, "First"))
+                .unwrap()
+                .prompts
+                .len(),
+            1
+        );
+        if organization_layout {
+            let page = service
+                .library_search(search_request(&service, "Migration tag"))
+                .unwrap();
+            assert_eq!(page.prompts.len(), 1);
+            assert_eq!(page.prompts[0].id, saved.prompt.id);
+            assert_eq!(
+                service.library_organization().unwrap()["pending"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                2
+            );
+        }
+        drop(service);
+        let db = rusqlite::Connection::open(path).unwrap();
+        assert_eq!(
+            db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
+                .unwrap(),
+            8
+        );
+        drop(db);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
 fn search_upgrades_both_version_six_layouts_preserving_pending_work() {
     for search_preview in [false, true] {
         let (directory, service, _) = downloaded_change_fixture();
@@ -329,7 +497,7 @@ fn search_upgrades_both_version_six_layouts_preserving_pending_work() {
         assert_eq!(
             db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
                 .unwrap(),
-            7
+            8
         );
         if search_preview {
             assert_eq!(fingerprint(&db), before);
@@ -346,6 +514,8 @@ fn search_shared_six_tiers_include_organization_and_complete_later_pages() {
     ))
     .unwrap();
     let org = json!({"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","name":"German","revision":"1","activeCount":1,"archivedCount":0,"totalCount":1});
+    let mut collection = org.clone();
+    collection["id"] = json!("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
     let prompts = data["relevanceFixtures"]
         .as_array()
         .unwrap()
@@ -360,7 +530,7 @@ fn search_shared_six_tiers_include_organization_and_complete_later_pages() {
                 p["tagIds"] = json!([org["id"]]);
             }
             if f["collection"] != "" {
-                p["collectionId"] = org["id"].clone();
+                p["collectionId"] = collection["id"].clone();
             }
             p
         })
@@ -368,7 +538,7 @@ fn search_shared_six_tiers_include_organization_and_complete_later_pages() {
     let directory = std::env::temp_dir().join(format!("pr0-search-tiers-{}", uuid::Uuid::new_v4()));
     let service = search_download(
         &directory,
-        search_snapshot(prompts, vec![org.clone()], vec![org]),
+        search_snapshot(prompts, vec![org], vec![collection]),
     );
     let mut request = search_request(&service, "German email");
     request.limit = 2;

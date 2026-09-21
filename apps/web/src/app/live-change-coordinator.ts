@@ -50,6 +50,12 @@ export const startLiveChanges = ({
     if (authentication) {
       label = "Sign in to sync";
     }
+    if (detail?.code === "account_suspended") {
+      label =
+        "Account suspended · Drafts retained · Contact your instance operator";
+    } else if (detail?.retryAfter) {
+      label = `Service busy · Retrying in ${detail.retryAfter} seconds · Drafts retained`;
+    }
     if (stopped) {
       label = "Library recovery required · Drafts retained";
     }

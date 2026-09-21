@@ -1,8 +1,10 @@
+import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import { organizationSearch } from "@pr0/api-contract/organization";
 import { promptSortSchema } from "@pr0/api-contract/prompts";
 import type { Collection, PromptView } from "@pr0/api-contract/prompts";
 import { useState } from "react";
 
+import { OrganizationControls } from "./organization-controls";
 import type { Status } from "./use-auth-session";
 import { useLocalSearch } from "./use-local-search";
 
@@ -204,12 +206,20 @@ const SearchResults = ({
 export const SearchLibrary = ({
   account,
   refresh,
+  organization,
+  onOrganizationSaved,
+  editingDisabled,
+  onEditing,
   onSelect,
   onCopy,
   copying,
 }: {
   account: Status;
   refresh: number;
+  organization?: LocalOrganization;
+  onOrganizationSaved: () => Promise<void>;
+  editingDisabled: boolean;
+  onEditing: (editing: boolean) => void;
   onSelect: (id: string | null) => Promise<void>;
   onCopy: (id: string) => Promise<void>;
   copying: boolean;
@@ -250,19 +260,20 @@ export const SearchLibrary = ({
         />
       </label>
       <div className="flex flex-wrap gap-4">
-        <OrganizationPicker
-          label="Collection filter"
-          entries={page?.collections ?? []}
-          selected={search.collectionId ? [search.collectionId] : []}
-          onChange={(ids) => search.changeCollection(ids[0] ?? "")}
-        />
-        <OrganizationPicker
-          label="Tags"
-          entries={page?.tags ?? []}
-          selected={search.tagIds}
-          onChange={(ids) => search.changeTags(ids)}
-          multiple
-        />
+        {organization ? (
+          <OrganizationControls
+            account={account}
+            snapshot={organization}
+            filters={{
+              collectionId: search.collectionId ?? null,
+              tagIds: search.tagIds,
+            }}
+            onFilters={(filters) => search.changeFilters(filters)}
+            onSaved={onOrganizationSaved}
+            disabled={editingDisabled}
+            onEditing={onEditing}
+          />
+        ) : null}
         <label>
           <input
             type="checkbox"

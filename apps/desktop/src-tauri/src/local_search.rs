@@ -45,6 +45,54 @@ fn nfd(input: impl IntoIterator<Item = u32>) -> Vec<u32> {
     decomposed[start..].sort_by_key(|cp| class(*cp));
     decomposed
 }
+pub fn trim_name(value: &str) -> &str {
+    value.trim_matches(|c: char| unicode::WHITE_SPACE.contains(&u32::from(c)))
+}
+fn nfc(input: impl IntoIterator<Item = u32>) -> Vec<u32> {
+    let mut result: Vec<u32> = Vec::new();
+    let mut starter = 0;
+    let mut previous_class = 0;
+    for cp in nfd(input) {
+        let class = unicode::COMBINING
+            .binary_search_by_key(&cp, |e| e.0)
+            .map_or(0, |i| unicode::COMBINING[i].1);
+        let composed = result.get(starter).and_then(|a| {
+            if (0x1100..0x1113).contains(a) && (0x1161..0x1176).contains(&cp) {
+                return Some(0xac00 + (a - 0x1100) * 588 + (cp - 0x1161) * 28);
+            }
+            if (0xac00..0xd7a4).contains(a)
+                && (a - 0xac00) % 28 == 0
+                && (0x11a8..0x11c3).contains(&cp)
+            {
+                return Some(a + cp - 0x11a7);
+            }
+            unicode::COMPOSITION
+                .iter()
+                .find(|e| e.0 == (*a, cp))
+                .map(|e| e.1)
+        });
+        if let Some(composed) = composed.filter(|_| previous_class == 0 || previous_class < class) {
+            result[starter] = composed;
+        } else {
+            if class == 0 {
+                starter = result.len();
+            }
+            result.push(cp);
+            previous_class = class;
+        }
+    }
+    result
+}
+pub fn organization_identity(value: &str) -> String {
+    let folded = nfc(trim_name(value).chars().map(u32::from))
+        .into_iter()
+        .flat_map(|cp| {
+            unicode::CASEFOLD
+                .binary_search_by_key(&cp, |e| e.0)
+                .map_or_else(|_| vec![cp], |i| unicode::CASEFOLD[i].1.to_vec())
+        });
+    nfc(folded).into_iter().filter_map(char::from_u32).collect()
+}
 pub fn normalize(value: &str) -> String {
     let mut folded = Vec::new();
     for cp in nfd(value.chars().map(u32::from)) {
@@ -333,6 +381,18 @@ pub fn upgrade(db: &mut Connection) -> rusqlite::Result<()> {
     flush(&tx)?;
     tx.commit()
 }
+// Version 8 joins the search and organization previews without rebuilding prompt text.
+pub fn integrate_organization(db: &mut Connection) -> rusqlite::Result<()> {
+    let tx = db.transaction()?;
+    for action in ["INSERT", "UPDATE", "DELETE"] {
+        tx.execute_batch(&format!("CREATE TRIGGER IF NOT EXISTS search_projected_org_{action} AFTER {action} ON organization_local BEGIN UPDATE search_org_state SET dirty=1; END;"))?;
+    }
+    tx.execute_batch("UPDATE search_org_state SET dirty=1;
+        INSERT INTO search_dirty SELECT id,0 FROM visible_prompt WHERE true ON CONFLICT(id) DO NOTHING;
+        PRAGMA user_version=8;")?;
+    flush(&tx)?;
+    tx.commit()
+}
 fn create(db: &Connection) -> rusqlite::Result<()> {
     db.execute_batch("CREATE TABLE local_search(slot INTEGER PRIMARY KEY CHECK(slot BETWEEN 0 AND 9999),id TEXT UNIQUE NOT NULL,title TEXT NOT NULL,description TEXT NOT NULL,content TEXT NOT NULL,content_bytes INTEGER NOT NULL,revision INTEGER NOT NULL);
         CREATE TABLE local_search_short(field TEXT NOT NULL,gram TEXT NOT NULL,representation TEXT NOT NULL,payload BLOB NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(field,gram)) WITHOUT ROWID;
@@ -468,7 +528,7 @@ pub fn flush(tx: &Transaction) -> rusqlite::Result<()> {
 fn organization(tx: &Transaction) -> rusqlite::Result<()> {
     use std::collections::BTreeMap;
     let names = tx
-        .prepare("SELECT kind,id,name FROM organization WHERE snapshot=(SELECT active FROM state)")?
+        .prepare("SELECT kind,id,name FROM organization_local")?
         .query_map([], |r| {
             Ok((
                 (r.get::<_, String>(0)?, r.get::<_, String>(1)?),

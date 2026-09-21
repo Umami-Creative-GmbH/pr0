@@ -27,10 +27,12 @@ fn preserve_recovery_epoch(tx: &rusqlite::Transaction, next: &Manifest) -> Resul
         tx.execute("INSERT INTO recovery_prompt SELECT ?1,id,record FROM visible_prompt", [&prior.id]).map_err(io)?;
         tx.execute("INSERT INTO recovery_work SELECT ?1,id,'prompt',json_object('payload',payload,'envelope',envelope,'receipt',receipt,'state',state) FROM outbox", [&prior.id]).map_err(io)?;
         tx.execute("INSERT INTO recovery_work SELECT ?1,id,'usage',json_object('promptId',prompt_id,'occurredAt',occurred_at,'envelope',envelope,'receipt',receipt) FROM pending_usage", [&prior.id]).map_err(io)?;
+        tx.execute("INSERT INTO recovery_work SELECT ?1,id,'organization',json_object('payload',payload,'envelope',envelope,'receipt',receipt) FROM organization_queue", [&prior.id]).map_err(io)?;
     }
     tx.execute("INSERT OR IGNORE INTO recovery_blocked SELECT prompt_id FROM outbox", []).map_err(io)?;
     tx.execute("UPDATE outbox SET error='recovery_required',next_attempt=9223372036854775807", []).map_err(io)?;
     tx.execute("UPDATE pending_usage SET recovery=1", []).map_err(io)?;
+    tx.execute("UPDATE organization_queue SET error='recovery_required',next_attempt=9223372036854775807", []).map_err(io)?;
     Ok(())
 }
 

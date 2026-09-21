@@ -77,7 +77,13 @@ test("persisted maximum offline library records cold and warm production UI retr
     })
   );
   process.env.PR0_SEARCH_FIXTURE_DIRECTORY = fixture;
-  const native = await localNativeWorker(directory, true, false, "release");
+  const native = await localNativeWorker(
+    directory,
+    true,
+    false,
+    false,
+    "release"
+  );
   const started = performance.now();
   for (let page = 2; page < 100; page += 1) {
     await native.command("library_download");

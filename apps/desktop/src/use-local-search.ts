@@ -191,12 +191,12 @@ export const useLocalSearch = (
       setQuery(value);
       resetPage();
     },
-    changeCollection: (id: string) => {
-      setCollectionId(id || undefined);
-      resetPage();
-    },
-    changeTags: (ids: string[]) => {
-      setTagIds(ids);
+    changeFilters: (filters: {
+      collectionId: string | null;
+      tagIds: string[];
+    }) => {
+      setCollectionId(filters.collectionId ?? undefined);
+      setTagIds(filters.tagIds);
       resetPage();
     },
     changeFavorite: (value: boolean) => {

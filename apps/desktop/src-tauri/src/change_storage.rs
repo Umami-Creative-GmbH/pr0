@@ -70,6 +70,11 @@ impl LibraryStore {
             return Err("invalid_response".into());
         }
         for event in &page.changes {
+            // Staged metadata must not change the still-visible baseline. The
+            // replacement's organization metadata is reconciled after activation.
+            for removal in event.removed_memberships.iter().filter(|_| !staging) {
+                tx.execute("INSERT INTO organization_membership_removal VALUES(?1,?2,?3) ON CONFLICT(prompt_id,tag_id) DO UPDATE SET revision=max(revision,excluded.revision)",params![removal.prompt_id,removal.tag_id,event.revision.parse::<i64>().map_err(|_|"invalid_response")?]).map_err(io)?;
+            }
             tx.execute("DELETE FROM organization WHERE snapshot=?1", [&manifest.id])
                 .map_err(io)?;
             for (kind, entries) in [
@@ -91,6 +96,23 @@ impl LibraryStore {
                 }
             }
             if let Some(effect) = &event.effect {
+                if !staging {
+                tx.execute(
+                    "INSERT OR REPLACE INTO organization_removed VALUES(?1,?2,?3,?4,?5,0)",
+                    params![
+                        effect.source_id,
+                        if effect.kind == "collection.delete" {
+                            "collection"
+                        } else {
+                            "tag"
+                        },
+                        effect.source_name,
+                        effect.target_id,
+                        event.revision
+                    ],
+                )
+                .map_err(io)?;
+                }
                 apply_bulk_change(&tx, &manifest.id, event, effect, !staging)?;
             }
             for id in &event.deleted_prompt_ids {
@@ -101,6 +123,9 @@ impl LibraryStore {
                 .map_err(io)?;
             }
             for prompt in &event.prompts {
+                if !staging {
+                tx.execute("INSERT INTO organization_membership_removal SELECT ?1,t.value,?2 FROM prompt p,json_each(p.record,'$.tagIds') t WHERE p.snapshot=?3 AND p.id=?1 AND NOT EXISTS(SELECT 1 FROM json_each(?4) n WHERE n.value=t.value) ON CONFLICT(prompt_id,tag_id) DO UPDATE SET revision=excluded.revision",params![prompt.id,event.revision.parse::<i64>().map_err(|_|"invalid_response")?,manifest.id,json!(prompt.tag_ids).to_string()]).map_err(io)?;
+                }
                 store_baseline_prompt(&tx, &manifest.id, prompt)?;
                 // Only text edits are currently exposed locally. Preserve that complete saved variant,
                 // while merging independent server metadata into its visible overlay.
@@ -164,6 +189,10 @@ impl LibraryStore {
             if prior.epoch == manifest.epoch && super::change_contract::revision(&manifest.revision)? < super::change_contract::revision(&prior.revision)? {
                 return Err("invalid_response".into());
             }
+            if prior.epoch != manifest.epoch {
+                tx.execute_batch("DELETE FROM organization_ack; DELETE FROM organization_membership_removal; DELETE FROM organization_removed WHERE local=0;").map_err(io)?;
+            }
+            tx.execute("UPDATE organization_checkpoint SET revision=NULL", []).map_err(io)?;
             reconcile_replacement_overlays(&tx, &manifest)?;
             tx.execute("UPDATE state SET active=?1,staging=NULL", [&manifest.id]).map_err(io)?;
             tx.execute("DELETE FROM download WHERE id<>?1 AND id NOT IN(SELECT snapshot FROM recovery_archive)", [&manifest.id]).map_err(io)?;
@@ -184,6 +213,7 @@ impl LibraryStore {
             tx.execute("UPDATE local_state SET revision=revision+1", [])
                 .map_err(io)?;
         }
+        project_organization(&tx)?;
         #[cfg(test)]
         if staging && !page.has_more { test_stage("snapshot_activation")?; }
         commit_search(tx)?;

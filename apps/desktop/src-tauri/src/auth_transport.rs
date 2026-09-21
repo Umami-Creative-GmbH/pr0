@@ -15,6 +15,9 @@ pub enum Endpoint {
     Mutations,
     Receipts,
     Changes,
+    OrganizationStates,
+    DeletionLookup,
+    DeletionVerification,
 }
 impl Endpoint {
     fn path(self) -> &'static str {
@@ -30,6 +33,9 @@ impl Endpoint {
             Self::Mutations => "/api/v1/sync/mutations",
             Self::Receipts => "/api/v1/sync/receipts",
             Self::Changes => "/api/v1/sync/changes",
+            Self::OrganizationStates => "/api/v1/library/organization/states",
+            Self::DeletionLookup => "/api/v1/account-deletions/",
+            Self::DeletionVerification => "/api/v1/account-deletions/verification",
         }
     }
 }
@@ -126,7 +132,19 @@ impl Transport for HttpsTransport {
                         .clamp(1, 86400);
                     return Err(format!("retry_after:{delay}"));
                 }
-                if status == 401 || status == 403 {
+                if status == 403 {
+                    let mut bytes = Vec::new();
+                    while let Some(chunk) =
+                        response.chunk().await.map_err(|_| "network_unavailable")?
+                    {
+                        if bytes.len() + chunk.len() > 4096 {
+                            return Err("authentication_required".into());
+                        }
+                        bytes.extend_from_slice(&chunk);
+                    }
+                    return Err(authorization_failure(&bytes));
+                }
+                if status == 401 {
                     return Err("authentication_required".into());
                 }
                 if status == 409 {
@@ -168,8 +186,21 @@ impl Transport for HttpsTransport {
         token: Option<&str>,
         body: Option<Value>,
     ) -> Result<Value, String> {
-        let url = format!("{}{}", origin, endpoint.path());
-        let mut request = if matches!(endpoint, Endpoint::Changes) {
+        let mut url = format!("{}{}", origin, endpoint.path());
+        let mut request = if matches!(endpoint, Endpoint::DeletionLookup) {
+            let handle = body
+                .as_ref()
+                .and_then(|b| b.get("handle"))
+                .and_then(Value::as_str)
+                .ok_or("invalid_request")?;
+            if !super::auth_contract::base64_key(handle) || token.is_some() {
+                return Err("invalid_request".into());
+            }
+            url.push_str(handle);
+            self.client.get(url)
+        } else if matches!(endpoint, Endpoint::DeletionVerification) {
+            self.client.get(url).query(&body.unwrap_or_default())
+        } else if matches!(endpoint, Endpoint::Changes | Endpoint::OrganizationStates) {
             self.client
                 .get(url)
                 .query(&body.unwrap_or_default())
@@ -196,7 +227,15 @@ impl Transport for HttpsTransport {
         if status.is_redirection() {
             return Err("redirect_rejected".into());
         }
-        if status.as_u16() == 401 || status.as_u16() == 403 {
+        if status.as_u16() == 403 {
+            let mut bytes = Vec::new();
+            result
+                .take(4097)
+                .read_to_end(&mut bytes)
+                .map_err(|_| "network_unavailable")?;
+            return Err(authorization_failure(&bytes));
+        }
+        if status.as_u16() == 401 {
             return Err("authentication_required".into());
         }
         if matches!(endpoint, Endpoint::Changes) && status.as_u16() == 409 {
@@ -210,7 +249,11 @@ impl Transport for HttpsTransport {
         let limit = match endpoint {
             Endpoint::Snapshot => 262144,
             Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
-            Endpoint::Mutations | Endpoint::Receipts | Endpoint::Changes => 4_194_304,
+            Endpoint::DeletionVerification => super::deletion_proof::VERIFICATION_PAGE_BYTES,
+            Endpoint::Mutations
+            | Endpoint::Receipts
+            | Endpoint::Changes
+            | Endpoint::OrganizationStates => 4_194_304,
             _ => 16384,
         };
         if result
@@ -237,6 +280,20 @@ impl Transport for HttpsTransport {
     }
     fn open_browser(&self, url: &str) -> Result<(), String> {
         open::that(url).map_err(|_| "browser_unavailable".into())
+    }
+}
+
+fn authorization_failure(bytes: &[u8]) -> String {
+    if bytes.len() <= 4096
+        && serde_json::from_slice::<Value>(bytes)
+            .ok()
+            .and_then(|value| value.get("code").and_then(Value::as_str).map(str::to_owned))
+            .as_deref()
+            == Some("account_suspended")
+    {
+        "account_suspended".into()
+    } else {
+        "authentication_required".into()
     }
 }
 
