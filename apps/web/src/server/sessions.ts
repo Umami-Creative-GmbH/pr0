@@ -6,7 +6,7 @@ import {
 } from "@pr0/api-contract/accounts";
 
 import { failure, json, readBody } from "./account-http";
-import { AccountFailureError, admit, assertOrigin } from "./admission";
+import { AccountFailureError, admitApi, assertOrigin } from "./admission";
 import { authentication } from "./auth";
 import { database } from "./database";
 import { withRequestWork } from "./request-work";
@@ -37,7 +37,7 @@ export const handleSessions = async (request: Request) => {
         return json({ code: "forbidden" }, 403, result.headers);
       }
       await claimOwner(user.id);
-      await admit([{ key: `api:${user.id}`, max: 120, seconds: 60 }]);
+      await admitApi(user.id);
       const sql = database();
       if (request.method === "GET") {
         const rows = await sql<

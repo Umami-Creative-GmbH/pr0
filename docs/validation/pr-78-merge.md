@@ -17,3 +17,11 @@ Validation on Windows with Bun 1.4.2, Rust/Tauri, Edge and disposable PostgreSQL
 - `bun x --bun ultracite fix` / `check`, `cargo fmt`, and `git diff --check`: passed.
 
 The first recovery runner attempt stopped because Chrome was absent; rerunning with the installed Edge browser passed. UI screenshot regeneration was excluded from this merge. These checks do not claim an installed release-signed application journey.
+
+## Follow-up integration of service operations
+
+Integrated `fe93446` (PR #80, service operations and abuse controls). Resolved the package exports by retaining both organization and operations contracts. Adopted the HTTPS runner's named scenario options while preserving the organization scenario and updating its caller.
+
+The accelerated organization journey hit the new anonymous discovery budget, returning `retry_after:30` before the expected rename rejection. Only this scenario's disposable server now uses an anonymous burst/minute budget of 1,000; production defaults and the operations scenario remain unchanged. An explicit transport-status assertion now distinguishes this failure from an organization rejection.
+
+Validation: all six typecheck tasks, all eight Bun test tasks, 90 native tests, Ultracite formatting/linting and diff checks passed. The organization runner passed nine REST tests (20,053 assertions) and its two-native-device HTTPS journey. The operations native runner passed with default limits, including explicit account suspension and preservation of downloaded prompts. Both runners built the production web server and removed their disposable containers afterward.

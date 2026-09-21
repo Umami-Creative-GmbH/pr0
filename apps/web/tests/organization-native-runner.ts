@@ -21,7 +21,7 @@ try {
     "--timeout",
     "60000",
   ]);
-  await verifyNativeHttps(server, false, false, false, "organization");
+  await verifyNativeHttps(server, { live: "organization" });
 } finally {
   await server.cleanup();
 }

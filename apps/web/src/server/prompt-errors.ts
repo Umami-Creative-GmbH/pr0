@@ -3,6 +3,7 @@ import { promptErrorSchema } from "@pr0/api-contract/prompts";
 import type { PromptError } from "@pr0/api-contract/prompts";
 
 import { AccountFailureError } from "./admission";
+import { recordFailure } from "./operational-events";
 
 export class PromptFailureError extends Error {
   readonly detail: PromptError;
@@ -28,6 +29,17 @@ export const promptFailure = (error: Error): PromptFailureError => {
     return error;
   }
   if (error instanceof AccountFailureError) {
+    if (error.code === "account_suspended") {
+      return new PromptFailureError(
+        {
+          code: "account_suspended",
+          message:
+            "This account is suspended. Contact your instance operator. Your retained work has not been deleted.",
+          retryable: false,
+        },
+        403
+      );
+    }
     if (error.code === "unauthenticated") {
       return new PromptFailureError(
         {
@@ -85,6 +97,7 @@ export const promptFailure = (error: Error): PromptFailureError => {
 };
 export const promptErrorResponse = (error: Error) => {
   const failure = promptFailure(error);
+  recordFailure("request", failure.detail.code);
   const headers = new Headers({
     "Cache-Control": "no-store",
     "Referrer-Policy": "no-referrer",

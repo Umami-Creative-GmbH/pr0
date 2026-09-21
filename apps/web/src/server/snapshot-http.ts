@@ -7,7 +7,7 @@ import {
 import { z } from "zod";
 
 import { failure, readRequestJson } from "./account-http";
-import { AccountFailureError, admit } from "./admission";
+import { AccountFailureError, admitApi } from "./admission";
 import { authentication } from "./auth";
 import { nativeOrigin } from "./device-http";
 import { withRequestWork } from "./request-work";
@@ -41,7 +41,7 @@ export const handleSnapshot = async (request: Request, page: boolean) => {
         throw new AccountFailureError("forbidden", 403);
       }
       await claimOwner(current.user.id);
-      await admit([{ key: `api:${current.user.id}`, max: 120, seconds: 60 }]);
+      await admitApi(current.user.id);
       const result = await readSnapshot(
         current.user.id,
         current.session.id,

@@ -18,7 +18,11 @@ import {
 } from "better-auth/oauth2";
 import { z } from "zod";
 
-import { AccountFailureError, admit, assertRegistration } from "./admission";
+import {
+  AccountFailureError,
+  admitSignup,
+  assertRegistration,
+} from "./admission";
 import { configuration } from "./config";
 import { database } from "./database";
 import {
@@ -74,7 +78,7 @@ const admitSocialSignup = async (ctx: SocialContext) => {
     throw invalidSocial();
   }
   try {
-    await admit([{ key: `signup:${ip}`, max: 5, seconds: 3600 }]);
+    await admitSignup(ip);
   } catch (error) {
     if (error instanceof AccountFailureError && error.code === "rate_limited") {
       const retryAfter = error.retryAfter ?? 3600;

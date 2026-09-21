@@ -169,6 +169,7 @@ export const verifyNativeOrganization = async ({
   await refresh(second);
   await save(first, { kind: "tag.rename", id: canonical, name: "Destination" });
   const rejected = uploadStatusSchema.parse(await first("library_upload"));
+  assert.equal(rejected.error, null);
   assert.equal(rejected.waiting, 1);
   const observed2 = await snapshot(first);
   let queued = observed2.pending.find((entry) => entry.error);
