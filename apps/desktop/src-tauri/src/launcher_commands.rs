@@ -181,6 +181,8 @@ async fn launcher_copy(
     let service = state.inner().clone()?;
     let app = window.app_handle().clone();
     let owner = app.clone();
+    let authority = service.clone();
+    app.state::<launcher_runtime::Launcher>().begin_write(opening)?;
     let result = tauri::async_runtime::spawn_blocking(move || {
         let _admission = admission;
         service.launcher_copy(request, |text| {
@@ -190,10 +192,14 @@ async fn launcher_copy(
             clipboard::write(text)
         })
     })
-    .await
-    .map_err(|_| "native_unavailable")??;
+    .await;
+    app.state::<launcher_runtime::Launcher>().end_write(opening)?;
+    let result = result.map_err(|_| "native_unavailable")??;
     // Clipboard success stays success even if hiding fails. Usage retry never copies again.
-    let _ = hide_launcher(&app, opening);
+    let same_partition = authority.launcher_account().ok().and_then(|(account, _)| account)
+        .is_some_and(|account| account.instance_id == result.origin.instance_id
+            && account.account_id == result.origin.account_id && account.generation == result.origin.generation);
+    if same_partition { let _ = hide_launcher(&app, opening); }
     let _ = app.emit("library-changed", ());
     Ok(result)
 }

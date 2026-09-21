@@ -4,6 +4,7 @@
   "description": "Local quick launcher: active search, guarded copy, status and its own lifecycle only.",
   "windows": ["launcher"],
   "permissions": [
+    "allow-copy-template",
     "allow-launcher-status",
     "allow-launcher-search",
     "allow-launcher-cancel-search",

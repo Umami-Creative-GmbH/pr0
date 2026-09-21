@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-copy-template"
+description = "Enables the copy_template command without any pre-configured scope."
+commands.allow = ["copy_template"]
+
+[[permission]]
+identifier = "deny-copy-template"
+description = "Denies the copy_template command without any pre-configured scope."
+commands.deny = ["copy_template"]

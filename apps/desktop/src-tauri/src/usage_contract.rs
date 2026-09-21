@@ -7,6 +7,10 @@ pub struct CopyRequest {
     pub account_id: String,
     pub generation: u64,
     pub prompt_id: String,
+    #[serde(default, skip_serializing)]
+    pub template: Option<String>,
+    #[serde(default, skip_serializing)]
+    pub values: Vec<(String, String)>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

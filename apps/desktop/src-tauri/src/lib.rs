@@ -20,6 +20,7 @@ mod search_contract;
 mod search_query;
 mod upload_contract;
 mod usage_contract;
+mod variables;
 
 use auth::{AuthService, AuthView};
 use auth_storage::WindowsCredentials;
@@ -147,7 +148,13 @@ async fn auth_sign_out(
     state: tauri::State<'_, ManagedAuth>,
     request: auth_contract::SignOutRequest,
 ) -> Result<AuthView, String> {
-    dispatch(window, state, move |service| service.transition(request)).await
+    authorize(&window)?;
+    request.validate()?;
+    let app = window.app_handle().clone();
+    let _ = app.emit("copy-cancelled", ());
+    let result = dispatch(window, state, move |service| service.transition(request)).await;
+    let _ = app.emit("auth-changed", ());
+    result
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -160,6 +167,7 @@ pub fn run() {
             }
         }))
         .invoke_handler(tauri::generate_handler![
+            copy_template,
             launcher_status,
             launcher_open,
             launcher_hide,
@@ -306,6 +314,23 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("pr0 could not start");
+}
+
+#[tauri::command]
+async fn copy_template(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: usage_contract::CopyRequest,
+    opening: Option<u64>,
+) -> Result<library_contract::Prompt, String> {
+    authorize_labels(&window, &["main", "launcher"])?;
+    let active_only = window.label() == "launcher";
+    if active_only {
+        window.state::<launcher_runtime::Launcher>().require_opening(opening.ok_or("operation_cancelled")?)?;
+    }
+    let service = state.inner().clone()?;
+    tauri::async_runtime::spawn_blocking(move || service.copy_template(&request, active_only))
+        .await.map_err(|_| "native_unavailable")?
 }
 
 #[tauri::command]

@@ -1,10 +1,12 @@
 import { z } from "zod";
 
-import { desktopCopySchema } from "./desktop-copy";
+import { desktopCopyOriginSchema } from "./desktop-copy";
 import { desktopSearchSchema } from "./desktop-search";
 
 // Native-only commands. No new REST operation or renderer-owned library mirror.
-export const launcherAccountSchema = desktopCopySchema.omit({ promptId: true });
+export const launcherAccountSchema = desktopCopyOriginSchema.omit({
+  promptId: true,
+});
 export const launcherStatusSchema = z.strictObject({
   opening: z.number().int().nonnegative(),
   visible: z.boolean(),

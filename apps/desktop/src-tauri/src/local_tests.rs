@@ -404,6 +404,7 @@ fn offline_command_worker() {
             "library_browse" => service
                 .library_browse(input["offset"].as_u64().unwrap_or(0) as u32)
                 .map(|v| json!(v)),
+            "copy_template" => service.copy_template(&serde_json::from_value(input["request"].clone()).unwrap(), false).map(|v| json!(v)),
             "library_detail" => service
                 .library_detail(input["id"].as_str().unwrap())
                 .map(|v| json!(v)),
