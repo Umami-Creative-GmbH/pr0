@@ -23,6 +23,14 @@ Validated on Windows on 2026-09-21 with Bun 1.4.2, the Rust/Tauri native command
 
 The UI check serves the production desktop React components with a command bridge to the actual Rust service, HTTPS transport and Windows credentials. It does not claim a packaged installer/WebView or reboot validation. No new native command or permission is exposed; existing authenticated renderer command restrictions remain in effect. The verification REST endpoint, shared schema and OpenAPI add optional bounded pages while preserving the legacy full-chain response.
 
+## Integration with download recovery
+
+After merging `main` at `c4ff1ee` into PR #79, the native journey helper preserves both the download-recovery mode and the returning-deletion callback. The deletion runner supplies the recovery argument explicitly, and a duplicate sign-out arm in the merged native test worker was removed.
+
+- All 80 native tests, workspace tests and type checks passed. Changed-file Ultracite, Rust formatting and Git whitespace checks passed.
+- The returning-deletion HTTPS/UI journey passed again, including exact cleanup, draft invalidation and zero uploads.
+- The download-recovery HTTPS/UI journey also passed, including expired-snapshot recovery across restart, 91-day offline history, three retained prompts, accepted work awaiting download and intervening changes. This run used disposable Compose project `pr0-merge-79` and separate ports because the default test port was occupied; its temporary runner/configuration files and containers were removed afterward.
+
 ## Standards review
 
 No remaining actionable findings. The initial review passed; review of pagination requested shared named page-size constants, which were added.

@@ -45,7 +45,7 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     ).unwrap();
     let db = rusqlite::Connection::open(&path).unwrap();
     // Recreate main's version-4 schema with real downloaded and pending records.
-    db.execute_batch("DROP TABLE change_state; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
+    db.execute_batch("DROP TABLE change_state; DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
     drop(db);
     let store = super::library_storage::LibraryStore::open(
         &directory, &prompt.instance_id, &prompt.account_id,
@@ -60,7 +60,7 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     assert!(store.change_request(0).unwrap().is_some());
     drop(store);
     let db = rusqlite::Connection::open(path).unwrap();
-    assert_eq!(db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 5);
+    assert_eq!(db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 6);
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();
 }

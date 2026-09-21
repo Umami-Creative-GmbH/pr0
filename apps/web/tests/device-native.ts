@@ -16,6 +16,7 @@ import { verifyNativeChanges } from "./changes-native";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
+import { verifyNativeRecovery } from "./recovery-native";
 import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
 import { verifyNativeUploads } from "./uploads-native";
 import { verifyNativeUsage } from "./usage-native";
@@ -182,11 +183,28 @@ interface NativeSession {
   directory: string;
   traffic: { path: string; body: string }[];
 }
-const runSessionScenario = async (
-  scenario: ((context: NativeSession) => Promise<void>) | undefined,
-  context: NativeSession
+const finishNativeJourney = async (
+  context: NativeSession,
+  recovery: boolean | undefined,
+  afterSession?: (context: NativeSession) => Promise<void>
 ) => {
-  await scenario?.(context);
+  const { native, page, origin: selectedOrigin } = context;
+  if (recovery) {
+    await verifyNativeRecovery({
+      command: (name, args = {}) => native.library(name, z.json(), args),
+      page,
+      origin: selectedOrigin,
+    });
+    return;
+  }
+  const refreshed = await native.command("refresh");
+  assert.equal(refreshed.state, "signed_in");
+  await afterSession?.(context);
+  const signedOut = await native.command("sign_out");
+  assert.equal(signedOut.state, "signed_out");
+  process.stdout.write(
+    "PASS Rust HTTPS → browser email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
+  );
 };
 
 export const verifyNativeHttps = async (
@@ -195,6 +213,7 @@ export const verifyNativeHttps = async (
   upload = false,
   usage = false,
   live = false,
+  recovery?: boolean,
   afterSession?: (context: NativeSession) => Promise<void>
 ) => {
   const account = await verifiedBrowser();
@@ -470,19 +489,16 @@ export const verifyNativeHttps = async (
         origin: selectedOrigin,
       });
     }
-    const refreshed = await native.command("refresh");
-    assert.equal(refreshed.state, "signed_in");
-    await runSessionScenario(afterSession, {
-      native,
-      page,
-      origin: selectedOrigin,
-      directory: path.join(directory, "state"),
-      traffic,
-    });
-    const signedOut = await native.command("sign_out");
-    assert.equal(signedOut.state, "signed_out");
-    process.stdout.write(
-      "PASS Rust HTTPS → browser email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
+    await finishNativeJourney(
+      {
+        native,
+        page,
+        origin: selectedOrigin,
+        directory: path.join(directory, "state"),
+        traffic,
+      },
+      recovery,
+      afterSession
     );
   } finally {
     try {

@@ -90,7 +90,7 @@ impl AuthService {
                 )?);
             }
             let store = state.library.as_ref().ok_or("storage_unavailable")?;
-            if store.upload_status()?.waiting > 0 || store.usage_status()?.waiting > 0 {
+            if store.upload_status()?.waiting > 0 || store.usage_status()?.waiting > 0 || store.status()?.recovery_count > 0 {
                 return Err("pending_work".into());
             }
         }
@@ -118,6 +118,20 @@ impl AuthService {
     }
     pub fn library_status(&self) -> Result<LibraryStatus, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        self.library(&mut state)?.status()
+    }
+    pub fn library_recovery_browse(&self, offset: u32) -> Result<Vec<super::library_contract::RecoverySummary>, String> {
+        let mut state = self.state.lock().map_err(|_|"state_unavailable")?;
+        self.library(&mut state)?.recovery_browse(offset)
+    }
+    pub fn library_recovery_detail(&self, snapshot: &str, id: &str) -> Result<Prompt, String> {
+        let mut state = self.state.lock().map_err(|_|"state_unavailable")?;
+        self.library(&mut state)?.recovery_detail(snapshot,id)
+    }
+    pub fn library_pause_download(&self, paused: bool) -> Result<LibraryStatus, String> {
+        let mut state = self.state.lock().map_err(|_|"state_unavailable")?;
+        self.library(&mut state)?.pause_download(paused)?;
+        self.wake_sync();
         self.library(&mut state)?.status()
     }
     pub fn library_create(
@@ -249,12 +263,24 @@ impl AuthService {
             .download
             .try_lock()
             .map_err(|_| "download_in_progress")?;
-        let (generation, envelope, pending, minimum_revision) = {
+        let generation = self.state.lock().map_err(|_| "state_unavailable")?.generation;
+        let result = self.download_page();
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.generation != generation { return Err("operation_cancelled".into()); }
+        if let Ok(store) = self.library(&mut state) {
+            if result.as_ref().err().is_some_and(|e|e=="snapshot_expired") { store.expire()?; }
+            store.download_result(result.as_ref().err().map(String::as_str))?;
+        }
+        result
+    }
+    fn download_page(&self) -> Result<LibraryStatus, String> {
+        let (generation, envelope, pending, minimum_revision, recovering) = {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
             let envelope = state.credential.clone().ok_or("authentication_required")?;
             let generation = state.generation;
             let store = self.library(&mut state)?;
             let status = store.status()?;
+            if status.paused { return Ok(status); }
             if status.complete && !store.refresh_required()? {
                 return Ok(status);
             }
@@ -267,19 +293,25 @@ impl AuthService {
                 envelope,
                 store.pending()?,
                 store.required_download_revision()?,
+                store.recovering()?,
             )
         };
         let (manifest, index) = match pending {
+            Some((manifest, index)) if index == manifest.pages.len() => {
+                let changes = self.library_changes(0)?;
+                if let Some(error) = changes.error { return Err(error); }
+                return self.library_status();
+            }
             Some((manifest, index)) if !manifest.expired() => (manifest, index),
             _ => {
                 let manifest: Manifest = decode(self.snapshot_request(
                     generation,
                     &envelope,
                     Endpoint::Snapshot,
-                    json!({"minimumRevision":minimum_revision}),
+                    if recovering { json!({"minimumRevision":"0"}) } else { json!({"minimumRevision":minimum_revision}) },
                 )?)?;
                 manifest.validate(&envelope.instance_id, &envelope.account_id)?;
-                if manifest
+                if !recovering && manifest
                     .revision
                     .parse::<i64>()
                     .map_err(|_| "invalid_response")?
@@ -315,6 +347,7 @@ impl AuthService {
         }
         let page: Page = decode(response)?;
         let store = self.library(&mut state)?;
+        if store.status()?.paused { return Err("operation_cancelled".into()); }
         if let Err(error) = store.apply(&manifest, index, page) {
             state.library = None;
             return Err(error);
