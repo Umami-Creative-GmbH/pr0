@@ -35,9 +35,6 @@ jobs:
           fetch-depth: 0
 
       - uses: millionco/react-doctor@v2
-        env:
-          # Recompute findings after component refactors and config changes.
-          REACT_DOCTOR_NO_CACHE: "1"
         # Advisory by default: React Doctor reports findings on every PR — a
         # sticky summary comment, inline review comments, and a commit status
         # with the health score — but never fails the check, so it won't red-X
