@@ -11,6 +11,8 @@ fn clipboard_success_records_local_recents_and_survives_restart() {
         account_id: before.account_id.clone(),
         generation: view(&service)["generation"].as_u64().unwrap(),
         prompt_id: id.into(),
+        template: None,
+        values: Vec::new(),
     };
     assert!(service
         .library_copy(request.clone(), |_| Err("clipboard_unavailable".into()))
@@ -45,6 +47,8 @@ fn copy_request(service: &AuthService, id: &str) -> super::usage_contract::CopyR
         account_id: state["accountId"].as_str().unwrap().into(),
         generation: state["generation"].as_u64().unwrap(),
         prompt_id: id.into(),
+        template: None,
+        values: Vec::new(),
     }
 }
 #[test]

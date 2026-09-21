@@ -15,6 +15,8 @@ pub struct WindowStatus {
     pub visible: bool,
     pub focused: bool,
     pub shortcut: Option<String>,
+    #[serde(skip)]
+    writing: bool,
 }
 #[derive(Default)]
 pub struct Launcher {
@@ -39,6 +41,9 @@ impl Launcher {
     }
     pub fn open(&self) -> Result<u64, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.writing {
+            return Ok(state.opening);
+        }
         state.opening += 1;
         state.visible = true;
         state.focused = false;
@@ -56,6 +61,9 @@ impl Launcher {
         }
         if state.focused {
             state.focused = false;
+            if state.writing {
+                return Ok(false);
+            }
             state.visible = false;
             return Ok(true);
         }
@@ -63,7 +71,7 @@ impl Launcher {
     }
     pub fn hide(&self, opening: u64) -> Result<bool, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
-        if state.opening != opening || !state.visible {
+        if state.opening != opening || !state.visible || state.writing {
             return Ok(false);
         }
         state.visible = false;
@@ -74,6 +82,24 @@ impl Launcher {
         let state = self.status()?;
         if !state.visible || state.opening != opening {
             return Err("operation_cancelled".into());
+        }
+        Ok(())
+    }
+    pub fn begin_write(&self, opening: u64) -> Result<(), String> {
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if !state.visible || state.opening != opening {
+            return Err("operation_cancelled".into());
+        }
+        if state.writing {
+            return Err("clipboard_busy".into());
+        }
+        state.writing = true;
+        Ok(())
+    }
+    pub fn end_write(&self, opening: u64) -> Result<(), String> {
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.opening == opening {
+            state.writing = false;
         }
         Ok(())
     }

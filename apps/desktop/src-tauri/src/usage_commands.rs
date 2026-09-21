@@ -1,5 +1,20 @@
 use super::usage_contract::{CopyRequest, CopyResult, Usage, UsageStatus};
 impl AuthService {
+    pub fn copy_template(&self, request: &CopyRequest, active_only: bool) -> Result<super::library_contract::Prompt, String> {
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        self.checked_copy_template(&mut state, request, active_only)
+    }
+    fn checked_copy_template(&self, state: &mut State, request: &CopyRequest, active_only: bool) -> Result<super::library_contract::Prompt, String> {
+        let retained = state.retained.as_ref().ok_or("authentication_required")?;
+        if state.signing_out || request.generation != state.generation
+            || request.instance_id != retained.identity.instance.id
+            || request.account_id != retained.identity.account.id {
+            return Err("operation_cancelled".into());
+        }
+        let prompt = self.library(state)?.detail(&request.prompt_id)?;
+        if active_only && prompt.archived { return Err("prompt_unavailable".into()); }
+        Ok(prompt)
+    }
     pub fn library_sync_usage(&self) -> Result<UsageStatus, String> {
         let _worker = self.upload.try_lock().map_err(|_| "upload_in_progress")?;
         self.library_retry_usage()?;
@@ -127,26 +142,24 @@ impl AuthService {
     ) -> Result<CopyResult, String> {
         let _clipboard = self.clipboard.try_lock().map_err(|_| "clipboard_busy")?;
         let mut state = self.state.try_lock().map_err(|_| "clipboard_busy")?;
-        let retained = state.retained.as_ref().ok_or("authentication_required")?;
-        if state.signing_out
-            || request.generation != state.generation
-            || request.instance_id != retained.identity.instance.id
-            || request.account_id != retained.identity.account.id
-        {
-            return Err("operation_cancelled".into());
+        let prompt = self.checked_copy_template(&mut state, &request, active_only)?;
+        if (!request.values.is_empty() && request.template.is_none()) || request.template.as_ref().is_some_and(|template| template != &prompt.content) {
+            return Err("template_changed".into());
         }
-        let prompt = self.library(&mut state)?.detail(&request.prompt_id)?;
-        if active_only && prompt.archived {
-            return Err("prompt_unavailable".into());
+        let text = super::variables::substitute(&prompt.content, &request.values)?;
+        // No transaction or account lock spans OS access. Late completion belongs to this generation only.
+        drop(state);
+        write(&text)?;
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.generation != request.generation {
+            return Ok(CopyResult { origin: request, usage_saved: false });
         }
-        // No database transaction spans the OS call. The partition lock prevents transitions.
-        write(&prompt.content)?;
         let usage = Usage {
             id: uuid::Uuid::new_v4().to_string(),
             prompt_id: prompt.id,
             occurred_at: super::usage_contract::occurrence_time(),
         };
-        let saved = self.library(&mut state)?.record_usage(&usage).is_ok();
+        let saved = self.library(&mut state).and_then(|library| library.record_usage(&usage)).is_ok();
         if !saved {
             state.memory_usage.push(usage);
             state.library = None;

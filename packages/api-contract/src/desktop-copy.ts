@@ -1,13 +1,17 @@
 import { z } from "zod";
 
-export const desktopCopySchema = z.strictObject({
+export const desktopCopyOriginSchema = z.strictObject({
   instanceId: z.uuid(),
   accountId: z.uuid(),
   generation: z.number().int().positive(),
   promptId: z.uuidv4(),
 });
+export const desktopCopySchema = desktopCopyOriginSchema.extend({
+  template: z.string().optional(),
+  values: z.array(z.tuple([z.string(), z.string()])).optional(),
+});
 export const desktopCopyResultSchema = z.strictObject({
-  origin: desktopCopySchema,
+  origin: desktopCopyOriginSchema,
   usageSaved: z.boolean(),
 });
 export const desktopUsageStatusSchema = z.strictObject({
