@@ -5,6 +5,10 @@ import type {
   LocalPrompt,
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
+import {
+  EmptyDetail,
+  LibraryWorkspace,
+} from "@pr0/ui/components/wayfinder-shell";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DownloadedStatus } from "./downloaded-status";
@@ -278,6 +282,11 @@ interface LibraryProps {
   editingDisabled: boolean;
   onEditing: (editing: boolean) => void;
 }
+const downloadNeedsAttention = (
+  status: DownloadStatus | undefined,
+  error: string
+) => Boolean(error || status?.error) || !status?.complete;
+
 export const DownloadedLibrary = (props: LibraryProps) => {
   const { account, signedIn, editingDisabled, onEditing } = props;
   const {
@@ -305,111 +314,131 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     lifecycle,
   } = useDownloadedLibrary(props);
   return (
-    <section aria-label="Downloaded library" className="space-y-4">
-      <h2 className="text-xl font-semibold">Downloaded library</h2>
-      <DownloadedStatus
-        status={status}
-        upload={upload}
-        changes={changes}
-        usage={usage}
-        account={account}
-        lifecycle={lifecycle}
-        signedIn={signedIn}
-        offline={offline}
-        editing={editingDisabled || Boolean(editor)}
-        copyMessage={copy.message}
-        onRetry={refreshLibrary}
-        onRetryUsage={() => {
-          void retryUsage();
-        }}
-        onRetryUpload={() => {
-          void retryUpload();
-        }}
-        onOpen={(id) => {
-          void open(id);
-        }}
-      />
-      <button
-        type="button"
-        className="rounded border px-4 py-2"
-        disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
-        onClick={() => {
-          setEditor({});
-          onEditing(true);
-        }}
-      >
-        New prompt
-      </button>
-      {editor ? (
-        <LocalPromptEditor
-          initial={editor.initial}
-          mappings={upload?.mappings}
-          onOpenOriginal={(id) => {
+    <section aria-label="Downloaded library">
+      <h2 className="sr-only">Downloaded library</h2>
+      <div className="wf-status">
+        <DownloadedStatus
+          status={status}
+          upload={upload}
+          changes={changes}
+          usage={usage}
+          account={account}
+          lifecycle={lifecycle}
+          signedIn={signedIn}
+          offline={offline}
+          editing={editingDisabled || Boolean(editor)}
+          copyMessage={copy.message}
+          onRetry={refreshLibrary}
+          onRetryUsage={() => {
+            void retryUsage();
+          }}
+          onRetryUpload={() => {
+            void retryUpload();
+          }}
+          onOpen={(id) => {
             void open(id);
           }}
-          account={account}
-          onCancel={() => {
-            setEditor(undefined);
-            onEditing(false);
-          }}
-          onSaved={(value) => {
-            promptSaved(value);
-            onEditing(false);
-          }}
         />
-      ) : null}
-      <DownloadControls
-        status={status}
-        signedIn={signedIn}
-        busy={busy}
-        errorText={errorText}
-        onPause={() => {
-          void pauseDownload();
-        }}
-        onRetry={refreshLibrary}
-      />
-      {status?.recoveryCount ? (
-        <RecoveryLibrary count={status.recoveryCount} account={account} />
-      ) : null}
-      <SearchLibrary
-        account={account}
-        refresh={retry}
-        organization={organization}
-        onOrganizationSaved={organizationSaved}
-        editingDisabled={editorIsBlocked(Boolean(editor), editingDisabled)}
-        onEditing={onEditing}
-        onFavorite={lifecycle.handleFavorite}
-        changing={lifecycle.busy || Boolean(editor) || editingDisabled}
-        onSelect={selectResult}
-        onCopy={copy.handleCopy}
-        copying={copy.busy || editingDisabled}
-      />
-      {localDetail ? (
-        <LocalPromptDetail
-          value={localDetail}
-          editing={
-            editorIsBlocked(Boolean(editor), editingDisabled) || lifecycle.busy
-          }
-          onAction={lifecycle.handleAction}
-          onEdit={() => {
-            setEditor({ initial: localDetail });
-            onEditing(true);
-          }}
-          copying={copy.busy || editingDisabled || busy}
-          onCopy={() => {
-            void copy.handleCopy(localDetail.prompt.id);
-          }}
-        />
-      ) : null}
-      {localDetail && organization ? (
-        <PromptOrganization
-          account={account}
-          value={localDetail}
-          snapshot={organization}
-          onSaved={organizationSaved}
-          disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
-        />
-      ) : null}
+      </div>
+      <LibraryWorkspace
+        sidebar={
+          <>
+            <button
+              type="button"
+              className="rounded border px-4 py-2"
+              disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+              onClick={() => {
+                setEditor({});
+                onEditing(true);
+              }}
+            >
+              New prompt
+            </button>
+            <details open={downloadNeedsAttention(status, errorText)}>
+              <summary>
+                {status?.complete ? "Available offline" : "Download progress"}
+              </summary>
+              <DownloadControls
+                status={status}
+                signedIn={signedIn}
+                busy={busy}
+                errorText={errorText}
+                onPause={() => {
+                  void pauseDownload();
+                }}
+                onRetry={refreshLibrary}
+              />
+            </details>
+            {status?.recoveryCount ? (
+              <RecoveryLibrary count={status.recoveryCount} account={account} />
+            ) : null}
+            <SearchLibrary
+              account={account}
+              refresh={retry}
+              organization={organization}
+              onOrganizationSaved={organizationSaved}
+              editingDisabled={editorIsBlocked(
+                Boolean(editor),
+                editingDisabled
+              )}
+              onEditing={onEditing}
+              onFavorite={lifecycle.handleFavorite}
+              changing={lifecycle.busy || Boolean(editor) || editingDisabled}
+              onSelect={selectResult}
+              onCopy={copy.handleCopy}
+              copying={copy.busy || editingDisabled}
+            />
+          </>
+        }
+      >
+        {editor ? (
+          <LocalPromptEditor
+            initial={editor.initial}
+            mappings={upload?.mappings}
+            onOpenOriginal={(id) => {
+              void open(id);
+            }}
+            account={account}
+            onCancel={() => {
+              setEditor(undefined);
+              onEditing(false);
+            }}
+            onSaved={(value) => {
+              promptSaved(value);
+              onEditing(false);
+            }}
+          />
+        ) : null}
+        {localDetail ? (
+          <LocalPromptDetail
+            value={localDetail}
+            editing={
+              editorIsBlocked(Boolean(editor), editingDisabled) ||
+              lifecycle.busy
+            }
+            onAction={lifecycle.handleAction}
+            onEdit={() => {
+              setEditor({ initial: localDetail });
+              onEditing(true);
+            }}
+            copying={copy.busy || editingDisabled || busy}
+            onCopy={() => {
+              void copy.handleCopy(localDetail.prompt.id);
+            }}
+          />
+        ) : (
+          <EmptyDetail />
+        )}
+        {localDetail && organization ? (
+          <PromptOrganization
+            account={account}
+            value={localDetail}
+            snapshot={organization}
+            onSaved={organizationSaved}
+            disabled={editorIsBlocked(Boolean(editor), editingDisabled)}
+          />
+        ) : null}
+      </LibraryWorkspace>
     </section>
   );
 };

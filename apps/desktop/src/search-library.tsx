@@ -2,6 +2,7 @@ import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import { organizationSearch } from "@pr0/api-contract/organization";
 import { promptSortSchema } from "@pr0/api-contract/prompts";
 import type { Collection, PromptView } from "@pr0/api-contract/prompts";
+import { PromptIconAction } from "@pr0/ui/components/prompt-actions";
 import { useState } from "react";
 
 import { OrganizationControls } from "./organization-controls";
@@ -153,8 +154,10 @@ const SearchResults = ({
       >
         <ul aria-label="Search results" className="space-y-2">
           {page?.prompts.map((row) => (
-            <li key={row.id} className="flex gap-2">
+            <li key={row.id} className="wf-row">
               <button
+                data-prompt-row
+                aria-label={row.title}
                 type="button"
                 className="rounded border px-3 py-2 text-left"
                 aria-pressed={search.selectedId === row.id}
@@ -163,30 +166,35 @@ const SearchResults = ({
                   void search.select(row.id);
                 }}
               >
-                {row.title}
-                {row.archived ? " (Archived)" : ""}
+                <span>
+                  {row.title}
+                  {row.archived ? " (Archived)" : ""}
+                </span>
+                {row.description ? (
+                  <span className="text-muted-foreground block">
+                    {row.description}
+                  </span>
+                ) : null}
               </button>
-              <button
-                type="button"
-                disabled={search.busy || changing}
-                aria-label={`${row.favorite ? "Unfavorite" : "Favorite"} ${row.title}`}
-                onClick={() => {
-                  void onFavorite(row.id);
-                }}
-              >
-                {row.favorite ? "Unfavorite" : "Favorite"}
-              </button>
-              <button
-                type="button"
-                className="rounded border px-3 py-2"
-                disabled={search.busy || copying}
-                aria-label={`Copy ${row.title}`}
-                onClick={() => {
-                  void onCopy(row.id);
-                }}
-              >
-                Copy
-              </button>
+              <div className="wf-row-actions">
+                <PromptIconAction
+                  kind="favorite"
+                  active={row.favorite}
+                  disabled={search.busy || changing}
+                  label={`${row.favorite ? "Unfavorite" : "Favorite"} ${row.title}`}
+                  onClick={() => {
+                    void onFavorite(row.id);
+                  }}
+                />
+                <PromptIconAction
+                  kind="copy"
+                  disabled={search.busy || copying}
+                  label={`Copy ${row.title}`}
+                  onClick={() => {
+                    void onCopy(row.id);
+                  }}
+                />
+              </div>
             </li>
           ))}
         </ul>
@@ -274,7 +282,7 @@ export const SearchLibrary = ({
       <label className="block">
         Search downloaded prompts
         <input
-          className="ml-2 rounded border p-2"
+          className="mt-1 block w-full rounded border p-2"
           type="search"
           value={search.query}
           onChange={(event) => search.changeQuery(event.target.value)}

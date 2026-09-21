@@ -39,7 +39,7 @@ export const CollectionPicker = ({
   return (
     <fieldset
       disabled={disabled}
-      className="min-w-0 space-y-2 rounded-md border p-3"
+      className="wf-picker min-w-0 space-y-2 rounded-md border p-3"
     >
       <legend className="px-1 font-medium">{label}</legend>
       <p className="text-muted-foreground text-sm">

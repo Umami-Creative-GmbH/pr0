@@ -17,7 +17,10 @@ declare global {
 }
 
 export const copyBrowser = async (cookieHeader: string) => {
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext({
     permissions: ["clipboard-read", "clipboard-write"],
   });

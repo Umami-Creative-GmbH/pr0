@@ -16,7 +16,10 @@ test("typeahead keeps literal input, supports sort and clear, and never selects 
     promptOperation({ title: "Café", description: "", content: "C++ Straße" }),
     promptOperation({ title: "Other", description: "", content: "unrelated" }),
   ]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext();
   try {
     await context.addCookies(
@@ -74,7 +77,10 @@ test("selection follows identity across pages and a changed-revision page restar
     })
   );
   await account.mutate(operations);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext();
   try {
     await context.addCookies(

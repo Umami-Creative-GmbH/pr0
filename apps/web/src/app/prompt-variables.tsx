@@ -1,4 +1,6 @@
 import { parseTemplate, substituteTemplate } from "@pr0/api-contract/variables";
+import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { usePromptCopy } from "./use-prompt-copy";
@@ -7,10 +9,35 @@ const buttonClass =
   "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
 type Copy = ReturnType<typeof usePromptCopy>;
 
+const VariableContainer = ({
+  inline,
+  children,
+  onClose,
+  opener,
+}: {
+  inline: boolean;
+  children: ReactNode;
+  onClose: () => void;
+  opener: Element | null;
+}) =>
+  inline ? (
+    <section aria-label="Fill prompt variables">{children}</section>
+  ) : (
+    <WayfinderDialog
+      label="Fill prompt variables"
+      onRequestClose={onClose}
+      opener={opener}
+    >
+      {children}
+    </WayfinderDialog>
+  );
+
 const VariableDialog = ({
   copy,
   interaction,
+  inline,
 }: {
+  inline: boolean;
   copy: Copy;
   interaction: NonNullable<Copy["interaction"]>;
 }) => {
@@ -23,7 +50,18 @@ const VariableDialog = ({
   const [previousTemplate, setPreviousTemplate] = useState(template);
   const [errors, setErrors] = useState(new Map<string, string>());
   const [message, setMessage] = useState("");
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!inline) {
+      return;
+    }
+    dialogRef.current?.querySelector("textarea")?.focus();
+    return () => {
+      if (opener instanceof HTMLElement && opener.isConnected) {
+        opener.focus();
+      }
+    };
+  }, [inline, opener]);
   if (previousTemplate !== template) {
     setPreviousTemplate(template);
     const names = new Set(template.fields.map((field) => field.name));
@@ -33,16 +71,6 @@ const VariableDialog = ({
     setErrors(result.ok ? new Map() : result.fields);
     setMessage(result.ok ? "" : result.message);
   }
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    dialog?.showModal();
-    return () => {
-      dialog?.close();
-      if (opener instanceof HTMLElement && opener.isConnected) {
-        opener.focus();
-      }
-    };
-  }, [opener]);
   const submit = () => {
     if (copy.busy || changed) {
       return;
@@ -62,108 +90,122 @@ const VariableDialog = ({
     void copy.copy(prompt.id, { content: prompt.content, text: result.text });
   };
   return (
-    <dialog
-      ref={dialogRef}
-      aria-labelledby="variables-heading"
-      className="bg-background text-foreground m-auto max-h-[90dvh] w-[min(40rem,90vw)] overflow-y-auto rounded-lg border p-6 backdrop:bg-black/50"
-      onCancel={(event) => {
-        event.preventDefault();
-        copy.cancelVariables();
-      }}
+    <VariableContainer
+      inline={inline}
+      onClose={() => copy.cancelVariables()}
+      opener={opener}
     >
-      <h2 id="variables-heading" className="text-xl font-semibold">
-        Fill prompt variables
-      </h2>
-      <p className="my-3 break-words">{prompt.title}</p>
-      <p>
-        All values are required and kept only for this copy interaction. Each
-        value and the combined output may use at most 256 KiB.
-      </p>
-      <details className="my-3">
-        <summary>Frozen template</summary>
-        <pre className="max-h-48 overflow-auto break-words whitespace-pre-wrap">
-          {prompt.content}
-        </pre>
-      </details>
-      {changed ? (
-        <div role="alert" className="my-3">
-          <p>
-            Template changed. Restart with the updated template before copying.
-          </p>
-          <button
-            className={buttonClass}
-            disabled={copy.busy}
-            type="button"
-            onClick={() => copy.restartVariables()}
-          >
-            Restart with updated template
-          </button>
-        </div>
-      ) : null}
-      <form
-        autoComplete="off"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        <fieldset disabled={copy.busy} className="space-y-4">
-          <legend className="sr-only">Variable values</legend>
-          {template.fields.map((field, index) => (
-            <div key={field.name}>
-              <label
-                className="block font-medium break-words"
-                htmlFor={`variable-${index}`}
-              >
-                {field.name} ({field.type})
-              </label>
-              <textarea
-                id={`variable-${index}`}
-                autoComplete="off"
-                spellCheck={false}
-                inputMode={field.type === "number" ? "decimal" : "text"}
-                aria-required="true"
-                aria-invalid={errors.has(field.name)}
-                aria-describedby={
-                  errors.has(field.name) ? `variable-error-${index}` : undefined
-                }
-                rows={field.type === "number" ? 1 : 3}
-                className="mt-1 w-full rounded-md border p-2"
-                value={values.get(field.name) ?? ""}
-                onChange={(event) => {
-                  setValues(
-                    new Map(values).set(field.name, event.target.value)
-                  );
-                }}
-              />
-              {errors.has(field.name) ? (
-                <p id={`variable-error-${index}`} className="text-destructive">
-                  {errors.get(field.name)}
-                </p>
-              ) : null}
-            </div>
-          ))}
-          <p role="alert">{message}</p>
-          <output className="block">{copy.message}</output>
-          <div className="mt-5 flex flex-wrap gap-3">
+      <div ref={dialogRef}>
+        <h2 id="variables-heading" className="text-xl font-semibold">
+          Fill prompt variables
+        </h2>
+        <p className="my-3 break-words">{prompt.title}</p>
+        <p>
+          All values are required and kept only for this copy interaction. Each
+          value and the combined output may use at most 256 KiB.
+        </p>
+        <details className="my-3">
+          <summary>Frozen template</summary>
+          <pre className="max-h-48 overflow-auto break-words whitespace-pre-wrap">
+            {prompt.content}
+          </pre>
+        </details>
+        {changed ? (
+          <div role="alert" className="my-3">
+            <p>
+              Template changed. Restart with the updated template before
+              copying.
+            </p>
             <button
               className={buttonClass}
+              disabled={copy.busy}
               type="button"
-              onClick={() => copy.cancelVariables()}
+              onClick={() => copy.restartVariables()}
             >
-              Cancel
-            </button>
-            <button className={buttonClass} type="submit" disabled={changed}>
-              {copy.busy ? "Copying…" : "Copy"}
+              Restart with updated template
             </button>
           </div>
-        </fieldset>
-      </form>
-    </dialog>
+        ) : null}
+        <form
+          autoComplete="off"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          <fieldset disabled={copy.busy} className="space-y-4">
+            <legend className="sr-only">Variable values</legend>
+            {template.fields.map((field, index) => (
+              <div key={field.name}>
+                <label
+                  className="block font-medium break-words"
+                  htmlFor={`variable-${index}`}
+                >
+                  {field.name} ({field.type})
+                </label>
+                <textarea
+                  id={`variable-${index}`}
+                  autoComplete="off"
+                  spellCheck={false}
+                  inputMode={field.type === "number" ? "decimal" : "text"}
+                  aria-required="true"
+                  aria-invalid={errors.has(field.name)}
+                  aria-describedby={
+                    errors.has(field.name)
+                      ? `variable-error-${index}`
+                      : undefined
+                  }
+                  rows={field.type === "number" ? 1 : 3}
+                  className="mt-1 w-full rounded-md border p-2"
+                  value={values.get(field.name) ?? ""}
+                  onChange={(event) => {
+                    setValues(
+                      new Map(values).set(field.name, event.target.value)
+                    );
+                  }}
+                />
+                {errors.has(field.name) ? (
+                  <p
+                    id={`variable-error-${index}`}
+                    className="text-destructive"
+                  >
+                    {errors.get(field.name)}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+            <p role="alert">{message}</p>
+            <output className="block">{copy.message}</output>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                className={buttonClass}
+                type="button"
+                onClick={() => copy.cancelVariables()}
+              >
+                {inline ? "Back to results" : "Cancel"}
+              </button>
+              <button className={buttonClass} type="submit" disabled={changed}>
+                {copy.busy ? "Copying…" : "Copy"}
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+    </VariableContainer>
   );
 };
 
-export const PromptVariables = ({ copy }: { copy: Copy }) =>
+export const PromptVariables = ({
+  copy,
+  inline = false,
+}: {
+  copy: Copy;
+  inline?: boolean;
+}) =>
   copy.interaction ? (
-    <VariableDialog copy={copy} interaction={copy.interaction} />
+    <VariableDialog
+      copy={copy}
+      interaction={copy.interaction}
+      inline={inline}
+    />
   ) : null;

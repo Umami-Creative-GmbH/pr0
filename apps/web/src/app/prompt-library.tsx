@@ -11,7 +11,13 @@ import type {
   MutationReceipt,
   PromptView,
 } from "@pr0/api-contract/prompts";
+import { PromptMoreActions } from "@pr0/ui/components/prompt-actions";
+import { PromptContent } from "@pr0/ui/components/prompt-content";
 import { PromptDeleteDialog } from "@pr0/ui/components/prompt-delete-dialog";
+import {
+  EmptyDetail,
+  LibraryWorkspace,
+} from "@pr0/ui/components/wayfinder-shell";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -27,6 +33,7 @@ import { promptSaveNotice } from "./prompt-save-notice";
 import { PromptSearchControls } from "./prompt-search-controls";
 import { PromptTags } from "./prompt-tags";
 import { PromptVariables } from "./prompt-variables";
+import { QuickAccess, useQuickResults } from "./quick-access";
 import { useCopyEligibility } from "./use-copy-eligibility";
 import { useLibraryDrafts } from "./use-library-drafts";
 import { useLibraryFilters } from "./use-library-filters";
@@ -90,6 +97,12 @@ const PromptDetail = ({
     ) : null}
     {detail.data ? (
       <>
+        {detail.data.description ? (
+          <p className="mt-3 break-words whitespace-pre-wrap">
+            {detail.data.description}
+          </p>
+        ) : null}
+
         <button
           className={`${buttonClass} mt-3`}
           disabled={editing}
@@ -104,7 +117,7 @@ const PromptDetail = ({
         </button>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
-            className={buttonClass}
+            className="wf-primary"
             type="button"
             disabled={copy.blocked || editing}
             onClick={() => {
@@ -128,42 +141,44 @@ const PromptDetail = ({
           >
             {detail.data.favorite ? "Unfavorite prompt" : "Favorite prompt"}
           </button>
-          <button
-            className={buttonClass}
-            type="button"
-            disabled={actionsBlocked}
-            onClick={() => {
-              if (detail.data) {
-                onAction(detail.data, "duplicate");
-              }
-            }}
-          >
-            Duplicate prompt
-          </button>
-          <button
-            className={buttonClass}
-            type="button"
-            disabled={actionsBlocked}
-            onClick={() => {
-              if (detail.data) {
-                onAction(detail.data, "archived", !detail.data.archived);
-              }
-            }}
-          >
-            {detail.data.archived ? "Restore prompt" : "Archive prompt"}
-          </button>
-          <button
-            className={buttonClass}
-            type="button"
-            disabled={actionsBlocked}
-            onClick={() => {
-              if (detail.data) {
-                onDelete(detail.data);
-              }
-            }}
-          >
-            Permanently delete prompt
-          </button>
+          <PromptMoreActions label="More prompt actions">
+            <button
+              className={buttonClass}
+              type="button"
+              disabled={actionsBlocked}
+              onClick={() => {
+                if (detail.data) {
+                  onAction(detail.data, "duplicate");
+                }
+              }}
+            >
+              Duplicate prompt
+            </button>
+            <button
+              className={buttonClass}
+              type="button"
+              disabled={actionsBlocked}
+              onClick={() => {
+                if (detail.data) {
+                  onAction(detail.data, "archived", !detail.data.archived);
+                }
+              }}
+            >
+              {detail.data.archived ? "Restore prompt" : "Archive prompt"}
+            </button>
+            <button
+              className={buttonClass}
+              type="button"
+              disabled={actionsBlocked}
+              onClick={() => {
+                if (detail.data) {
+                  onDelete(detail.data);
+                }
+              }}
+            >
+              Permanently delete prompt
+            </button>
+          </PromptMoreActions>
         </div>
         <p className="mt-3">
           Tags:{" "}
@@ -196,19 +211,7 @@ const PromptDetail = ({
             Original title: {detail.data.sourceTitle}
           </p>
         ) : null}
-        {detail.data.description ? (
-          <p className="mt-3 break-words whitespace-pre-wrap">
-            {detail.data.description}
-          </p>
-        ) : null}
-        <h3 className="mt-4 font-medium">Content</h3>
-        <textarea
-          aria-label="Saved content"
-          className="bg-background mt-2 max-h-96 w-full rounded-md border p-3 font-mono text-sm"
-          readOnly
-          rows={10}
-          value={detail.data.content}
-        />
+        <PromptContent content={detail.data.content} label="Saved content" />
         <p className="text-muted-foreground mt-3 text-sm">
           Created{" "}
           <time dateTime={detail.data.createdAt}>
@@ -252,12 +255,41 @@ const LibraryCapacity = ({
 const copyLibraryRevision = (
   data: { pages: { revision: string }[] } | undefined
 ) => data?.pages[0]?.revision;
-export const PromptLibrary = ({
+const EditorSavedActions = ({
+  copy,
+  prompt,
+  unavailable,
+}: {
+  copy: ReturnType<typeof usePromptCopy>;
+  prompt: Prompt | "create";
+  unavailable: boolean;
+}) => (
+  <div className="mb-4">
+    {prompt === "create" ? null : (
+      <button
+        type="button"
+        disabled={copy.blocked || unavailable}
+        className={buttonClass}
+        onClick={() => {
+          void copy.copy(prompt.id);
+        }}
+      >
+        Copy saved prompt
+      </button>
+    )}
+    <PromptCopyStatus copy={copy} />
+  </div>
+);
+const usePromptLibrary = ({
   library,
   onDirtyChange,
   accountAvailable = true,
   accountChanged = false,
+  quickOpen = false,
+  onQuickClose,
 }: {
+  quickOpen?: boolean;
+  onQuickClose?: () => void;
   accountAvailable?: boolean;
   accountChanged?: boolean;
   library: PrivateLibrary;
@@ -292,6 +324,7 @@ export const PromptLibrary = ({
     collections: [],
     tags: [],
   };
+  const quick = useQuickResults(library, organization.data);
   const noticeRef = useRef<HTMLParagraphElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
@@ -362,24 +395,40 @@ export const PromptLibrary = ({
       noticeRef.current?.focus();
     },
   });
-  const eligible = useCopyEligibility({
-    accountAvailable,
-    searchBlocked,
-    view,
-    collectionId,
-    viewCollectionId,
-    tagIds,
-    favorite,
-    query: search.query,
-    collections,
-    tags,
-    prompts,
-    selectedId,
-  });
+  const eligible = useCopyEligibility(
+    quickOpen
+      ? {
+          accountAvailable,
+          searchBlocked: quick.searchBlocked,
+          ...quick.filters,
+          query: quick.search.query,
+          collections,
+          tags,
+          prompts: quick.prompts,
+          selectedId: quick.selectedId,
+        }
+      : {
+          accountAvailable,
+          searchBlocked,
+          view,
+          collectionId,
+          viewCollectionId,
+          tagIds,
+          favorite,
+          query: search.query,
+          collections,
+          tags,
+          prompts,
+          selectedId,
+        }
+  );
   const copy = usePromptCopy({
     library,
     accountChanged,
-    libraryRevision: copyLibraryRevision(list.data),
+    libraryRevision: copyLibraryRevision(
+      quickOpen ? quick.list.data : list.data
+    ),
+    onClipboardWritten: onQuickClose,
     eligible,
     onAccepted: accepted,
   });
@@ -400,10 +449,115 @@ export const PromptLibrary = ({
       noticeRef.current?.focus();
     }
   };
+  return {
+    quick,
+    live,
+    deleting,
+    setDeleting,
+    actions,
+    noticeRef,
+    notice,
+    editing,
+    setEditing,
+    setNotice,
+    createRef,
+    view,
+    changeView,
+    search,
+    favorite,
+    hasExtraFilters,
+    setFilters,
+    filters,
+    restarted,
+    tagIds,
+    viewCollectionId,
+    organization,
+    accepted,
+    collectionId,
+    markDraft,
+    copy,
+    list,
+    prompts,
+    selectedId,
+    setSelected,
+    queryClient,
+    queryKey,
+    tagEditing,
+    tags,
+    setTagEditing,
+    openPrompt,
+    usage,
+    collections,
+    cancelEditor: () => {
+      restoreFocus.current = true;
+      setEditing(null);
+    },
+    saved,
+    searchBlocked,
+    detail,
+    detailUnavailable,
+  };
+};
+
+export const PromptLibrary = (
+  props: Parameters<typeof usePromptLibrary>[0]
+) => {
+  const { library, quickOpen, onQuickClose } = props;
+  const {
+    quick,
+    live,
+    deleting,
+    setDeleting,
+    actions,
+    noticeRef,
+    notice,
+    editing,
+    setEditing,
+    setNotice,
+    createRef,
+    view,
+    changeView,
+    search,
+    favorite,
+    hasExtraFilters,
+    setFilters,
+    filters,
+    restarted,
+    tagIds,
+    viewCollectionId,
+    organization,
+    accepted,
+    collectionId,
+    markDraft,
+    copy,
+    list,
+    prompts,
+    selectedId,
+    setSelected,
+    queryClient,
+    queryKey,
+    tagEditing,
+    tags,
+    setTagEditing,
+    openPrompt,
+    usage,
+    collections,
+    cancelEditor,
+    saved,
+    searchBlocked,
+    detail,
+    detailUnavailable,
+  } = usePromptLibrary(props);
   return (
-    <div className="space-y-6">
-      <LiveLibraryStatus status={live} />
-      <PromptVariables copy={copy} />
+    <div>
+      <div className="wf-status">
+        <LiveLibraryStatus status={live} />
+      </div>
+      {quickOpen && onQuickClose ? (
+        <QuickAccess quick={quick} copy={copy} onClose={onQuickClose} />
+      ) : (
+        <PromptVariables copy={copy} />
+      )}
       {deleting ? (
         <PromptDeleteDialog
           title={deleting.title}
@@ -414,135 +568,152 @@ export const PromptLibrary = ({
           }}
         />
       ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p aria-live="polite" ref={noticeRef} tabIndex={-1}>
-          {notice}
-        </p>
-        <button
-          className={buttonClass}
-          disabled={Boolean(editing)}
-          onClick={() => {
-            setEditing("create");
-            setNotice("");
-          }}
-          ref={createRef}
-          type="button"
-        >
-          Create prompt
-        </button>
-      </div>
-      <PromptViewNavigation view={view} onChange={changeView} />
-      <PromptSearchControls search={search} />
-      <PromptExtraFilters
-        favorite={favorite}
-        hasExtraFilters={hasExtraFilters}
-        onFavorite={(value) => setFilters({ ...filters, favorite: value })}
-        onClear={() =>
-          setFilters({
-            ...filters,
-            collectionId: null,
-            tagIds: [],
-            favorite: false,
-          })
+      <LibraryWorkspace
+        sidebar={
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p aria-live="polite" ref={noticeRef} tabIndex={-1}>
+                {notice}
+              </p>
+              <button
+                className={buttonClass}
+                disabled={Boolean(editing)}
+                onClick={() => {
+                  setEditing("create");
+                  setNotice("");
+                }}
+                ref={createRef}
+                type="button"
+              >
+                Create prompt
+              </button>
+            </div>
+            <PromptViewNavigation view={view} onChange={changeView} />
+            <PromptSearchControls search={search} />
+            <PromptExtraFilters
+              favorite={favorite}
+              hasExtraFilters={hasExtraFilters}
+              onFavorite={(value) =>
+                setFilters({ ...filters, favorite: value })
+              }
+              onClear={() =>
+                setFilters({
+                  ...filters,
+                  collectionId: null,
+                  tagIds: [],
+                  favorite: false,
+                })
+              }
+            />
+            {restarted ? (
+              <output>
+                Your library changed. Results restarted from the first page.
+              </output>
+            ) : null}
+            <CollectionControls
+              tagIds={tagIds}
+              onTagsChange={(ids) => {
+                setFilters({ ...filters, tagIds: ids });
+              }}
+              viewCollectionId={viewCollectionId}
+              onNavigateCollection={(id) => {
+                changeView(id ? "collection" : "all", id);
+              }}
+              library={library}
+              organization={organization}
+              onAccepted={accepted}
+              onAllPrompts={() => changeView("all")}
+              collectionId={collectionId}
+              onSelect={(id) => {
+                setFilters({ ...filters, collectionId: id });
+              }}
+              onDirtyChange={(dirty) => markDraft("organization", dirty)}
+            />
+            <PromptResults
+              copy={copy}
+              restricted={search.searching || hasExtraFilters}
+              pendingSearch={search.pending || Boolean(search.error)}
+              view={view}
+              collectionId={viewCollectionId}
+              list={list}
+              prompts={prompts}
+              selectedId={selectedId}
+              setSelected={setSelected}
+              actions={actions}
+              onDelete={setDeleting}
+              onRefresh={() => {
+                void queryClient.resetQueries({ queryKey });
+              }}
+            />
+          </>
         }
-      />
-      {restarted ? (
-        <output>
-          Your library changed. Results restarted from the first page.
-        </output>
-      ) : null}
-      <CollectionControls
-        tagIds={tagIds}
-        onTagsChange={(ids) => {
-          setFilters({ ...filters, tagIds: ids });
-        }}
-        viewCollectionId={viewCollectionId}
-        onNavigateCollection={(id) => {
-          changeView(id ? "collection" : "all", id);
-        }}
-        library={library}
-        organization={organization}
-        onAccepted={accepted}
-        onAllPrompts={() => changeView("all")}
-        collectionId={collectionId}
-        onSelect={(id) => {
-          setFilters({ ...filters, collectionId: id });
-        }}
-        onDirtyChange={(dirty) => markDraft("organization", dirty)}
-      />
-      {tagEditing ? (
-        <PromptTags
+      >
+        {tagEditing ? (
+          <PromptTags
+            library={library}
+            prompt={tagEditing}
+            tags={tags}
+            onAccepted={accepted}
+            onDirtyChange={(dirty) => markDraft("tags", dirty)}
+            onClose={() => setTagEditing(null)}
+          />
+        ) : null}
+        <PromptActionStatus actions={actions} />
+        {editing ? null : <PromptCopyStatus copy={copy} />}
+        <PromptConflicts
           library={library}
-          prompt={tagEditing}
-          tags={tags}
-          onAccepted={accepted}
-          onDirtyChange={(dirty) => markDraft("tags", dirty)}
-          onClose={() => setTagEditing(null)}
-        />
-      ) : null}
-      <PromptActionStatus actions={actions} />
-      <PromptCopyStatus copy={copy} />
-      <PromptConflicts
-        library={library}
-        onOpen={(id) => {
-          void openPrompt(id);
-        }}
-      />
-      <LibraryCapacity usage={usage} />
-      {editing ? (
-        <PromptEditor
-          library={library}
-          collections={collections}
-          tags={tags}
-          prompt={editing === "create" ? undefined : editing}
           onOpen={(id) => {
             void openPrompt(id);
           }}
-          onCancel={() => {
-            restoreFocus.current = true;
-            setEditing(null);
-          }}
-          onDirtyChange={(dirty) => markDraft("editor", dirty)}
-          onSaved={saved}
-          onAccepted={accepted}
         />
-      ) : null}
-      <PromptResults
-        copy={copy}
-        restricted={search.searching || hasExtraFilters}
-        pendingSearch={search.pending || Boolean(search.error)}
-        view={view}
-        collectionId={viewCollectionId}
-        list={list}
-        prompts={prompts}
-        selectedId={selectedId}
-        setSelected={setSelected}
-        actions={actions}
-        onDelete={setDeleting}
-        onRefresh={() => {
-          void queryClient.resetQueries({ queryKey });
-        }}
-      />
-      {selectedId && !searchBlocked ? (
-        <PromptDetail
-          copy={copy}
-          detail={detail}
-          collections={collections}
-          key={selectedId}
-          editing={Boolean(editing || tagEditing) || detailUnavailable}
-          tags={tags}
-          onTags={setTagEditing}
-          onEdit={(prompt) => {
-            setEditing(prompt);
-            setNotice("");
-          }}
-          actionsBlocked={actions.blocked || detailUnavailable}
-          onDelete={setDeleting}
-          onAction={(prompt, action, value) => {
-            void actions.act(prompt, action, value);
-          }}
-        />
-      ) : null}
+        {editing ? (
+          <PromptEditor
+            savedActions={
+              <EditorSavedActions
+                copy={copy}
+                prompt={editing}
+                unavailable={searchBlocked || detailUnavailable}
+              />
+            }
+            library={library}
+            collections={collections}
+            tags={tags}
+            prompt={editing === "create" ? undefined : editing}
+            onOpen={(id) => {
+              void openPrompt(id);
+            }}
+            onCancel={cancelEditor}
+            onDirtyChange={(dirty) => markDraft("editor", dirty)}
+            onSaved={saved}
+            onAccepted={accepted}
+          />
+        ) : null}
+        {selectedId && !searchBlocked ? (
+          <PromptDetail
+            copy={copy}
+            detail={detail}
+            collections={collections}
+            key={selectedId}
+            editing={Boolean(editing || tagEditing) || detailUnavailable}
+            tags={tags}
+            onTags={setTagEditing}
+            onEdit={(prompt) => {
+              setEditing(prompt);
+              setNotice("");
+            }}
+            actionsBlocked={actions.blocked || detailUnavailable}
+            onDelete={setDeleting}
+            onAction={(prompt, action, value) => {
+              void actions.act(prompt, action, value);
+            }}
+          />
+        ) : (
+          <EmptyDetail />
+        )}
+        <footer className="mt-6">
+          <LibraryCapacity usage={usage} />
+        </footer>
+      </LibraryWorkspace>
     </div>
   );
 };

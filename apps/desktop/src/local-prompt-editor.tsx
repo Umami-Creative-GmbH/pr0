@@ -4,6 +4,7 @@ import type {
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
 import type { PromptText } from "@pr0/api-contract/prompts";
+import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { z } from "zod";
@@ -275,81 +276,90 @@ export const LocalPromptEditor = ({
       );
     }
   };
+  const editorLabel = initial ? "Edit prompt" : "New prompt";
   return (
-    <form
-      aria-label="Prompt editor"
-      className="space-y-4 rounded border p-4"
-      onSubmit={submit}
+    <WayfinderDialog
+      label={editorLabel}
+      onRequestClose={() => {
+        if (!saving) {
+          setDiscard(true);
+        }
+      }}
     >
-      {originalId ? (
-        <button type="button" onClick={() => onOpenOriginal(originalId)}>
-          Open original
-        </button>
-      ) : null}
-      {redirected ? (
-        <p>
-          You&apos;re editing the conflict copy. Your unsaved text is retained.
-        </p>
-      ) : null}
-      <h3 className="text-lg font-semibold">
-        {initial ? "Edit prompt" : "New prompt"}
-      </h3>
-      <PromptFields draft={draft} change={change} />
-      <p aria-live="polite">
-        {saving ? "Saving…" : ""}
-        {!saving && saveError ? "Not saved" : ""}
-        {!saving && !saveError ? "Unsaved changes" : ""}
-      </p>
-      {saveError ? <p role="alert">{saveError}</p> : null}
-      <div className="flex flex-wrap gap-4">
-        <button
-          className="rounded border px-4 py-2"
-          disabled={saving}
-          type="submit"
-        >
-          {saveError ? "Retry" : "Save"}
-        </button>
-        <button
-          className="rounded border px-4 py-2"
-          type="button"
-          onClick={() => {
-            void copy();
-          }}
-        >
-          Copy text
-        </button>
-        {conflict ? (
-          <button
-            type="button"
-            onClick={() => {
-              target.current = { id: crypto.randomUUID(), revision: null };
-              attempt.current = null;
-              void save();
-            }}
-          >
-            Save as new prompt
+      <form
+        aria-label="Prompt editor"
+        className="space-y-4 rounded border p-4"
+        onSubmit={submit}
+      >
+        {originalId ? (
+          <button type="button" onClick={() => onOpenOriginal(originalId)}>
+            Open original
           </button>
         ) : null}
-        <button
-          disabled={saving}
-          type="button"
-          onClick={() => setDiscard(true)}
-        >
-          Cancel
-        </button>
-      </div>
-      <p aria-live="polite">{copyMessage}</p>
-      {discard ? (
-        <section aria-label="Discard draft confirmation">
-          <p>Discard this unsaved draft? Its text will be lost.</p>
-          <button type="button" disabled={saving} onClick={onCancel}>
-            Discard draft
+        {redirected ? (
+          <p>
+            You&apos;re editing the conflict copy. Your unsaved text is
+            retained.
+          </p>
+        ) : null}
+        <h3 className="text-lg font-semibold">{editorLabel}</h3>
+        <PromptFields draft={draft} change={change} />
+        <p aria-live="polite">
+          {saving ? "Saving…" : ""}
+          {!saving && saveError ? "Not saved" : ""}
+          {!saving && !saveError ? "Unsaved changes" : ""}
+        </p>
+        {saveError ? <p role="alert">{saveError}</p> : null}
+        <div className="flex flex-wrap gap-4">
+          <button
+            className="rounded border px-4 py-2"
+            disabled={saving}
+            type="submit"
+          >
+            {saveError ? "Retry" : "Save"}
           </button>
-          <button type="button" onClick={() => setDiscard(false)}>
-            Keep editing
+          <button
+            className="rounded border px-4 py-2"
+            type="button"
+            onClick={() => {
+              void copy();
+            }}
+          >
+            Copy text
           </button>
-        </section>
-      ) : null}
-    </form>
+          {conflict ? (
+            <button
+              type="button"
+              onClick={() => {
+                target.current = { id: crypto.randomUUID(), revision: null };
+                attempt.current = null;
+                void save();
+              }}
+            >
+              Save as new prompt
+            </button>
+          ) : null}
+          <button
+            disabled={saving}
+            type="button"
+            onClick={() => setDiscard(true)}
+          >
+            Cancel
+          </button>
+        </div>
+        <p aria-live="polite">{copyMessage}</p>
+        {discard ? (
+          <section aria-label="Discard draft confirmation">
+            <p>Discard this unsaved draft? Its text will be lost.</p>
+            <button type="button" disabled={saving} onClick={onCancel}>
+              Discard draft
+            </button>
+            <button type="button" onClick={() => setDiscard(false)}>
+              Keep editing
+            </button>
+          </section>
+        ) : null}
+      </form>
+    </WayfinderDialog>
   );
 };

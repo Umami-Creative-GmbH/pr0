@@ -7,6 +7,7 @@ import { desktopStatusSchema } from "@pr0/api-contract/desktop-session";
 
 import { localNativeWorker } from "./local-native-worker";
 import type { NativeArgs } from "./local-native-worker";
+import { holdNativeResource } from "./native-resource";
 import { nativeWebview } from "./native-webview";
 
 declare global {
@@ -19,42 +20,6 @@ declare global {
     };
   }
 }
-
-const holdNativeResource = async (
-  executable: string,
-  worker: string,
-  env: Record<string, string>
-) => {
-  const owner = Bun.spawn(
-    [executable, "--exact", `auth_tests::${worker}`, "--nocapture"],
-    {
-      stdin: "pipe",
-      stdout: "pipe",
-      stderr: "inherit",
-      env: { ...process.env, ...env },
-    }
-  );
-  const reader = owner.stdout.getReader();
-  let output = "";
-  const decoder = new TextDecoder();
-  while (!output.includes("READY:")) {
-    // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Await the competing process's registration acknowledgement.
-    const chunk = await reader.read();
-    if (chunk.done) {
-      throw new Error("Shortcut owner did not start");
-    }
-    output += decoder.decode(chunk.value);
-  }
-  let released = false;
-  return async () => {
-    if (released) {
-      return;
-    }
-    released = true;
-    await owner.stdin.end();
-    await owner.exited;
-  };
-};
 
 test("production launcher uses native offline search, keyboard copy and least privilege IPC", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "pr0-launcher-"));

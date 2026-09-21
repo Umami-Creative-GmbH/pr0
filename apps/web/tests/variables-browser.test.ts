@@ -552,9 +552,12 @@ test("a retained editor draft can copy again after switching away during a write
       .getByRole("textbox", { name: "Title (required)", exact: true })
       .fill("Unsaved title");
     await page
-      .getByRole("button", { name: "Copy Retained draft", exact: true })
+      .getByRole("button", { name: "Copy saved prompt", exact: true })
       .click();
-    const dialog = page.getByRole("dialog");
+    const dialog = page.getByRole("dialog", {
+      name: "Fill prompt variables",
+      exact: true,
+    });
     await dialog
       .getByLabel("x (string)", { exact: true })
       .fill("first account");
@@ -590,7 +593,7 @@ test("a retained editor draft can copy again after switching away during a write
         .inputValue()
     ).toBe("Unsaved title");
     await page
-      .getByRole("button", { name: "Copy Retained draft", exact: true })
+      .getByRole("button", { name: "Copy saved prompt", exact: true })
       .click();
     expect(
       await dialog.getByLabel("x (string)", { exact: true }).inputValue()
@@ -629,9 +632,12 @@ test("a late usage-only retry cannot publish copy status after an account transi
       .getByRole("textbox", { name: "Title (required)", exact: true })
       .fill("Keep my draft");
     await page
-      .getByRole("button", { name: "Copy Usage transition", exact: true })
+      .getByRole("button", { name: "Copy saved prompt", exact: true })
       .click();
-    const dialog = page.getByRole("dialog");
+    const dialog = page.getByRole("dialog", {
+      name: "Fill prompt variables",
+      exact: true,
+    });
     await dialog.getByLabel("x (string)", { exact: true }).fill("copied once");
     await page.route("**/api/v1/sync/mutations", (route) => route.abort());
     await dialog.getByRole("button", { name: "Copy", exact: true }).click();
@@ -674,9 +680,8 @@ test("a late usage-only retry cannot publish copy status after an account transi
     // Returning to the retained account also refreshes its scoped list/detail.
     // Wait for an eligible saved prompt before starting another interaction.
     await page.getByLabel("Saved content").waitFor();
-    await page.waitForLoadState("networkidle");
     await page
-      .getByRole("button", { name: "Copy Usage transition", exact: true })
+      .getByRole("button", { name: "Copy saved prompt", exact: true })
       .click();
     expect(
       await dialog.getByLabel("x (string)", { exact: true }).inputValue()
