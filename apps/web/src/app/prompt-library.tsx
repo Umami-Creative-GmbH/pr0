@@ -361,7 +361,7 @@ const usePromptLibrary = ({
     collections: [],
     tags: [],
   };
-  const quick = useQuickResults(library, organization.data);
+  const quick = useQuickResults(library, organization.data, quickOpen);
   const noticeRef = useRef<HTMLParagraphElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);

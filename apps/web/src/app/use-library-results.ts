@@ -46,7 +46,10 @@ export const useLibraryResults = ({
   tagIds,
   search,
   organization,
+  active = true,
 }: {
+  /** False while the surface showing these results is closed; nothing is fetched. */
+  active?: boolean;
   library: PrivateLibrary;
   view: PromptView;
   collectionId: string | null;
@@ -65,7 +68,7 @@ export const useLibraryResults = ({
     tagIds,
     query: search.debounced,
     sort: search.sort,
-    enabled: !search.error && !search.pending,
+    enabled: active && !search.error && !search.pending,
   });
   const searchBlocked =
     search.pending ||

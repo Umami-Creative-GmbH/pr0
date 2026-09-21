@@ -7,6 +7,8 @@ import { desktopUsageStatusSchema } from "@pr0/api-contract/desktop-copy";
 import { chromium } from "playwright";
 import { z } from "zod";
 
+import { browseKeepingDraft } from "./app-menus";
+import { backToLibrary, openAccountView } from "./desktop-menus";
 import { localNativeWorker } from "./local-native-worker";
 import type { NativeArgs } from "./local-native-worker";
 
@@ -134,15 +136,24 @@ test("desktop list/detail Copy preserves failure, retries usage only and shows d
     await page
       .getByLabel("Title", { exact: true })
       .fill("Retain this draft during sign-in");
+    // The editor is modal: keep the draft mounted while copying from the list.
+    await browseKeepingDraft(page);
     await page.getByRole("button", { name: "Copy First", exact: true }).click();
     await started.promise;
     generationChanged = true;
+    // "Check connection" lives in the account view; the library stays mounted.
+    await openAccountView(page);
     await page
       .getByRole("button", { name: "Check connection", exact: true })
       .click();
+    await backToLibrary(page);
+    // The new UI generation is in effect once its first search is refused;
+    // by the time the library is back in view its rows are already gone.
     await page
-      .getByRole("button", { name: "Copy First", exact: true })
-      .waitFor({ state: "visible" });
+      .getByText(
+        "The account changed. Refresh the connection before searching again."
+      )
+      .waitFor();
     // Reauthentication starts a new UI generation while the old clipboard completion is delayed.
     await page.waitForFunction(
       () =>

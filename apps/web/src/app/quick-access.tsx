@@ -17,7 +17,8 @@ import { usePromptSearch } from "./use-prompt-search";
 
 export const useQuickResults = (
   library: PrivateLibrary,
-  organization?: { collections: Collection[]; tags: Tag[] }
+  organization: { collections: Collection[]; tags: Tag[] } | undefined,
+  open: boolean
 ) => {
   const { filters, setFilters } = useLibraryFilters();
   const search = usePromptSearch(
@@ -29,6 +30,7 @@ export const useQuickResults = (
     ...filters,
     search,
     organization,
+    active: open,
   });
   return { filters, setFilters, search, ...results, organization };
 };

@@ -11,7 +11,7 @@ Issue #75 was reopened after PR #87. That port kept the earlier form-like markup
 | Design document | Production destination | Surface-specific parts |
 | --- | --- | --- |
 | `pr0 Web-App` | `apps/web/src/app/account-screen.tsx`, `prompt-library.tsx`, `prompt-results.tsx`, `prompt-search-controls.tsx`, `quick-access.tsx`, editor and variable dialogs | 60px app bar with the in-page quick-access pill (`Ctrl K`), real live-change state, theme and account menu. No browser-chrome mock, no native window controls, no claim of a registered global shortcut. |
-| `pr0 Desktop` | `apps/desktop/src/app.tsx`, `downloaded-library.tsx`, `search-library.tsx`, `local-prompt-detail.tsx`, editor and variable dialogs | 52px app bar with real sync/offline/attention state, the launcher entry showing the shortcut Windows actually registered (or that none is), Settings and Quit, theme and account menu. The OS title bar stays; decorative traffic lights are not reproduced. |
+| `pr0 Desktop` | `apps/desktop/src/app.tsx`, `downloaded-library.tsx`, `search-library.tsx`, `local-prompt-detail.tsx`, editor and variable dialogs | 52px app bar with real sync/offline/attention state, the launcher entry showing the shortcut Windows actually registered (or that none is), theme and the account menu, which holds account/connection, Settings and Quit. The OS title bar stays; decorative traffic lights are not reproduced. |
 | Launcher panel in both documents | Native: `apps/desktop/src/launcher.tsx` (dedicated 660×580 window). Browser: `apps/web/src/app/quick-access.tsx` (in-page dialog) | Same compact composition (search row, accent dot, title, collection, `↵`, key-hint footer). The native window adds real shortcut and library state, focus recovery, paging and variable entry in place; the browser overlay adds `Ctrl ↵` Open and stays an in-page dialog. |
 | `pr0 Anmelden` | Web sign-in in `account-screen.tsx`; desktop sign-in and browser approval in `apps/desktop/src/app.tsx` | Brand panel beside the form. Only supported methods appear: email/password and configured social providers on the web, server choice plus browser approval of a matching code on desktop. The design's passkey button and sign-up name field are not offered. |
 
@@ -26,10 +26,18 @@ Issue #75 was reopened after PR #87. That port kept the earlier form-like markup
 
 - The design shows a content preview in each row. List responses carry no content, so rows preview the description; collection, tags and modified time come from the existing summary fields. No API change was made for presentation.
 - Row copy and overflow actions appear on hover or keyboard focus (always on touch); the favorite star stays visible when set. All lifecycle actions remain reachable.
-- Variable tokens use a lighter pink on dark surfaces than the design's `#E60096`, which does not reach AA contrast on the navy background.
-- Copy feedback persists until the next action instead of disappearing after 2.2 seconds, because it can carry failure text and retry controls.
+- Copy feedback: plain success leaves the screen after about 2.2 seconds as in the design (the timer pauses on hover or focus, and the text stays available to assistive technology). Feedback carrying failure text, pending usage or retry controls persists until acted on.
 - Sort, favorites-only, tag filters, management dialogs and paging have no counterpart in the design documents; they use the same chip, pill and eyebrow vocabulary. Picker search fields appear only when a list exceeds eight entries.
+- The launcher has no theme control of its own, as in the design; it follows the theme chosen in the main window.
 - Light theme is the design's light token set; theme choice persists in `localStorage` and is shared by the desktop main and launcher windows.
+
+### Owner decisions (issue #89, September 21, 2026)
+
+- **Accepted accessibility exception:** variable tokens on dark surfaces use the design's `#E60096` exactly. On the navy background this does not reach WCAG AA text contrast; the owner accepted the shortfall to match the design. The token text is also distinguishable by its braces and background tint.
+- The editor stays a full modal: library, status popover and account menu are inert while it is open; **Browse library (keep draft)** and **Resume prompt draft** are the way through. Journeys were adapted to that instead of changing the product.
+- Desktop Settings and Quit live in the account menu only. The detail favorite button is named "Favorite prompt" on both surfaces with state in `aria-pressed`.
+- Accepted as built: description row preview (a content excerpt follows in #92), row actions on hover/focus, controls without a design counterpart, English sign-in copy.
+- Follow-ups: #90 shared editor/variables markup in `packages/ui`, #91 English/German i18n, #93 Claude Design reference exports, #94 prototype removal.
 
 ### Revision 2 checks (September 21, 2026, Windows 11, Edge/WebView2)
 
@@ -38,10 +46,23 @@ Run with `PR0_BROWSER_CHANNEL=msedge` and `PR0_TEST_BROWSER=msedge`; this machin
 - `bun run check`, `bun run typecheck` (6 workspaces) and `bun run test` pass. New unit coverage: `templateSpans` against every canonical variable fixture, and the presentation helpers in `packages/ui/src/lib/present.test.ts`.
 - Web production build (through the journey runner) and the desktop Vite build pass; the desktop bundle emits Outfit, Manrope and JetBrains Mono locally.
 - `bun run --cwd apps/web test:design` — web design journey: **1 passed** (REST save/reload, both themes, quick access results/no matches/clipboard failure/variables, keyboard list-to-copy).
-- Native WebView2 journeys against a rebuilt, manifested test binary: design-desktop **1 passed** (twice consecutively), desktop-variables **2 passed**, desktop-resident **5 passed**, desktop-launcher **4 passed**; in a later sequential run its four-collision case failed once waiting for Windows to release `Ctrl+Shift+P` and passed when run alone.
-- Desktop frontend with the real native worker: organization-native-ui **2 passed**, desktop-search-ui **1 passed**.
+- Native WebView2 journeys against a rebuilt, manifested test binary (final run): design-desktop **1 passed**, desktop-resident **5 passed**, desktop-launcher **4 passed**, desktop-variables **2 passed**. Two launcher cases are timing-sensitive on this machine and each failed once in earlier sequential runs, then passed alone and in the final run: release of a contended `Ctrl+Shift+P`, and recents order on the first reopen after a copy.
+- Desktop frontend with the real native worker (final run): local-save-ui **8 passed** (one case failed once and passed on re-run), snapshot-ui **1**, compatibility-ui **1**, conflict-review-desktop **1**, organization-native-ui **2**, desktop-search-ui **1**. usage-ui **0 of 1**: it now reaches its last assertion and fails there on a product defect that predates this work, filed as #95 (the library is keyed by sign-in generation since #53, so a generation change drops the open draft). `returning-deletion-native.ts` was adapted but not run (it needs its own Docker stack).
 
-Inherited journey failures, measured rather than assumed: the same twelve browser journey files were run against `origin/main` at `cf75c01` (PR #87) in a separate worktree. `origin/main`: **24 passed, 23 failed** of 47. This branch: **27 passed, 21 failed** of 48 (including the design journey). Four journeys that fail on `origin/main` pass here (tag and collection pickers at capacity, draft limits, clipboard rejection on account change). Two account-change journeys failed in the 12-file run and pass when their files run alone; they are load-sensitive. The remaining failures are shared with `origin/main` and have one cause: PR #87 made the editor a modal dialog, as the design specifies, without adapting journeys written for an inline editor. They click library rows, management dialogs or the account area behind an open editor, which is now inert until **Browse library (keep draft)** is used. `local-save-ui` and `usage-ui` fail for the same reason plus controls that live in the status popover or account view. Adapting those journeys is tracked separately; no product behavior was changed to make them pass.
+#### Browser journeys: baseline, then adapted (issue #89, Q1)
+
+The same twelve journey files were first measured against `origin/main` at `cf75c01` (PR #87) in a separate worktree: **24 passed, 23 failed** of 47. Nearly all failures had one cause: PR #87 made the editor a modal dialog, as the design specifies, without adapting journeys written for an inline editor.
+
+The owner decided the modal stays and the journeys adapt. Final run on this branch, in three groups of four files against one served production build each: **48 passed, 0 failed** (13 + 14 + 21), including the design journey.
+
+How the journeys changed, without weakening what they assert about persistence, drafts, conflicts, clipboard payloads or retries:
+
+- With a draft open they reach the library through **Browse library (keep draft)** and return with **Resume prompt draft**, re-checking the draft text after resuming. Shared helpers live in `apps/web/tests/app-menus.ts` and `desktop-menus.ts`.
+- Controls are reached where they now live: account menu, status popover, "More …" action menus, the "Filter within this view" disclosure.
+- Account-switch journeys wait for non-poll requests to finish before switching. Without that, a late response re-sends the previous session cookie and undoes the switch; that is a product risk on `main` too, filed as #96. `networkidle` waits were replaced by a tracker that ignores the live-change long poll.
+- Four stale assumptions unrelated to this design were corrected: a clipboard stub for `writeText` while the app writes through `write` (since #38); an "empty library" heading that requires a zero prompt count while archived prompts still count (since #37); a busy-retry check on "the first disabled button"; and a tags assertion that no "Merge into" button appears after a colliding rename, which since #35 appears on purpose after a lookup. That last one now waits for the confirmation and still asserts the name is retained and nothing merged. It is the one place where the meaning of an assertion changed and deserves owner review.
+
+Two product fixes came out of this work, both in this branch: a menu beneath a modal dialog no longer swallows Escape (focus now returns to the delete trigger), and quick access fetches its results only while open. The second halves list requests per refresh; before it, the two-session conflict journey exceeded the 120-calls-per-minute account limit.
 
 Not performed: installer, tray, OS title bar, screen reader and multi-monitor checks; `device`, `changes`, `operations`, `account-deletion` and `backup-restore` runners.
 

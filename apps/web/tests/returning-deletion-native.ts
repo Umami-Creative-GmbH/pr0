@@ -11,6 +11,8 @@ import type { Page } from "playwright";
 import { z } from "zod";
 
 import { runAcceptance } from "./account-test-server";
+import { browseKeepingDraft } from "./app-menus";
+import { openAccountView } from "./desktop-menus";
 import type { worker } from "./device-native";
 import { password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
@@ -155,6 +157,9 @@ export const verifyReturningDeletion = async ({
   });
   assert.equal(deleted.status(), 200, await deleted.text());
   // The UI drives the real Rust HTTPS receipt lookup, signature verification and cleanup.
+  // The editor is modal and "Check connection" lives in the account view.
+  await browseKeepingDraft(desktop);
+  await openAccountView(desktop);
   await desktop.getByRole("button", { name: "Check connection" }).click();
   await desktop.getByRole("heading", { name: "Sign in to pr0" }).waitFor();
   assert.equal(await desktop.getByLabel("Content", { exact: true }).count(), 0);

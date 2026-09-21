@@ -6,6 +6,14 @@ import path from "node:path";
 import { localPromptSchema } from "@pr0/api-contract/local-prompts";
 import { chromium } from "playwright";
 
+import { browseKeepingDraft, resumeDraft } from "./app-menus";
+import {
+  backToLibrary,
+  choosePromptAction,
+  closeSyncStatus,
+  openAccountView,
+  openSyncStatus,
+} from "./desktop-menus";
 import { connect } from "./local-native-ui";
 import { localNativeWorker } from "./local-native-worker";
 
@@ -37,9 +45,7 @@ test("navigation away from an opened duplicate survives a busy search retry", as
     );
     await page.getByRole("button", { name: "First", exact: true }).click();
     const detail = page.getByRole("article", { name: "Prompt detail" });
-    await detail
-      .getByRole("button", { name: "Duplicate", exact: true })
-      .click();
+    await choosePromptAction(detail, "Duplicate");
     await detail
       .getByRole("heading", { name: "First (copy)", exact: true })
       .waitFor();
@@ -85,6 +91,9 @@ test("recovery retains the selected prompt and open draft through pause and epoc
       .fill("My unsaved draft survives replacement");
     await native.command("test_recovery");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    // The editor is modal: keep the draft mounted while using the library.
+    await browseKeepingDraft(page);
+    await openSyncStatus(page);
     await page
       .getByText(
         "Download paused. Resume when you are ready; local work is retained."
@@ -102,6 +111,7 @@ test("recovery retains the selected prompt and open draft through pause and epoc
     expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
       "My unsaved draft survives replacement"
     );
+    await closeSyncStatus(page);
     await page
       .getByText("Review pre-recovery library (2 retained prompts)", {
         exact: true,
@@ -188,6 +198,7 @@ test("desktop editor retains a disk-full draft then commits and reopens pending 
       .getByText("Changes waiting to sync", { exact: false })
       .first()
       .waitFor();
+    await openAccountView(page);
     expect(
       await page
         .getByRole("button", { name: "Sign out or change server" })
@@ -234,13 +245,19 @@ test("settings cancel, failed synchronization and explicit offline discard prese
     await page
       .getByLabel("Content", { exact: true })
       .fill("Keep my exact pending text\n");
+    // Sign-out lives in the account view; reach it while keeping the draft.
+    await browseKeepingDraft(page);
+    await openAccountView(page);
     expect(
       await page
         .getByRole("button", { name: "Sign out or change server" })
         .isDisabled()
     ).toBe(true);
+    await backToLibrary(page);
+    await resumeDraft(page);
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await page.getByText("Saved on this device", { exact: true }).waitFor();
+    await openAccountView(page);
     await page
       .getByRole("button", { name: "Sign out or change server" })
       .click();
@@ -273,6 +290,7 @@ test("settings cancel, failed synchronization and explicit offline discard prese
     expect(await reopened.getByLabel("Prompt content").inputValue()).toBe(
       "Keep my exact pending text\n"
     );
+    await openAccountView(reopened);
     await reopened
       .getByRole("button", { name: "Sign out or change server" })
       .click();
@@ -365,7 +383,9 @@ test("two desktop windows keep competing drafts and an older save acknowledgemen
     await first.getByLabel("Prompt editor").waitFor({ state: "detached" });
     await second.evaluate(() => window.dispatchEvent(new Event("focus")));
     await second.waitForFunction(() => {
-      const field = document.querySelector("#downloaded-content");
+      const field = document.querySelector(
+        'textarea[aria-label="Prompt content"]'
+      );
       return (
         field instanceof HTMLTextAreaElement &&
         field.value === "First window saved"
@@ -443,7 +463,8 @@ test("an open draft follows its conflict copy without replacing text and offers 
     await page
       .getByRole("button", { name: "Edit prompt", exact: true })
       .click();
-    const editor = page.getByRole("form", { name: "Prompt editor" });
+    // Located by attribute: the form stays mounted but hidden while browsing.
+    const editor = page.locator('form[aria-label="Prompt editor"]');
     await editor.getByLabel("Content", { exact: true }).fill("B1 saved text");
     await editor.getByRole("button", { name: "Save", exact: true }).click();
     await page
@@ -475,6 +496,8 @@ test("an open draft follows its conflict copy without replacing text and offers 
     expect(
       await editor.getByLabel("Content", { exact: true }).inputValue()
     ).toBe("B2 unsaved complete text");
+    // "Open original" browses the library; return to the kept draft to save.
+    await resumeDraft(page);
     await editor.getByRole("button", { name: "Save", exact: true }).click();
     await editor.waitFor({ state: "hidden" });
     const copy = localPromptSchema.parse(
@@ -563,8 +586,17 @@ test("desktop lifecycle resolves an uncertain commit before another action, pres
       .fill("  Original snapshot\n");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     const detail = page.getByRole("article", { name: "Prompt detail" });
+    const favorite = detail.getByRole("button", {
+      name: "Favorite prompt",
+      exact: true,
+    });
+    // The row name is the title; its archived state is visible row text.
+    const archivedRow = page
+      .getByRole("list", { name: "Search results" })
+      .getByRole("button", { name: "Lifecycle example", exact: true })
+      .filter({ hasText: "(Archived)" });
     fault = "after_commit_error";
-    await detail.getByRole("button", { name: "Favorite", exact: true }).click();
+    await favorite.click();
     await page
       .getByText(
         "The result could not be confirmed. Retry to check this same action safely.",
@@ -579,35 +611,34 @@ test("desktop lifecycle resolves an uncertain commit before another action, pres
       .getByRole("button", { name: "Retry action", exact: true })
       .click();
     await detail
-      .getByRole("button", { name: "Favorite", exact: true, pressed: true })
+      .getByRole("button", {
+        name: "Favorite prompt",
+        exact: true,
+        pressed: true,
+      })
       .waitFor();
-    await detail.getByRole("button", { name: "Archive", exact: true }).click();
+    await choosePromptAction(detail, "Archive");
     await page
       .getByRole("navigation", { name: "Library views" })
       .getByRole("button", { name: "Archive", exact: true })
       .click();
-    await page
-      .getByRole("button", {
-        name: "Lifecycle example (Archived)",
-        exact: true,
-      })
-      .click();
-    await detail
-      .getByRole("button", { name: "Duplicate", exact: true })
-      .click();
+    await archivedRow.click();
+    await choosePromptAction(detail, "Duplicate");
     await detail
       .getByRole("heading", { name: "Lifecycle example (copy)", exact: true })
       .waitFor();
-    await detail.getByRole("button", { name: "Favorite", exact: true }).click();
+    await favorite.click();
     await detail
-      .getByRole("button", { name: "Favorite", exact: true, pressed: true })
+      .getByRole("button", {
+        name: "Favorite prompt",
+        exact: true,
+        pressed: true,
+      })
       .waitFor();
     expect(await page.getByLabel("Prompt content").inputValue()).toBe(
       "  Original snapshot\n"
     );
-    await detail
-      .getByRole("button", { name: "Delete permanently", exact: true })
-      .click();
+    await choosePromptAction(detail, "Delete permanently");
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Cancel", exact: true })
@@ -615,9 +646,7 @@ test("desktop lifecycle resolves an uncertain commit before another action, pres
     expect(await page.getByLabel("Prompt content").inputValue()).toBe(
       "  Original snapshot\n"
     );
-    await detail
-      .getByRole("button", { name: "Delete permanently", exact: true })
-      .click();
+    await choosePromptAction(detail, "Delete permanently");
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Permanently delete", exact: true })
@@ -632,13 +661,8 @@ test("desktop lifecycle resolves an uncertain commit before another action, pres
     ).toEqual([
       expect.objectContaining({ title: "Lifecycle example", archived: true }),
     ]);
-    await page
-      .getByRole("button", {
-        name: "Lifecycle example (Archived)",
-        exact: true,
-      })
-      .click();
-    await detail.getByRole("button", { name: "Restore", exact: true }).click();
+    await archivedRow.click();
+    await choosePromptAction(detail, "Restore");
     await page
       .getByRole("navigation", { name: "Library views" })
       .getByRole("button", { name: "Favorites", exact: true })
@@ -646,7 +670,8 @@ test("desktop lifecycle resolves an uncertain commit before another action, pres
     await page
       .getByRole("button", { name: "Lifecycle example", exact: true })
       .waitFor();
-    await page.getByText("Review pending changes", { exact: false }).click();
+    const status = await openSyncStatus(page);
+    await status.getByText("Review pending changes", { exact: false }).click();
     await page.screenshot({
       path: "docs/evidence/issue-44-offline-lifecycle.png",
       fullPage: true,

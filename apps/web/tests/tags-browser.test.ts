@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { chromium } from "playwright";
 
+import { browseKeepingDraft, openActionsMenu, resumeDraft } from "./app-menus";
 import { origin } from "./http-fixture";
 import {
   promptBrowser,
@@ -213,6 +214,8 @@ test("saving a retained editor after selecting another prompt blocks duplication
     await page
       .getByLabel("Content (required)")
       .fill("Saved from retained editor");
+    // The editor is modal; keep the draft mounted while selecting another row.
+    await browseKeepingDraft(page);
     await page
       .getByRole("button", { name: "Second prompt", exact: true })
       .click();
@@ -229,9 +232,11 @@ test("saving a retained editor after selecting another prompt blocks duplication
     const refreshing = page.waitForRequest((request) =>
       request.url().endsWith(`/api/v1/library/prompts/${first.promptId}`)
     );
+    await resumeDraft(page);
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await refreshing;
     await page.getByText("Saved to server.", { exact: true }).waitFor();
+    await openActionsMenu(page, "More prompt actions");
     const duplicate = page.getByRole("button", {
       name: "Duplicate prompt",
       exact: true,
@@ -298,9 +303,15 @@ test("a lost tag-save response retains the draft and retries the same operation 
     expect(
       await dialog.getByLabel("Tag name", { exact: true }).inputValue()
     ).toBe("writing");
+    // Since #35 a colliding rename offers an explicit merge confirmation after
+    // looking up the equivalent tag; nothing merges until it is confirmed.
+    await dialog
+      .getByRole("region", { name: "Confirm organization change" })
+      .getByRole("button", { name: "Merge into Writing", exact: true })
+      .waitFor();
     expect(
-      await dialog.getByRole("button", { name: /Merge into/u }).count()
-    ).toBe(0);
+      await dialog.getByLabel("Tag name", { exact: true }).inputValue()
+    ).toBe("writing");
     expect(await client.getOrganization()).toEqual(accepted);
   } finally {
     await browser.close();

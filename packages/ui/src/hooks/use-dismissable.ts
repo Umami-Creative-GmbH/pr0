@@ -32,6 +32,10 @@ export const useDismissable = (
       }
     };
     const onKey = (event: KeyboardEvent) => {
+      // A modal dialog opened from this menu owns Escape and focus return.
+      if (document.querySelector("dialog[open]")) {
+        return;
+      }
       if (event.key === "Escape" && ref.current?.open) {
         event.preventDefault();
         close(true);

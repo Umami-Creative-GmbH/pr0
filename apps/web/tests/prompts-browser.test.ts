@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { chromium } from "playwright";
 
+import { browseKeepingDraft, resumeDraft, trackNetwork } from "./app-menus";
 import { origin } from "./http-fixture";
 import { promptBrowser, promptOperation } from "./prompt-fixture";
 
@@ -100,8 +101,9 @@ test("browser retains a lost-response draft, reports real clipboard results, ret
       content
     );
     // The browser API is the clipboard system boundary; fail its write before testing a real permitted write.
+    // Since #38 the app writes through `clipboard.write`, not `writeText`.
     await page.evaluate(() => {
-      Object.defineProperty(navigator.clipboard, "writeText", {
+      Object.defineProperty(navigator.clipboard, "write", {
         configurable: true,
         value: () => Promise.reject(new Error("Clipboard unavailable")),
       });
@@ -112,7 +114,7 @@ test("browser retains a lost-response draft, reports real clipboard results, ret
       content
     );
     await page.evaluate(() => {
-      Reflect.deleteProperty(navigator.clipboard, "writeText");
+      Reflect.deleteProperty(navigator.clipboard, "write");
     });
     await page.getByRole("button", { name: "Copy text", exact: true }).click();
     await page.getByText("Copied text.", { exact: true }).waitFor();
@@ -167,12 +169,16 @@ test("an account change in another tab preserves this draft and never saves it i
   try {
     await context.addCookies(cookies(original.Cookie));
     const page = await context.newPage();
+    const network = trackNetwork(page);
     await page.goto(origin);
     await page
       .getByRole("button", { name: "Create prompt", exact: true })
       .click();
     await page.getByLabel("Title (required)").fill("Original account draft");
     await page.getByLabel("Content (required)").fill("Keep my text");
+    // Each API response re-sets the session cookie it was sent with, so a late
+    // response from the first account would undo the switch made in the other tab.
+    await network.idle();
     await context.clearCookies();
     await context.addCookies(cookies(other.Cookie));
     const refreshed = page.waitForResponse(`${origin}/api/v1/library`);
@@ -195,6 +201,7 @@ test("an account change in another tab preserves this draft and never saves it i
     expect(await otherLibrary.json()).toMatchObject({
       usage: { promptCount: 0 },
     });
+    await network.idle();
     await context.clearCookies();
     await context.addCookies(cookies(original.Cookie));
     const restored = page.waitForResponse(`${origin}/api/v1/library`);
@@ -254,6 +261,8 @@ test("browser reaches later pages and keeps an unsaved draft when a changed libr
       .getByRole("button", { name: "Create prompt", exact: true })
       .click();
     await page.getByLabel("Title (required)").fill("Keep this draft");
+    // The editor is modal; keep the draft mounted while paging the library.
+    await browseKeepingDraft(page);
     await account.mutate([promptOperation()]);
     await page
       .getByRole("button", { name: "Load more prompts", exact: true })
@@ -280,6 +289,10 @@ test("browser reaches later pages and keeps an unsaved draft when a changed libr
     expect(await page.getByLabel("Saved content").inputValue()).toBe(
       "Content 0"
     );
+    expect(await page.getByLabel("Title (required)").inputValue()).toBe(
+      "Keep this draft"
+    );
+    await resumeDraft(page);
     expect(await page.getByLabel("Title (required)").inputValue()).toBe(
       "Keep this draft"
     );
