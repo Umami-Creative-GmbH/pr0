@@ -47,7 +47,7 @@ test("failed web save keeps the draft and prevents an all-clear status", async (
   }
 });
 
-test("conflict review labels archived originals and keeps both without losing keyboard focus", async () => {
+test("conflict review retries a failed acknowledgement and keeps both without losing keyboard focus", async () => {
   const account = await promptBrowser();
   const client = promptClient(account.Cookie);
   const create = promptOperation();
@@ -92,6 +92,23 @@ test("conflict review labels archived originals and keeps both without losing ke
     await page.goto(origin);
     await page.getByText("Conflicts to review", { exact: true }).click();
     await page.getByText("Original archived.", { exact: true }).waitFor();
+    const attempts: string[] = [];
+    await page.route("**/api/v1/sync/mutations", async (route) => {
+      attempts.push(route.request().postData() ?? "");
+      await (attempts.length === 1 ? route.abort("failed") : route.continue());
+    });
+    await page.getByRole("button", { name: "Keep both", exact: true }).click();
+    await page
+      .getByText(
+        "Could not confirm review. Your prompts were kept. Retry the review when connected.",
+        { exact: true }
+      )
+      .waitFor();
+    expect(
+      await page
+        .getByRole("button", { name: "Keep both", exact: true })
+        .isEnabled()
+    ).toBe(true);
     await page.getByRole("button", { name: "Keep both", exact: true }).focus();
     await page.keyboard.press("Enter");
     await page
@@ -102,6 +119,8 @@ test("conflict review labels archived originals and keeps both without losing ke
     );
     const reviewed = await client.getConflicts();
     expect(reviewed.notices).toEqual([]);
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).toBe(attempts[0]);
   } finally {
     await browser.close();
   }

@@ -5,16 +5,16 @@ mod auth_storage;
 mod auth_tests;
 mod auth_transport;
 mod change_contract;
-mod conflict_contract;
 mod clipboard;
+mod conflict_contract;
 mod deletion_proof;
+mod launcher_runtime;
 mod library_contract;
 mod library_migrations;
 mod library_storage;
 mod lifecycle_contract;
 mod local_contract;
 mod local_search;
-mod launcher_runtime;
 mod migration_backup;
 mod organization_contract;
 mod search_contract;
@@ -262,13 +262,11 @@ pub fn run() {
                 });
                 let worker = service.as_ref().expect("initialized service").clone();
                 let handle = app.handle().clone();
-                std::thread::spawn(move || {
-                    loop {
-                        let _ = worker.library_refresh_conflicts();
-                        let _ = worker.library_refresh_adjustments();
-                        let _ = handle.emit("library-changed", ());
-                        std::thread::sleep(std::time::Duration::from_secs(30));
-                    }
+                std::thread::spawn(move || loop {
+                    let _ = worker.library_refresh_conflicts();
+                    let _ = worker.library_refresh_adjustments();
+                    let _ = handle.emit("library-changed", ());
+                    std::thread::sleep(std::time::Duration::from_secs(30));
                 });
                 let worker = service.as_ref().expect("initialized service").clone();
                 let handle = app.handle().clone();
@@ -384,20 +382,48 @@ async fn library_organization(
     dispatch(window, state, AuthService::library_organization).await
 }
 #[tauri::command]
-async fn library_conflicts(window: tauri::WebviewWindow, state: tauri::State<'_, ManagedAuth>, offset: u32) -> Result<serde_json::Value,String> {
-    dispatch(window,state,move |service| service.library_conflicts(offset)).await
+async fn library_conflicts(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    offset: u32,
+) -> Result<serde_json::Value, String> {
+    dispatch(window, state, move |service| {
+        service.library_conflicts(offset)
+    })
+    .await
 }
 #[tauri::command]
-async fn library_review_conflict(window: tauri::WebviewWindow, state: tauri::State<'_, ManagedAuth>, request: conflict_contract::ReviewConflict) -> Result<(),String> {
-    dispatch(window,state,move |service| service.library_review_conflict(request)).await
+async fn library_review_conflict(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: conflict_contract::ReviewConflict,
+) -> Result<(), String> {
+    dispatch(window, state, move |service| {
+        service.library_review_conflict(request)
+    })
+    .await
 }
 #[tauri::command]
-async fn library_adjustments(window: tauri::WebviewWindow, state: tauri::State<'_, ManagedAuth>, offset: u32) -> Result<serde_json::Value,String> {
-    dispatch(window,state,move |service| service.library_adjustments(offset)).await
+async fn library_adjustments(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    offset: u32,
+) -> Result<serde_json::Value, String> {
+    dispatch(window, state, move |service| {
+        service.library_adjustments(offset)
+    })
+    .await
 }
 #[tauri::command]
-async fn library_review_adjustment(window: tauri::WebviewWindow, state: tauri::State<'_, ManagedAuth>, request: conflict_contract::ReviewConflict) -> Result<(),String> {
-    dispatch(window,state,move |service| service.library_review_adjustment(request)).await
+async fn library_review_adjustment(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: conflict_contract::ReviewConflict,
+) -> Result<(), String> {
+    dispatch(window, state, move |service| {
+        service.library_review_adjustment(request)
+    })
+    .await
 }
 #[tauri::command]
 async fn library_organize(

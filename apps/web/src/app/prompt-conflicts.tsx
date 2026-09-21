@@ -52,36 +52,31 @@ export const PromptConflicts = ({
     "conflict-reviews",
     false
   );
-  const review = async (notice: ConflictNotice) => {
-    if (busy) {
-      return;
-    }
-    setBusy(true);
-    const envelope = pending.current.get(notice.id) ?? {
-      protocolVersion: 1 as const,
-      instanceId: library.instance.id,
-      accountId: library.account.id,
-      epoch: library.epoch,
-      installationId: crypto.randomUUID(),
-      operations: [
-        {
-          kind: "conflict.review" as const,
-          operationId: crypto.randomUUID(),
-          promptId: notice.copyId,
-          noticeId: notice.id,
-          baseRevision: notice.revision,
-          dependsOn: [],
-        },
-      ],
-    };
-    pending.current.set(notice.id, envelope);
+  const submitReview = async (notice: ConflictNotice) => {
     try {
+      const envelope = pending.current.get(notice.id) ?? {
+        protocolVersion: 1 as const,
+        instanceId: library.instance.id,
+        accountId: library.account.id,
+        epoch: library.epoch,
+        installationId: crypto.randomUUID(),
+        operations: [
+          {
+            kind: "conflict.review" as const,
+            operationId: crypto.randomUUID(),
+            promptId: notice.copyId,
+            noticeId: notice.id,
+            baseRevision: notice.revision,
+            dependsOn: [],
+          },
+        ],
+      };
+      pending.current.set(notice.id, envelope);
       const result = await client.mutatePrompts(envelope);
       if (result.results[0]?.status !== "accepted") {
         setMessage(
           "Could not confirm review. Your prompts were kept. Retry the review when connected."
         );
-        setBusy(false);
         return;
       }
       summary.current?.focus();
@@ -95,7 +90,13 @@ export const PromptConflicts = ({
         "Could not confirm review. Your prompts were kept. Retry the review when connected."
       );
     }
-    setBusy(false);
+  };
+  const review = async (notice: ConflictNotice) => {
+    if (busy) {
+      return;
+    }
+    setBusy(true);
+    await submitReview(notice).finally(() => setBusy(false));
   };
   if (conflicts.isError) {
     return (

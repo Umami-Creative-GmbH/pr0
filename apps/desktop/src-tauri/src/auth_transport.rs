@@ -204,7 +204,13 @@ impl Transport for HttpsTransport {
             self.client.get(url)
         } else if matches!(endpoint, Endpoint::DeletionVerification) {
             self.client.get(url).query(&body.unwrap_or_default())
-        } else if matches!(endpoint, Endpoint::Changes | Endpoint::OrganizationStates | Endpoint::Conflicts | Endpoint::Adjustments) {
+        } else if matches!(
+            endpoint,
+            Endpoint::Changes
+                | Endpoint::OrganizationStates
+                | Endpoint::Conflicts
+                | Endpoint::Adjustments
+        ) {
             self.client
                 .get(url)
                 .query(&body.unwrap_or_default())
@@ -257,7 +263,9 @@ impl Transport for HttpsTransport {
             Endpoint::Mutations
             | Endpoint::Receipts
             | Endpoint::Changes
-            | Endpoint::OrganizationStates | Endpoint::Conflicts | Endpoint::Adjustments => 4_194_304,
+            | Endpoint::OrganizationStates
+            | Endpoint::Conflicts
+            | Endpoint::Adjustments => 4_194_304,
             _ => 16384,
         };
         if result
