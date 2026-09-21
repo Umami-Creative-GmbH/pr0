@@ -25,3 +25,11 @@ Integrated `fe93446` (PR #80, service operations and abuse controls). Resolved t
 The accelerated organization journey hit the new anonymous discovery budget, returning `retry_after:30` before the expected rename rejection. Only this scenario's disposable server now uses an anonymous burst/minute budget of 1,000; production defaults and the operations scenario remain unchanged. An explicit transport-status assertion now distinguishes this failure from an organization rejection.
 
 Validation: all six typecheck tasks, all eight Bun test tasks, 90 native tests, Ultracite formatting/linting and diff checks passed. The organization runner passed nine REST tests (20,053 assertions) and its two-native-device HTTPS journey. The operations native runner passed with default limits, including explicit account suspension and preservation of downloaded prompts. Both runners built the production web server and removed their disposable containers afterward.
+
+## Component review and returning-account deletion integration
+
+The React Doctor review prompted extraction of the organization's tabs, snapshot status, pending corrections and saved-change list into focused presentation components. The existing state hook, native calls, accessible labels and confirmation behavior are preserved. Both native-backed organization UI journeys passed after the refactor, along with desktop typechecking and linting. The standalone React Doctor CLI could not run under the local Bun runtime (`child.channel?.unref is not a function`); its GitHub workflow remains the independent check for the original warning.
+
+Integrated `9b3740a` (PR #79, returning-desktop deletion proof). Retained both the organization and deletion test modules and HTTP endpoints, their distinct response-size limits, periodic account checks and the organization reconciliation guard before uploads.
+
+Validation after integration: all six typecheck tasks, all eight Bun test tasks, 97 native tests, formatting/linting and diff checks passed. The returning-deletion production/HTTPS/UI runner passed with two signing-key rotations, verified proof, local cleanup, draft invalidation and zero pending uploads after deletion. Its disposable services were cleaned up.

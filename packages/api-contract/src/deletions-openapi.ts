@@ -3,10 +3,12 @@ import { z } from "zod";
 
 import { deleteAccountSchema } from "./accounts";
 import {
+  DELETION_VERIFICATION_MAX_PAGE,
   deletionLookupSchema,
   deletionResultSchema,
   deletionTrustSchema,
   deletionVerificationSchema,
+  deletionVerificationPageSchema,
 } from "./deletions";
 
 const response = (name: string, description: string) => ({
@@ -94,9 +96,32 @@ export const deletionPaths = {
       tags: ["Accounts"],
       security: [],
       description:
-        "Retained anchor and signed pr0-deletion-key-rotation+jws statements. Verify every predecessor from the previously pinned anchor; never replace that anchor from this response.",
+        "Retained anchor and signed pr0-deletion-key-rotation+jws statements. Verify every predecessor from the previously pinned anchor; never replace that anchor from this response. Optional zero-based page returns at most 64 rotations and nextPage (null at the end). Pages preserve append order with no total chain lifetime limit. Omit page for the legacy complete-chain response.",
+      parameters: [
+        {
+          name: "page",
+          in: "query",
+          schema: {
+            type: "integer",
+            minimum: 0,
+            maximum: DELETION_VERIFICATION_MAX_PAGE,
+          },
+        },
+      ],
       responses: {
-        "200": response("DeletionVerification", "Public verification material"),
+        "200": {
+          description: "Complete or paged public verification material",
+          content: {
+            "application/json": {
+              schema: {
+                oneOf: [
+                  { $ref: "#/components/schemas/DeletionVerification" },
+                  { $ref: "#/components/schemas/DeletionVerificationPage" },
+                ],
+              },
+            },
+          },
+        },
         ...errors,
       },
     },
@@ -109,5 +134,6 @@ export const deletionSchemas = Object.fromEntries(
     DeletionResult: deletionResultSchema,
     DeletionLookup: deletionLookupSchema,
     DeletionVerification: deletionVerificationSchema,
+    DeletionVerificationPage: deletionVerificationPageSchema,
   }).map(([name, schema]) => [name, z.toJSONSchema(schema)])
 );

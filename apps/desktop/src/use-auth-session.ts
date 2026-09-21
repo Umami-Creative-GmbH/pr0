@@ -7,6 +7,7 @@ import type {
   SignOutRequest,
 } from "@pr0/api-contract/desktop-session";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
@@ -31,6 +32,8 @@ const command = async (name: Command, input?: string | SignOutRequest) => {
   return desktopStatusSchema.parse(await invoke(name, args));
 };
 const errors = {
+  invalid_deletion_evidence:
+    "Deletion evidence could not be verified. Local work is preserved; check the connection and retry.",
   sync_incomplete:
     "Synchronization did not complete. Local work is preserved. Retry, cancel, or explicitly discard.",
   network_unavailable:
@@ -140,8 +143,16 @@ export const useAuthSession = () => {
       }
     };
     void load();
+    const unlisten = listen("auth-changed", () => {
+      void load();
+    });
+    const stopListening = async () => {
+      const stop = await unlisten;
+      stop();
+    };
     return () => {
       active = false;
+      void stopListening();
     };
   }, [apply]);
   useEffect(() => {

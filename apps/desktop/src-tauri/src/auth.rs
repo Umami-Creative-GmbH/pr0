@@ -67,6 +67,7 @@ include!("organization_commands.rs");
 include!("upload_commands.rs");
 include!("change_commands.rs");
 include!("usage_commands.rs");
+include!("deletion_commands.rs");
 impl State {
     fn view(&self) -> AuthView {
         let identity = self.retained.as_ref().map(|r| &r.identity);
@@ -123,6 +124,12 @@ impl AuthService {
             }
             record.trust.validate(&record.trust.origin)?;
             record.identity.validate(&record.trust)?;
+            if let Some(proof) = &record.deletion_proof {
+                if !record.cleanup_pending {
+                    return Err("retained_identity_invalid".into());
+                }
+                super::deletion_proof::verify(proof, record)?;
+            }
         }
         let credential = credentials
             .read()
@@ -160,8 +167,8 @@ impl AuthService {
                 memory_usage: vec![],
                 library: None,
                 generation: 1,
+                restore_pending: retained.is_some(),
                 retained,
-                restore_pending: credential.is_some(),
                 credential,
                 attempt: None,
                 message,
@@ -213,6 +220,9 @@ impl AuthService {
             state.message.clear();
             state.generation
         };
+        if self.check_deletion()? {
+            return self.status();
+        }
         let trust: Capabilities =
             decode(
                 self.transport
@@ -319,6 +329,7 @@ impl AuthService {
                 // Metadata is durable before the credential. A crash between these writes
                 // requests authentication on restart and never discards retained files.
                 let retained = Retained {
+                    deletion_proof: None,
                     version: 1,
                     identity,
                     trust,
@@ -411,6 +422,12 @@ impl AuthService {
         self.status()
     }
     pub fn refresh(&self) -> Result<AuthView, String> {
+        if self.check_deletion()? {
+            return self.status();
+        }
+        self.refresh_session()
+    }
+    fn refresh_session(&self) -> Result<AuthView, String> {
         let (generation, envelope, trust) = {
             let state = self.state.lock().map_err(|_| "state_unavailable")?;
             (
@@ -450,6 +467,7 @@ impl AuthService {
                     return Err("same_account_required".into());
                 }
                 let retained = Retained {
+                    deletion_proof: None,
                     version: 1,
                     identity,
                     trust,
@@ -604,6 +622,14 @@ impl AuthService {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
             if state.generation != expected_generation {
                 return Err("operation_cancelled".into());
+            }
+            if state
+                .retained
+                .as_ref()
+                .is_some_and(|r| r.deletion_proof.is_some())
+            {
+                self.finish_deleted_cleanup(&mut state)?;
+                return Ok(state.view());
             }
             self.review_library_cleanup(&mut state, discard)?;
             state.generation += 1;

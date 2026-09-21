@@ -17,7 +17,7 @@ impl AuthService {
             }
             (
                 state.generation,
-                state.credential.clone().ok_or("authentication_required")?,
+                state.credential.clone(),
                 state
                     .retained
                     .as_ref()
@@ -26,7 +26,17 @@ impl AuthService {
                     .clone(),
             )
         };
+        if envelope.is_none() {
+            if self.check_deletion()? {
+                return Err("operation_cancelled".into());
+            }
+            return Err("authentication_required".into());
+        }
         let result: Result<(), String> = (|| {
+            if self.check_deletion()? {
+                return Err("operation_cancelled".into());
+            }
+            let envelope = envelope.ok_or("authentication_required")?;
             let capabilities: Capabilities = decode(self.snapshot_request(
                 generation,
                 &envelope,
@@ -39,7 +49,7 @@ impl AuthService {
             {
                 return Err("incompatible_instance".into());
             }
-            self.refresh()?;
+            self.refresh_session()?;
             let prepared = {
                 let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
                 if generation != state.generation {
