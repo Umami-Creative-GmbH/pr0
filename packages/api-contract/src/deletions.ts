@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const DELETION_VERIFICATION_PAGE_SIZE = 64;
+export const DELETION_VERIFICATION_MAX_PAGE = Math.floor(
+  Number.MAX_SAFE_INTEGER / DELETION_VERIFICATION_PAGE_SIZE
+);
+
 export const deletionHandleSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
 export const deletionKeySchema = z.strictObject({
   kty: z.literal("OKP"),
@@ -31,6 +36,17 @@ export const deletionVerificationSchema = z.strictObject({
   anchor: deletionKeySchema,
   rotations: z.array(compactJwsSchema),
 });
+export const deletionVerificationPageSchema = deletionVerificationSchema.extend(
+  {
+    rotations: z.array(compactJwsSchema).max(DELETION_VERIFICATION_PAGE_SIZE),
+    nextPage: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(DELETION_VERIFICATION_MAX_PAGE)
+      .nullable(),
+  }
+);
 export const deletionResultSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("deleted"), receipt: compactJwsSchema }),
   z.strictObject({

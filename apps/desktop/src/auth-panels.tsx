@@ -96,9 +96,9 @@ export const SignOutControl = ({
   };
   if (status.state === "cleanup_required") {
     return (
-      <section className="space-y-3" aria-label="Sign-out cleanup">
+      <section className="space-y-3" aria-label="Account cleanup">
         <p>
-          Sign-out cleanup is incomplete. Retry before signing into another
+          Account cleanup is incomplete. Retry before signing into another
           account or server.
         </p>
         <button
@@ -109,7 +109,7 @@ export const SignOutControl = ({
             void choose("retry_cleanup");
           }}
         >
-          Retry sign-out cleanup
+          Retry account cleanup
         </button>
       </section>
     );

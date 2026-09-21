@@ -111,6 +111,8 @@ pub struct Success {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Retained {
+    #[serde(default)]
+    pub deletion_proof: Option<super::deletion_proof::Proof>,
     pub version: u32,
     pub identity: Identity,
     pub trust: Capabilities,

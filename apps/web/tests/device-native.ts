@@ -28,7 +28,7 @@ const resultSchema = z.object({
     message: z.string(),
   }),
 });
-const worker = (
+export const worker = (
   executable: string,
   directory: string,
   certificate: string,
@@ -175,12 +175,27 @@ const verifyNativePeerChanges = async ({
   }
 };
 
+interface NativeSession {
+  native: ReturnType<typeof worker>;
+  page: Page;
+  origin: string;
+  directory: string;
+  traffic: { path: string; body: string }[];
+}
+const runSessionScenario = async (
+  scenario: ((context: NativeSession) => Promise<void>) | undefined,
+  context: NativeSession
+) => {
+  await scenario?.(context);
+};
+
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
   download = false,
   upload = false,
   usage = false,
-  live = false
+  live = false,
+  afterSession?: (context: NativeSession) => Promise<void>
 ) => {
   const account = await verifiedBrowser();
   if (download) {
@@ -294,7 +309,8 @@ export const verifyNativeHttps = async (
       native.url(),
       `${selectedOrigin}/device?user_code=${begin.userCode}`
     );
-    const page = await browser.newPage({ ignoreHTTPSErrors: true });
+    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await context.newPage();
     await page.goto(native.url());
     await page.getByLabel("Email", { exact: true }).fill(account.email);
     await page.getByLabel("Password", { exact: true }).fill(password);
@@ -456,6 +472,13 @@ export const verifyNativeHttps = async (
     }
     const refreshed = await native.command("refresh");
     assert.equal(refreshed.state, "signed_in");
+    await runSessionScenario(afterSession, {
+      native,
+      page,
+      origin: selectedOrigin,
+      directory: path.join(directory, "state"),
+      traffic,
+    });
     const signedOut = await native.command("sign_out");
     assert.equal(signedOut.state, "signed_out");
     process.stdout.write(

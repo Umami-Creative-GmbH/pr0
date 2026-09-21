@@ -15,6 +15,8 @@ pub enum Endpoint {
     Mutations,
     Receipts,
     Changes,
+    DeletionLookup,
+    DeletionVerification,
 }
 impl Endpoint {
     fn path(self) -> &'static str {
@@ -30,6 +32,8 @@ impl Endpoint {
             Self::Mutations => "/api/v1/sync/mutations",
             Self::Receipts => "/api/v1/sync/receipts",
             Self::Changes => "/api/v1/sync/changes",
+            Self::DeletionLookup => "/api/v1/account-deletions/",
+            Self::DeletionVerification => "/api/v1/account-deletions/verification",
         }
     }
 }
@@ -168,8 +172,21 @@ impl Transport for HttpsTransport {
         token: Option<&str>,
         body: Option<Value>,
     ) -> Result<Value, String> {
-        let url = format!("{}{}", origin, endpoint.path());
-        let mut request = if matches!(endpoint, Endpoint::Changes) {
+        let mut url = format!("{}{}", origin, endpoint.path());
+        let mut request = if matches!(endpoint, Endpoint::DeletionLookup) {
+            let handle = body
+                .as_ref()
+                .and_then(|b| b.get("handle"))
+                .and_then(Value::as_str)
+                .ok_or("invalid_request")?;
+            if !super::auth_contract::base64_key(handle) || token.is_some() {
+                return Err("invalid_request".into());
+            }
+            url.push_str(handle);
+            self.client.get(url)
+        } else if matches!(endpoint, Endpoint::DeletionVerification) {
+            self.client.get(url).query(&body.unwrap_or_default())
+        } else if matches!(endpoint, Endpoint::Changes) {
             self.client
                 .get(url)
                 .query(&body.unwrap_or_default())
@@ -210,6 +227,7 @@ impl Transport for HttpsTransport {
         let limit = match endpoint {
             Endpoint::Snapshot => 262144,
             Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
+            Endpoint::DeletionVerification => super::deletion_proof::VERIFICATION_PAGE_BYTES,
             Endpoint::Mutations | Endpoint::Receipts | Endpoint::Changes => 4_194_304,
             _ => 16384,
         };

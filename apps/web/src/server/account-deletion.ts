@@ -1,9 +1,12 @@
 import "server-only";
 import { deleteAccountSchema } from "@pr0/api-contract/accounts";
 import {
+  DELETION_VERIFICATION_PAGE_SIZE,
+  DELETION_VERIFICATION_MAX_PAGE,
   deletionHandleSchema,
   deletionTrustSchema,
   deletionVerificationSchema,
+  deletionVerificationPageSchema,
 } from "@pr0/api-contract/deletions";
 
 import { failure, readBody } from "./account-http";
@@ -105,18 +108,50 @@ export const handleAccountDeletion = async (request: Request) => {
   }
 };
 
-export const handleDeletionVerification = async () => {
+export const handleDeletionVerification = async (request: Request) => {
   try {
+    const query = new URL(request.url).searchParams;
+    const rawPage = query.get("page");
+    const page = rawPage === null ? null : Number(rawPage);
+    if (
+      [...query.keys()].some((key) => key !== "page") ||
+      query.getAll("page").length > 1 ||
+      (page !== null &&
+        (!rawPage ||
+          !Number.isSafeInteger(page) ||
+          page < 0 ||
+          page > DELETION_VERIFICATION_MAX_PAGE))
+    ) {
+      throw new AccountFailureError("invalid_input", 400);
+    }
     const instanceId = await deletionInstance();
     const keys = await signingKeys(instanceId);
-    return Response.json(
-      deletionVerificationSchema.parse({
-        instanceId,
-        anchor: keys.anchor,
-        rotations: keys.rotations,
-      }),
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    const material = {
+      instanceId,
+      anchor: keys.anchor,
+      rotations: keys.rotations,
+    };
+    if (page !== null) {
+      const start = page * DELETION_VERIFICATION_PAGE_SIZE;
+      if (start > keys.rotations.length) {
+        throw new AccountFailureError("invalid_input", 400);
+      }
+      const end = Math.min(
+        start + DELETION_VERIFICATION_PAGE_SIZE,
+        keys.rotations.length
+      );
+      return Response.json(
+        deletionVerificationPageSchema.parse({
+          ...material,
+          rotations: keys.rotations.slice(start, end),
+          nextPage: end < keys.rotations.length ? page + 1 : null,
+        }),
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
+    return Response.json(deletionVerificationSchema.parse(material), {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (error) {
     return failure(
       error instanceof Error ? error : new Error("Verification unavailable")
