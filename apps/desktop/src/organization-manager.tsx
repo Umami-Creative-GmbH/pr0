@@ -8,6 +8,7 @@ import { organizeRequestSchema } from "@pr0/api-contract/local-organization";
 import { organizationIdentity } from "@pr0/api-contract/organization";
 import { CollectionList } from "@pr0/ui/components/collection-list";
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { z } from "zod";
 
 import {
@@ -581,6 +582,69 @@ const SavedOrganizationChanges = ({
   );
 };
 
+const OrganizationNameForm = ({
+  input,
+  entity,
+  name,
+  renaming,
+  busy,
+  confirming,
+  uncertain,
+  invalid,
+  saveLabel,
+  onSubmit,
+  onChange,
+  onCancel,
+}: {
+  input: RefObject<HTMLInputElement | null>;
+  entity: string;
+  name: string;
+  renaming: boolean;
+  busy: boolean;
+  confirming: boolean;
+  uncertain: boolean;
+  invalid: boolean;
+  saveLabel: string;
+  onSubmit: () => void;
+  onChange: (name: string) => void;
+  onCancel: () => void;
+}) => (
+  <form
+    className="space-y-2"
+    onSubmit={(event) => {
+      event.preventDefault();
+      onSubmit();
+    }}
+  >
+    <label htmlFor="native-organization-name">
+      {entity === "tag" ? "Tag" : "Collection"} name
+    </label>
+    <input
+      ref={input}
+      id="native-organization-name"
+      value={name}
+      readOnly={busy || confirming || uncertain}
+      aria-invalid={invalid}
+      aria-describedby="native-organization-error"
+      className="bg-background block w-full rounded border p-2"
+      onChange={(event) => onChange(event.target.value)}
+    />
+    <button className={button} type="submit" disabled={busy || confirming}>
+      {saveLabel}
+    </button>
+    {renaming ? (
+      <button
+        className={button}
+        type="button"
+        disabled={busy || uncertain}
+        onClick={onCancel}
+      >
+        Cancel rename
+      </button>
+    ) : null}
+  </form>
+);
+
 export const OrganizationManager = (props: ManagerProps) => {
   const { snapshot, onClose } = props;
   const {
@@ -648,44 +712,22 @@ export const OrganizationManager = (props: ManagerProps) => {
           limit={limit}
           tab={tab}
         />
-        <form
-          className="space-y-2"
-          onSubmit={(event) => {
-            event.preventDefault();
+        <OrganizationNameForm
+          input={input}
+          entity={entity}
+          name={name}
+          renaming={Boolean(id)}
+          busy={busy}
+          confirming={Boolean(confirmation)}
+          uncertain={uncertain}
+          invalid={Boolean(errorText)}
+          saveLabel={saveLabel}
+          onSubmit={() => {
             void submitName();
           }}
-        >
-          <label htmlFor="native-organization-name">
-            {entity === "tag" ? "Tag" : "Collection"} name
-          </label>
-          <input
-            ref={input}
-            id="native-organization-name"
-            value={name}
-            readOnly={busy || Boolean(confirmation) || uncertain}
-            aria-invalid={Boolean(errorText)}
-            aria-describedby="native-organization-error"
-            className="bg-background block w-full rounded border p-2"
-            onChange={(event) => setName(event.target.value)}
-          />
-          <button
-            className={button}
-            type="submit"
-            disabled={busy || Boolean(confirmation)}
-          >
-            {saveLabel}
-          </button>
-          {id ? (
-            <button
-              className={button}
-              type="button"
-              disabled={busy || uncertain}
-              onClick={clear}
-            >
-              Cancel rename
-            </button>
-          ) : null}
-        </form>
+          onChange={setName}
+          onCancel={clear}
+        />
         <p role="alert" id="native-organization-error">
           {errorText}
         </p>
