@@ -570,3 +570,55 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
+
+.wf[data-surface="launcher"] .wf-dialog {
+  inset: 52px 0 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  height: calc(100dvh - 52px);
+  max-height: none;
+  border-radius: 0;
+}
+
+@utility wf-picker-search {
+  font-size: 11px;
+}
+.wf-sidebar .wf-picker-search > summary {
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.wf-sidebar .wf-picker-search > label {
+  display: block;
+  margin-top: 8px;
+}
+.wf-sidebar .wf-picker {
+  padding: 0;
+}
+.wf-sidebar .wf-picker legend {
+  margin: 0;
+}
+.wf-sidebar .wf-picker > div:empty {
+  display: none;
+}
+.wf-sidebar .wf-picker button {
+  margin: 0;
+}
+.wf-sidebar section[aria-label="Collections"] {
+  padding-top: 12px;
+}
+.wf-sidebar section[aria-label="Collections"] > div > button {
+  padding: 4px 10px;
+}
+
+.wf-dialog textarea[rows="1"] {
+  min-height: 44px;
+  height: 44px;
+}
+.wf-dialog textarea[rows="3"] {
+  min-height: 88px;
+  height: 88px;
+}
+.wf-detail > article > h3 {
+  font-size: 24px;
+}

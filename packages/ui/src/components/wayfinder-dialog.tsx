@@ -8,27 +8,32 @@ export const WayfinderDialog = ({
   label,
   onRequestClose,
   opener,
+  suspended = false,
 }: {
   children: ReactNode;
   label: string;
   onRequestClose: () => void;
   opener?: Element | null;
+  suspended?: boolean;
 }) => {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const returnTo = opener ?? document.activeElement;
     const dialog = ref.current;
-    dialog?.showModal();
+    if (!suspended) {
+      dialog?.showModal();
+    }
     return () => {
       dialog?.close();
       if (returnTo instanceof HTMLElement && returnTo.isConnected) {
         returnTo.focus();
       }
     };
-  }, [opener]);
+  }, [opener, suspended]);
   return (
     <dialog
       ref={ref}
+      hidden={suspended}
       className="wf-dialog"
       aria-label={label}
       onCancel={(event) => {

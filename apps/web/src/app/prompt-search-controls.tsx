@@ -16,6 +16,7 @@ export const PromptSearchControls = ({
       </label>
       <input
         id="prompt-search"
+        data-library-search
         type="search"
         value={search.query}
         className="bg-background w-full rounded-md border px-3 py-2"

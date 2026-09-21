@@ -2,40 +2,59 @@
 
 import { useEffect, useRef } from "react";
 
+const copySelected = (event: KeyboardEvent, selected?: HTMLButtonElement) => {
+  const copy = selected?.parentElement?.querySelector<HTMLButtonElement>(
+    '[data-prompt-action="copy"]'
+  );
+  if (copy && !copy.disabled) {
+    event.preventDefault();
+    copy.click();
+  }
+};
+
+const blocked = (event: KeyboardEvent) =>
+  event.altKey ||
+  event.defaultPrevented ||
+  Boolean(document.querySelector("dialog[open]"));
+
 const navigate = (event: KeyboardEvent) => {
-  const { target } = event;
+  const { target, currentTarget } = event;
   if (
-    !(target instanceof HTMLButtonElement) ||
-    !Object.hasOwn(target.dataset, "promptRow") ||
-    event.altKey ||
-    event.ctrlKey ||
-    event.metaKey
+    !(target instanceof HTMLElement) ||
+    !(currentTarget instanceof HTMLElement) ||
+    blocked(event)
   ) {
     return;
   }
-  if (event.key === "Enter") {
-    const copy = target.parentElement?.querySelector<HTMLButtonElement>(
-      '[data-prompt-action="copy"]'
-    );
-    if (copy && !copy.disabled) {
-      event.preventDefault();
-      copy.click();
-    }
-    return;
-  }
-  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
-    return;
-  }
-  if (!(event.currentTarget instanceof HTMLElement)) {
+  const fromSearch = target.matches("input[data-library-search]");
+  const fromRow = target.matches("button[data-prompt-row]");
+  if (!fromSearch && !fromRow) {
     return;
   }
   const rows = [
-    ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
-      "[data-prompt-row]"
-    ),
+    ...currentTarget.querySelectorAll<HTMLButtonElement>("[data-prompt-row]"),
   ];
-  const index = rows.indexOf(target);
-  const next = rows[index + (event.key === "ArrowDown" ? 1 : -1)];
+  const selected = fromRow
+    ? rows.find((row) => row === target)
+    : rows.find((row) => row.getAttribute("aria-pressed") === "true");
+  if (event.key === "Enter" && (fromRow || event.ctrlKey || event.metaKey)) {
+    copySelected(event, selected);
+    return;
+  }
+  if (
+    event.ctrlKey ||
+    event.metaKey ||
+    (event.key !== "ArrowDown" && event.key !== "ArrowUp")
+  ) {
+    return;
+  }
+  const index = selected ? rows.indexOf(selected) : -1;
+  const next =
+    rows[
+      fromSearch
+        ? Math.max(index, 0)
+        : index + (event.key === "ArrowDown" ? 1 : -1)
+    ];
   if (next && !next.disabled) {
     event.preventDefault();
     next.focus();
@@ -65,7 +84,7 @@ export const useLibraryKeyboard = () => {
         return;
       }
       const search = sidebar.current?.querySelector<HTMLInputElement>(
-        'input[type="search"]'
+        "input[data-library-search]"
       );
       if (search) {
         event.preventDefault();

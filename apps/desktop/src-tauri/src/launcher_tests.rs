@@ -1,4 +1,20 @@
 #[test]
+fn launcher_defers_blur_and_navigation_during_write_without_refocusing_on_failure() {
+    let launcher = crate::launcher_runtime::Launcher::default();
+    let opening = launcher.open().unwrap();
+    launcher.observe_focus(true).unwrap();
+    launcher.begin_write(opening).unwrap();
+    assert!(!launcher.observe_focus(false).unwrap());
+    assert!(!launcher.hide(opening).unwrap());
+    assert_eq!(launcher.open().unwrap(), opening);
+    launcher.end_write(opening).unwrap();
+    let status = launcher.status().unwrap();
+    assert!(status.visible);
+    assert!(!status.focused);
+    assert!(launcher.hide(opening).unwrap());
+}
+
+#[test]
 fn launcher_search_is_active_only_and_copy_rechecks_eligibility_offline() {
     let (directory, service, transport) = downloaded_change_fixture();
     let id = "66666666-6666-4666-8666-666666666666";

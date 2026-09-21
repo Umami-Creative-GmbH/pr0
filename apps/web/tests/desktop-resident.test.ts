@@ -4,9 +4,21 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { residentStatusSchema } from "@pr0/api-contract/desktop-resident";
+import type { Page } from "playwright";
 
 import { localNativeWorker } from "./local-native-worker";
 import { nativeWebview } from "./native-webview";
+
+const openResidentAction = async (page: Page, name: string) => {
+  const browse = page.getByRole("button", {
+    name: "Browse library (keep draft)",
+    exact: true,
+  });
+  if (await browse.isVisible()) {
+    await browse.click();
+  }
+  await page.getByRole("button", { name, exact: true }).click();
+};
 
 test("resident quit cancels without losing a draft and saves offline before restart", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "pr0-resident-"));
@@ -20,7 +32,7 @@ test("resident quit cancels without losing a draft and saves offline before rest
     await page
       .getByLabel("Content", { exact: true })
       .fill("Preserved offline content");
-    await page.getByRole("button", { name: "Quit pr0", exact: true }).click();
+    await openResidentAction(page, "Quit pr0");
     await page
       .getByRole("dialog", { name: "Quit pr0", exact: true })
       .getByRole("button", { name: "Cancel", exact: true })
@@ -28,7 +40,7 @@ test("resident quit cancels without losing a draft and saves offline before rest
     expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
       "Preserved offline content"
     );
-    await page.getByRole("button", { name: "Quit pr0", exact: true }).click();
+    await openResidentAction(page, "Quit pr0");
     await page
       .getByRole("button", { name: "Save and quit", exact: true })
       .click();
@@ -149,7 +161,7 @@ test("library close explains residency and repeated manual activation restores t
     expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
       "Memory only until saved"
     );
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openResidentAction(page, "Settings");
     await page
       .getByRole("dialog", { name: "Settings", exact: true })
       .getByText("pr0 is still running in the notification area.", {
@@ -159,7 +171,7 @@ test("library close explains residency and repeated manual activation restores t
     await page
       .getByRole("button", { name: "Close Settings", exact: true })
       .click();
-    await page.getByRole("button", { name: "Quit pr0", exact: true }).click();
+    await openResidentAction(page, "Quit pr0");
     await page.screenshot({ path: "docs/evidence/issue-54-resident-quit.png" });
     await page
       .getByRole("button", { name: "Discard and quit", exact: true })
@@ -185,9 +197,12 @@ test("failed Save and quit retains the complete draft and permits recovery", asy
     await page.getByLabel("Title", { exact: true }).fill("Failed quit");
     const content = "x".repeat(262_144);
     await page.getByLabel("Content", { exact: true }).fill(content);
-    await page.getByRole("button", { name: "Quit pr0", exact: true }).click();
+    await openResidentAction(page, "Quit pr0");
     await page
       .getByRole("button", { name: "Save and quit", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Resume prompt draft", exact: true })
       .click();
     await page.getByText("Not saved", { exact: true }).waitFor();
     expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
@@ -201,7 +216,7 @@ test("failed Save and quit retains the complete draft and permits recovery", asy
     await page
       .getByRole("button", { name: "Failed quit", exact: true })
       .waitFor();
-    await page.getByRole("button", { name: "Quit pr0", exact: true }).click();
+    await openResidentAction(page, "Quit pr0");
     expect(await view.exited).toBe(0);
   } finally {
     await view.stop();

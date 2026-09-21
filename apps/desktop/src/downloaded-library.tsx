@@ -19,6 +19,7 @@ import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
 import { organizationClient } from "./organization-client";
 import { PromptOrganization } from "./organization-controls";
+import { PromptVariables } from "./prompt-variables";
 import { RecoveryLibrary } from "./recovery-library";
 import { SearchLibrary } from "./search-library";
 import type { Status } from "./use-auth-session";
@@ -315,6 +316,7 @@ export const DownloadedLibrary = (props: LibraryProps) => {
   } = useDownloadedLibrary(props);
   return (
     <section aria-label="Downloaded library">
+      <PromptVariables copy={copy} />
       <h2 className="sr-only">Downloaded library</h2>
       <div className="wf-status">
         <DownloadedStatus

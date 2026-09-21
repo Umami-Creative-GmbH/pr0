@@ -7,24 +7,25 @@ mod auth_transport;
 mod change_contract;
 mod clipboard;
 mod deletion_proof;
+mod launcher_runtime;
 mod library_contract;
 mod library_migrations;
 mod library_storage;
 mod lifecycle_contract;
 mod local_contract;
 mod local_search;
-mod launcher_runtime;
+mod migration_backup;
+mod organization_contract;
 mod resident;
 #[cfg(windows)]
 mod resident_instance;
 #[cfg(test)]
 mod resident_tests;
-mod migration_backup;
-mod organization_contract;
 mod search_contract;
 mod search_query;
 mod upload_contract;
 mod usage_contract;
+mod variables;
 
 use auth::{AuthService, AuthView};
 use auth_storage::WindowsCredentials;
@@ -153,7 +154,13 @@ async fn auth_sign_out(
     state: tauri::State<'_, ManagedAuth>,
     request: auth_contract::SignOutRequest,
 ) -> Result<AuthView, String> {
-    dispatch(window, state, move |service| service.transition(request)).await
+    authorize(&window)?;
+    request.validate()?;
+    let app = window.app_handle().clone();
+    let _ = app.emit("copy-cancelled", ());
+    let result = dispatch(window, state, move |service| service.transition(request)).await;
+    let _ = app.emit("auth-changed", ());
+    result
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -161,9 +168,14 @@ pub fn run() {
     let context = tauri::generate_context!();
     #[cfg(windows)]
     let instance = {
-        let directory = dirs::data_local_dir().expect("Windows local application data")
+        let directory = dirs::data_local_dir()
+            .expect("Windows local application data")
             .join(&context.config().identifier);
-        let Some(instance) = resident_instance::Instance::acquire(&directory).expect("pr0 could not acquire its resident writer") else { return; };
+        let Some(instance) = resident_instance::Instance::acquire(&directory)
+            .expect("pr0 could not acquire its resident writer")
+        else {
+            return;
+        };
         Arc::new(instance)
     };
     tauri::Builder::default()
@@ -172,6 +184,7 @@ pub fn run() {
             resident_action,
             resident_hide,
             resident_finish_quit,
+            copy_template,
             launcher_status,
             launcher_open,
             launcher_hide,
@@ -321,6 +334,26 @@ pub fn run() {
         })
         .run(context)
         .expect("pr0 could not start");
+}
+
+#[tauri::command]
+async fn copy_template(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    request: usage_contract::CopyRequest,
+    opening: Option<u64>,
+) -> Result<library_contract::Prompt, String> {
+    authorize_labels(&window, &["main", "launcher"])?;
+    let active_only = window.label() == "launcher";
+    if active_only {
+        window
+            .state::<launcher_runtime::Launcher>()
+            .require_opening(opening.ok_or("operation_cancelled")?)?;
+    }
+    let service = state.inner().clone()?;
+    tauri::async_runtime::spawn_blocking(move || service.copy_template(&request, active_only))
+        .await
+        .map_err(|_| "native_unavailable")?
 }
 
 #[tauri::command]

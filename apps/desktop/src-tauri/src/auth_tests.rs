@@ -6,6 +6,7 @@ include!("upload_tests.rs");
 include!("change_tests.rs");
 include!("recovery_tests.rs");
 include!("usage_tests.rs");
+include!("variable_tests.rs");
 include!("transition_tests.rs");
 include!("lifecycle_tests.rs");
 include!("compatibility_tests.rs");
@@ -1079,5 +1080,28 @@ fn commands_reject_untrusted_instance_urls_without_network_access() {
         json!("signed_out")
     );
     drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn sign_out_preserves_resident_ownership_and_notice() {
+    let directory =
+        std::env::temp_dir().join(format!("pr0-resident-signout-{}", uuid::Uuid::new_v4()));
+    let owner = crate::resident_instance::Instance::acquire(&directory)
+        .unwrap()
+        .unwrap();
+    std::fs::write(directory.join("residency-explained"), b"").unwrap();
+    let service =
+        AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+    sign_in(&service);
+    service.sign_out().unwrap();
+    assert_eq!(view(&service)["state"], "signed_out");
+    assert!(directory.join("residency-explained").is_file());
+    assert!(crate::resident_instance::Instance::acquire(&directory)
+        .unwrap()
+        .is_none());
+    drop(service);
+    drop(owner);
     std::fs::remove_dir_all(directory).unwrap();
 }

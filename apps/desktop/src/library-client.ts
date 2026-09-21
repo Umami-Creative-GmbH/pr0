@@ -43,6 +43,20 @@ const summariesSchema = z
 export type DownloadStatus = z.infer<typeof statusSchema>;
 export type DownloadedSummary = z.infer<typeof summariesSchema>[number];
 export const libraryClient = {
+  copyTemplate: async (request: DesktopCopy, opening?: number) => {
+    const input = desktopCopySchema.parse(request);
+    const prompt = promptSchema.parse(
+      await invoke("copy_template", { request: input, opening })
+    );
+    if (
+      prompt.id !== input.promptId ||
+      prompt.accountId !== input.accountId ||
+      prompt.instanceId !== input.instanceId
+    ) {
+      throw new Error("invalid_native_response");
+    }
+    return prompt;
+  },
   retained: async (id: string) =>
     promptSchema.parse(await invoke("library_retained_prompt", { id })),
   lifecycle: async (request: LocalLifecycle) => {

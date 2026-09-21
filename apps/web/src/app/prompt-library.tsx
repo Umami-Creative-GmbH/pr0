@@ -11,7 +11,10 @@ import type {
   MutationReceipt,
   PromptView,
 } from "@pr0/api-contract/prompts";
-import { PromptMoreActions } from "@pr0/ui/components/prompt-actions";
+import {
+  PromptMoreActions,
+  PromptIconAction,
+} from "@pr0/ui/components/prompt-actions";
 import { PromptContent } from "@pr0/ui/components/prompt-content";
 import { PromptDeleteDialog } from "@pr0/ui/components/prompt-delete-dialog";
 import {
@@ -103,18 +106,6 @@ const PromptDetail = ({
           </p>
         ) : null}
 
-        <button
-          className={`${buttonClass} mt-3`}
-          disabled={editing}
-          onClick={() => {
-            if (detail.data) {
-              onEdit(detail.data);
-            }
-          }}
-          type="button"
-        >
-          Edit prompt
-        </button>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             className="wf-primary"
@@ -130,17 +121,30 @@ const PromptDetail = ({
           </button>
           <button
             className={buttonClass}
+            disabled={editing}
+            onClick={() => {
+              if (detail.data) {
+                onEdit(detail.data);
+              }
+            }}
             type="button"
-            aria-pressed={detail.data.favorite}
+          >
+            Edit prompt
+          </button>
+
+          <PromptIconAction
+            kind="favorite"
+            label={
+              detail.data.favorite ? "Unfavorite prompt" : "Favorite prompt"
+            }
+            active={detail.data.favorite}
             disabled={actionsBlocked}
             onClick={() => {
               if (detail.data) {
                 onAction(detail.data, "favorite", !detail.data.favorite);
               }
             }}
-          >
-            {detail.data.favorite ? "Unfavorite prompt" : "Favorite prompt"}
-          </button>
+          />
           <PromptMoreActions label="More prompt actions">
             <button
               className={buttonClass}
@@ -428,7 +432,7 @@ const usePromptLibrary = ({
     libraryRevision: copyLibraryRevision(
       quickOpen ? quick.list.data : list.data
     ),
-    onClipboardWritten: onQuickClose,
+    onClipboardWritten: quickOpen ? onQuickClose : undefined,
     eligible,
     onAccepted: accepted,
   });
@@ -554,7 +558,15 @@ export const PromptLibrary = (
         <LiveLibraryStatus status={live} />
       </div>
       {quickOpen && onQuickClose ? (
-        <QuickAccess quick={quick} copy={copy} onClose={onQuickClose} />
+        <QuickAccess
+          quick={quick}
+          copy={copy}
+          onClose={onQuickClose}
+          onOpen={(id) => {
+            onQuickClose();
+            void openPrompt(id);
+          }}
+        />
       ) : (
         <PromptVariables copy={copy} />
       )}

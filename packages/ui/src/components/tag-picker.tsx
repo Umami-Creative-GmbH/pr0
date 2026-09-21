@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 
 import type { CollectionOption } from "./collection-picker";
+import { PickerSearch } from "./picker-search";
 
 export const TagPicker = ({
   tags,
@@ -11,6 +12,7 @@ export const TagPicker = ({
   search,
   label,
   disabled = false,
+  compact = false,
   unavailableNames,
 }: {
   tags: CollectionOption[];
@@ -19,6 +21,7 @@ export const TagPicker = ({
   search: (name: string, query: string) => boolean;
   label: string;
   disabled?: boolean;
+  compact?: boolean;
   unavailableNames?: ReadonlyMap<string, string>;
 }) => {
   const id = useId();
@@ -33,8 +36,10 @@ export const TagPicker = ({
       disabled={disabled}
       className="wf-picker min-w-0 space-y-2 rounded-md border p-3"
     >
-      <legend className="px-1 font-medium">{label}</legend>
-      <p className="text-muted-foreground text-sm">
+      <legend className={compact ? "sr-only" : "px-1 font-medium"}>
+        {label}
+      </legend>
+      <p hidden={compact} className="text-muted-foreground text-sm">
         Counts are library-wide, including the archive, for the available
         snapshot.
       </p>
@@ -51,15 +56,17 @@ export const TagPicker = ({
           </button>
         ))}
       </div>
-      <label className="block" htmlFor={id}>
-        Search {label.toLowerCase()}
-      </label>
-      <input
-        id={id}
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
-      />
+      <PickerSearch compact={compact} label={label}>
+        <label className="block" htmlFor={id}>
+          Search {label.toLowerCase()}
+        </label>
+        <input
+          id={id}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
+        />
+      </PickerSearch>{" "}
       <div className="max-h-48 space-y-2 overflow-y-auto p-1">
         {visible.map((tag) => (
           <label

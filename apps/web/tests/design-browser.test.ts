@@ -68,6 +68,17 @@ test("designed web library persists edits and theme; quick access retains failed
       .getByLabel("Content (required)", { exact: true })
       .fill("Saved through production REST");
     await captureDesign(page, "web", "editor");
+    await editor
+      .getByRole("button", { name: "Browse library (keep draft)", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Resume prompt draft", exact: true })
+      .click();
+    expect(
+      await editor
+        .getByLabel("Content (required)", { exact: true })
+        .inputValue()
+    ).toBe("Saved through production REST");
     await editor.getByRole("button", { name: "Save", exact: true }).click();
     await editor.waitFor({ state: "detached" });
     await page.reload();
@@ -95,6 +106,20 @@ test("designed web library persists edits and theme; quick access retains failed
         .count()
     ).toBeGreaterThan(7);
     await captureDesign(page, "web-overlay", "results");
+    await search.fill("Design persistence");
+    await quick
+      .getByRole("button", { name: "Design persistence Copy ↵", exact: true })
+      .waitFor();
+    await search.press("Control+Enter");
+    await quick.waitFor({ state: "detached" });
+    expect(await page.getByLabel("Saved content").inputValue()).toBe(
+      "Saved through production REST"
+    );
+    const beforeCopy = await promptClient(account.Cookie).getPrompt(
+      template.promptId
+    );
+    expect(beforeCopy.useCount).toBe(0);
+    await page.keyboard.press("Control+k");
     await search.fill("no-such-prompt-75");
     await quick.getByText("No matching prompts", { exact: true }).waitFor();
     await captureDesign(page, "web-overlay", "empty");
@@ -145,6 +170,19 @@ test("designed web library persists edits and theme; quick access retains failed
         (element) => element === document.activeElement
       )
     ).toBe(true);
+    await librarySearch.fill("Design persistence");
+    const keyboardRow = results.getByRole("button", {
+      name: "Design persistence",
+      exact: true,
+    });
+    await keyboardRow.waitFor();
+    await librarySearch.press("ArrowDown");
+    expect(
+      await keyboardRow.evaluate((el) => el === document.activeElement)
+    ).toBe(true);
+    await librarySearch.focus();
+    await librarySearch.press("Control+Enter");
+    await waitForCopy(page);
     await librarySearch.fill("no-such-prompt-75");
     await results.getByText("No matching prompts", { exact: true }).waitFor();
     await captureDesign(page, "web", "empty");

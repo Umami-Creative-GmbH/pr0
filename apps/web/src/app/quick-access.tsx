@@ -35,15 +35,25 @@ export const QuickAccess = ({
   quick,
   copy,
   onClose,
+  onOpen,
 }: {
   quick: ReturnType<typeof useQuickResults>;
   copy: ReturnType<typeof usePromptCopy>;
   onClose: () => void;
+  onOpen: (id: string) => void;
 }) => {
   const selectedTags = new Set(quick.filters.tagIds);
   const rows = useRef(new Map<string, HTMLButtonElement>());
   const move = (event: KeyboardEvent, id?: string) => {
     if (quick.searchBlocked || copy.blocked) {
+      return;
+    }
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      const selected = id ?? quick.selectedId;
+      if (selected) {
+        event.preventDefault();
+        onOpen(selected);
+      }
       return;
     }
     const index = quick.prompts.findIndex((prompt) => prompt.id === id);
@@ -206,7 +216,7 @@ export const QuickAccess = ({
         </div>
         <PromptVariables copy={copy} inline />
         <div className="mt-4 flex items-center justify-between gap-3">
-          <span>↑↓ Navigate · Enter Copy</span>
+          <span>↑↓ Navigate · Enter Copy · Ctrl/⌘+Enter Open</span>
           <button
             type="button"
             disabled={copy.busy}

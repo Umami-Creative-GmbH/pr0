@@ -76,6 +76,44 @@ const PromptFields = ({
   </>
 );
 
+const DiscardConfirmation = ({
+  saving,
+  onCancel,
+  onKeep,
+}: {
+  saving: boolean;
+  onCancel: () => void;
+  onKeep: () => void;
+}) => (
+  <section aria-label="Discard draft confirmation">
+    <p>Discard this unsaved draft? Its text will be lost.</p>
+    <button type="button" disabled={saving} onClick={onCancel}>
+      Discard draft
+    </button>
+    <button type="button" onClick={onKeep}>
+      Keep editing
+    </button>
+  </section>
+);
+
+const EditorSaveStatus = ({
+  saving,
+  saveError,
+}: {
+  saving: boolean;
+  saveError: string;
+}) => (
+  <>
+    {" "}
+    <p aria-live="polite">
+      {saving ? "Saving…" : ""}
+      {!saving && saveError ? "Not saved" : ""}
+      {!saving && !saveError ? "Unsaved changes" : ""}
+    </p>
+    {saveError ? <p role="alert">{saveError}</p> : null}
+  </>
+);
+
 export const LocalPromptEditor = ({
   initial,
   mappings,
@@ -276,90 +314,101 @@ export const LocalPromptEditor = ({
       );
     }
   };
+  const [browsing, setBrowsing] = useState(false);
   const editorLabel = initial ? "Edit prompt" : "New prompt";
   return (
-    <WayfinderDialog
-      label={editorLabel}
-      onRequestClose={() => {
-        if (!saving) {
-          setDiscard(true);
-        }
-      }}
-    >
-      <form
-        aria-label="Prompt editor"
-        className="space-y-4 rounded border p-4"
-        onSubmit={submit}
+    <>
+      <button
+        hidden={!browsing}
+        type="button"
+        onClick={() => setBrowsing(false)}
       >
-        {originalId ? (
-          <button type="button" onClick={() => onOpenOriginal(originalId)}>
-            Open original
+        Resume prompt draft
+      </button>
+      <WayfinderDialog
+        suspended={browsing}
+        label={editorLabel}
+        onRequestClose={() => {
+          if (!saving) {
+            setDiscard(true);
+          }
+        }}
+      >
+        <form
+          aria-label="Prompt editor"
+          className="space-y-4 rounded border p-4"
+          onSubmit={submit}
+        >
+          <button type="button" onClick={() => setBrowsing(true)}>
+            Browse library (keep draft)
           </button>
-        ) : null}
-        {redirected ? (
-          <p>
-            You&apos;re editing the conflict copy. Your unsaved text is
-            retained.
-          </p>
-        ) : null}
-        <h3 className="text-lg font-semibold">{editorLabel}</h3>
-        <PromptFields draft={draft} change={change} />
-        <p aria-live="polite">
-          {saving ? "Saving…" : ""}
-          {!saving && saveError ? "Not saved" : ""}
-          {!saving && !saveError ? "Unsaved changes" : ""}
-        </p>
-        {saveError ? <p role="alert">{saveError}</p> : null}
-        <div className="flex flex-wrap gap-4">
-          <button
-            className="rounded border px-4 py-2"
-            disabled={saving}
-            type="submit"
-          >
-            {saveError ? "Retry" : "Save"}
-          </button>
-          <button
-            className="rounded border px-4 py-2"
-            type="button"
-            onClick={() => {
-              void copy();
-            }}
-          >
-            Copy text
-          </button>
-          {conflict ? (
+          {originalId ? (
             <button
               type="button"
               onClick={() => {
-                target.current = { id: crypto.randomUUID(), revision: null };
-                attempt.current = null;
-                void save();
+                onOpenOriginal(originalId);
+                setBrowsing(true);
               }}
             >
-              Save as new prompt
+              Open original
             </button>
           ) : null}
-          <button
-            disabled={saving}
-            type="button"
-            onClick={() => setDiscard(true)}
-          >
-            Cancel
-          </button>
-        </div>
-        <p aria-live="polite">{copyMessage}</p>
-        {discard ? (
-          <section aria-label="Discard draft confirmation">
-            <p>Discard this unsaved draft? Its text will be lost.</p>
-            <button type="button" disabled={saving} onClick={onCancel}>
-              Discard draft
+          {redirected ? (
+            <p>
+              You&apos;re editing the conflict copy. Your unsaved text is
+              retained.
+            </p>
+          ) : null}
+          <h3 className="text-lg font-semibold">{editorLabel}</h3>
+          <PromptFields draft={draft} change={change} />
+          <EditorSaveStatus saving={saving} saveError={saveError} />
+          <div className="flex flex-wrap gap-4">
+            <button
+              className="rounded border px-4 py-2"
+              disabled={saving}
+              type="submit"
+            >
+              {saveError ? "Retry" : "Save"}
             </button>
-            <button type="button" onClick={() => setDiscard(false)}>
-              Keep editing
+            <button
+              className="rounded border px-4 py-2"
+              type="button"
+              onClick={() => {
+                void copy();
+              }}
+            >
+              Copy text
             </button>
-          </section>
-        ) : null}
-      </form>
-    </WayfinderDialog>
+            {conflict ? (
+              <button
+                type="button"
+                onClick={() => {
+                  target.current = { id: crypto.randomUUID(), revision: null };
+                  attempt.current = null;
+                  void save();
+                }}
+              >
+                Save as new prompt
+              </button>
+            ) : null}
+            <button
+              disabled={saving}
+              type="button"
+              onClick={() => setDiscard(true)}
+            >
+              Cancel
+            </button>
+          </div>
+          <p aria-live="polite">{copyMessage}</p>
+          {discard ? (
+            <DiscardConfirmation
+              saving={saving}
+              onCancel={onCancel}
+              onKeep={() => setDiscard(false)}
+            />
+          ) : null}
+        </form>
+      </WayfinderDialog>
+    </>
   );
 };

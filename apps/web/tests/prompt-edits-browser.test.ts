@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { chromium } from "playwright";
 
+import { captureDesign } from "./design-evidence";
 import { cookieFrom, origin } from "./http-fixture";
 import { seedCapacity } from "./prompt-capacity-fixture";
 import {
@@ -26,7 +27,10 @@ test("two browser sessions preserve a successor draft when a lost save response 
   expect(await created.json()).toMatchObject({
     results: [{ status: "accepted" }],
   });
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const contexts = await Promise.all([
       browser.newContext(),
@@ -67,7 +71,6 @@ test("two browser sessions preserve a successor draft when a lost save response 
         .getByRole("button", { name: "Edit prompt", exact: true })
         // Concurrent sessions may hit admission's five-second Retry-After.
         .click({ timeout: 15_000 });
-      await page.waitForLoadState("networkidle");
       pages.push(page);
     }
     /* oxlint-enable no-await-in-loop */
@@ -78,7 +81,6 @@ test("two browser sessions preserve a successor draft when a lost save response 
     await a.getByLabel("Content (required)").fill("A");
     await a.getByRole("button", { name: "Save", exact: true }).click();
     await a.getByText("Saved to server.", { exact: true }).waitFor();
-    await a.waitForLoadState("networkidle");
     await b.getByLabel("Content (required)").fill("B1");
     let release: (() => void) | undefined;
     // oxlint-disable-next-line promise/avoid-new -- Hold an actual committed HTTP reply while the author keeps typing.
@@ -110,6 +112,15 @@ test("two browser sessions preserve a successor draft when a lost save response 
       "Reply (conflict copy)"
     );
     expect(payloads[0]).toBe(payloads[1]);
+    await b.getByRole("button", { name: "Open original", exact: true }).click();
+    expect(await b.getByLabel("Saved content").inputValue()).toBe("A");
+    await b
+      .getByRole("button", { name: "Resume prompt draft", exact: true })
+      .click();
+    expect(await b.getByLabel("Content (required)").inputValue()).toBe("B2");
+    await b
+      .getByRole("button", { name: "Browse library (keep draft)", exact: true })
+      .click();
     await b
       .getByText("Conflicts to review", { exact: true })
       .waitFor({ timeout: 15_000 });
@@ -118,11 +129,13 @@ test("two browser sessions preserve a successor draft when a lost save response 
       .click();
     await b.getByLabel("Saved content").waitFor();
     expect(await b.getByLabel("Saved content").inputValue()).toBe("B1");
+    await b
+      .getByRole("button", { name: "Resume prompt draft", exact: true })
+      .click();
     expect(await b.getByLabel("Content (required)").inputValue()).toBe("B2");
     await b.getByText("Unsaved changes", { exact: true }).waitFor();
     await b.getByRole("button", { name: "Save", exact: true }).click();
     await b.getByText("Saved to server.", { exact: true }).waitFor();
-    await b.waitForLoadState("networkidle");
     await b.reload();
     await b.getByText("Conflicts to review", { exact: true }).click();
     await b
@@ -164,7 +177,10 @@ test("incoming data never replaces an editor draft and quota refusal retains cor
   await account.mutate([create]);
   const client = promptClient(account.Cookie);
   const base = await client.getPrompt(create.promptId);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       permissions: ["clipboard-read", "clipboard-write"],
@@ -189,7 +205,6 @@ test("incoming data never replaces an editor draft and quota refusal retains cor
       .getByRole("button", { name: "Edit prompt", exact: true })
       .click();
     await page.getByLabel("Content (required)").fill("Retain my full B draft");
-    await page.waitForLoadState("networkidle");
     await client.mutatePrompts({
       ...account.identity,
       operations: [promptEdit(base, { ...create.desired, content: "A" })],
@@ -201,7 +216,6 @@ test("incoming data never replaces an editor draft and quota refusal retains cor
       window.dispatchEvent(new Event("visibilitychange"));
     });
     await incoming;
-    await page.waitForLoadState("networkidle");
     expect(await page.getByLabel("Content (required)").inputValue()).toBe(
       "Retain my full B draft"
     );
@@ -217,6 +231,8 @@ test("incoming data never replaces an editor draft and quota refusal retains cor
     );
     await page.getByRole("button", { name: "Retry", exact: true }).click();
     await page.getByText(/^Not saved\./u).waitFor();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await captureDesign(page, "web", "error");
     await page.screenshot({
       path: "docs/evidence/issue-30-quota-draft.png",
       fullPage: true,
@@ -224,7 +240,6 @@ test("incoming data never replaces an editor draft and quota refusal retains cor
     await page.getByLabel("Content (required)").fill("A");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await page.getByText("Saved to server.", { exact: true }).waitFor();
-    await page.waitForLoadState("networkidle");
     expect(await client.getConflicts()).toMatchObject({ notices: [] });
     expect(await client.getPrompts()).toMatchObject({
       usage: { promptCount: 10_000 },

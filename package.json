@@ -17,8 +17,10 @@
     "typecheck": "bun --bun turbo run typecheck",
     "test": "bun --bun turbo run test",
     "lint": "bun --bun ultracite check",
-    "check": "bun --bun ultracite check",
-    "fix": "bun --bun ultracite fix",
+    "check": "bun --bun ultracite check && bun run check:rust",
+    "check:rust": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check",
+    "fix": "bun --bun ultracite fix && bun run fix:rust",
+    "fix:rust": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "doctor": "npx react-doctor@latest"
   },
   "devDependencies": {

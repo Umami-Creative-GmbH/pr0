@@ -283,6 +283,7 @@ export const SearchLibrary = ({
         Search downloaded prompts
         <input
           className="mt-1 block w-full rounded border p-2"
+          data-library-search
           type="search"
           value={search.query}
           onChange={(event) => search.changeQuery(event.target.value)}

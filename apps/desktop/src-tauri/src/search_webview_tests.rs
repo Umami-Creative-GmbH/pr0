@@ -24,6 +24,7 @@ fn desktop_search_webview_worker() {
             crate::resident_action,
             crate::resident_hide,
             crate::resident_finish_quit,
+            crate::copy_template,
             crate::launcher_status,
             crate::launcher_open,
             crate::launcher_hide,
@@ -61,6 +62,7 @@ fn desktop_search_webview_worker() {
             crate::library_editor,
             crate::library_create,
             crate::library_edit,
+            crate::library_lifecycle,
             crate::library_copy_draft,
             crate::library_copy,
             crate::library_recents,
@@ -69,6 +71,8 @@ fn desktop_search_webview_worker() {
         ])
         .setup(move |app| {
             crate::setup_resident(app.handle(), directory.clone())?;
+            let profile = std::env::var("PR0_TEST_WEBVIEW_PROFILE")
+                .map(std::path::PathBuf::from).unwrap_or_else(|_| directory.join("webview"));
             tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
@@ -76,17 +80,30 @@ fn desktop_search_webview_worker() {
             )
             .title("pr0 — Offline search validation")
             .inner_size(1100.0, 900.0)
-            .data_directory(directory.join("webview"))
+            .data_directory(profile.clone())
             .build()?;
             tauri::WebviewWindowBuilder::new(app, "launcher", tauri::WebviewUrl::App("launcher.html".into()))
                 .title("pr0 Quick launcher")
                 .inner_size(660.0, 580.0)
                 .visible(false)
                 .focused(false)
-                .data_directory(directory.join("webview"))
+                .data_directory(profile)
                 .build()?;
             crate::register_launcher_shortcut(app.handle())?;
             instance.listen(app.handle().clone());
+            if let Some(gate) = std::env::var_os("PR0_TEST_CLIPBOARD_GATE") {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    let entered = std::path::PathBuf::from(gate).with_extension("entered");
+                    for _ in 0..1000 {
+                        if entered.exists() {
+                            let _ = app.get_webview_window("main").unwrap().set_focus();
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                });
+            }
             if std::env::var("PR0_TEST_CLOSE_MAIN").as_deref() == Ok("true") {
                 let app = app.handle().clone();
                 std::thread::spawn(move || {

@@ -5,6 +5,7 @@ fn main() {
             "resident_action",
             "resident_hide",
             "resident_finish_quit",
+            "copy_template",
             "launcher_status",
             "launcher_open",
             "launcher_hide",
