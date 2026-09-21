@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 include!("local_tests.rs");
 include!("upload_tests.rs");
 include!("change_tests.rs");
+include!("recovery_tests.rs");
 include!("usage_tests.rs");
 include!("transition_tests.rs");
 include!("organization_tests.rs");
@@ -567,6 +568,18 @@ fn live_https_worker() {
                 input["offset"].as_u64().unwrap_or(0) as u32,
             ),
             "library_download" => service.library_download().map(|value| json!(value)),
+            "library_recovery_browse" => service
+                .library_recovery_browse(input["offset"].as_u64().unwrap_or(0) as u32)
+                .map(|v| json!(v)),
+            "library_recovery_detail" => service
+                .library_recovery_detail(
+                    input["snapshotId"].as_str().unwrap(),
+                    input["id"].as_str().unwrap(),
+                )
+                .map(|v| json!(v)),
+            "auth_sign_out" => service
+                .transition(serde_json::from_value(input["request"].clone()).unwrap())
+                .map(|v| json!(v)),
             "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
             "library_change_status" => service.library_change_status().map(|v| json!(v)),
             "library_sync" => {
@@ -861,6 +874,7 @@ fn expiry_and_offline_restart_preserve_the_prior_usable_download() {
         fresh,
         first,
         second,
+        change_fixture(),
     ])));
     let reopened = AuthService::new(directory.clone(), transport, vault).unwrap();
     assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
@@ -871,6 +885,7 @@ fn expiry_and_offline_restart_preserve_the_prior_usable_download() {
     assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
     assert!(!reopened.library_download().unwrap().complete);
     assert_eq!(reopened.library_browse(0).unwrap().len(), 1);
+    assert!(!reopened.library_download().unwrap().complete);
     assert!(reopened.library_download().unwrap().complete);
     assert_eq!(reopened.library_browse(0).unwrap().len(), 2);
     drop(reopened);

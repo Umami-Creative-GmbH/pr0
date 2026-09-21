@@ -11,6 +11,71 @@ import { localNativeWorker } from "./local-native-worker";
 
 const browserChannel = process.env.PR0_TEST_BROWSER ?? "chrome";
 
+test("recovery retains the selected prompt and open draft through pause and epoch activation", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-recovery-ui-"));
+  const native = await localNativeWorker(directory, false, false, true);
+  const browser = await chromium.launch({
+    channel: browserChannel,
+    headless: true,
+  });
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(10_000);
+    await connect(page, native, () => "");
+    page.on("pageerror", (error) => process.stderr.write(`${error.message}\n`));
+
+    await page.getByRole("button", { name: "First", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Edit prompt", exact: true })
+      .click();
+    await page
+      .getByLabel("Content", { exact: true })
+      .fill("My unsaved draft survives replacement");
+    await native.command("test_recovery");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page
+      .getByText(
+        "Download paused. Resume when you are ready; local work is retained."
+      )
+      .waitFor();
+    expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
+      "My unsaved draft survives replacement"
+    );
+    await page
+      .getByRole("button", { name: "Resume download", exact: true })
+      .click();
+    await page
+      .getByText("Library downloaded at revision 3. Available offline.")
+      .waitFor();
+    expect(await page.getByLabel("Content", { exact: true }).inputValue()).toBe(
+      "My unsaved draft survives replacement"
+    );
+    await page
+      .getByText("Review pre-recovery library (2 retained prompts)", {
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", { name: "Show retained prompts", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "First", exact: true })
+      .last()
+      .click();
+    expect(await page.getByLabel("Retained prompt").textContent()).toContain(
+      "  Hello offline\n"
+    );
+    await page.screenshot({
+      path: ".scratch/issue47-recovery.png",
+      fullPage: true,
+    });
+  } finally {
+    await browser.close();
+    await native.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
+
 test("desktop editor retains a disk-full draft then commits and reopens pending text through native commands", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "pr0-save-ui-"));
   let native = await localNativeWorker(directory);

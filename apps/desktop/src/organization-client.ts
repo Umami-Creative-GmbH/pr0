@@ -89,6 +89,8 @@ export const organizationError = (error: unknown): string => {
       "The collection, tag or prompt was removed on another device. Your saved work is retained for review.",
     outcome_uncertain:
       "The previous upload outcome is unknown. Reconnect to resolve it before correcting this change.",
+    recovery_required:
+      "Saved on this device before recovery. Review the restored library before confirming this change again.",
   };
   const parsed = z.string().safeParse(error);
   if (!parsed.success) {

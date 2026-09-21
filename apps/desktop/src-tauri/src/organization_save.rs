@@ -261,6 +261,8 @@ impl LibraryStore {
                 tx.execute("INSERT INTO organization_queue(id,entity_id,payload,local_revision) VALUES(?1,?2,?3,?4)",params![child_id,id,child.to_string(),child_revision]).map_err(io)?;
                 predecessor = child_id;
             }
+            // Work saved against the retained pre-recovery baseline needs the same review as prompt edits.
+            tx.execute("UPDATE organization_queue SET error='recovery_required',next_attempt=9223372036854775807 WHERE local_revision>=?1 AND EXISTS(SELECT 1 FROM recovery_archive WHERE snapshot=(SELECT active FROM state))", [revision]).map_err(io)?;
             project_organization(&tx)?;
         } else if let Some(replaced) = &request.replaces {
             // A successful identity reuse settles the failed creation dependency without inventing a server receipt.

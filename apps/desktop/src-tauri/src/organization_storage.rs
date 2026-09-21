@@ -15,7 +15,7 @@ fn migrate_organization(db: &Connection) -> Result<(), String> {
         DROP VIEW visible_prompt;
         CREATE VIEW visible_prompt AS SELECT p.id,p.title,p.archived,CASE WHEN a.id IS NULL THEN p.record ELSE json_set(p.record,'$.collectionId',a.collection_id,'$.tagIds',json(a.tags),'$.modifiedAt',max(json_extract(p.record,'$.modifiedAt'),a.modified)) END AS record,p.text_bytes FROM base_visible_prompt p LEFT JOIN organization_assignment a ON a.id=p.id;
         INSERT INTO organization_local SELECT kind,id,name,json_extract(record,'$.revision') FROM organization WHERE snapshot=(SELECT active FROM state);
-        PRAGMA user_version=6; COMMIT;").map_err(io)
+        PRAGMA user_version=7; COMMIT;").map_err(io)
 }
 fn organization_entries(db: &Connection, kind: &str) -> Result<Vec<OrganizationEntry>, String> {
     let mut statement = db

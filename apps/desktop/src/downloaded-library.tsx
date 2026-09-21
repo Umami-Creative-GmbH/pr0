@@ -11,7 +11,7 @@ import { DownloadedRows } from "./downloaded-rows";
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadedSummary, DownloadStatus } from "./library-client";
 import { LibraryViews } from "./library-views";
-import { DownloadProgress, LocalLibraryStatus } from "./local-library-status";
+import { DownloadControls, LocalLibraryStatus } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
 import { organizationClient } from "./organization-client";
@@ -20,6 +20,7 @@ import {
   PromptOrganization,
 } from "./organization-controls";
 import type { OrganizationFilters } from "./organization-controls";
+import { RecoveryLibrary } from "./recovery-library";
 import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
 import { useLibraryRefresh } from "./use-library-refresh";
@@ -172,7 +173,7 @@ const useDownloadedLibrary = ({
         let next = await refresh();
         // Each native command commits one bounded page before progress changes.
         // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Sequential page acknowledgements are required for durable progress.
-        while (!next.complete) {
+        while (!next.complete && !next.paused) {
           if (cancelled || !signedIn) {
             break;
           }
@@ -242,10 +243,23 @@ const useDownloadedLibrary = ({
   };
   const retryUpload = async () => {
     try {
+      await libraryClient.sync();
       const result = await libraryClient.upload();
       setSnapshot((previous) => ({ ...previous, upload: result }));
+      setRetry((value) => value + 1);
     } catch {
       setRetry((value) => value + 1);
+    }
+  };
+  const pauseDownload = async () => {
+    try {
+      const result = await libraryClient.pauseDownload(!status?.paused);
+      setSnapshot((previous) => ({ ...previous, status: result }));
+      refreshLibrary();
+    } catch {
+      setErrorText(
+        "Could not change download state. Retry; local work is retained."
+      );
     }
   };
   const changeFilters = (next: OrganizationFilters) => {
@@ -299,6 +313,8 @@ const useDownloadedLibrary = ({
     browse,
     retryUsage,
     retryUpload,
+    pauseDownload,
+    refreshLibrary,
     changeFilters,
     changeView,
     promptSaved,
@@ -325,7 +341,6 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     errorText,
     offline,
     busy,
-    setRetry,
     usage,
     recents,
     organization,
@@ -336,6 +351,8 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     browse,
     retryUsage,
     retryUpload,
+    pauseDownload,
+    refreshLibrary,
     changeFilters,
     changeView,
     promptSaved,
@@ -404,19 +421,18 @@ export const DownloadedLibrary = (props: LibraryProps) => {
           }}
         />
       ) : null}
-      <DownloadProgress status={status} signedIn={signedIn} />
-      {errorText ? <p role="alert">{errorText}</p> : null}
-      {!status?.complete && signedIn ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            setRetry((value) => value + 1);
-          }}
-          className="rounded border px-4 py-2"
-        >
-          Retry download
-        </button>
+      <DownloadControls
+        status={status}
+        signedIn={signedIn}
+        busy={busy}
+        errorText={errorText}
+        onPause={() => {
+          void pauseDownload();
+        }}
+        onRetry={refreshLibrary}
+      />
+      {status?.recoveryCount ? (
+        <RecoveryLibrary count={status.recoveryCount} account={account} />
       ) : null}
       <DownloadedRows
         rows={rows}

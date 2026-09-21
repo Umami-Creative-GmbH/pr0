@@ -310,8 +310,17 @@ fn offline_command_worker() {
     let vault = Arc::new(Vault::default());
     let organization_capacity = std::env::var("PR0_ORGANIZATION_CAPACITY").as_deref() == Ok("true");
     let upload_fixture_enabled = std::env::var("PR0_UPLOAD_UI_FIXTURE").as_deref() == Ok("true");
+    let recovery_fixture_enabled = std::env::var("PR0_RECOVERY_UI_FIXTURE").as_deref() == Ok("true");
+    let recovery_transport = approval();
+    if recovery_fixture_enabled {
+        let data: serde_json::Value = serde_json::from_str(include_str!("../../../../packages/api-contract/src/snapshot-fixtures.json")).unwrap();
+        recovery_transport.0.lock().unwrap().pop();
+        recovery_transport.0.lock().unwrap().extend([data["manifest"].clone(), data["pages"][0].clone(), data["pages"][1].clone()]);
+    }
     let transport: Arc<dyn Transport> = if organization_capacity {
         organization_capacity_transport()
+    } else if recovery_fixture_enabled {
+        recovery_transport.clone()
     } else if upload_fixture_enabled {
         upload_fixture(true, false)
     } else {
@@ -321,7 +330,7 @@ fn offline_command_worker() {
     if view(&service)["state"] == "signed_out" {
         sign_in(&service);
     }
-    if (upload_fixture_enabled || organization_capacity)
+    if (upload_fixture_enabled || organization_capacity || recovery_fixture_enabled)
         && !service.library_status().unwrap().complete
     {
         service.library_download().unwrap();
@@ -362,6 +371,19 @@ fn offline_command_worker() {
                 input["id"].as_str().unwrap(),
                 input["offset"].as_u64().unwrap_or(0) as u32,
             ),
+            "test_recovery" => {
+                let mut data = replacement_fixture();
+                data["manifest"]["epoch"] = json!("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+                let mut changes = change_fixture();
+                changes["epoch"] = data["manifest"]["epoch"].clone();
+                recovery_transport.0.lock().unwrap().extend([json!({"fixtureFailure":"snapshot_required"}), data["manifest"].clone(), data["pages"][0].clone(), data["pages"][1].clone(), changes]);
+                service.library_changes(0).unwrap();
+                service.library_pause_download(true).map(|v|json!(v))
+            }
+            "library_download" if recovery_fixture_enabled => service.library_download().map(|v|json!(v)),
+            "library_pause_download" => service.library_pause_download(input["paused"].as_bool().unwrap()).map(|v|json!(v)),
+            "library_recovery_browse" => service.library_recovery_browse(input["offset"].as_u64().unwrap_or(0) as u32).map(|v|json!(v)),
+            "library_recovery_detail" => service.library_recovery_detail(input["snapshotId"].as_str().unwrap(), input["id"].as_str().unwrap()).map(|v|json!(v)),
             "library_browse" => service
                 .library_browse(input["offset"].as_u64().unwrap_or(0) as u32)
                 .map(|v| json!(v)),

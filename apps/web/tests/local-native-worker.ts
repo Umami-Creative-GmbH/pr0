@@ -7,7 +7,8 @@ export type NativeArgs = z.infer<typeof nativeArgsSchema>;
 export const localNativeWorker = async (
   directory: string,
   uploadFixture = false,
-  organizationCapacity = false
+  organizationCapacity = false,
+  recoveryFixture = false
 ) => {
   const artifacts = [
     ...new Bun.Glob("pr0_desktop_lib-*.exe").scanSync(
@@ -50,6 +51,7 @@ export const localNativeWorker = async (
         PR0_LOCAL_TEST_DIRECTORY: directory,
         PR0_ORGANIZATION_CAPACITY: String(organizationCapacity),
         PR0_UPLOAD_UI_FIXTURE: String(uploadFixture),
+        PR0_RECOVERY_UI_FIXTURE: String(recoveryFixture),
       },
     }
   );

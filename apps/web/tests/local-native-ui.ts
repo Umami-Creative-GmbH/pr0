@@ -64,5 +64,7 @@ export const connect = async (
       },
     });
   });
-  await page.goto("http://localhost:1420");
+  await page.goto(
+    process.env.PR0_TEST_DESKTOP_ORIGIN ?? "http://localhost:1420"
+  );
 };

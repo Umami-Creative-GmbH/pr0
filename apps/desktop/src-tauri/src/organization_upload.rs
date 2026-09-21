@@ -126,6 +126,8 @@ impl LibraryStore {
             .db
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(io)?;
+        let blocked: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM organization_queue WHERE id=?1 AND error='recovery_required')", [id], |r|r.get(0)).map_err(io)?;
+        if blocked { return Err("recovery_required".into()); }
         let frozen: Option<String> = tx
             .query_row(
                 "SELECT envelope FROM organization_queue WHERE id=?1 AND receipt IS NULL",

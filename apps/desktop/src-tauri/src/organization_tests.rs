@@ -210,6 +210,11 @@ fn offline_organization_capacity_and_snapshot_reconciliation_are_bounded() {
     ]);
     service.library_download().unwrap();
     service.library_download().unwrap();
+    let mut catch_up = change_fixture();
+    catch_up["fromRevision"] = json!("3");
+    catch_up["changes"] = json!([]);
+    transport.0.lock().unwrap().push(catch_up);
+    assert!(service.library_download().unwrap().complete);
     let metadata = json!({"instanceId":data["manifest"]["instanceId"],"accountId":data["manifest"]["accountId"],"revision":"3","states":[{"id":source,"entity":"tag","name":"Tag 0000","state":"merged","targetId":target,"targetName":"Tag 0999"}],"removals":[]});
     transport
         .0
