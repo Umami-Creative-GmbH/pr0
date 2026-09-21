@@ -109,6 +109,21 @@ impl AuthService {
         request: CopyRequest,
         write: impl FnOnce(&str) -> Result<(), String>,
     ) -> Result<CopyResult, String> {
+        self.copy_prompt(request, false, write)
+    }
+    pub fn launcher_copy(
+        &self,
+        request: CopyRequest,
+        write: impl FnOnce(&str) -> Result<(), String>,
+    ) -> Result<CopyResult, String> {
+        self.copy_prompt(request, true, write)
+    }
+    fn copy_prompt(
+        &self,
+        request: CopyRequest,
+        active_only: bool,
+        write: impl FnOnce(&str) -> Result<(), String>,
+    ) -> Result<CopyResult, String> {
         let _clipboard = self.clipboard.try_lock().map_err(|_| "clipboard_busy")?;
         let mut state = self.state.try_lock().map_err(|_| "clipboard_busy")?;
         let retained = state.retained.as_ref().ok_or("authentication_required")?;
@@ -120,6 +135,9 @@ impl AuthService {
             return Err("operation_cancelled".into());
         }
         let prompt = self.library(&mut state)?.detail(&request.prompt_id)?;
+        if active_only && prompt.archived {
+            return Err("prompt_unavailable".into());
+        }
         // No database transaction spans the OS call. The partition lock prevents transitions.
         write(&prompt.content)?;
         let usage = Usage {

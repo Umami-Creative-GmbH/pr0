@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { SignInForm, SignOutControl } from "./auth-panels";
 import { DownloadedLibrary } from "./downloaded-library";
+import { LauncherEntry } from "./launcher-entry";
 import type { Status } from "./use-auth-session";
 import { useAuthSession } from "./use-auth-session";
 
@@ -38,6 +39,7 @@ export const App = () => {
     <main className="mx-auto max-w-xl space-y-6 p-8">
       <h1 className="text-3xl font-semibold">pr0</h1>
       <p>Your personal prompt library</p>
+      <LauncherEntry />
       {status?.email ? (
         <section
           aria-label="Current account"

@@ -13,10 +13,8 @@
   "dependencies": {
     "@pr0/api-client": "workspace:*",
     "@pr0/api-contract": "workspace:*",
-    "@pr0/prototype-library": "workspace:*",
     "@pr0/ui": "workspace:*",
     "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-clipboard-manager": "^2.3.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "^4.6.5"

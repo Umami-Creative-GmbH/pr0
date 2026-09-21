@@ -1,6 +1,14 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "launcher_status",
+            "launcher_open",
+            "launcher_hide",
+            "launcher_focus",
+            "launcher_retry_shortcut",
+            "launcher_search",
+            "launcher_cancel_search",
+            "launcher_copy",
             "auth_status",
             "auth_begin",
             "auth_poll",

@@ -1,14 +1,54 @@
 // Included in auth's module so the active identity/connection share its generation lock.
 impl AuthService {
+    pub fn launcher_account(&self) -> Result<(Option<super::LauncherAccount>, bool), String> {
+        let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.clearing || state.signing_out { return Ok((None, false)); }
+        let Some(retained) = &state.retained else { return Ok((None, false)); };
+        if retained.cleanup_pending { return Ok((None, false)); }
+        let account = super::LauncherAccount {
+            instance_id: retained.identity.instance.id.clone(),
+            account_id: retained.identity.account.id.clone(),
+            generation: state.generation,
+        };
+        let complete = self.library(&mut state)?.status()?.complete;
+        Ok((Some(account), complete))
+    }
+    #[cfg(test)]
+    pub fn launcher_search(&self, request: super::search_contract::SearchRequest) -> Result<super::search_contract::SearchPage, String> {
+        let cancelled = self.admit_launcher_search(&request.request_id)?;
+        self.launcher_search_admitted(request, cancelled)
+    }
+    pub fn launcher_search_admitted(&self, mut request: super::search_contract::SearchRequest, cancelled: Arc<std::sync::atomic::AtomicBool>) -> Result<super::search_contract::SearchPage, String> {
+        request.validate()?;
+        if request.view != "all" || request.view_collection_id.is_some() || !["relevance", "recently-used"].contains(&request.sort.as_str()) {
+            return Err("forbidden".into());
+        }
+        request.sort = if super::local_search::normalize(&request.query).trim().is_empty() { "recently-used" } else { "relevance" }.into();
+        self.library_search_admitted(request, cancelled)
+    }
     pub fn admit_search(&self, id: &str) -> Result<Arc<std::sync::atomic::AtomicBool>, String> {
+        self.admit_window_search(id, false)
+    }
+    pub fn admit_launcher_search(&self, id: &str) -> Result<Arc<std::sync::atomic::AtomicBool>, String> {
+        self.admit_window_search(id, true)
+    }
+    fn admit_window_search(&self, id: &str, launcher: bool) -> Result<Arc<std::sync::atomic::AtomicBool>, String> {
         if !valid_id(id) {return Err("invalid_input".into());}
         let cancelled=Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let mut active=self.search.lock().map_err(|_|"state_unavailable")?;
+        let source = if launcher { &self.launcher_search_state } else { &self.search };
+        let mut active=source.lock().map_err(|_|"state_unavailable")?;
         if let Some((_,old))=active.replace((id.into(),cancelled.clone())) {old.store(true,std::sync::atomic::Ordering::Relaxed);}
         Ok(cancelled)
     }
     pub fn cancel_search(&self, id: &str) -> Result<(),String> {
-        let active=self.search.lock().map_err(|_|"state_unavailable")?;
+        self.cancel_window_search(id, false)
+    }
+    pub fn cancel_launcher_search(&self, id: &str) -> Result<(),String> {
+        self.cancel_window_search(id, true)
+    }
+    fn cancel_window_search(&self, id: &str, launcher: bool) -> Result<(),String> {
+        let source = if launcher { &self.launcher_search_state } else { &self.search };
+        let active=source.lock().map_err(|_|"state_unavailable")?;
         if let Some((current,cancelled))=active.as_ref() {if current==id {cancelled.store(true,std::sync::atomic::Ordering::Relaxed);}}
         Ok(())
     }

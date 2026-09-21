@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-launcher-retry-shortcut"
+description = "Enables the launcher_retry_shortcut command without any pre-configured scope."
+commands.allow = ["launcher_retry_shortcut"]
+
+[[permission]]
+identifier = "deny-launcher-retry-shortcut"
+description = "Denies the launcher_retry_shortcut command without any pre-configured scope."
+commands.deny = ["launcher_retry_shortcut"]

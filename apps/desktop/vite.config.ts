@@ -22,6 +22,7 @@ export default defineConfig(({ command, mode }) => {
       rollupOptions: {
         input: {
           main: fileURLToPath(new URL("index.html", import.meta.url)),
+          launcher: fileURLToPath(new URL("launcher.html", import.meta.url)),
         },
       },
     },

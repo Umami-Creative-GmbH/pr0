@@ -1,138 +1,356 @@
-/**
- * PROTOTYPE (issue #9) — the native quick launcher window.
- *
- * The main window owns the library; this window mirrors it over Tauri events
- * so a copy here updates recency there. Nothing persists.
- *
- * Asking for variable values lives in LauncherPanel, shared with the web
- * surface, so both close only after a successful clipboard write.
- */
-
-import { createSeedLibrary } from "@pr0/prototype-library/domain/seed";
-import type { Library, PromptId } from "@pr0/prototype-library/domain/types";
-import { resolveVariables } from "@pr0/prototype-library/domain/variables";
-import { PrototypeI18nProvider } from "@pr0/prototype-library/ui/i18n-provider";
-import { LauncherPanel } from "@pr0/prototype-library/ui/launcher-panel";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { StrictMode, useEffect, useRef, useState } from "react";
+import type { LauncherStatus } from "@pr0/api-contract/desktop-launcher";
+import { organizationSearch } from "@pr0/api-contract/organization";
+import { CollectionPicker } from "@pr0/ui/components/collection-picker";
+import { TagPicker } from "@pr0/ui/components/tag-picker";
+import { StrictMode, useEffect, useEffectEvent, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { createRoot } from "react-dom/client";
 
-import { PROTOTYPE_EVENTS, relay } from "./prototype-bridge";
+import { launcherClient } from "./launcher-client";
+import { useLauncherStatus } from "./use-launcher-status";
+import { useLocalSearch } from "./use-local-search";
+import { copyError } from "./use-prompt-copy";
 
-import "@pr0/prototype-library/prototype.css";
+import "./styles.css";
 
-const LAUNCHER_WIDTH = 660;
+const select = async () => {
+  // Selection stays in the launcher; no detail fetch is needed.
+};
+const matches = (name: string, query: string) =>
+  organizationSearch(name).includes(organizationSearch(query));
 
-const close = () => {
-  void invoke("hide_launcher");
+const LauncherFilters = ({
+  search,
+}: {
+  search: ReturnType<typeof useLocalSearch>;
+}) => (
+  <details>
+    <summary>
+      Filters
+      {search.collectionId || search.tagIds.length || search.favorite
+        ? " (active)"
+        : ""}
+    </summary>
+    <div className="space-y-2 py-2">
+      <CollectionPicker
+        label="Collection filter"
+        emptyLabel="All collections"
+        collections={search.page?.collections ?? []}
+        value={search.collectionId ?? null}
+        onChange={(collectionId) =>
+          search.changeFilters({ collectionId, tagIds: search.tagIds })
+        }
+        search={matches}
+        unavailableName="Unavailable collection"
+      />
+      <TagPicker
+        label="Tag filters"
+        tags={search.page?.tags ?? []}
+        value={search.tagIds}
+        onChange={(tagIds) =>
+          search.changeFilters({
+            collectionId: search.collectionId ?? null,
+            tagIds,
+          })
+        }
+        search={matches}
+      />
+      <label className="block">
+        <input
+          type="checkbox"
+          checked={search.favorite}
+          onChange={(event) => search.changeFavorite(event.target.checked)}
+        />{" "}
+        Favorites only
+      </label>
+      <button type="button" onClick={() => search.clearFilters()}>
+        Clear filters
+      </button>
+    </div>
+  </details>
+);
+
+const EmptyResults = ({
+  search,
+}: {
+  search: ReturnType<typeof useLocalSearch>;
+}) => {
+  if (search.busy || search.error || search.page?.prompts.length) {
+    return null;
+  }
+  return (
+    <output>
+      {search.restricted
+        ? "No matching prompts"
+        : "No active downloaded prompts. Open the library to add prompts."}
+    </output>
+  );
+};
+
+const LauncherSearch = ({
+  status,
+  revision,
+  account,
+}: {
+  status: LauncherStatus;
+  revision: number;
+  account: NonNullable<LauncherStatus["account"]>;
+}) => {
+  const search = useLocalSearch(account, revision, select, "launcher");
+  const input = useRef<HTMLInputElement>(null);
+  const rows = useRef(new Map<string, HTMLButtonElement>());
+  const writing = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [copyMessage, setCopyMessage] = useState("");
+  useEffect(() => {
+    if (status.focused) {
+      input.current?.focus();
+    }
+  }, [status.focused]);
+  const copy = async (id: string) => {
+    if (writing.current || search.busy) {
+      return;
+    }
+    writing.current = true;
+    setBusy(true);
+    setCopyMessage("");
+    try {
+      await launcherClient.copy({ ...account, promptId: id }, status.opening);
+    } catch (error) {
+      setCopyMessage(copyError(error));
+    }
+    writing.current = false;
+    setBusy(false);
+  };
+  const move = (event: KeyboardEvent, id?: string) => {
+    if (search.busy) {
+      return;
+    }
+    const prompts = search.page?.prompts ?? [];
+    const index = prompts.findIndex((prompt) => prompt.id === id);
+    const nextIndex =
+      event.key === "ArrowDown"
+        ? Math.min(index + 1, prompts.length - 1)
+        : Math.max(index - 1, 0);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const next = prompts[nextIndex];
+      if (next) {
+        rows.current.get(next.id)?.focus();
+      }
+    }
+    if (
+      event.key === "Enter" &&
+      !id &&
+      search.selectedId &&
+      prompts.some((prompt) => prompt.id === search.selectedId)
+    ) {
+      event.preventDefault();
+      void copy(search.selectedId);
+    }
+  };
+  return (
+    <section aria-label="Find and copy" className="space-y-3">
+      <label className="block">
+        Search prompts
+        <input
+          ref={input}
+          type="search"
+          className="mt-1 block w-full rounded border p-2"
+          value={search.query}
+          onChange={(event) => search.changeQuery(event.target.value)}
+          onKeyDown={(event) => move(event)}
+        />
+      </label>
+      {copyMessage || search.error ? (
+        <p role="alert">
+          {copyMessage || search.error}
+          {search.recoveryNeeded
+            ? " Open the library to rebuild the search index."
+            : ""}
+        </p>
+      ) : null}
+      <LauncherFilters search={search} />
+      {search.query ? (
+        <button type="button" onClick={() => search.changeQuery("")}>
+          Clear query
+        </button>
+      ) : null}
+      <p className="text-sm">
+        Arrow keys select; Enter copies. Tab reaches filters and pages.
+      </p>
+      <div
+        aria-busy={search.busy}
+        data-search-query={search.busy ? undefined : search.query}
+      >
+        <ul
+          aria-label="Launcher results"
+          className="max-h-64 space-y-2 overflow-y-auto"
+        >
+          {search.page?.prompts.map((prompt) => (
+            <li key={prompt.id}>
+              <button
+                ref={(element) => {
+                  if (element) {
+                    rows.current.set(prompt.id, element);
+                  } else {
+                    rows.current.delete(prompt.id);
+                  }
+                }}
+                type="button"
+                className="aria-pressed:bg-accent aria-pressed:text-accent-foreground w-full rounded border p-3 text-left focus-visible:outline-2"
+                aria-pressed={search.selectedId === prompt.id}
+                disabled={search.busy || busy}
+                onFocus={() => {
+                  void search.select(prompt.id);
+                }}
+                onKeyDown={(event) => move(event, prompt.id)}
+                onClick={() => {
+                  void search.select(prompt.id);
+                  void copy(prompt.id);
+                }}
+              >
+                {prompt.title}
+                <span className="ml-2 text-sm">Copy</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <EmptyResults search={search} />
+      </div>
+      <nav aria-label="Launcher result pages" className="flex gap-4">
+        <button
+          type="button"
+          disabled={search.busy || busy || !search.offset}
+          onClick={() => search.previous()}
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          disabled={search.busy || busy || !search.page?.nextCursor}
+          onClick={() => search.next()}
+        >
+          Next
+        </button>
+      </nav>
+      <button
+        type="button"
+        disabled={
+          search.busy ||
+          busy ||
+          !search.page?.prompts.some(
+            (prompt) => prompt.id === search.selectedId
+          )
+        }
+        onClick={() => {
+          if (search.selectedId) {
+            void copy(search.selectedId);
+          }
+        }}
+      >
+        Copy selected prompt
+      </button>
+    </section>
+  );
 };
 
 const LauncherWindow = () => {
-  const [library, setLibrary] = useState<Library>(() =>
-    createSeedLibrary(Date.now())
-  );
-  // Remounts the panel on every opening, which is how the reset of query and
-  // filters required by issue #7 happens.
-  const [opening, setOpening] = useState(0);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // The window is borderless and transparent, so any height beyond the panel
-  // shows straight through to whatever is behind it. Keep them the same size.
-  //
-  // Measured off the panel itself rather than its host: the host is stretched
-  // to the window, so measuring it would only read back the size we just set.
-  const lastHeight = useRef(0);
-  useEffect(() => {
-    const host = panelRef.current;
-    if (!host) {
+  const { status, revision, error, refresh } = useLauncherStatus();
+  const [message, setMessage] = useState("");
+  const opening = status?.opening;
+  const close = async () => {
+    if (opening === undefined) {
       return;
     }
-
-    const apply = () => {
-      const panel = host.firstElementChild;
-      if (!panel) {
-        return;
-      }
-      const height = Math.ceil(panel.getBoundingClientRect().height);
-      if (height > 0 && height !== lastHeight.current) {
-        lastHeight.current = height;
-        void getCurrentWindow().setSize(
-          new LogicalSize(LAUNCHER_WIDTH, height)
-        );
-      }
-    };
-
-    const observer = new ResizeObserver(apply);
-    observer.observe(host);
-    if (host.firstElementChild) {
-      observer.observe(host.firstElementChild);
+    try {
+      await launcherClient.hide(opening);
+    } catch {
+      setMessage("Could not close the launcher. Try again.");
     }
-    // Fonts and the initial layout settle a frame late.
-    const frame = requestAnimationFrame(apply);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  });
-
-  useEffect(() => {
-    const unlisteners = [
-      listen<Library>(PROTOTYPE_EVENTS.librarySync, (event) =>
-        setLibrary(event.payload)
-      ),
-      listen(PROTOTYPE_EVENTS.launcherOpened, () =>
-        setOpening((count) => count + 1)
-      ),
-    ];
-
-    void relay(PROTOTYPE_EVENTS.libraryRequest);
-
-    return () => {
-      for (const pending of unlisteners) {
-        void (async () => {
-          const off = await pending;
-          off();
-        })();
-      }
-    };
-  }, []);
-
-  /** Throws on failure, which keeps the launcher open with its query. */
-  const copy = async (
-    promptId: PromptId,
-    variableValues?: Record<string, string>
-  ) => {
-    const prompt = library.prompts.find(
-      (candidate) => candidate.id === promptId
-    );
-    if (!prompt) {
-      throw new Error("missing-prompt");
-    }
-    const text = variableValues
-      ? resolveVariables(prompt.content, variableValues)
-      : prompt.content;
-
-    await writeText(text);
-    await relay(PROTOTYPE_EVENTS.launcherUsed, {
-      promptId: prompt.id,
-      at: Date.now(),
-    });
   };
-
+  const focus = async () => {
+    try {
+      await launcherClient.focus();
+    } catch {
+      setMessage(
+        "Use Alt+Tab to select Quick launcher, or open it from the library."
+      );
+    }
+  };
+  const escape = useEffectEvent((event: globalThis.KeyboardEvent) => {
+    if (
+      event.key === "Escape" &&
+      opening !== undefined &&
+      !event.defaultPrevented
+    ) {
+      void close();
+    }
+  });
+  useEffect(() => {
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, []);
   return (
-    <div className="pr0 pr0-window" data-theme="dark" ref={panelRef}>
-      <LauncherPanel
-        key={opening}
-        library={library}
-        onClose={close}
-        onCopy={copy}
-        standalone
-      />
-    </div>
+    <main className="space-y-3 p-5" data-opening={status?.opening}>
+      <h1 className="text-xl font-semibold">Quick launcher</h1>
+      <p>{status?.shortcut ?? "Global shortcut unavailable"}</p>
+      {status?.visible && !status.focused ? (
+        <div>
+          <button
+            type="button"
+            className="rounded border p-2"
+            onClick={() => {
+              void focus();
+            }}
+          >
+            Click to search
+          </button>
+          <p>
+            Use Alt+Tab to select Quick launcher, or open it from the library.
+          </p>
+        </div>
+      ) : null}
+      {status?.visible && status.account ? (
+        <>
+          {status.complete ? null : (
+            <output>
+              Library download incomplete. Searching downloaded prompts only.
+            </output>
+          )}
+          <LauncherSearch
+            key={`${status.opening}:${status.account.instanceId}:${status.account.accountId}:${status.account.generation}`}
+            status={status}
+            account={status.account}
+            revision={revision}
+          />
+        </>
+      ) : null}
+      {status && !status.error && !status.account ? (
+        <p>Open the library to sign in and download prompts.</p>
+      ) : null}
+      {error || message ? <p role="alert">{error || message}</p> : null}
+      <div className="flex gap-4">
+        <button
+          type="button"
+          onClick={() => {
+            void refresh();
+          }}
+        >
+          Refresh status
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (opening !== undefined) {
+              void close();
+            }
+          }}
+        >
+          Close (Esc)
+        </button>
+      </div>
+    </main>
   );
 };
 
@@ -140,11 +358,8 @@ const root = document.querySelector("#root");
 if (!root) {
   throw new Error("Missing launcher root element");
 }
-
 createRoot(root).render(
   <StrictMode>
-    <PrototypeI18nProvider>
-      <LauncherWindow />
-    </PrototypeI18nProvider>
+    <LauncherWindow />
   </StrictMode>
 );

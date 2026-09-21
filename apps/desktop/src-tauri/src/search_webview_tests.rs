@@ -2,6 +2,7 @@
 // native commands. Only account approval is a fixture; no test code ships in the app.
 #[test]
 fn desktop_search_webview_worker() {
+    use tauri::Manager;
     let Ok(directory) = std::env::var("PR0_SEARCH_WEBVIEW_DIRECTORY") else {
         return;
     };
@@ -14,7 +15,17 @@ fn desktop_search_webview_worker() {
     tauri::Builder::default()
         .any_thread()
         .manage(service)
+        .manage(crate::launcher_runtime::Launcher::default())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            crate::launcher_status,
+            crate::launcher_open,
+            crate::launcher_hide,
+            crate::launcher_focus,
+            crate::launcher_retry_shortcut,
+            crate::launcher_search,
+            crate::launcher_cancel_search,
+            crate::launcher_copy,
             crate::auth_status,
             crate::auth_begin,
             crate::auth_poll,
@@ -60,8 +71,24 @@ fn desktop_search_webview_worker() {
             .inner_size(1100.0, 900.0)
             .data_directory(directory.join("webview"))
             .build()?;
+            tauri::WebviewWindowBuilder::new(app, "launcher", tauri::WebviewUrl::App("launcher.html".into()))
+                .title("pr0 Quick launcher")
+                .inner_size(660.0, 580.0)
+                .visible(false)
+                .focused(false)
+                .data_directory(directory.join("webview"))
+                .build()?;
+            crate::register_launcher_shortcut(app.handle())?;
+            if std::env::var("PR0_TEST_CLOSE_MAIN").as_deref() == Ok("true") {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    app.get_webview_window("main").unwrap().close().unwrap();
+                });
+            }
             Ok(())
         })
+        .on_window_event(crate::launcher_window_event)
         .run(context)
         .expect("search validation WebView");
 }
