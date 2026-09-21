@@ -1,12 +1,13 @@
+import type { SignOutRequest } from "@pr0/api-contract/desktop-session";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import type { Status, Command } from "./use-auth-session";
+import type { Status, AuthRun } from "./use-auth-session";
 
 interface PanelProps {
   busy: boolean;
   status: Status;
-  run: (name: Command, origin?: string) => Promise<void>;
+  run: AuthRun;
 }
 export const SignInForm = ({ busy, status, run }: PanelProps) => {
   const [origin, setOrigin] = useState(import.meta.env.VITE_API_BASE_URL ?? "");
@@ -61,62 +62,140 @@ export const SignInForm = ({ busy, status, run }: PanelProps) => {
     </form>
   );
 };
-export const SignOutControl = ({ busy, status, run }: PanelProps) => {
+export const SignOutControl = ({
+  busy,
+  status,
+  run,
+  editing,
+  onTransition,
+}: PanelProps & {
+  editing: boolean;
+  onTransition: (active: boolean) => void;
+}) => {
   const [confirm, setConfirm] = useState(false);
-  if (status.accountId && status.state !== "cleanup_required") {
+  const [discardConfirmed, setDiscardConfirmed] = useState(false);
+  const [synchronizing, setSynchronizing] = useState(false);
+  const choose = async (choice: SignOutRequest["choice"]) => {
+    if (!status.instanceId || !status.accountId) {
+      return;
+    }
+    setSynchronizing(choice === "synchronize");
+    const result = await run("auth_sign_out", {
+      instanceId: status.instanceId,
+      accountId: status.accountId,
+      generation: status.generation,
+      choice,
+      discardConfirmed,
+    });
+    setSynchronizing(false);
+    if (result && (choice === "cancel" || result.state === "signed_out")) {
+      setConfirm(false);
+      setDiscardConfirmed(false);
+      onTransition(false);
+    }
+  };
+  if (status.state === "cleanup_required") {
     return (
-      <section>
-        <button disabled type="button">
-          Sign out or change server
-        </button>
+      <section className="space-y-3" aria-label="Sign-out cleanup">
         <p>
-          Account changes are unavailable in this version while local work may
-          be retained. Your prompts and drafts stay on this device.
+          Sign-out cleanup is incomplete. Retry before signing into another
+          account or server.
         </p>
+        <button
+          className="rounded border px-4 py-2"
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            void choose("retry_cleanup");
+          }}
+        >
+          Retry sign-out cleanup
+        </button>
       </section>
     );
   }
   return (
-    <section className="space-y-3">
+    <section className="space-y-3" aria-label="Sign out or change server">
       {confirm ? (
         <>
+          <h2 className="text-xl font-semibold">Before you sign out</h2>
           <p>
-            Remove this computer&apos;s sign-in? This version has no downloaded
-            library. If server revocation cannot be confirmed, you can revoke
-            the session from browser settings.
+            This removes this computer&apos;s library and sign-in. Synchronize
+            pending changes first, or explicitly discard them. You can then
+            choose another account or server.
           </p>
-          <div className="flex gap-4">
+          <p>
+            If you are offline, server revocation cannot be confirmed. Revoke
+            this desktop session from browser settings when online. Browser
+            sign-in is separate.
+          </p>
+          {synchronizing ? (
+            <output>
+              Synchronizing before sign-out. Waiting for server acknowledgement…
+            </output>
+          ) : null}
+          <div className="flex flex-wrap gap-3">
             <button
               className="rounded border px-4 py-2"
               disabled={busy}
               onClick={() => {
-                setConfirm(false);
-                void run("auth_sign_out");
+                void choose("synchronize");
               }}
               type="button"
             >
-              Confirm sign out
+              Synchronize first and sign out
             </button>
             <button
               className="rounded border px-4 py-2"
-              onClick={() => setConfirm(false)}
+              disabled={busy && !synchronizing}
+              onClick={() => {
+                void choose("cancel");
+              }}
               type="button"
             >
-              Keep signed in
+              Cancel sign-out
             </button>
           </div>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={discardConfirmed}
+              disabled={busy}
+              onChange={(event) => setDiscardConfirmed(event.target.checked)}
+            />
+            I understand that pending changes on this device will be lost
+          </label>
+          <button
+            className="rounded border px-4 py-2"
+            disabled={busy || !discardConfirmed}
+            onClick={() => {
+              void choose("discard");
+            }}
+            type="button"
+          >
+            Discard local work and sign out
+          </button>
         </>
       ) : (
-        <button
-          className="rounded border px-4 py-2"
-          disabled={busy}
-          onClick={() => setConfirm(true)}
-          type="button"
-        >
-          {status.state === "cleanup_required"
-            ? "Retry sign-out cleanup"
-            : "Sign out or change server"}
-        </button>
+        <>
+          <button
+            className="rounded border px-4 py-2"
+            disabled={busy || editing || status.state === "awaiting_approval"}
+            onClick={() => {
+              setConfirm(true);
+              onTransition(true);
+            }}
+            type="button"
+          >
+            Sign out or change server
+          </button>
+          {editing ? (
+            <p>
+              Save or close the prompt editor before signing out. Your draft
+              remains open.
+            </p>
+          ) : null}
+        </>
       )}
     </section>
   );

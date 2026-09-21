@@ -40,9 +40,11 @@ struct State {
     message: String,
     storage: Metadata,
     clearing: bool,
+    signing_out: bool,
     restore_pending: bool,
 }
 pub struct AuthService {
+    transition: Mutex<()>,
     upload: Mutex<()>,
     download: Mutex<()>,
     state: Mutex<State>,
@@ -62,6 +64,8 @@ impl State {
         let identity = self.retained.as_ref().map(|r| &r.identity);
         let state = if self.clearing || self.retained.as_ref().is_some_and(|r| r.cleanup_pending) {
             "cleanup_required"
+        } else if self.signing_out {
+            "synchronizing_sign_out"
         } else if self.attempt.is_some() {
             "awaiting_approval"
         } else if self.credential.is_some() {
@@ -136,6 +140,7 @@ impl AuthService {
             String::new()
         };
         Ok(Self {
+            transition: Mutex::new(()),
             upload: Mutex::new(()),
             download: Mutex::new(()),
             restoration: Mutex::new(()),
@@ -149,6 +154,7 @@ impl AuthService {
                 message,
                 storage,
                 clearing: false,
+                signing_out: false,
             }),
             transport,
             credentials,
@@ -176,6 +182,7 @@ impl AuthService {
         let generation = {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
             if state.clearing
+                || state.signing_out
                 || state.credential.is_some()
                 || state.attempt.is_some()
                 || state.retained.as_ref().is_some_and(|r| r.cleanup_pending)
@@ -303,7 +310,7 @@ impl AuthService {
                     identity,
                     trust,
                     cleanup_pending: false,
-                    authentication_required: false,
+                    authentication_required: true,
                 };
                 state.storage.save(&retained)?;
                 state.retained = Some(retained);
@@ -312,7 +319,14 @@ impl AuthService {
                 if bytes.len() > 2560 {
                     return Err("credential_too_large".into());
                 }
-                self.credentials.write(&bytes)?;
+                if let Err(error) = self.credentials.write(&bytes) {
+                    state.message = "Windows could not confirm credential storage. Sign in again to retry; local work is preserved.".into();
+                    return Err(error);
+                }
+                let mut retained = state.retained.clone().ok_or("authentication_required")?;
+                retained.authentication_required = false;
+                state.storage.save(&retained)?;
+                state.retained = Some(retained);
                 state.credential = Some(envelope);
                 state.message = "Signed in on this computer.".into();
             }
@@ -449,11 +463,120 @@ impl AuthService {
         }
         Ok(state.view())
     }
+    pub fn transition(&self, request: SignOutRequest) -> Result<AuthView, String> {
+        request.validate()?;
+        {
+            let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+            let retained = state.retained.as_ref().ok_or("operation_cancelled")?;
+            if state.generation != request.generation
+                || retained.identity.instance.id != request.instance_id
+                || retained.identity.account.id != request.account_id
+            {
+                return Err("operation_cancelled".into());
+            }
+            if request.choice == SignOutChoice::Cancel {
+                if state.clearing || retained.cleanup_pending {
+                    return Err("cleanup_required".into());
+                }
+                state.generation += 1;
+                state.signing_out = false;
+                state.message = "Sign-out cancelled. Local work is preserved.".into();
+                return Ok(state.view());
+            }
+            if request.choice == SignOutChoice::RetryCleanup
+                && !retained.cleanup_pending
+                && !state.clearing
+            {
+                return Err("cleanup_not_pending".into());
+            }
+        }
+        let _transition = self
+            .transition
+            .try_lock()
+            .map_err(|_| "transition_in_progress")?;
+        if request.choice == SignOutChoice::Synchronize {
+            {
+                let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+                if state.generation != request.generation
+                    || state.clearing
+                    || state.retained.as_ref().is_some_and(|r| r.cleanup_pending)
+                {
+                    return Err("operation_cancelled".into());
+                }
+                state.signing_out = true;
+                state.message =
+                    "Synchronizing before sign-out. Waiting for server acknowledgement.".into();
+            }
+            if let Err(error) = self.synchronize_before_sign_out(request.generation) {
+                let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+                if state.generation == request.generation {
+                    state.signing_out = false;
+                    state.message = "Synchronization did not complete. Local work is preserved. Retry, cancel, or explicitly discard.".into();
+                }
+                return Err(error);
+            }
+        }
+        let result =
+            self.clear_session(request.generation, request.choice == SignOutChoice::Discard);
+        if let Ok(mut state) = self.state.lock() {
+            if state.generation == request.generation {
+                state.signing_out = false;
+            }
+        }
+        result
+    }
+    fn synchronize_before_sign_out(&self, generation: u64) -> Result<(), String> {
+        // Even an empty outbox is not proof of a successful online synchronization.
+        self.refresh()?;
+        loop {
+            let waiting = {
+                let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+                if state.generation != generation {
+                    return Err("operation_cancelled".into());
+                }
+                let waiting = self.library(&mut state)?.upload_status()?.waiting;
+                if waiting == 0 {
+                    return Ok(());
+                }
+                waiting
+            };
+            if !self.library_status()?.complete {
+                self.library_download()?;
+                continue;
+            }
+            let status = match self.library_upload() {
+                Err(error) if error == "upload_in_progress" => {
+                    std::thread::sleep(Duration::from_millis(50));
+                    continue;
+                }
+                result => result?,
+            };
+            if let Some(error) = status.error {
+                return Err(error);
+            }
+            if !status.errors.is_empty() || status.retry_after_ms > 0 || status.waiting >= waiting {
+                return Err("sync_incomplete".into());
+            }
+        }
+    }
+    #[cfg(test)]
     pub fn sign_out(&self) -> Result<AuthView, String> {
+        let generation = self
+            .state
+            .lock()
+            .map_err(|_| "state_unavailable")?
+            .generation;
+        self.clear_session(generation, false)
+    }
+    fn clear_session(&self, expected_generation: u64, discard: bool) -> Result<AuthView, String> {
         let (generation, envelope) = {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
-            self.review_library_cleanup(&mut state)?;
+            if state.generation != expected_generation {
+                return Err("operation_cancelled".into());
+            }
+            self.review_library_cleanup(&mut state, discard)?;
             state.generation += 1;
+            state.signing_out = false;
             state.clearing = true;
             state.attempt = None;
             if let Some(retained) = &mut state.retained {

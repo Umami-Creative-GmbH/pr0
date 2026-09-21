@@ -63,12 +63,20 @@ test("built Tauri shell exposes typed account/library commands and denies remote
         "window.__TAURI_INTERNALS__.invoke('auth_begin', {origin:'http://example.com'}).then(() => false, error => error === 'invalid_instance')"
       );
       expect(noHttp).toBe(true);
+      const invalidTransition = await page.evaluate(
+        "window.__TAURI_INTERNALS__.invoke('auth_sign_out', {request:{choice:'force'}}).then(() => false, () => true)"
+      );
+      expect(invalidTransition).toBe(true);
       await page.screenshot({ path: ".scratch/issue39-shell.png" });
       await page.goto("http://127.0.0.1:19240/");
       const remoteDenied = await page.evaluate(
         "window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('auth_status').then(() => false, () => true) : true"
       );
       expect(remoteDenied).toBe(true);
+      const signOutDenied = await page.evaluate(
+        "window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('auth_sign_out', {}).then(() => false, () => true) : true"
+      );
+      expect(signOutDenied).toBe(true);
       const libraryDenied = await page.evaluate(
         "window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('library_browse', {offset:0}).then(() => false, () => true) : true"
       );

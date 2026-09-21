@@ -89,8 +89,9 @@ async fn auth_refresh(
 async fn auth_sign_out(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, ManagedAuth>,
+    request: auth_contract::SignOutRequest,
 ) -> Result<AuthView, String> {
-    dispatch(window, state, AuthService::sign_out).await
+    dispatch(window, state, move |service| service.transition(request)).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -1,25 +1,16 @@
+import {
+  desktopStatusSchema,
+  signOutRequestSchema,
+} from "@pr0/api-contract/desktop-session";
+import type {
+  DesktopStatus,
+  SignOutRequest,
+} from "@pr0/api-contract/desktop-session";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
-const statusSchema = z.strictObject({
-  state: z.enum([
-    "signed_out",
-    "awaiting_approval",
-    "signed_in",
-    "authentication_required",
-    "cleanup_required",
-  ]),
-  generation: z.number().int().nonnegative(),
-  origin: z.string().nullable(),
-  email: z.string().nullable(),
-  accountId: z.string().nullable(),
-  instanceId: z.string().nullable(),
-  userCode: z.string().nullable(),
-  message: z.string(),
-  pollAfterMs: z.number().nonnegative(),
-});
-export type Status = z.infer<typeof statusSchema>;
+export type Status = DesktopStatus;
 export type Command =
   | "auth_status"
   | "auth_begin"
@@ -28,11 +19,34 @@ export type Command =
   | "auth_open_browser"
   | "auth_refresh"
   | "auth_sign_out";
-const command = async (name: Command, origin?: string) =>
-  statusSchema.parse(await invoke(name, origin ? { origin } : undefined));
+export type AuthRun = (
+  name: Command,
+  input?: string | SignOutRequest
+) => Promise<Status | undefined>;
+const command = async (name: Command, input?: string | SignOutRequest) => {
+  const args =
+    name === "auth_sign_out"
+      ? { request: signOutRequestSchema.parse(input) }
+      : { origin: z.string().optional().parse(input) };
+  return desktopStatusSchema.parse(await invoke(name, args));
+};
 const errors = {
+  sync_incomplete:
+    "Synchronization did not complete. Local work is preserved. Retry, cancel, or explicitly discard.",
+  network_unavailable:
+    "The server could not be reached. Local work is preserved. Retry when online, cancel, or explicitly discard.",
+  storage_unavailable:
+    "Local cleanup could not finish. Check storage access and retry cleanup before signing into another account.",
+  cleanup_required:
+    "Finish sign-out cleanup before choosing another account or server.",
+  transition_in_progress:
+    "An account transition is still running. Wait for it to finish or cancel synchronization.",
+  operation_cancelled:
+    "The account operation was cancelled. Refresh the current account before retrying.",
+  discard_confirmation_required:
+    "Confirm that pending local changes will be lost before discarding.",
   pending_work:
-    "Changes are waiting to sync. Sign-out is unavailable; your local work is retained.",
+    "Changes are waiting to sync. Synchronize first, cancel, or explicitly discard them.",
   invalid_instance:
     "Enter a trusted HTTPS server address without a path, username, or query.",
   incompatible_instance:
@@ -42,9 +56,9 @@ const errors = {
   same_account_required:
     "Sign in to the same account on the same server. Retained local files cannot move to another account.",
   credential_unavailable:
-    "Windows could not store or read the credential. Persistent sign-in is incomplete. Retry sign-in.",
+    "Windows could not access the credential. Retry sign-in or sign-out cleanup; local work remains protected from account switching.",
   local_data_requires_review:
-    "Local data needs review before sign-out. Use a version of pr0 that supports its pending-work choices.",
+    "Local files could not be safely identified for cleanup. Local work is retained. Check storage access and retry.",
   authentication_required:
     "Sign in again to resume this session. Local files are preserved.",
   approval_failed:
@@ -52,20 +66,9 @@ const errors = {
   redirect_rejected:
     "The server redirected the request. Use its canonical HTTPS address.",
 };
-const errorCodeSchema = z.keyof(
-  z.object({
-    pending_work: z.string(),
-    invalid_instance: z.string(),
-    incompatible_instance: z.string(),
-    instance_identity_changed: z.string(),
-    same_account_required: z.string(),
-    credential_unavailable: z.string(),
-    local_data_requires_review: z.string(),
-    authentication_required: z.string(),
-    approval_failed: z.string(),
-    redirect_rejected: z.string(),
-  })
-);
+const errorMessages = new Map(Object.entries(errors));
+const messageFor = (code: string | undefined) =>
+  code ? errorMessages.get(code) : undefined;
 export const useAuthSession = () => {
   const [status, setStatus] = useState<Status>();
   const [busy, setBusy] = useState(false);
@@ -78,23 +81,27 @@ export const useAuthSession = () => {
     );
   }, []);
   const run = useCallback(
-    async (name: Command, selected?: string) => {
+    async (name: Command, selected?: string | SignOutRequest) => {
       requestGeneration.current += 1;
       const generation = requestGeneration.current;
       setBusy(true);
       setErrorText("");
+      let result: Status | undefined;
       try {
         const next = await command(name, selected);
         if (generation === requestGeneration.current) {
           apply(next);
+          result = next;
         }
       } catch (error) {
         if (generation === requestGeneration.current) {
-          const code = errorCodeSchema.safeParse(error);
           setErrorText(
-            code.success
-              ? errors[code.data]
-              : "The operation did not complete. Retry; retained local files are preserved."
+            messageFor(z.string().safeParse(error).data) ??
+              (name === "auth_sign_out" &&
+              signOutRequestSchema.safeParse(selected).data?.choice ===
+                "synchronize"
+                ? errors.sync_incomplete
+                : "The operation did not complete. Retry; retained local files are preserved.")
           );
           try {
             const next = await command("auth_status");
@@ -110,6 +117,7 @@ export const useAuthSession = () => {
         setBusy(false);
         notice.current?.focus();
       }
+      return result;
     },
     [apply]
   );
@@ -145,11 +153,12 @@ export const useAuthSession = () => {
         if (active) {
           apply(next);
         }
-      } catch {
+      } catch (error) {
         if (active) {
           await run("auth_status");
           setErrorText(
-            "Approval did not complete. Start a new sign-in. An undelivered session can be revoked in browser settings."
+            messageFor(z.string().safeParse(error).data) ??
+              "Approval did not complete. Start a new sign-in. An undelivered session can be revoked in browser settings."
           );
         }
       }

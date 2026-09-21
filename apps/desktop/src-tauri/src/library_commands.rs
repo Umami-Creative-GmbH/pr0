@@ -51,7 +51,7 @@ impl AuthService {
         }
         Ok(paths)
     }
-    fn review_library_cleanup(&self, state: &mut State) -> Result<(), String> {
+    fn review_library_cleanup(&self, state: &mut State, discard: bool) -> Result<(), String> {
         let paths = self.library_cleanup_paths(state)?;
         for entry in std::fs::read_dir(&self.directory).map_err(|_| "storage_unavailable")? {
             let entry = entry.map_err(|_| "storage_unavailable")?;
@@ -68,8 +68,11 @@ impl AuthService {
                 return Err("local_data_requires_review".into());
             }
         }
-        // Pending work must survive until account-transition controls can resolve it.
-        if paths.first().is_some_and(|path| path.exists()) {
+        // Accepted receipts already prove server durability, even before a fresh download.
+        if !discard
+            && !state.retained.as_ref().is_some_and(|r| r.cleanup_pending)
+            && paths.first().is_some_and(|path| path.exists())
+        {
             let retained = state.retained.as_ref().ok_or("authentication_required")?;
             if state.library.is_none() {
                 state.library = Some(LibraryStore::open(
@@ -82,7 +85,8 @@ impl AuthService {
                 .library
                 .as_ref()
                 .ok_or("storage_unavailable")?
-                .pending_count()?
+                .upload_status()?
+                .waiting
                 > 0
             {
                 return Err("pending_work".into());
@@ -141,6 +145,9 @@ impl AuthService {
         create: bool,
     ) -> Result<super::local_contract::LocalPrompt, String> {
         let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
+        if state.signing_out {
+            return Err("transition_in_progress".into());
+        }
         let retained = state.retained.as_ref().ok_or("authentication_required")?;
         if state.generation != request.generation
             || retained.identity.instance.id != request.instance_id
