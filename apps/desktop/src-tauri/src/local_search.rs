@@ -328,7 +328,7 @@ pub fn upgrade(db: &mut Connection) -> rusqlite::Result<()> {
         ))?;
     }
     tx.execute_batch(
-        "INSERT INTO search_dirty SELECT id,1 FROM visible_prompt; PRAGMA user_version=6;",
+        "INSERT INTO search_dirty SELECT id,1 FROM visible_prompt; PRAGMA user_version=7;",
     )?;
     flush(&tx)?;
     tx.commit()

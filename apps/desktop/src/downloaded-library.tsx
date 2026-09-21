@@ -8,9 +8,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadStatus } from "./library-client";
-import { DownloadProgress, LocalLibraryStatus } from "./local-library-status";
+import { DownloadControls, LocalLibraryStatus } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
+import { RecoveryLibrary } from "./recovery-library";
 import { SearchLibrary } from "./search-library";
 import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
@@ -116,7 +117,7 @@ export const DownloadedLibrary = ({
         let next = await refresh();
         // Each native command commits one bounded page before progress changes.
         // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Sequential page acknowledgements are required for durable progress.
-        while (!next.complete) {
+        while (!next.complete && !next.paused) {
           if (cancelled || !signedIn) {
             break;
           }
@@ -174,9 +175,21 @@ export const DownloadedLibrary = ({
   };
   const retryUpload = async () => {
     try {
+      await libraryClient.sync();
       setUpload(await libraryClient.upload());
+      setRetry((value) => value + 1);
     } catch {
       setRetry((value) => value + 1);
+    }
+  };
+  const pauseDownload = async () => {
+    try {
+      setStatus(await libraryClient.pauseDownload(!status?.paused));
+      refreshLibrary();
+    } catch {
+      setErrorText(
+        "Could not change download state. Retry; local work is retained."
+      );
     }
   };
   return (
@@ -235,19 +248,18 @@ export const DownloadedLibrary = ({
           }}
         />
       ) : null}
-      <DownloadProgress status={status} signedIn={signedIn} />
-      {errorText ? <p role="alert">{errorText}</p> : null}
-      {!status?.complete && signedIn ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            setRetry((value) => value + 1);
-          }}
-          className="rounded border px-4 py-2"
-        >
-          Retry download
-        </button>
+      <DownloadControls
+        status={status}
+        signedIn={signedIn}
+        busy={busy}
+        errorText={errorText}
+        onPause={() => {
+          void pauseDownload();
+        }}
+        onRetry={refreshLibrary}
+      />
+      {status?.recoveryCount ? (
+        <RecoveryLibrary count={status.recoveryCount} account={account} />
       ) : null}
       <SearchLibrary
         account={account}

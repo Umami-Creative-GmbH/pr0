@@ -7,6 +7,7 @@ export type NativeArgs = z.infer<typeof nativeArgsSchema>;
 export const localNativeWorker = async (
   directory: string,
   uploadFixture = false,
+  recoveryFixture = false,
   profile: "debug" | "release" = "debug"
 ) => {
   const artifactsDirectory = `apps/desktop/src-tauri/target/${profile}/deps`;
@@ -46,6 +47,7 @@ export const localNativeWorker = async (
         ...process.env,
         PR0_LOCAL_TEST_DIRECTORY: directory,
         PR0_UPLOAD_UI_FIXTURE: String(uploadFixture),
+        PR0_RECOVERY_UI_FIXTURE: String(recoveryFixture),
       },
     }
   );

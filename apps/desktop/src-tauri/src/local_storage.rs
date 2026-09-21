@@ -71,7 +71,7 @@ impl LibraryStore {
         let pending = self
             .db
             .query_row(
-                "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND state<>'accepted_awaiting_download')",
+                "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND (state<>'accepted_awaiting_download' OR error='recovery_required'))",
                 [id],
                 |r| r.get(0),
             )
@@ -188,7 +188,7 @@ impl LibraryStore {
             }
             let pending = tx
                 .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND state<>'accepted_awaiting_download')",
+                    "SELECT EXISTS(SELECT 1 FROM outbox WHERE prompt_id=?1 AND (state<>'accepted_awaiting_download' OR error='recovery_required'))",
                     [&request.prompt_id],
                     |r| r.get(0),
                 )
@@ -226,7 +226,7 @@ impl LibraryStore {
                 let result = LocalPrompt {
                     prompt: old.clone(),
                     local_revision: current_revision.to_string(),
-                    pending: latest.as_ref().is_some_and(|(_,_,state)|state!="accepted_awaiting_download"),
+                    pending: latest.as_ref().is_some_and(|(_,_,state)|state!="accepted_awaiting_download") || tx.query_row("SELECT EXISTS(SELECT 1 FROM recovery_blocked WHERE prompt_id=?1)",[&request.prompt_id],|r|r.get::<_,bool>(0)).map_err(io)?,
                 };
                 record_receipt(&tx, &request.operation_id, &fingerprint, &result)?;
                 #[cfg(test)]
@@ -309,6 +309,11 @@ impl LibraryStore {
         }
         operation.update_desired(desired);
         tx.execute("INSERT INTO outbox(id,prompt_id,payload,state,local_revision) VALUES(?1,?2,?3,'unsent',?4)",params![request.operation_id,prompt.id,serde_json::to_string(&operation).map_err(|_|"storage_unavailable")?,revision]).map_err(io)?;
+        if !create {
+            // The archived active baseline remains visible through expiry/restart as well as staging.
+            tx.execute("INSERT OR IGNORE INTO recovery_blocked SELECT ?1 WHERE EXISTS(SELECT 1 FROM recovery_archive WHERE snapshot=(SELECT active FROM state))",[&prompt.id]).map_err(io)?;
+        }
+        tx.execute("UPDATE outbox SET error='recovery_required',next_attempt=9223372036854775807 WHERE id=?1 AND prompt_id IN(SELECT prompt_id FROM recovery_blocked)", [&request.operation_id]).map_err(io)?;
         let result = LocalPrompt {
             prompt,
             local_revision: revision.to_string(),

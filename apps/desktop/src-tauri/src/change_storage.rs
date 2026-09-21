@@ -8,11 +8,12 @@ impl LibraryStore {
         }).map_err(io)
     }
     pub fn change_request(&self, wait: u32) -> Result<Option<serde_json::Value>, String> {
+        if self.status()?.paused { return Ok(None); }
         let status = self.change_status()?;
         if status.retry_after_ms > 0 || status.error.as_deref() == Some("snapshot_required") {
             return Ok(None);
         }
-        let manifest: Option<String> = self.db.query_row("SELECT manifest FROM download WHERE complete=1 AND id=(SELECT active FROM state) AND (SELECT staging FROM state) IS NULL", [], |r| r.get(0)).optional().map_err(io)?;
+        let manifest: Option<String> = self.db.query_row("SELECT manifest FROM download WHERE complete=1 AND id=(SELECT coalesce(staging,active) FROM state)", [], |r| r.get(0)).optional().map_err(io)?;
         let Some(manifest) = manifest else {
             return Ok(None);
         };
@@ -28,6 +29,14 @@ impl LibraryStore {
         }))
     }
     pub fn change_failed(&mut self, error: &str) -> Result<(), String> {
+        if error == "snapshot_required" {
+            let tx = self.db.transaction().map_err(io)?;
+            tx.execute("UPDATE recovery_state SET required=1", []).map_err(io)?;
+            tx.execute("UPDATE state SET staging=NULL", []).map_err(io)?;
+            tx.execute("UPDATE change_state SET error='snapshot_required',cursor=NULL,updating=1,next_attempt=0", []).map_err(io)?;
+
+            return tx.commit().map_err(io);
+        }
         let attempts: u32 = self
             .db
             .query_row("SELECT attempts FROM change_state", [], |r| r.get(0))
@@ -41,11 +50,13 @@ impl LibraryStore {
         Ok(())
     }
     pub fn apply_changes(&mut self, page: ChangePage) -> Result<(), String> {
+        if self.status()?.paused { return Err("operation_cancelled".into()); }
         let tx = self
             .db
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(io)?;
-        let value: String = tx.query_row("SELECT manifest FROM download WHERE complete=1 AND id=(SELECT active FROM state) AND (SELECT staging FROM state) IS NULL", [], |r| r.get(0)).map_err(io)?;
+        let value: String = tx.query_row("SELECT manifest FROM download WHERE complete=1 AND id=(SELECT coalesce(staging,active) FROM state)", [], |r| r.get(0)).map_err(io)?;
+        let staging: bool = tx.query_row("SELECT staging IS NOT NULL FROM state", [], |r|r.get(0)).map_err(io)?;
         let mut manifest: Manifest =
             serde_json::from_str(&value).map_err(|_| "storage_unavailable")?;
         page.validate(&manifest)?;
@@ -80,7 +91,7 @@ impl LibraryStore {
                 }
             }
             if let Some(effect) = &event.effect {
-                apply_bulk_change(&tx, &manifest.id, event, effect)?;
+                apply_bulk_change(&tx, &manifest.id, event, effect, !staging)?;
             }
             for id in &event.deleted_prompt_ids {
                 tx.execute(
@@ -101,7 +112,7 @@ impl LibraryStore {
                     )
                     .optional()
                     .map_err(io)?;
-                if let Some(local) = local {
+                if let Some(local) = local.filter(|_| !staging) {
                     let saved: Prompt =
                         serde_json::from_str(&local).map_err(|_| "storage_unavailable")?;
                     let mut merged = prompt.clone();
@@ -132,7 +143,9 @@ impl LibraryStore {
         let overlays_before: i64 = tx
             .query_row("SELECT count(*) FROM local_prompt", [], |r| r.get(0))
             .map_err(io)?;
-        retire_downloaded_uploads(&tx, &manifest)?;
+        if !staging || !page.has_more {
+            retire_downloaded_uploads(&tx, &manifest)?;
+        }
         let overlays_after: i64 = tx
             .query_row("SELECT count(*) FROM local_prompt", [], |r| r.get(0))
             .map_err(io)?;
@@ -144,6 +157,18 @@ impl LibraryStore {
             ],
         )
         .map_err(io)?;
+        if staging && !page.has_more {
+            // A same-epoch replacement cannot roll back already applied or accepted work.
+            let prior: String = tx.query_row("SELECT manifest FROM download WHERE id=(SELECT active FROM state)", [], |r|r.get(0)).map_err(io)?;
+            let prior: Manifest = serde_json::from_str(&prior).map_err(|_|"storage_unavailable")?;
+            if prior.epoch == manifest.epoch && super::change_contract::revision(&manifest.revision)? < super::change_contract::revision(&prior.revision)? {
+                return Err("invalid_response".into());
+            }
+            reconcile_replacement_overlays(&tx, &manifest)?;
+            tx.execute("UPDATE state SET active=?1,staging=NULL", [&manifest.id]).map_err(io)?;
+            tx.execute("DELETE FROM download WHERE id<>?1 AND id NOT IN(SELECT snapshot FROM recovery_archive)", [&manifest.id]).map_err(io)?;
+            tx.execute("UPDATE recovery_state SET required=0", []).map_err(io)?;
+        }
         tx.execute(
             "UPDATE change_state SET cursor=?1,error=NULL,attempts=0,next_attempt=0,updating=?2",
             params![page.cursor, page.has_more],
@@ -155,11 +180,16 @@ impl LibraryStore {
             tx.execute("UPDATE upload_state SET last_checked=?1", [checked])
                 .map_err(io)?;
         }
-        if !page.changes.is_empty() || overlays_before != overlays_after {
+        if !page.changes.is_empty() || staging || overlays_before != overlays_after {
             tx.execute("UPDATE local_state SET revision=revision+1", [])
                 .map_err(io)?;
         }
-        commit_search(tx)
+        #[cfg(test)]
+        if staging && !page.has_more { test_stage("snapshot_activation")?; }
+        commit_search(tx)?;
+        #[cfg(test)]
+        if staging && !page.has_more { test_stage("snapshot_activated")?; }
+        Ok(())
     }
 }
 fn prompt_bytes(prompt: &Prompt) -> usize {
@@ -213,9 +243,11 @@ fn apply_bulk_change(
     snapshot: &str,
     event: &super::change_contract::Change,
     effect: &super::change_contract::Effect,
+    merge_overlays: bool,
 ) -> Result<(), String> {
     // Stream one bounded prompt at a time; a compact event never builds a 100 MiB body array.
     for overlay in [false, true] {
+        if overlay && !merge_overlays { continue; }
         let query = if overlay {
             "SELECT record FROM local_prompt"
         } else {

@@ -1,6 +1,6 @@
 # Offline desktop search — issue #50
 
-The desktop searches the Rust-owned SQLite projection through validated native commands. Schema version 6 replaces the overlay-only index with a persisted index of all visible downloaded and locally edited prompts. A transaction drains changed prompt identities before committing primary data and the outbox. Organization names and usage metadata have separate update paths. Search uses field-specific compact trigram candidates, adaptive one/two-code-point postings, exact substring verification, and revision-bound pages. Body verification is limited to 64 rows and 4 MiB per batch; the SQLite page cache is 64 MiB, with no retained body cache.
+The desktop searches the Rust-owned SQLite projection through validated native commands. Schema version 7 combines the recovery tables with a persisted index of all visible downloaded and locally edited prompts. Both version-6 layouts (main's recovery schema and the search preview) upgrade without losing primary data or pending work; a compatible preview index is retained. A transaction drains changed prompt identities before committing primary data and the outbox. Organization names and usage metadata have separate update paths. Search uses field-specific compact trigram candidates, adaptive one/two-code-point postings, exact substring verification, and revision-bound pages. Body verification is limited to 64 rows and 4 MiB per batch; the SQLite page cache is 64 MiB, with no retained body cache.
 
 The UI supports the five scopes, all sort choices, per-view browsing preferences, collection/tag/favorite filters, unavailable filter identities, paging, cancellation, identity-based selection and fresh detail reads. Explicit index recovery builds replacement derived tables transactionally in the WAL after checking disk space. Primary records and pending operations survive recovery.
 
@@ -9,7 +9,7 @@ The UI supports the five scopes, all sort choices, per-view browsing preferences
 - Shared JSON fixtures drive Rust native commands and the public REST tests: Unicode normalization and literal punctuation across all five fields, six relevance tiers, all sorts, recency, combined filters, archive/collection scopes and later pages.
 - Native tests cover restart persistence, corruption/recovery, incompatible normalization, stale cursor rejection, cancellation, off-page selection and replacing records in a full 10,000-prompt library. The existing migration test now recreates the historical schema before exercising the upgrade.
 - Public REST suite: 48 tests, 150 assertions passed. Desktop search interaction and existing offline-copy interaction tests passed. A synthetic account generation change clears obsolete search actions and retains the open editor draft.
-- Root unit tests, all 75 native tests, workspace typechecking, Ultracite and the desktop production build passed.
+- After merging the recovery work from #47: root unit tests, all 83 native tests, all eight desktop UI tests, workspace typechecking, Ultracite and the desktop production build passed. Regression tests cover both version-6 migrations and search visibility before/after recovery activation.
 
 ## Maximum-library measurement
 

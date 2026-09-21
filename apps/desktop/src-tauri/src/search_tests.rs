@@ -231,6 +231,10 @@ fn search_snapshot_reclaims_slots_before_replacing_a_full_library() {
             .unwrap()
             .extend(snapshot["pages"].as_array().unwrap().iter().cloned());
     }
+    let mut checkpoint = change_fixture();
+    checkpoint["fromRevision"] = json!("3");
+    checkpoint["changes"] = json!([]);
+    transport.0.lock().unwrap().push(checkpoint);
     let directory = std::env::temp_dir().join(format!("pr0-search-slots-{}", uuid::Uuid::new_v4()));
     let service =
         AuthService::new(directory.clone(), transport, Arc::new(Vault::default())).unwrap();
@@ -240,6 +244,12 @@ fn search_snapshot_reclaims_slots_before_replacing_a_full_library() {
             service.library_download().unwrap();
         }
     }
+    assert!(service
+        .library_search(search_request(&service, "Replacement"))
+        .unwrap()
+        .prompts
+        .is_empty());
+    assert!(service.library_download().unwrap().complete);
     let page = service
         .library_search(search_request(&service, "Replacement"))
         .unwrap();
@@ -247,6 +257,86 @@ fn search_snapshot_reclaims_slots_before_replacing_a_full_library() {
     assert_eq!(service.library_status().unwrap().downloaded, 10000);
     drop(service);
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+fn downgrade_search_fixture(db: &rusqlite::Connection) {
+    let triggers = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_%'")
+        .unwrap()
+        .query_map([], |row| row.get::<_, String>(0))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    for name in triggers {
+        db.execute_batch(&format!("DROP TRIGGER {name}")).unwrap();
+    }
+    db.execute_batch("DROP TABLE local_f_title; DROP TABLE local_f_description; DROP TABLE local_f_content;
+        DROP TABLE local_f_name; DROP TABLE local_search; DROP TABLE local_search_short; DROP TABLE local_search_version;
+        DROP TABLE search_metadata; DROP TABLE search_organization; DROP TABLE search_membership;
+        DROP TABLE search_dirty; DROP TABLE search_org_state;").unwrap();
+    super::local_search::migrate(db).unwrap();
+}
+
+#[test]
+fn search_upgrades_both_version_six_layouts_preserving_pending_work() {
+    for search_preview in [false, true] {
+        let (directory, service, _) = downloaded_change_fixture();
+        let saved = service.library_create(save_request(&service)).unwrap();
+        service
+            .library_copy(
+                copy_request(&service, "66666666-6666-4666-8666-666666666666"),
+                |_| Ok(()),
+            )
+            .unwrap();
+        let path = super::library_storage::library_path(
+            &directory,
+            &saved.prompt.instance_id,
+            &saved.prompt.account_id,
+        )
+        .unwrap();
+        drop(service);
+        let db = rusqlite::Connection::open(&path).unwrap();
+        let fingerprint = |db: &rusqlite::Connection| {
+            db.query_row("SELECT group_concat(id || ':' || revision,'|') FROM (SELECT id,revision FROM local_search ORDER BY id)", [], |r|r.get::<_,String>(0)).unwrap()
+        };
+        let before = fingerprint(&db);
+        if search_preview {
+            db.execute_batch("DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery;").unwrap();
+        } else {
+            downgrade_search_fixture(&db);
+        }
+        db.execute_batch("PRAGMA user_version=6;").unwrap();
+        drop(db);
+        let service =
+            AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+        assert_eq!(
+            service
+                .library_search(search_request(&service, "First"))
+                .unwrap()
+                .prompts
+                .len(),
+            1
+        );
+        assert_eq!(
+            service.library_detail(&saved.prompt.id).unwrap().content,
+            saved.prompt.content
+        );
+        assert_eq!(service.library_status().unwrap().pending_changes, 2);
+        assert_eq!(service.library_status().unwrap().recovery_count, 0);
+        assert_eq!(service.library_usage_status().unwrap().waiting, 1);
+        drop(service);
+        let db = rusqlite::Connection::open(path).unwrap();
+        assert_eq!(
+            db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
+                .unwrap(),
+            7
+        );
+        if search_preview {
+            assert_eq!(fingerprint(&db), before);
+        }
+        drop(db);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 }
 
 #[test]

@@ -45,15 +45,8 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     ).unwrap();
     let db = rusqlite::Connection::open(&path).unwrap();
     // Recreate main's version-4 schema with real downloaded and pending records.
-    let triggers = db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_%'").unwrap()
-        .query_map([], |row| row.get::<_,String>(0)).unwrap().collect::<Result<Vec<_>,_>>().unwrap();
-    for name in triggers { db.execute_batch(&format!("DROP TRIGGER {name}")).unwrap(); }
-    db.execute_batch("DROP TABLE local_f_title; DROP TABLE local_f_description; DROP TABLE local_f_content;
-        DROP TABLE local_f_name; DROP TABLE local_search; DROP TABLE local_search_short; DROP TABLE local_search_version;
-        DROP TABLE search_metadata; DROP TABLE search_organization; DROP TABLE search_membership;
-        DROP TABLE search_dirty; DROP TABLE search_org_state;").unwrap();
-    super::local_search::migrate(&db).unwrap();
-    db.execute_batch("DROP TABLE change_state; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
+    downgrade_search_fixture(&db);
+    db.execute_batch("DROP TABLE change_state; DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery; UPDATE upload_state SET last_checked='2026-09-21T10:00:00.000Z'; PRAGMA user_version=4;").unwrap();
     drop(db);
     let store = super::library_storage::LibraryStore::open(
         &directory, &prompt.instance_id, &prompt.account_id,
@@ -68,7 +61,7 @@ fn live_changes_upgrade_usage_database_without_losing_pending_work() {
     assert!(store.change_request(0).unwrap().is_some());
     drop(store);
     let db = rusqlite::Connection::open(path).unwrap();
-    assert_eq!(db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 6);
+    assert_eq!(db.query_row("PRAGMA user_version", [], |row| row.get::<_, u32>(0)).unwrap(), 7);
     drop(db);
     std::fs::remove_dir_all(directory).unwrap();
 }

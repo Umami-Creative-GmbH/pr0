@@ -113,7 +113,7 @@ export const useLocalSearch = (
           }, 25);
           return;
         }
-        setErrorText(downloadError(error));
+        setErrorText(downloadError(error, "search"));
         setRecoveryNeeded(error === "search_recovery_required");
         setPage(undefined);
         selected.current = null;
@@ -250,7 +250,7 @@ export const useLocalSearch = (
         await libraryClient.recoverSearch(request.current);
         setRetry((value) => value + 1);
       } catch (error) {
-        setErrorText(downloadError(error));
+        setErrorText(downloadError(error, "search"));
         setPage(undefined);
         setBusy(false);
       }

@@ -16,6 +16,7 @@ import { verifyNativeChanges } from "./changes-native";
 import { verifiedBrowser } from "./device-fixture";
 import { origin, password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
+import { verifyNativeRecovery } from "./recovery-native";
 import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
 import { verifyNativeUploads } from "./uploads-native";
 import { verifyNativeUsage } from "./usage-native";
@@ -175,12 +176,36 @@ const verifyNativePeerChanges = async ({
   }
 };
 
+const finishNativeJourney = async (
+  native: ReturnType<typeof worker>,
+  page: Page,
+  selectedOrigin: string,
+  recovery?: boolean
+) => {
+  if (recovery) {
+    await verifyNativeRecovery({
+      command: (name, args = {}) => native.library(name, z.json(), args),
+      page,
+      origin: selectedOrigin,
+    });
+    return;
+  }
+  const refreshed = await native.command("refresh");
+  assert.equal(refreshed.state, "signed_in");
+  const signedOut = await native.command("sign_out");
+  assert.equal(signedOut.state, "signed_out");
+  process.stdout.write(
+    "PASS Rust HTTPS → browser email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
+  );
+};
+
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
   download = false,
   upload = false,
   usage = false,
-  live = false
+  live = false,
+  recovery?: boolean
 ) => {
   const account = await verifiedBrowser();
   if (download) {
@@ -454,13 +479,7 @@ export const verifyNativeHttps = async (
         origin: selectedOrigin,
       });
     }
-    const refreshed = await native.command("refresh");
-    assert.equal(refreshed.state, "signed_in");
-    const signedOut = await native.command("sign_out");
-    assert.equal(signedOut.state, "signed_out");
-    process.stdout.write(
-      "PASS Rust HTTPS → browser email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
-    );
+    await finishNativeJourney(native, page, selectedOrigin, recovery);
   } finally {
     try {
       await native.command("sign_out");
