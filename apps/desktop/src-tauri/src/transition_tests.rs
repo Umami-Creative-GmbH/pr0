@@ -1,5 +1,119 @@
 // Public native commands over real SQLite; transport and credentials are system boundaries.
 #[test]
+fn transition_synchronize_delivers_usage_and_blocks_copy_until_finished() {
+    let directory =
+        std::env::temp_dir().join(format!("pr0-use-transition-{}", uuid::Uuid::new_v4()));
+    let entered = Arc::new(std::sync::Barrier::new(2));
+    let release = Arc::new(std::sync::Barrier::new(2));
+    let transport = Arc::new(UploadFixture {
+        traffic: Mutex::new(vec![]),
+        lose: false.into(),
+        conflict: false,
+        quota: false,
+        failure: Mutex::new(None),
+        entered: Some(entered.clone()),
+        release: Some(release.clone()),
+    });
+    let vault = Arc::new(Vault::default());
+    let service = Arc::new(downloaded_upload_service(
+        &directory,
+        transport.clone(),
+        vault.clone(),
+    ));
+    let request = copy_request(&service, "66666666-6666-4666-8666-666666666666");
+    service.library_copy(request.clone(), |_| Ok(())).unwrap();
+    assert_eq!(service.sign_out().err().as_deref(), Some("pending_work"));
+    let transition = transition_request(&service, "synchronize", false);
+    let worker = service.clone();
+    let task = std::thread::spawn(move || worker.transition(transition));
+    entered.wait();
+    let copied = service.library_copy(request, |_| panic!("copy during sign-out"));
+    release.wait();
+    task.join().unwrap().unwrap();
+    assert_eq!(copied.err().as_deref(), Some("operation_cancelled"));
+    assert_eq!(
+        transport.traffic.lock().unwrap()[0].1["operations"][0]["kind"],
+        "prompt.use"
+    );
+    assert_eq!(view(&service)["state"], "signed_out");
+    assert!(vault.read().unwrap().is_none());
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn transition_failed_usage_sync_preserves_account_and_pending_usage() {
+    let directory =
+        std::env::temp_dir().join(format!("pr0-use-transition-{}", uuid::Uuid::new_v4()));
+    let transport = upload_fixture(false, false);
+    transport
+        .lose
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, transport.clone(), vault.clone());
+    service
+        .library_copy(
+            copy_request(&service, "66666666-6666-4666-8666-666666666666"),
+            |_| Ok(()),
+        )
+        .unwrap();
+    assert_eq!(
+        service
+            .transition(transition_request(&service, "synchronize", false))
+            .err()
+            .as_deref(),
+        Some("network_unavailable")
+    );
+    assert_eq!(view(&service)["state"], "signed_in");
+    assert!(vault.read().unwrap().is_some());
+    drop(service);
+    let reopened = AuthService::new(directory.clone(), transport, vault).unwrap();
+    assert_eq!(reopened.library_usage_status().unwrap().waiting, 1);
+    drop(reopened);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn transition_discard_clears_memory_usage_before_next_login() {
+    let directory =
+        std::env::temp_dir().join(format!("pr0-use-transition-{}", uuid::Uuid::new_v4()));
+    let service = downloaded_upload_service(
+        &directory,
+        upload_fixture(false, false),
+        Arc::new(Vault::default()),
+    );
+    super::library_storage::set_test_fault("usage_io_error");
+    let copied = service
+        .library_copy(
+            copy_request(&service, "66666666-6666-4666-8666-666666666666"),
+            |_| Ok(()),
+        )
+        .unwrap();
+    super::library_storage::set_test_fault("");
+    assert!(!copied.usage_saved);
+    service
+        .transition(transition_request(&service, "cancel", false))
+        .unwrap();
+    assert_eq!(service.library_usage_status().unwrap().memory_only, 1);
+    assert_eq!(
+        service
+            .transition(transition_request(&service, "discard", false))
+            .err()
+            .as_deref(),
+        Some("discard_confirmation_required")
+    );
+    service
+        .transition(transition_request(&service, "discard", true))
+        .unwrap();
+    sign_in(&service);
+    let status = service.library_retry_usage().unwrap();
+    assert_eq!(status.memory_only, 0);
+    assert_eq!(status.waiting, 0);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn transition_shared_request_conformance() {
     let fixtures: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../packages/api-contract/src/transition-fixtures.json"

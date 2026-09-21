@@ -16,6 +16,7 @@ import { origin, password } from "./http-fixture";
 import type { NativeArgs } from "./local-native-worker";
 import { seedDownloadCapacity } from "./snapshot-capacity-fixture";
 import { verifyNativeUploads } from "./uploads-native";
+import { verifyNativeUsage } from "./usage-native";
 
 const resultSchema = z.object({
   Ok: z.object({
@@ -121,7 +122,8 @@ const worker = (
 export const verifyNativeHttps = async (
   server: ReturnType<typeof accountTestServer>,
   download = false,
-  upload = false
+  upload = false,
+  usage = false
 ) => {
   const account = await verifiedBrowser();
   if (download) {
@@ -218,7 +220,10 @@ export const verifyNativeHttps = async (
     certificate,
     target
   );
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_TEST_BROWSER ?? "chrome",
+    headless: true,
+  });
   try {
     await server.startServer({
       PR0_ORIGIN: selectedOrigin,
@@ -357,6 +362,27 @@ export const verifyNativeHttps = async (
         uploadStatusSchema
       );
       assert.equal(uploadStatus.waiting, 0);
+    }
+    if (usage) {
+      await verifyNativeUsage({
+        command: (name, args = {}) => native.library(name, z.json(), args),
+        restart: async () => {
+          await native.stop();
+          native = worker(
+            executable,
+            path.join(directory, "state"),
+            certificate,
+            target
+          );
+          await native.command("status");
+        },
+        lose: () => {
+          loseNextUpload = true;
+        },
+        traffic,
+        page,
+        origin: selectedOrigin,
+      });
     }
     const refreshed = await native.command("refresh");
     assert.equal(refreshed.state, "signed_in");

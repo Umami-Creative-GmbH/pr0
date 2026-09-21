@@ -1,16 +1,21 @@
+import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 import type {
   LocalPrompt,
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DownloadedRows } from "./downloaded-rows";
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadedSummary, DownloadStatus } from "./library-client";
-import { LocalLibraryStatus } from "./local-library-status";
+import { LibraryViews } from "./library-views";
+import { DownloadProgress, LocalLibraryStatus } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
+import { UsageStatus } from "./usage-status";
 import type { Status } from "./use-auth-session";
+import { useLibraryRefresh } from "./use-library-refresh";
+import { usePromptCopy } from "./use-prompt-copy";
 
 const editorIsBlocked = (editing: boolean, transition: boolean) =>
   editing || transition;
@@ -38,6 +43,11 @@ export const DownloadedLibrary = ({
   const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [usage, setUsage] = useState<DesktopUsageStatus>();
+  const [recents, setRecents] = useState(false);
+  const refreshLibrary = useCallback(() => setRetry((value) => value + 1), []);
+  const copy = usePromptCopy(account, refreshLibrary);
+  useLibraryRefresh(refreshLibrary);
   const alive = useRef(true);
   const selection = useRef(0);
   const browseRequest = useRef(0);
@@ -66,42 +76,25 @@ export const DownloadedLibrary = ({
     };
   }, []);
   useEffect(() => {
-    let disposed = false;
-    let stop: (() => void) | undefined;
-    const refresh = () => setRetry((value) => value + 1);
-    const subscribe = async () => {
-      try {
-        const unlisten = await listen("library-changed", refresh);
-        if (disposed) {
-          unlisten();
-        } else {
-          stop = unlisten;
-        }
-      } catch {
-        // Focus and explicit retry still refresh authoritative state if event registration fails.
-      }
-    };
-    void subscribe();
-    window.addEventListener("focus", refresh);
-    return () => {
-      disposed = true;
-      stop?.();
-      window.removeEventListener("focus", refresh);
-    };
-  }, []);
-  useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
       const requestedOffset = currentOffset.current;
-      const [next, prompts, sync] = await Promise.all([
+      const [next, prompts, sync, uses] = await Promise.all([
         libraryClient.status(),
-        libraryClient.browse(requestedOffset),
+        recents
+          ? libraryClient.recents(requestedOffset)
+          : libraryClient.browse(requestedOffset),
         libraryClient.uploadStatus(),
+        libraryClient.usageStatus(),
       ]);
       if (!cancelled) {
         setStatus(next);
         setUpload(sync);
-        if (sync.error === "authentication_required") {
+        setUsage(uses);
+        if (
+          sync.error === "authentication_required" ||
+          uses.error === "authentication_required"
+        ) {
           await refreshAuth("auth_status");
         }
         if (requestedOffset === currentOffset.current) {
@@ -154,23 +147,45 @@ export const DownloadedLibrary = ({
       cancelled = true;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- An explicit Retry restarts this effect even when sign-in state is unchanged.
-  }, [signedIn, retry, refreshAuth, open]);
-  const browse = useCallback(async (next: number) => {
-    browseRequest.current += 1;
-    const request = browseRequest.current;
-    try {
-      const prompts = await libraryClient.browse(next);
-      if (alive.current && request === browseRequest.current) {
-        currentOffset.current = next;
-        setOffset(next);
-        setRows(prompts);
+  }, [signedIn, retry, refreshAuth, open, recents]);
+  const browse = useCallback(
+    async (next: number) => {
+      browseRequest.current += 1;
+      const request = browseRequest.current;
+      try {
+        const prompts = await (recents
+          ? libraryClient.recents(next)
+          : libraryClient.browse(next));
+        if (alive.current && request === browseRequest.current) {
+          currentOffset.current = next;
+          setOffset(next);
+          setRows(prompts);
+        }
+      } catch (error) {
+        if (alive.current) {
+          setErrorText(downloadError(error));
+        }
       }
-    } catch (error) {
+    },
+    [recents]
+  );
+  const retryUsage = async () => {
+    try {
+      const result = await libraryClient.retryUsage();
       if (alive.current) {
-        setErrorText(downloadError(error));
+        setUsage(result);
+        copy.usageRetried();
+        setErrorText("");
+        setRetry((value) => value + 1);
+      }
+    } catch {
+      if (alive.current) {
+        setErrorText(
+          "Usage still could not be saved. Free disk space and retry usage; the clipboard is unchanged."
+        );
       }
     }
-  }, []);
+  };
   const retryUpload = async () => {
     try {
       setUpload(await libraryClient.upload());
@@ -181,6 +196,26 @@ export const DownloadedLibrary = ({
   return (
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
+      <LibraryViews
+        recents={recents}
+        onSelect={(value) => {
+          if (value === recents) {
+            return;
+          }
+          browseRequest.current += 1;
+          currentOffset.current = 0;
+          setOffset(0);
+          setRows([]);
+          setRecents(value);
+        }}
+      />
+      <output>{copy.message}</output>
+      <UsageStatus
+        status={usage}
+        onRetry={() => {
+          void retryUsage();
+        }}
+      />
       <LocalLibraryStatus
         status={status}
         signedIn={signedIn}
@@ -226,23 +261,7 @@ export const DownloadedLibrary = ({
           }}
         />
       ) : null}
-      <output className="block">
-        {status?.complete
-          ? `Library downloaded at revision ${status.revision}. Available offline.`
-          : `Downloading library: ${status?.downloaded ?? 0} prompts available. The offline library is incomplete.`}
-      </output>
-      {status && status.totalPages > 0 ? (
-        <progress
-          aria-label="Library download progress"
-          max={status.totalPages}
-          value={status.appliedPages}
-        />
-      ) : null}
-      {signedIn ? null : (
-        <p>
-          Sign in to resume downloading. Downloaded prompts remain available.
-        </p>
-      )}
+      <DownloadProgress status={status} signedIn={signedIn} />
       {errorText ? <p role="alert">{errorText}</p> : null}
       {!status?.complete && signedIn ? (
         <button
@@ -256,45 +275,15 @@ export const DownloadedLibrary = ({
           Retry download
         </button>
       ) : null}
-      <ul className="space-y-2">
-        {rows.map((row) => (
-          <li key={row.id}>
-            <button
-              className="rounded border px-3 py-2 text-left"
-              onClick={() => {
-                void open(row.id);
-              }}
-              type="button"
-            >
-              {row.title}
-              {row.archived ? " (Archived)" : ""}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {status?.complete && status.downloaded === 0 ? (
-        <p>Your library is empty.</p>
-      ) : null}
-      <nav aria-label="Downloaded prompt pages" className="flex gap-4">
-        <button
-          type="button"
-          disabled={offset === 0}
-          onClick={() => {
-            void browse(Math.max(0, offset - 50));
-          }}
-        >
-          Previous
-        </button>
-        <button
-          type="button"
-          disabled={offset + rows.length >= (status?.downloaded ?? 0)}
-          onClick={() => {
-            void browse(offset + 50);
-          }}
-        >
-          Next
-        </button>
-      </nav>
+      <DownloadedRows
+        rows={rows}
+        offset={offset}
+        recents={recents}
+        copying={copy.busy || editingDisabled}
+        onOpen={open}
+        onCopy={copy.handleCopy}
+        onBrowse={browse}
+      />
       {localDetail ? (
         <LocalPromptDetail
           value={localDetail}
@@ -302,6 +291,10 @@ export const DownloadedLibrary = ({
           onEdit={() => {
             setEditor({ initial: localDetail });
             onEditing(true);
+          }}
+          copying={copy.busy || editingDisabled}
+          onCopy={() => {
+            void copy.handleCopy(localDetail.prompt.id);
           }}
         />
       ) : null}

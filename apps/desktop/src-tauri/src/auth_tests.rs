@@ -3,6 +3,7 @@ use serde_json::json;
 use std::sync::{Arc, Mutex};
 include!("local_tests.rs");
 include!("upload_tests.rs");
+include!("usage_tests.rs");
 include!("transition_tests.rs");
 
 fn fixtures() -> serde_json::Value {
@@ -551,7 +552,7 @@ fn live_https_worker() {
             "library_detail" => service
                 .library_detail(input["id"].as_str().unwrap())
                 .map(|value| json!(value)),
-            _ => Err("unknown_command".into()),
+            _ => usage_test_command(&service, &input),
         };
         println!("PR0_RESULT:{}", serde_json::to_string(&result).unwrap());
         std::io::stdout().flush().unwrap();

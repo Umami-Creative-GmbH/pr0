@@ -21,6 +21,10 @@
     "allow-library-create",
     "allow-library-edit",
     "allow-library-copy-draft",
+    "allow-library-copy",
+    "allow-library-recents",
+    "allow-library-usage-status",
+    "allow-library-retry-usage",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

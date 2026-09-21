@@ -18,6 +18,10 @@ fn main() {
             "library_create",
             "library_edit",
             "library_copy_draft",
+            "library_copy",
+            "library_recents",
+            "library_usage_status",
+            "library_retry_usage",
         ]),
     ))
     .expect("could not build native permissions");

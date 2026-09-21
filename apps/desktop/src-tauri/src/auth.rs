@@ -32,6 +32,8 @@ struct Attempt {
     polling: bool,
 }
 struct State {
+    next_download: Instant,
+    memory_usage: Vec<super::usage_contract::Usage>,
     library: Option<LibraryStore>,
     generation: u64,
     retained: Option<Retained>,
@@ -44,6 +46,7 @@ struct State {
     restore_pending: bool,
 }
 pub struct AuthService {
+    clipboard: Mutex<()>,
     transition: Mutex<()>,
     upload: Mutex<()>,
     download: Mutex<()>,
@@ -59,6 +62,7 @@ fn decode<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, String> {
 }
 include!("library_commands.rs");
 include!("upload_commands.rs");
+include!("usage_commands.rs");
 impl State {
     fn view(&self) -> AuthView {
         let identity = self.retained.as_ref().map(|r| &r.identity);
@@ -140,11 +144,14 @@ impl AuthService {
             String::new()
         };
         Ok(Self {
+            clipboard: Mutex::new(()),
             transition: Mutex::new(()),
             upload: Mutex::new(()),
             download: Mutex::new(()),
             restoration: Mutex::new(()),
             state: Mutex::new(State {
+                next_download: Instant::now(),
+                memory_usage: vec![],
                 library: None,
                 generation: 1,
                 retained,
@@ -528,20 +535,38 @@ impl AuthService {
     fn synchronize_before_sign_out(&self, generation: u64) -> Result<(), String> {
         // Even an empty outbox is not proof of a successful online synchronization.
         self.refresh()?;
+        self.library_retry_usage()?;
         loop {
-            let waiting = {
+            let (waiting, usage_waiting) = {
                 let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
                 if state.generation != generation {
                     return Err("operation_cancelled".into());
                 }
                 let waiting = self.library(&mut state)?.upload_status()?.waiting;
-                if waiting == 0 {
+                let usage_waiting = self.library(&mut state)?.usage_status()?.waiting;
+                if waiting == 0 && usage_waiting == 0 {
                     return Ok(());
                 }
-                waiting
+                (waiting, usage_waiting)
             };
             if !self.library_status()?.complete {
                 self.library_download()?;
+                continue;
+            }
+            if waiting == 0 {
+                let status = match self.library_sync_usage() {
+                    Err(error) if error == "upload_in_progress" => {
+                        std::thread::sleep(Duration::from_millis(50));
+                        continue;
+                    }
+                    result => result?,
+                };
+                if let Some(error) = status.error {
+                    return Err(error);
+                }
+                if status.retry_after_ms > 0 || status.waiting >= usage_waiting {
+                    return Err("sync_incomplete".into());
+                }
                 continue;
             }
             let status = match self.library_upload() {
@@ -613,6 +638,7 @@ impl AuthService {
         }
         state.storage.clear()?;
         state.retained = None;
+        state.memory_usage.clear();
         state.clearing = false;
         state.message = if revoked { "Signed out. The desktop session was revoked." } else { "Signed out locally. Server revocation could not be confirmed; revoke this session from browser settings." }.into();
         Ok(state.view())

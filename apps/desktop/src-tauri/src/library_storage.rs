@@ -39,7 +39,7 @@ impl LibraryStore {
         let version: u32 = db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(io)?;
-        if version > 3 {
+        if version > 4 {
             return Err("local_update_required".into());
         }
         db.execute_batch(
@@ -113,6 +113,14 @@ impl LibraryStore {
                 CREATE TABLE prompt_mapping(original TEXT PRIMARY KEY, copy TEXT NOT NULL, operation TEXT NOT NULL);
                 PRAGMA user_version=3;
                 COMMIT;").map_err(io)?;
+        }
+        if version < 4 {
+            db.execute_batch("BEGIN IMMEDIATE;
+                CREATE TABLE pending_usage(id TEXT PRIMARY KEY,prompt_id TEXT NOT NULL,occurred_at TEXT NOT NULL,envelope TEXT,receipt TEXT);
+                CREATE INDEX usage_prompt ON pending_usage(prompt_id);
+                CREATE TABLE usage_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1),attempts INTEGER NOT NULL DEFAULT 0,next_attempt INTEGER NOT NULL DEFAULT 0,error TEXT);
+                INSERT INTO usage_state(singleton) VALUES(1);
+                PRAGMA user_version=4; COMMIT;").map_err(io)?;
         }
         Ok(Self {
             db,
@@ -332,9 +340,12 @@ impl LibraryStore {
             })
             .optional()
             .map_err(io)?;
-        serde_json::from_str(&value.ok_or("prompt_unavailable")?)
-            .map_err(|_| "storage_unavailable".into())
+        let mut prompt: Prompt = serde_json::from_str(&value.ok_or("prompt_unavailable")?)
+            .map_err(|_| "storage_unavailable")?;
+        self.project_usage(&mut prompt)?;
+        Ok(prompt)
     }
 }
 include!("local_storage.rs");
 include!("upload_storage.rs");
+include!("usage_storage.rs");

@@ -8,11 +8,26 @@ export const localNativeWorker = async (
   directory: string,
   uploadFixture = false
 ) => {
-  const [artifact] = [
+  const artifacts = [
     ...new Bun.Glob("pr0_desktop_lib-*.exe").scanSync(
       "apps/desktop/src-tauri/target/debug/deps"
     ),
   ];
+  const builds = await Promise.all(
+    artifacts.map(async (name) => {
+      const file = await Bun.file(
+        `apps/desktop/src-tauri/target/debug/deps/${name}`
+      ).stat();
+      return { name, modified: file.mtimeMs };
+    })
+  );
+  let latest: { name: string; modified: number } | undefined;
+  for (const build of builds) {
+    if (!latest || build.modified > latest.modified) {
+      latest = build;
+    }
+  }
+  const artifact = latest?.name;
   if (!artifact) {
     throw new Error(
       "Build the native tests with cargo test --lib --no-run first."

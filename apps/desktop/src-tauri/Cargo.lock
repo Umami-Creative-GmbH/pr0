@@ -2889,6 +2889,7 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 name = "pr0-desktop"
 version = "0.1.0"
 dependencies = [
+ "arboard",
  "chrono",
  "open",
  "reqwest 0.12.28",

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-retry-usage"
+description = "Enables the library_retry_usage command without any pre-configured scope."
+commands.allow = ["library_retry_usage"]
+
+[[permission]]
+identifier = "deny-library-retry-usage"
+description = "Denies the library_retry_usage command without any pre-configured scope."
+commands.deny = ["library_retry_usage"]

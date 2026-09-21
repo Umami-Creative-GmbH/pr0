@@ -3,6 +3,32 @@ import type { UploadStatus } from "@pr0/api-contract/local-prompts";
 import type { DownloadStatus } from "./library-client";
 import { uploadLabel, uploadFailureMessage } from "./upload-status";
 
+export const DownloadProgress = ({
+  status,
+  signedIn,
+}: {
+  status?: DownloadStatus;
+  signedIn: boolean;
+}) => (
+  <>
+    <output className="block">
+      {status?.complete
+        ? `Library downloaded at revision ${status.revision}. Available offline.`
+        : `Downloading library: ${status?.downloaded ?? 0} prompts available. The offline library is incomplete.`}
+    </output>
+    {status && status.totalPages > 0 ? (
+      <progress
+        aria-label="Library download progress"
+        max={status.totalPages}
+        value={status.appliedPages}
+      />
+    ) : null}
+    {signedIn ? null : (
+      <p>Sign in to resume downloading. Downloaded prompts remain available.</p>
+    )}
+  </>
+);
+
 const LastChecked = ({ at }: { at?: string | null }) =>
   at ? (
     <p>
