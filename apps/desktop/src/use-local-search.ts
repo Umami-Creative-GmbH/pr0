@@ -78,17 +78,17 @@ export const useLocalSearch = (
       setBusy(true);
       setErrorText("");
       setRecoveryNeeded(false);
-      const validation = promptQuerySchema.safeParse(input.query);
-      if (!validation.success) {
-        setErrorText(validation.error.issues[0]?.message ?? "Invalid query.");
-        setPage(undefined);
-        setBusy(false);
-        selected.current = null;
-        setSelectedId(null);
-        await onSelect(null);
-        return;
-      }
+      let retrying = false;
       try {
+        const validation = promptQuerySchema.safeParse(input.query);
+        if (!validation.success) {
+          setErrorText(validation.error.issues[0]?.message ?? "Invalid query.");
+          setPage(undefined);
+          selected.current = null;
+          setSelectedId(null);
+          await onSelect(null);
+          return;
+        }
         const result = await libraryClient.search(input, abort.signal);
         if (abort.signal.aborted) {
           return;
@@ -102,10 +102,12 @@ export const useLocalSearch = (
           return;
         }
         if (error === "results_changed") {
+          retrying = true;
           setCursors([]);
           return;
         }
         if (error === "search_busy") {
+          retrying = true;
           setTimeout(() => {
             if (!abort.signal.aborted) {
               setRetry((value) => value + 1);
@@ -119,9 +121,11 @@ export const useLocalSearch = (
         selected.current = null;
         setSelectedId(null);
         await onSelect(null);
-      }
-      if (!abort.signal.aborted) {
-        setBusy(false);
+        // oxlint-disable-next-line react/todo -- Compiler lowering of finally is unsupported; cleanup must run even when selection rejects.
+      } finally {
+        if (!abort.signal.aborted) {
+          setBusy(retrying);
+        }
       }
     };
     const timer = setTimeout(() => {
@@ -241,18 +245,31 @@ export const useLocalSearch = (
       }
     },
     recover: async () => {
-      if (!request.current) {
+      const input = request.current;
+      if (!input) {
         return;
       }
       setBusy(true);
       setErrorText("Preparing search…");
+      let retrying = false;
       try {
-        await libraryClient.recoverSearch(request.current);
+        await libraryClient.recoverSearch(input);
+        if (request.current !== input) {
+          return;
+        }
+        retrying = true;
         setRetry((value) => value + 1);
       } catch (error) {
+        if (request.current !== input) {
+          return;
+        }
         setErrorText(downloadError(error, "search"));
         setPage(undefined);
-        setBusy(false);
+        // oxlint-disable-next-line react/todo -- Compiler lowering of finally is unsupported; recovery must always finalize its loading state.
+      } finally {
+        if (request.current === input) {
+          setBusy(retrying);
+        }
       }
     },
   };
