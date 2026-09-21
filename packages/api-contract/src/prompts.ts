@@ -98,6 +98,8 @@ export const conflictNoticeSchema = z.strictObject({
   id: promptIdentitySchema,
   originalId: promptIdentitySchema,
   originalDeleted: z.boolean(),
+  originalArchived: z.boolean().default(false),
+  copyDeleted: z.boolean().default(false),
   copyId: promptIdentitySchema,
   sourceTitle: z.string(),
   createdAt: z.iso.datetime(),
@@ -106,7 +108,21 @@ export const conflictNoticeSchema = z.strictObject({
 export type ConflictNotice = z.infer<typeof conflictNoticeSchema>;
 export const conflictPageSchema = z.strictObject({
   ...libraryScopeSchema.shape,
+  revision: revisionSchema.optional(),
   notices: z.array(conflictNoticeSchema).max(100),
+  nextCursor: z.string().nullable(),
+});
+export const adjustmentNoticeSchema = z.strictObject({
+  id: promptIdentitySchema,
+  promptId: promptIdentitySchema,
+  message: z.string(),
+  revision: revisionSchema,
+  createdAt: z.iso.datetime(),
+});
+export const adjustmentPageSchema = z.strictObject({
+  ...libraryScopeSchema.shape,
+  revision: revisionSchema,
+  notices: z.array(adjustmentNoticeSchema).max(100),
   nextCursor: z.string().nullable(),
 });
 export const libraryUsageSchema = z.strictObject({
@@ -261,6 +277,15 @@ export const deletePromptSchema = createPromptSchema
     kind: z.literal("prompt.delete"),
   });
 export type DeletePrompt = z.infer<typeof deletePromptSchema>;
+export const reviewConflictSchema = deletePromptSchema.extend({
+  kind: z.literal("conflict.review"),
+  noticeId: promptIdentitySchema,
+});
+export type ReviewConflict = z.infer<typeof reviewConflictSchema>;
+export const reviewOrganizationSchema = reviewConflictSchema.extend({
+  kind: z.literal("organization.review"),
+});
+export type ReviewOrganization = z.infer<typeof reviewOrganizationSchema>;
 export const assignTagsSchema = deletePromptSchema.extend({
   kind: z.literal("prompt.tags"),
   add: z.array(promptIdentitySchema).max(promptLimits.tagsPerPrompt),
@@ -360,6 +385,8 @@ export const mutationEnvelopeSchema = z.strictObject({
         updatePromptSchema,
         duplicatePromptSchema,
         deletePromptSchema,
+        reviewConflictSchema,
+        reviewOrganizationSchema,
         usePromptSchema,
         createCollectionSchema,
         renameCollectionSchema,

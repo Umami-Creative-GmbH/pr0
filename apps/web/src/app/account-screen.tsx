@@ -1,5 +1,4 @@
 "use client";
-
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
@@ -14,6 +13,7 @@ import {
   deletedPartition,
 } from "./deleted-account-cache";
 import { EmailSettings } from "./email-settings";
+import { LibraryAttentionProvider } from "./library-attention";
 import { PromptLibrary } from "./prompt-library";
 import { RecoveryForm } from "./recovery-form";
 import { SessionSettings } from "./session-settings";
@@ -194,13 +194,17 @@ export const AccountScreen = ({
       />
       {signedIn ? (
         <>
-          <PromptLibrary
-            accountChanged={accountChanged}
-            accountAvailable={copyAccountAvailable(library, accountChanged)}
+          <LibraryAttentionProvider
             key={`${signedIn.instance.id}:${signedIn.account.id}`}
-            library={signedIn}
-            onDirtyChange={retainDraft}
-          />
+          >
+            <PromptLibrary
+              accountChanged={accountChanged}
+              accountAvailable={copyAccountAvailable(library, accountChanged)}
+              key={`${signedIn.instance.id}:${signedIn.account.id}`}
+              library={signedIn}
+              onDirtyChange={retainDraft}
+            />
+          </LibraryAttentionProvider>
           {accountChanged ? (
             <p role="alert">
               Your browser is now signed in to a different account. This draft

@@ -85,7 +85,7 @@ fn organization_byte_delta(db: &Connection) -> Result<i64, String> {
 impl LibraryStore {
     pub fn organization_snapshot(&self) -> Result<Value, String> {
         let effects=organization_rows(&self.db,"SELECT json_object('id',r.id,'effect',json_extract(result,'$.effect'),'accepted',json(CASE WHEN EXISTS(SELECT 1 FROM organization_ack a WHERE a.id=r.id) THEN 'true' ELSE 'false' END)) FROM organization_receipt r WHERE json_extract(result,'$.effect') IS NOT NULL ORDER BY rowid DESC LIMIT 100")?;
-        let pending=organization_rows(&self.db,"SELECT json_object('id',id,'operation',json(payload),'error',error,'accepted',json(CASE WHEN receipt IS NULL THEN 'false' ELSE 'true' END)) FROM organization_queue ORDER BY local_revision")?;
+        let pending=organization_rows(&self.db,"SELECT json_object('id',id,'operation',json(payload),'error',error,'failure',json(failure),'accepted',json(CASE WHEN receipt IS NULL THEN 'false' ELSE 'true' END)) FROM organization_queue ORDER BY local_revision")?;
         let mut states=organization_rows(&self.db,"SELECT json_object('id',id,'entity',kind,'name',name,'state',CASE WHEN target IS NULL THEN 'deleted' ELSE 'merged' END,'targetId',target,'targetName',NULL) FROM organization_removed")?;
         for state in &mut states {
             let mut seen = std::collections::HashSet::new();

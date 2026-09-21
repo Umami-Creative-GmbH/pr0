@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-library-adjustments"
+description = "Enables the library_adjustments command without any pre-configured scope."
+commands.allow = ["library_adjustments"]
+
+[[permission]]
+identifier = "deny-library-adjustments"
+description = "Denies the library_adjustments command without any pre-configured scope."
+commands.deny = ["library_adjustments"]

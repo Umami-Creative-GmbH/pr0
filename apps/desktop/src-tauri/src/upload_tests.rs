@@ -21,6 +21,14 @@ impl Transport for UploadFixture {
     ) -> Result<serde_json::Value, String> {
         let data = fixtures();
         match endpoint {
+            Endpoint::Adjustments => Ok(json!({"instanceId":data["session"]["instance"]["id"],"accountId":data["session"]["account"]["id"],"revision":"3","nextCursor":null,"notices":[{"id":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","promptId":"66666666-6666-4666-8666-666666666666","message":"Collection was deleted on another device; your prompt was kept.","revision":"3","createdAt":"2026-09-20T12:00:00.000Z"}]})),
+            Endpoint::Conflicts => {
+                let snapshot: serde_json::Value = serde_json::from_str(include_str!("../../../../packages/api-contract/src/snapshot-fixtures.json")).unwrap();
+                Ok(json!({"instanceId":snapshot["manifest"]["instanceId"],"accountId":snapshot["manifest"]["accountId"],"revision":"3","nextCursor":null,"notices":[{
+                    "id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","originalId":"88888888-8888-4888-8888-888888888888","copyId":"99999999-9999-4999-8999-999999999999",
+                    "sourceTitle":"Other device's complete title","createdAt":"2026-09-20T12:00:00.000Z","revision":"3","originalDeleted":true,"originalArchived":false,"copyDeleted":false
+                }]}))
+            }
             Endpoint::DeletionLookup => Ok(json!({"status":"absent"})),
             Endpoint::Capabilities => {
                 let mut capabilities = data["capabilities"].clone();
@@ -68,12 +76,19 @@ impl Transport for UploadFixture {
                     return Err("network_unavailable".into());
                 }
                 let operation = &body["operations"][0];
+                if self.quota && operation["kind"] == "collection.create" {
+                    return Ok(json!({"results":[{"status":"rejected","error":{"operationId":operation["operationId"],"code":"quota_exceeded","message":"Collection capacity reached","retryable":false,"resource":"collectionCount","usage":{"promptCount":2,"textBytes":1000}}}]}));
+                }
+                if self.quota && operation["kind"].as_str().is_some_and(|k|k.ends_with(".review")) {
+                    return Ok(json!({"results":[{"status":"rejected","error":{"operationId":operation["operationId"],"code":"validation_failed","message":"Review rejected","retryable":false}}]}));
+                }
                 if self.quota && (operation["desired"]["content"] == "Refused" || operation["kind"] == "prompt.delete") {
                     return Ok(
-                        json!({"results":[{"status":"rejected","error":{"operationId":operation["operationId"],"code":"quota_exceeded","message":"Free capacity","retryable":true}}]}),
+                        json!({"results":[{"status":"rejected","error":{"operationId":operation["operationId"],"code":"quota_exceeded","message":"Free capacity","retryable":true,"resource":"promptCount","usage":{"promptCount":10000,"textBytes":1000}}}]}),
                     );
                 }
                 let mut receipt = json!({"status":"accepted","operationId":operation["operationId"],"promptId":operation["promptId"],"revision":"3","acceptedAt":"2026-09-20T12:00:00.000Z"});
+                if operation["desired"]["content"] == "Adjusted" { receipt["organizationNotice"] = json!("Collection was deleted on another device; your prompt was kept."); }
                 if operation["kind"] == "prompt.use" {
                     receipt["usedAt"] = json!(operation["occurredAt"]
                         .as_str()
@@ -101,6 +116,32 @@ fn upload_fixture(conflict: bool, quota: bool) -> Arc<UploadFixture> {
         release: None,
     })
 }
+#[test]
+fn rejected_review_remains_discoverable_and_retries_the_frozen_identity() {
+    let directory=std::env::temp_dir().join(format!("pr0-review-retry-{}",uuid::Uuid::new_v4()));
+    let transport=upload_fixture(false,true);
+    let vault=Arc::new(Vault::default());
+    let service=downloaded_upload_service(&directory,transport.clone(),vault.clone());
+    service.library_refresh_conflicts().unwrap();
+    let request=json!({"instanceId":view(&service)["instanceId"],"accountId":view(&service)["accountId"],"generation":view(&service)["generation"],"noticeId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"});
+    service.library_review_conflict(serde_json::from_value(request.clone()).unwrap()).unwrap();
+    service.library_upload().unwrap();
+    let pending=service.library_organization().unwrap()["pending"].clone();
+    assert_eq!(pending[0]["error"],"validation_failed");
+    assert_eq!(pending[0]["operation"]["kind"],"conflict.review");
+    service.library_review_conflict(serde_json::from_value(request).unwrap()).unwrap();
+    service.library_upload().unwrap();
+    let traffic=transport.traffic.lock().unwrap();
+    assert_eq!(traffic.len(),2);
+    assert_eq!(traffic[0].1,traffic[1].1);
+    assert!(traffic[1].0);
+    drop(traffic);
+    drop(service);
+    let service=AuthService::new(directory.clone(),transport,vault).unwrap();
+    assert_eq!(service.library_organization().unwrap()["pending"],pending);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
 fn downloaded_upload_service(
     directory: &std::path::Path,
     transport: Arc<UploadFixture>,
@@ -111,6 +152,150 @@ fn downloaded_upload_service(
     service.library_download().unwrap();
     service.library_download().unwrap();
     service
+}
+#[test]
+fn accepted_adjustment_notice_survives_without_a_followup_download() {
+    let directory = std::env::temp_dir().join(format!("pr0-adjustment-receipt-{}",uuid::Uuid::new_v4()));
+    let service = downloaded_upload_service(&directory,upload_fixture(false,false),Arc::new(Vault::default()));
+    let mut request=save_request(&service);
+    request.desired.content="Adjusted".into();
+    service.library_create(request).unwrap();
+    service.library_upload().unwrap();
+    assert_eq!(service.library_adjustments(0).unwrap()["notices"].as_array().unwrap().len(),1);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+#[test]
+fn organization_adjustment_attention_is_persistent_and_reviewable() {
+    let directory = std::env::temp_dir().join(format!("pr0-adjustment-{}", uuid::Uuid::new_v4()));
+    let transport = upload_fixture(false, false);
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, transport.clone(), vault.clone());
+    service.library_refresh_adjustments().unwrap();
+    let notices = service.library_adjustments(0).unwrap();
+    assert_eq!(notices["notices"][0]["message"], "Collection was deleted on another device; your prompt was kept.");
+    service.library_review_adjustment(serde_json::from_value(json!({"instanceId":view(&service)["instanceId"],"accountId":view(&service)["accountId"],"generation":view(&service)["generation"],"noticeId":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"})).unwrap()).unwrap();
+    drop(service);
+    let service = AuthService::new(directory.clone(), transport, vault).unwrap();
+    assert_eq!(service.library_adjustments(0).unwrap()["notices"],json!([]));
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+#[test]
+fn rejected_work_exposes_limiting_resource_after_restart() {
+    let directory = std::env::temp_dir().join(format!("pr0-refused-details-{}", uuid::Uuid::new_v4()));
+    let transport = upload_fixture(false, true);
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, transport.clone(), vault.clone());
+    let mut request = save_request(&service);
+    request.desired.content = "Refused".into();
+    service.library_create(request).unwrap();
+    service.library_upload().unwrap();
+    drop(service);
+    let service = AuthService::new(directory.clone(), transport, vault).unwrap();
+    let state = serde_json::to_value(service.library_upload_status().unwrap()).unwrap();
+    assert_eq!(state["errors"][0]["failure"]["resource"], "promptCount");
+    assert_eq!(state["errors"][0]["failure"]["usage"]["promptCount"], 10000);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn rejected_collection_retains_capacity_details_after_restart() {
+    let directory=std::env::temp_dir().join(format!("pr0-org-quota-{}",uuid::Uuid::new_v4()));
+    let transport=upload_fixture(false,true);
+    let vault=Arc::new(Vault::default());
+    let service=downloaded_upload_service(&directory,transport.clone(),vault.clone());
+    service.library_organize(organization_request(&service,json!({"kind":"collection.create","id":uuid::Uuid::new_v4().to_string(),"name":"Retained collection"}))).unwrap();
+    service.library_upload().unwrap();
+    drop(service);
+    let service=AuthService::new(directory.clone(),transport,vault).unwrap();
+    let snapshot=service.library_organization().unwrap();
+    assert_eq!(snapshot["pending"][0]["failure"]["resource"],"collectionCount");
+    assert_eq!(snapshot["pending"][0]["failure"]["usage"]["textBytes"],1000);
+    assert_eq!(snapshot["pending"][0]["operation"]["name"],"Retained collection");
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+struct AttentionTransport {
+    inner: Arc<UploadFixture>,
+    pages: Mutex<std::collections::VecDeque<Result<serde_json::Value,String>>>,
+}
+impl Transport for AttentionTransport {
+    fn open_browser(&self, origin:&str)->Result<(),String> { self.inner.open_browser(origin) }
+    fn request(&self,origin:&str,endpoint:Endpoint,token:Option<&str>,body:Option<serde_json::Value>)->Result<serde_json::Value,String> {
+        if matches!(endpoint,Endpoint::Conflicts|Endpoint::Adjustments) {
+            if let Some(page)=self.pages.lock().unwrap().pop_front(){return page;}
+        }
+        self.inner.request(origin,endpoint,token,body)
+    }
+}
+#[test]
+fn incomplete_notice_refresh_preserves_visible_reviews_and_reports_failure_after_restart() {
+    let directory=std::env::temp_dir().join(format!("pr0-notice-pages-{}",uuid::Uuid::new_v4()));
+    let vault=Arc::new(Vault::default());
+    let transport=Arc::new(AttentionTransport{inner:upload_fixture(false,false),pages:Mutex::new(std::collections::VecDeque::new())});
+    let service=AuthService::new(directory.clone(),transport.clone(),vault.clone()).unwrap();
+    sign_in(&service);
+    service.library_refresh_conflicts().unwrap();
+    let before=service.library_conflicts(0).unwrap()["notices"].clone();
+    let mut first=transport.inner.request("",Endpoint::Conflicts,None,None).unwrap();
+    first["nextCursor"]=json!("page-two");
+    transport.pages.lock().unwrap().extend([Ok(first),Err("network_unavailable".into())]);
+    assert_eq!(service.library_refresh_conflicts().err().as_deref(),Some("network_unavailable"));
+    assert_eq!(service.library_conflicts(0).unwrap()["notices"],before);
+    transport.pages.lock().unwrap().push_back(Err("invalid_response".into()));
+    assert!(service.library_refresh_adjustments().is_err());
+    drop(service);
+    let service=AuthService::new(directory.clone(),transport.clone(),vault).unwrap();
+    assert!(service.library_upload_status().unwrap().attention_error.is_some());
+    assert_eq!(service.library_conflicts(0).unwrap()["notices"],before);
+    service.restore().unwrap();
+    service.library_refresh_conflicts().unwrap();
+    service.library_refresh_adjustments().unwrap();
+    assert!(service.library_upload_status().unwrap().attention_error.is_none());
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+#[test]
+fn conflict_attention_downloads_other_device_notices_without_replacing_local_text() {
+    let directory = std::env::temp_dir().join(format!("pr0-attention-pull-{}", uuid::Uuid::new_v4()));
+    let transport = upload_fixture(true, false);
+    let service = downloaded_upload_service(&directory, transport, Arc::new(Vault::default()));
+    service.library_refresh_conflicts().unwrap();
+    let notices = service.library_conflicts(0).unwrap();
+    assert_eq!(notices["notices"][0]["sourceTitle"], "Other device's complete title");
+    assert_eq!(notices["notices"][0]["originalAvailable"], false);
+    assert_eq!(notices["notices"][0]["originalDeleted"], true);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+#[test]
+fn conflict_attention_survives_restart_and_review_keeps_retained_copy() {
+    let directory = std::env::temp_dir().join(format!("pr0-attention-{}", uuid::Uuid::new_v4()));
+    let transport = upload_fixture(true, false);
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, transport.clone(), vault.clone());
+    let request = save_request(&service);
+    service.library_create(request.clone()).unwrap();
+    service.library_upload().unwrap();
+    let notices = service.library_conflicts(0).unwrap();
+    assert_eq!(notices["notices"][0]["sourceTitle"], request.desired.title);
+    drop(service);
+    let service = AuthService::new(directory.clone(), transport, vault).unwrap();
+    assert_eq!(service.library_conflicts(0).unwrap(), notices);
+    let status = service.status().unwrap();
+    service.library_review_conflict(serde_json::from_value(json!({
+        "instanceId": request.instance_id, "accountId": request.account_id,
+        "generation": serde_json::to_value(status).unwrap()["generation"],
+        "noticeId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    })).unwrap()).unwrap();
+    assert_eq!(service.library_conflicts(0).unwrap()["notices"], json!([]));
+    assert_eq!(service.library_detail("99999999-9999-4999-8999-999999999999").unwrap().content, request.desired.content);
+    assert_eq!(service.library_detail("99999999-9999-4999-8999-999999999999").unwrap().source_title.as_deref(),Some(request.desired.title.as_str()));
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
 fn upload_lost_create_reopens_and_replays_exact_frozen_envelope_with_successor() {

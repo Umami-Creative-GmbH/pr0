@@ -132,12 +132,14 @@ const emptyMessage = (view: PromptView) => {
 };
 
 const SearchResults = ({
+  attentionIds,
   search,
   copying,
   onCopy,
   onFavorite,
   changing,
 }: {
+  attentionIds?: ReadonlySet<string>;
   search: ReturnType<typeof useLocalSearch>;
   copying: boolean;
   changing: boolean;
@@ -165,6 +167,7 @@ const SearchResults = ({
               >
                 {row.title}
                 {row.archived ? " (Archived)" : ""}
+                {attentionIds?.has(row.id) ? " · Changes need attention" : ""}
               </button>
               <button
                 type="button"
@@ -218,6 +221,7 @@ const SearchResults = ({
   );
 };
 export const SearchLibrary = ({
+  attentionIds,
   account,
   refresh,
   organization,
@@ -230,6 +234,7 @@ export const SearchLibrary = ({
   onFavorite,
   changing,
 }: {
+  attentionIds?: ReadonlySet<string>;
   account: Status;
   refresh: number;
   organization?: LocalOrganization;
@@ -349,6 +354,7 @@ export const SearchLibrary = ({
         </div>
       ) : null}
       <SearchResults
+        attentionIds={attentionIds}
         search={search}
         copying={copying}
         onCopy={onCopy}

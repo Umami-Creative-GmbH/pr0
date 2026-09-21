@@ -75,6 +75,7 @@ fn recovery_organization_upgrades_both_version_six_schemas_without_losing_work()
         drop(service);
         let path = super::library_storage::library_path(&directory,&prompt.instance_id,&prompt.account_id).unwrap();
         let db = rusqlite::Connection::open(path).unwrap();
+        downgrade_attention_fixture(&db);
         if organization_schema {
             db.execute_batch("DROP TABLE recovery_state; DROP TABLE recovery_prompt; DROP TABLE recovery_work; DROP TABLE recovery_archive; DROP TABLE recovery_blocked; ALTER TABLE pending_usage DROP COLUMN recovery;").unwrap();
         } else {

@@ -37,6 +37,7 @@ import {
   getOrganization,
   getPrompt,
   listConflicts,
+  listAdjustments,
 } from "./prompt-store";
 import { withRequestWork } from "./request-work";
 import { searchPrompts } from "./search-service";
@@ -153,11 +154,20 @@ const mutate = async (
 };
 type LibraryRequestTarget =
   | {
-      kind: "prompts" | "conflicts" | "organization" | "mutations" | "receipts";
+      kind:
+        | "prompts"
+        | "conflicts"
+        | "adjustments"
+        | "organization"
+        | "mutations"
+        | "receipts";
     }
   | { kind: "prompt" | "organization-review"; id: string }
   | { kind: "organization-impact" | "organization-states" };
-const readListInput = (url: URL, kind: "conflicts" | "prompts") => {
+const readListInput = (
+  url: URL,
+  kind: "conflicts" | "prompts" | "adjustments"
+) => {
   try {
     decodeURIComponent(url.search.replaceAll("+", " "));
   } catch {
@@ -169,13 +179,13 @@ const readListInput = (url: URL, kind: "conflicts" | "prompts") => {
     limit: entries.limit === undefined ? undefined : Number(entries.limit),
   };
   const input =
-    kind === "conflicts"
-      ? promptListInputSchema.safeParse(fields)
-      : promptBrowseInputSchema.safeParse({
+    kind === "prompts"
+      ? promptBrowseInputSchema.safeParse({
           ...fields,
           tagIds: entries.tagIds?.split(","),
           favorite: parseFavorite(entries.favorite),
-        });
+        })
+      : promptListInputSchema.safeParse(fields);
   if (
     !input.success ||
     [...url.searchParams.keys()].length !== Object.keys(entries).length
@@ -202,6 +212,8 @@ export const handlePrompts = async (
       request.headers.has("authorization") &&
       (target.kind === "mutations" ||
         target.kind === "receipts" ||
+        target.kind === "conflicts" ||
+        target.kind === "adjustments" ||
         target.kind === "organization-states");
     if (native) {
       nativeOrigin(request);
@@ -259,12 +271,10 @@ export const handlePrompts = async (
         body = await getPrompt(browser, target.id);
       } else {
         const input = readListInput(url, target.kind);
-        if (target.kind === "conflicts") {
-          body = await listConflicts(
-            browser,
-            input.data.limit,
-            input.data.cursor
-          );
+        if (target.kind === "conflicts" || target.kind === "adjustments") {
+          body = await (
+            target.kind === "conflicts" ? listConflicts : listAdjustments
+          )(browser, input.data.limit, input.data.cursor);
         } else {
           const search = await searchPrompts(
             browser,

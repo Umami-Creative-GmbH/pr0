@@ -10,6 +10,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DownloadedStatus } from "./downloaded-status";
 import { downloadError, libraryClient } from "./library-client";
 import type { DownloadStatus } from "./library-client";
+import { LocalAdjustments } from "./local-adjustments";
+import { LocalConflicts } from "./local-conflicts";
 import { DownloadControls } from "./local-library-status";
 import { LocalPromptDetail } from "./local-prompt-detail";
 import { LocalPromptEditor } from "./local-prompt-editor";
@@ -279,6 +281,7 @@ interface LibraryProps {
   onEditing: (editing: boolean) => void;
 }
 export const DownloadedLibrary = (props: LibraryProps) => {
+  const [saveFailure, setSaveFailure] = useState(false);
   const { account, signedIn, editingDisabled, onEditing } = props;
   const {
     status,
@@ -308,6 +311,10 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     <section aria-label="Downloaded library" className="space-y-4">
       <h2 className="text-xl font-semibold">Downloaded library</h2>
       <DownloadedStatus
+        saveFailure={saveFailure}
+        organization={organization}
+        onOrganizationSaved={organizationSaved}
+        onEditing={onEditing}
         status={status}
         upload={upload}
         changes={changes}
@@ -328,7 +335,23 @@ export const DownloadedLibrary = (props: LibraryProps) => {
         onOpen={(id) => {
           void open(id);
         }}
-      />
+      >
+        <DownloadControls
+          status={status}
+          signedIn={signedIn}
+          busy={busy}
+          errorText={errorText}
+          onPause={() => {
+            void pauseDownload();
+          }}
+          onRetry={refreshLibrary}
+        />
+        <LocalAdjustments
+          account={account}
+          refresh={retry}
+          onChanged={refreshLibrary}
+        />
+      </DownloadedStatus>
       <button
         type="button"
         className="rounded border px-4 py-2"
@@ -340,8 +363,17 @@ export const DownloadedLibrary = (props: LibraryProps) => {
       >
         New prompt
       </button>
+      <LocalConflicts
+        account={account}
+        refresh={retry}
+        onOpen={(id) => {
+          void open(id);
+        }}
+        onChanged={refreshLibrary}
+      />
       {editor ? (
         <LocalPromptEditor
+          onSaveFailure={setSaveFailure}
           initial={editor.initial}
           mappings={upload?.mappings}
           onOpenOriginal={(id) => {
@@ -349,29 +381,22 @@ export const DownloadedLibrary = (props: LibraryProps) => {
           }}
           account={account}
           onCancel={() => {
+            setSaveFailure(false);
             setEditor(undefined);
             onEditing(false);
           }}
           onSaved={(value) => {
+            setSaveFailure(false);
             promptSaved(value);
             onEditing(false);
           }}
         />
       ) : null}
-      <DownloadControls
-        status={status}
-        signedIn={signedIn}
-        busy={busy}
-        errorText={errorText}
-        onPause={() => {
-          void pauseDownload();
-        }}
-        onRetry={refreshLibrary}
-      />
       {status?.recoveryCount ? (
         <RecoveryLibrary count={status.recoveryCount} account={account} />
       ) : null}
       <SearchLibrary
+        attentionIds={new Set(upload?.errors.map((entry) => entry.promptId))}
         account={account}
         refresh={retry}
         organization={organization}

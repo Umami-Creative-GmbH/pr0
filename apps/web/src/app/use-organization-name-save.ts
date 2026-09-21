@@ -6,6 +6,8 @@ import { organizationNameSchema } from "@pr0/api-contract/organization";
 import type { MutationEnvelope } from "@pr0/api-contract/prompts";
 import { useRef, useState } from "react";
 
+import { useReportAttention } from "./library-attention";
+
 const nameOperation = (
   entity: "collection" | "tag",
   id: string | null,
@@ -60,6 +62,7 @@ export const useOrganizationNameSave = (
     message: "",
     error: "",
   });
+  useReportAttention(state.error, "collection-name-error");
   const save = async (name: string, entityId: string | null) => {
     if (inFlight.current) {
       return false;

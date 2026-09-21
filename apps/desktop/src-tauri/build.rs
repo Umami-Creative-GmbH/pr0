@@ -2,6 +2,7 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "launcher_status",
+            "launcher_library_details",
             "launcher_open",
             "launcher_hide",
             "launcher_focus",
@@ -18,6 +19,10 @@ fn main() {
             "auth_sign_out",
             "library_status",
             "library_organization",
+            "library_conflicts",
+            "library_review_conflict",
+            "library_adjustments",
+            "library_review_adjustment",
             "library_organize",
             "library_organization_review",
             "library_organization_impact",

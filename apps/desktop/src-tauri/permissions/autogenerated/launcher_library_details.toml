@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-launcher-library-details"
+description = "Enables the launcher_library_details command without any pre-configured scope."
+commands.allow = ["launcher_library_details"]
+
+[[permission]]
+identifier = "deny-launcher-library-details"
+description = "Denies the launcher_library_details command without any pre-configured scope."
+commands.deny = ["launcher_library_details"]

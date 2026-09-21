@@ -1,8 +1,14 @@
 "use client";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
+import type {
+  ConflictNotice,
+  MutationEnvelope,
+} from "@pr0/api-contract/prompts";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
 
+import { useReportAttention } from "./library-attention";
 import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 
 const buttonClass =
@@ -16,6 +22,10 @@ export const PromptConflicts = ({
 }) => {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  const summary = useRef<HTMLElement>(null);
+  const pending = useRef(new Map<string, MutationEnvelope>());
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
   const queryKey = [
     "conflicts",
     client.baseUrl,
@@ -35,9 +45,61 @@ export const PromptConflicts = ({
     retryDelay: promptRetryDelay,
   });
   const notices = conflicts.data?.pages.flatMap((page) => page.notices) ?? [];
+  useReportAttention(
+    conflicts.isError
+      ? "Could not refresh conflict reviews. Retry the review list."
+      : "",
+    "conflict-reviews",
+    false
+  );
+  const review = async (notice: ConflictNotice) => {
+    if (busy) {
+      return;
+    }
+    setBusy(true);
+    const envelope = pending.current.get(notice.id) ?? {
+      protocolVersion: 1 as const,
+      instanceId: library.instance.id,
+      accountId: library.account.id,
+      epoch: library.epoch,
+      installationId: crypto.randomUUID(),
+      operations: [
+        {
+          kind: "conflict.review" as const,
+          operationId: crypto.randomUUID(),
+          promptId: notice.copyId,
+          noticeId: notice.id,
+          baseRevision: notice.revision,
+          dependsOn: [],
+        },
+      ],
+    };
+    pending.current.set(notice.id, envelope);
+    try {
+      const result = await client.mutatePrompts(envelope);
+      if (result.results[0]?.status !== "accepted") {
+        setMessage(
+          "Could not confirm review. Your prompts were kept. Retry the review when connected."
+        );
+        setBusy(false);
+        return;
+      }
+      summary.current?.focus();
+      setMessage(
+        "Review recorded. Both prompts and retained titles were kept."
+      );
+      await queryClient.resetQueries({ queryKey });
+      pending.current.delete(notice.id);
+    } catch {
+      setMessage(
+        "Could not confirm review. Your prompts were kept. Retry the review when connected."
+      );
+    }
+    setBusy(false);
+  };
   if (conflicts.isError) {
     return (
-      <div role="alert">
+      <div id="conflict-reviews">
         <p>Could not load conflict notices. Your prompts remain available.</p>
         <button
           className={buttonClass}
@@ -51,14 +113,15 @@ export const PromptConflicts = ({
       </div>
     );
   }
-  if (!notices.length) {
+  if (!notices.length && !message) {
     return null;
   }
   return (
-    <details className="rounded-lg border p-4">
-      <summary className="cursor-pointer focus-visible:outline-2">
+    <details id="conflict-reviews" className="rounded-lg border p-4">
+      <summary ref={summary} className="cursor-pointer focus-visible:outline-2">
         Conflicts to review
       </summary>
+      <output>{message}</output>
       <p className="my-3">
         Unseen or competing edits were preserved as independent prompts.
       </p>
@@ -75,6 +138,7 @@ export const PromptConflicts = ({
               </time>
             </p>
             <div className="flex flex-wrap gap-3">
+              {notice.originalArchived ? <p>Original archived.</p> : null}
               {notice.originalDeleted ? (
                 <p>Original permanently deleted.</p>
               ) : (
@@ -86,12 +150,28 @@ export const PromptConflicts = ({
                   Open original
                 </button>
               )}
+              {notice.copyDeleted ? (
+                <p>Conflict copy permanently deleted.</p>
+              ) : (
+                <button
+                  className={buttonClass}
+                  onClick={() => onOpen(notice.copyId)}
+                  type="button"
+                >
+                  Open conflict copy
+                </button>
+              )}
               <button
                 className={buttonClass}
-                onClick={() => onOpen(notice.copyId)}
                 type="button"
+                disabled={busy}
+                onClick={() => {
+                  void review(notice);
+                }}
               >
-                Open conflict copy
+                {notice.originalDeleted || notice.copyDeleted
+                  ? "Mark reviewed"
+                  : "Keep both"}
               </button>
             </div>
           </li>

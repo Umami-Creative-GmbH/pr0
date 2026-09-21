@@ -14,6 +14,7 @@ export const launcherStatusSchema = z.strictObject({
     .nullable(),
   account: launcherAccountSchema.nullable(),
   complete: z.boolean(),
+  syncStatus: z.string().optional(),
   error: z.literal("library_unavailable").nullable(),
 });
 export const launcherSearchSchema = desktopSearchSchema.refine(
