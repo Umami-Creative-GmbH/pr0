@@ -2,6 +2,8 @@ import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { refreshLibrary } from "./refresh-library";
+
 export const useLibraryRefresh = (library: PrivateLibrary) => {
   const client = useApiClient();
   const queryClient = useQueryClient();
@@ -10,12 +12,10 @@ export const useLibraryRefresh = (library: PrivateLibrary) => {
     window.dispatchEvent(
       new CustomEvent("pr0:library-saved", { detail: scope.join(":") })
     );
-    // Refresh the selected snapshot before resetting lists can change selection.
-    await queryClient.invalidateQueries({ queryKey: ["prompt", ...scope] });
-    await queryClient.resetQueries({ queryKey: ["prompts", ...scope] });
-    await queryClient.invalidateQueries({
-      queryKey: ["organization", ...scope],
-    });
-    await queryClient.resetQueries({ queryKey: ["conflicts", ...scope] });
+    try {
+      await refreshLibrary(queryClient, scope);
+    } catch {
+      // A read failure is shown by its query and the live coordinator; the save already succeeded.
+    }
   };
 };

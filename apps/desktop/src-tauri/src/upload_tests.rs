@@ -25,6 +25,12 @@ impl Transport for UploadFixture {
             Endpoint::Code => Ok(data["code"].clone()),
             Endpoint::Token => Ok(data["token"].clone()),
             Endpoint::Session => Ok(data["session"].clone()),
+            Endpoint::Changes => {
+                let mut change = change_fixture();
+                change["changes"][0]["prompts"] = json!([]);
+                change["changes"][0]["deletedPromptIds"] = json!(["66666666-6666-4666-8666-666666666666"]);
+                Ok(change)
+            }
             Endpoint::Snapshot | Endpoint::SnapshotPage => {
                 let snapshot: serde_json::Value = serde_json::from_str(include_str!(
                     "../../../../packages/api-contract/src/snapshot-fixtures.json"

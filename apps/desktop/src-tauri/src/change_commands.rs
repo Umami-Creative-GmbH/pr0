@@ -45,6 +45,9 @@ impl AuthService {
             .and_then(decode)
             .and_then(|page| self.library(&mut state)?.apply_changes(page));
         if let Err(error) = result {
+            if error == "operation_cancelled" {
+                return self.library(&mut state)?.change_status();
+            }
             self.library(&mut state)?.change_failed(&error)?;
         }
         self.library(&mut state)?.change_status()

@@ -165,11 +165,12 @@ pub fn run() {
                     let mut previous = String::new();
                     loop {
                         let observed = worker.sync_generation();
-                        if worker.library_status().is_ok_and(|status| !status.complete) {
-                            let _ = worker.library_download();
-                        } else {
-                            let _ = worker.library_changes(25);
-                        }
+                        let progressed =
+                            if worker.library_status().is_ok_and(|status| !status.complete) {
+                                worker.library_download().is_ok()
+                            } else {
+                                worker.library_changes(25).is_ok()
+                            };
                         let state = serde_json::to_string(&(
                             worker.library_change_status(),
                             worker.library_status(),
@@ -179,8 +180,16 @@ pub fn run() {
                             let _ = handle.emit("library-changed", ());
                             previous = state;
                         }
-                        // A caught-up request waited on HTTPS; errors and incomplete setup still need bounded pacing.
-                        worker.wait_for_sync(observed, std::time::Duration::from_secs(1));
+                        // Drain complete pages immediately; pause only blocked or unavailable work.
+                        let ready = progressed
+                            && worker.library_change_status().is_ok_and(|status| {
+                                status.updating
+                                    && status.error.is_none()
+                                    && status.retry_after_ms == 0
+                            });
+                        if !ready {
+                            worker.wait_for_sync(observed, std::time::Duration::from_secs(1));
+                        }
                     }
                 });
             }

@@ -3,6 +3,8 @@ import { PromptApiError } from "@pr0/api-client/prompts";
 import type { QueryClient } from "@tanstack/react-query";
 import type { Dispatch, SetStateAction } from "react";
 
+import { refreshLibrary } from "./refresh-library";
+
 export interface LiveStatus {
   label: string;
   lastCheckedAt: string | null;
@@ -39,41 +41,6 @@ export const startLiveChanges = ({
   let attempts = 0;
   let nextAttempt = 0;
   let stopped = false;
-  const refresh = async (initial: boolean) => {
-    await queryClient.invalidateQueries(
-      { queryKey: ["prompt", ...scope] },
-      { cancelRefetch: false }
-    );
-    for (const query of queryClient
-      .getQueryCache()
-      .findAll({ queryKey: ["prompt", ...scope] })) {
-      const { error } = query.state;
-      if (
-        query.isActive() &&
-        error &&
-        !(error instanceof PromptApiError && error.status === 404)
-      ) {
-        throw error;
-      }
-    }
-    await (initial
-      ? queryClient.invalidateQueries(
-          { queryKey: ["prompts", ...scope] },
-          { throwOnError: true, cancelRefetch: false }
-        )
-      : queryClient.resetQueries(
-          { queryKey: ["prompts", ...scope] },
-          { throwOnError: true }
-        ));
-    await queryClient.invalidateQueries(
-      { queryKey: ["organization", ...scope] },
-      { throwOnError: true, cancelRefetch: false }
-    );
-    await queryClient.resetQueries(
-      { queryKey: ["conflicts", ...scope] },
-      { throwOnError: true, cancelRefetch: false }
-    );
-  };
   const failed = (error: Error) => {
     const detail = error instanceof PromptApiError ? error.detail : undefined;
     const authentication =
@@ -121,7 +88,7 @@ export const startLiveChanges = ({
       }
       if (!cursor || page.changes.length) {
         setStatus((prior) => ({ ...prior, label: "Updating library…" }));
-        await refresh(!cursor);
+        await refreshLibrary(queryClient, scope);
       }
       if (disposed) {
         return;

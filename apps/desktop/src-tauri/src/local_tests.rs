@@ -355,6 +355,9 @@ fn offline_command_worker() {
             }
             "library_pending" => service.library_pending().map(|v| json!(v)),
             "library_upload_status" => service.library_upload_status().map(|v| json!(v)),
+            "library_change_status" => service.library_change_status().map(|v| json!(v)),
+            "library_changes" => service.library_changes(0).map(|v| json!(v)),
+            "library_sync" => { service.wake_sync(); Ok(json!(null)) },
             "library_upload" => service.library_upload().map(|v| json!(v)),
             "library_copy_draft" => service
                 .copy_draft(

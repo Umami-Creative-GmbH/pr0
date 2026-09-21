@@ -91,5 +91,4 @@ export const captureChange = async (
   await sql`UPDATE library_change SET payload=${payload} WHERE instance_id=${instanceId} AND account_id=${accountId} AND revision=${receipt.revision}::bigint`;
   // Notifications contain ownership only, and PostgreSQL delivers them after commit.
   await sql`SELECT pg_notify('pr0_library_change', ${`${instanceId}:${accountId}`})`;
-  await sql`DELETE FROM library_change WHERE instance_id=${instanceId} AND account_id=${accountId} AND accepted_at < clock_timestamp() - interval '90 days'`;
 };

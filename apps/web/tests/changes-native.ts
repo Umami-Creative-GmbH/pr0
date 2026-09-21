@@ -10,24 +10,37 @@ import type { NativeArgs } from "./local-native-worker";
 import { promptOperation } from "./prompt-fixture";
 
 export const verifyNativeChanges = async ({
-  command,
+  commands,
   page,
   origin,
 }: {
-  command: (
+  commands: ((
     command: string,
     args?: NativeArgs
-  ) => Promise<z.infer<ReturnType<typeof z.json>>>;
+  ) => Promise<z.infer<ReturnType<typeof z.json>>>)[];
   page: Page;
   origin: string;
 }) => {
-  const initial = z
-    .object({ complete: z.boolean() })
-    .parse(await command("library_download"));
-  assert.equal(initial.complete, true);
-  const checked = changeStatusSchema.parse(await command("library_changes"));
-  assert.equal(checked.error, null);
-  assert.ok(checked.lastCheckedAt);
+  await Promise.all(
+    commands.map(async (command) => {
+      const initial = z
+        .object({ complete: z.boolean() })
+        .parse(await command("library_download"));
+      assert.equal(initial.complete, true);
+      const checked = changeStatusSchema.parse(
+        await command("library_changes")
+      );
+      assert.equal(checked.error, null);
+      assert.ok(checked.lastCheckedAt);
+      const started = performance.now();
+      const interrupted = changeStatusSchema.parse(
+        await command("library_interrupt_changes")
+      );
+      assert.equal(interrupted.error, null);
+      assert.equal(interrupted.lastCheckedAt, checked.lastCheckedAt);
+      assert.ok(performance.now() - started < 2000);
+    })
+  );
   const response = await page.request.get(`${origin}/api/v1/library`);
   const identity = z
     .object({
@@ -41,7 +54,10 @@ export const verifyNativeChanges = async ({
     description: "",
     content: "Received without a replacement snapshot",
   });
-  const waiting = command("library_poll_changes");
+  const waiting = Promise.all(
+    commands.map((command) => command("library_poll_changes"))
+  );
+  await Bun.sleep(200);
   const started = performance.now();
   const mutation = await page.request.post(`${origin}/api/v1/sync/mutations`, {
     headers: { Origin: origin },
@@ -58,18 +74,25 @@ export const verifyNativeChanges = async ({
     mutationResponseSchema.parse(await mutation.json()).results[0]?.status,
     "accepted"
   );
-  const status = changeStatusSchema.parse(await waiting);
-  assert.equal(status.error, null);
-  const prompt = localPromptSchema.parse(
-    await command("library_editor", { id: operation.promptId })
+  for (const value of await waiting) {
+    assert.equal(changeStatusSchema.parse(value).error, null);
+  }
+  const prompts = await Promise.all(
+    commands.map(async (command) =>
+      localPromptSchema.parse(
+        await command("library_editor", { id: operation.promptId })
+      )
+    )
   );
-  assert.equal(
-    prompt.prompt.content,
-    "Received without a replacement snapshot"
-  );
+  for (const prompt of prompts) {
+    assert.equal(
+      prompt.prompt.content,
+      "Received without a replacement snapshot"
+    );
+  }
   const elapsedMs = performance.now() - started;
   assert.ok(elapsedMs < 5000);
   process.stdout.write(
-    `LIVE_NATIVE ${JSON.stringify({ elapsedMs, revision: prompt.prompt.revision, pending: prompt.pending })}\n`
+    `LIVE_NATIVE ${JSON.stringify({ elapsedMs, clients: prompts.length, revisions: prompts.map((prompt) => prompt.prompt.revision) })}\n`
   );
 };

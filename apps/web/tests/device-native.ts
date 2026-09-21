@@ -366,19 +366,50 @@ export const verifyNativeHttps = async (
       assert.equal(uploadStatus.waiting, 0);
     }
     if (live) {
-      await verifyNativeChanges({
-        command: (command, args = {}) =>
-          native.library(command, z.json(), args),
-        page,
-        origin: selectedOrigin,
-      });
+      const peer = worker(
+        executable,
+        path.join(directory, "peer"),
+        certificate,
+        `${target}:peer`
+      );
+      try {
+        await peer.command("begin", selectedOrigin);
+        await page.goto(peer.url());
+        await page
+          .getByRole("button", { name: "Approve matching code" })
+          .click();
+        await page
+          .getByText("Desktop approved. Return to pr0 on your computer.")
+          .waitFor();
+        let peerStatus = await peer.command("poll");
+        for (
+          let attempt = 0;
+          peerStatus.state !== "signed_in" && attempt < 12;
+          attempt += 1
+        ) {
+          await Bun.sleep(1000);
+          peerStatus = await peer.command("poll");
+        }
+        assert.equal(peerStatus.state, "signed_in");
+        await verifyNativeChanges({
+          commands: [
+            (command, args = {}) => native.library(command, z.json(), args),
+            (command, args = {}) => peer.library(command, z.json(), args),
+          ],
+          page,
+          origin: selectedOrigin,
+        });
+      } finally {
+        await peer.command("sign_out");
+        await peer.stop();
+      }
     }
     const refreshed = await native.command("refresh");
     assert.equal(refreshed.state, "signed_in");
     const signedOut = await native.command("sign_out");
     assert.equal(signedOut.state, "signed_out");
     process.stdout.write(
-      "PASS Rust HTTPS → Chrome email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
+      "PASS Rust HTTPS → browser email approval → Windows Credential Manager → new native process → authenticated refresh → independent sign-out\n"
     );
   } finally {
     try {

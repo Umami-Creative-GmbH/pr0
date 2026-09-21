@@ -94,7 +94,7 @@ export const usePromptList = ({
       list.error instanceof PromptApiError &&
       list.error.detail?.code === "results_changed"
     ) {
-      void queryClient.resetQueries({
+      void queryClient.invalidateQueries({
         queryKey: [
           "prompts",
           client.baseUrl,

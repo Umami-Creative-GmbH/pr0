@@ -49,7 +49,11 @@ export const DownloadedLibrary = ({
         setLocalDetail(value);
       }
     } catch (error) {
-      if (alive.current) {
+      if (alive.current && request === selection.current) {
+        if (error === "prompt_not_found" || error === "prompt_unavailable") {
+          selectedPrompt.current = null;
+          setLocalDetail(undefined);
+        }
         setErrorText(downloadError(error));
       }
     }

@@ -1,3 +1,4 @@
+// oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Ordered mutation pages and periodic observation of the real retention worker.
 import { expect, test } from "bun:test";
 
 import { createChangeClient } from "@pr0/api-client/changes";
@@ -81,6 +82,17 @@ test("bounded pages keep complete events, catch changes missed before polling, a
     await expect(
       client.poll({ cursor: checkpoint.cursor, wait: 0 })
     ).rejects.toMatchObject({ detail: { code: "snapshot_required" } });
+    // Observe autonomous retention without another mutation from this account.
+    let retained = true;
+    for (let attempt = 0; attempt < 15 && retained; attempt += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Observe bounded operational pruning at its real interval.
+      await Bun.sleep(1000);
+      // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Read the disposable database's physical retention boundary.
+      const [row] =
+        await sql`SELECT EXISTS(SELECT 1 FROM library_change WHERE account_id=${account.identity.accountId}) AS retained`;
+      ({ retained } = row);
+    }
+    expect(retained).toBe(false);
   } finally {
     await sql.close();
   }
