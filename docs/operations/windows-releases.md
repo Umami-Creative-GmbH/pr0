@@ -4,14 +4,18 @@ Official pr0 is a per-user Windows x64 NSIS application. Umami operates its sign
 
 ## Operator setup
 
-On a Windows signing host, install the repository's Bun and Rust toolchains and Windows SDK signing tools. Obtain a trusted Authenticode code-signing certificate with its provider-supported private-key access. Generate and securely retain a separate Tauri updater key pair using `bun run --cwd apps/desktop tauri signer generate`. Keep private keys and passwords outside the repository and task messages. Losing the updater key prevents existing clients from trusting later releases.
+The default release path needs no purchased certificate: Tauri updater signatures are required, while Windows Authenticode publisher signing is optional. Windows may show an unknown-publisher or SmartScreen warning for the default installer.
+
+On a Windows build host, install the repository's Bun and Rust toolchains. Generate a free Tauri updater key pair once using `bun run --cwd apps/desktop tauri signer generate --write-keys <private-path-outside-repository>`. Keep the private key and password outside the repository and task messages, retain a secure backup, and supply them to a protected release environment (for GitHub Actions, use repository/environment secrets). The public key is safe to configure as a variable. Losing the updater key prevents existing clients from trusting later releases. Generating keys does not publish a release.
+
+To add Windows publisher signing later, obtain a trusted Authenticode code-signing certificate with provider-supported private-key access and install the Windows SDK signing tools. Leave both optional Windows signing variables unset for the free release path. A partially configured Windows signing setup is rejected.
 
 Configure these environment variables in the signing host or protected CI environment:
 
 | Variable | Purpose |
 | --- | --- |
-| `PR0_AUTHENTICODE_THUMBPRINT` | Certificate thumbprint used by SignTool; the signing host must have access to its private key. |
-| `PR0_TIMESTAMP_URL` | HTTPS RFC 3161 timestamp service supported by the signing provider. |
+| `PR0_AUTHENTICODE_THUMBPRINT` | Optional: certificate thumbprint used by SignTool; the signing host must have access to its private key. |
+| `PR0_TIMESTAMP_URL` | Optional, required with the thumbprint: HTTPS RFC 3161 timestamp service supported by the signing provider. |
 | `PR0_UPDATE_PUBLIC_KEY` | Base64 public key from Tauri's signer. Compiled into the native executable. |
 | `PR0_UPDATE_ENDPOINT` | Operator-controlled HTTPS updater manifest URL, compiled into the native executable. |
 | `TAURI_SIGNING_PRIVATE_KEY` | Tauri private-key file path or value, supplied only to the release process. |
@@ -28,7 +32,7 @@ Update application versions consistently in the desktop package, Cargo manifest/
 ./apps/desktop/release.ps1
 ```
 
-This builds only `x86_64-pc-windows-msvc` NSIS artifacts, requires both signing configurations, verifies the executable and installer Authenticode certificate and timestamp, then independently verifies the updater signature and signed version. It writes `signing-evidence.json` beside the installer. A failed gate prevents any release claim. The script never publishes. Tauri CLI 2.11.5 or later supplies the signed version required by updater 2.12.0.
+This builds only `x86_64-pc-windows-msvc` NSIS artifacts, requires updater signing configuration and independently verifies the updater signature and signed version. With optional Windows signing configured, it also verifies the executable and installer Authenticode certificate and timestamp; without it, both must report `NotSigned`. It writes `signing-evidence.json` beside the installer. A failed gate prevents any release claim. The script never publishes. Tauri CLI 2.11.5 or later supplies the signed version required by updater 2.12.0.
 
 The native updater downloads and verifies before offering **Install update and restart**. The resident quit flow waits for local saves and offers Save, Discard draft and Cancel for dirty editors. Cancellation leaves the verified download available during the process lifetime. Earlier saved work remains in the same application data directory, including library/outbox identities, migration backups and startup preferences. Downloads are not persisted between application restarts.
 
@@ -55,7 +59,7 @@ The example domain is not configured in the application. Verify the uploaded byt
 
 ## Installed release gate
 
-Use signed current/prior-version builds on supported Windows 11 x64 with current WebView2. Retain OS, WebView2, application and hardware versions, installer hashes, certificate/thumbprint/timestamp results, source commit, logs and screenshots for each journey:
+Use updater-signed current/prior-version builds on supported Windows 11 x64 with current WebView2. Retain OS, WebView2, application and hardware versions, installer hashes, Authenticode status (and certificate/thumbprint/timestamp results when enabled), source commit, logs and screenshots for each journey:
 
 1. Install as a standard user without elevation; verify the per-user path, library, tray, launcher and one resident owner. Repeat with another Windows user to establish isolation.
 2. With startup enabled, externally disabled, and disabled, update each supported predecessor. Verify the exact preference and one resident with working entry points after restart.
@@ -65,6 +69,6 @@ Use signed current/prior-version builds on supported Windows 11 x64 with current
 6. Exercise migration interruption/storage failures using the supported predecessor fixtures and confirm existing recovery behavior. Launch during setup and confirm no forced draft loss or simultaneous library writers.
 7. Select a self-hosted instance whose API advertises arbitrary update URLs; verify the binary still contacts only its compiled update channel and accepts only its own updater signatures.
 
-No signed evidence exists until an operator performs these journeys. Test-only generated keys and unsigned packaging checks cannot satisfy this gate.
+No installed release evidence exists until an operator performs these journeys. Test-only generated keys and packaging checks without updater signatures cannot satisfy this gate. An Authenticode-unsigned installer with a verified updater signature is supported; record its Windows warning and `NotSigned` status.
 
 References: [Tauri updater](https://v2.tauri.app/plugin/updater/), [Windows signing](https://v2.tauri.app/distribute/sign/windows/), [NSIS installer](https://v2.tauri.app/distribute/windows-installer/).

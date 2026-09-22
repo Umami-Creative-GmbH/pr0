@@ -1,14 +1,16 @@
 # Issue #59 validation
 
-Status: automated implementation checks passed; **signed installed release evidence blocked**.
+Status: automated implementation checks passed; **updater-signed installed release evidence pending**.
 
-On 2026-09-22 the operator confirmed that no Authenticode or updater signing setup exists. No signing credentials were created as substitutes and no signed release or installed update is claimed. Issue #59 must remain open until its signed installed acceptance journeys pass.
+On 2026-09-22 the operator confirmed that no Authenticode or updater signing setup exists, then approved free Tauri updater signing with optional Windows Authenticode signing. This supersedes the original mandatory Authenticode requirement. No signing credentials were created as substitutes and no signed release or installed update is claimed. Issue #59 remains open until updater-signed installed acceptance journeys pass.
 
 Implementation uses the existing native update/resident boundaries, Rust Tauri updater 2.12.0, version-bound independent signatures, native-only compiled distribution configuration, per-user NSIS and existing migration/storage ownership. No REST or OpenAPI update endpoint is added.
 
 Automated signature fixtures generate ephemeral test keys, serve controlled loopback bytes to the real updater, and verify valid/tampered/mismatched-version behavior. HTTP loopback is enabled only under `cfg(test)`; shipped code requires HTTPS. Fixture payloads are deliberately non-executable and never install a build. These tests establish update admission and verification, not Authenticode or installed behavior.
 
 Required operator evidence and publication procedure: [Windows releases](../operations/windows-releases.md).
+
+The optional Authenticode change was checked with six isolated release-script scenarios using mocked build/signature/hash commands: the free path records `NotSigned`; updater verification failure blocks it; partial Windows signing configuration is rejected; invalid Windows signatures block the optional signed path; valid Windows signatures record `Valid`; missing updater private-key configuration still blocks a release. These checks create no keys or installers and do not establish cryptographic or installed-release evidence. Repository formatting, lint and Rust formatting passed after the change.
 
 ## Actual checks on 2026-09-22
 
