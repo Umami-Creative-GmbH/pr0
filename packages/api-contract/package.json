@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./desktop-update": "./src/desktop-update.ts",
+    "./excerpt": "./src/excerpt.ts",
     "./desktop-resident": "./src/desktop-resident.ts",
     "./desktop-launcher": "./src/desktop-launcher.ts",
     "./desktop-search": "./src/desktop-search.ts",

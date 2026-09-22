@@ -57,6 +57,7 @@ pub struct SearchSummary {
     pub id: String,
     pub title: String,
     pub description: String,
+    pub excerpt: String,
     pub revision: String,
     pub created_at: String,
     pub modified_at: String,

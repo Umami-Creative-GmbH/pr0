@@ -2,6 +2,7 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import { contentExcerpt } from "@pr0/api-contract/excerpt";
 import {
   mutationReceiptSchema,
   mutationResultSchema,
@@ -737,6 +738,7 @@ export const summaryFrom = (row: PromptRow) => ({
   id: row.id,
   title: row.title,
   description: row.description,
+  excerpt: contentExcerpt(row.content ?? ""),
   revision: row.revision,
   createdAt: row.created_at.toISOString(),
   modifiedAt: row.modified_at.toISOString(),
@@ -762,8 +764,9 @@ export const getPrompt = (browser: BrowserAccount, id: string) =>
         404
       );
     }
+    const { excerpt: _excerpt, ...summary } = summaryFrom(row);
     return promptSchema.parse({
-      ...summaryFrom(row),
+      ...summary,
       libraryRevision: library.revision,
       tagIds: await promptTagIds(
         tx,

@@ -264,7 +264,7 @@ pub fn search(
         }
     };
     check()?;
-    let compatible:bool=db.query_row("SELECT version=2 AND normalization='pr0-search-v1-ucd17' FROM local_search_version WHERE singleton=1",[],|r|r.get(0)).map_err(recovery)?;
+    let compatible:bool=db.query_row("SELECT version=3 AND normalization='pr0-search-v1-ucd17' FROM local_search_version WHERE singleton=1",[],|r|r.get(0)).map_err(recovery)?;
     if !compatible {
         return Err("search_recovery_required".into());
     }

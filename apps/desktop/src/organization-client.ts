@@ -1,3 +1,4 @@
+import { excerptSchema } from "@pr0/api-contract/excerpt";
 import {
   localOrganizationSchema,
   organizeRequestSchema,
@@ -54,6 +55,7 @@ export const organizationClient = {
           id: z.uuidv4(),
           title: z.string(),
           archived: z.boolean(),
+          excerpt: excerptSchema,
         })
       )
       .max(50)

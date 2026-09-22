@@ -1,8 +1,7 @@
 import type { UpdateStatus } from "@pr0/api-contract/desktop-update";
-import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState } from "react";
 
 import { updateClient } from "./update-client";
+import { useApplicationUpdates } from "./use-application-updates";
 
 const errors = {
   check_failed: "Could not check for updates. Check your connection and retry.",
@@ -16,109 +15,90 @@ const errors = {
     "Could not prepare the update on this device. Check available disk space and access, then retry.",
 };
 
+type UpdatePhase = UpdateStatus["phase"] | undefined;
+type PerformUpdate = (operation: () => Promise<void>) => Promise<void>;
+
+const phaseMessages: Partial<Record<UpdateStatus["phase"], string>> = {
+  unconfigured:
+    "This build has no update signing configuration. Contact your application distributor for a signed release.",
+  current: "You are up to date.",
+  ready:
+    "Download verified. Install and restart when you are ready; unsaved changes will be reviewed first.",
+};
+
+const isWorking = (phase: UpdatePhase, busy: boolean) =>
+  busy || phase === "downloading" || phase === "checking";
+
+const UpdateSummary = ({
+  status,
+  busy,
+}: {
+  status: UpdateStatus | undefined;
+  busy: boolean;
+}) => (
+  <output>
+    {status?.version
+      ? `pr0 ${status.version} is available. `
+      : "Application updates. "}
+    {status ? phaseMessages[status.phase] : null}
+    {isWorking(status?.phase, busy) ? "Working…" : null}
+  </output>
+);
+
+const UpdateActions = ({
+  phase,
+  busy,
+  perform,
+}: {
+  phase: UpdatePhase;
+  busy: boolean;
+  perform: PerformUpdate;
+}) => (
+  <>
+    {phase === "available" ? (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          void perform(updateClient.download);
+        }}
+      >
+        Download update
+      </button>
+    ) : null}
+    {phase === "ready" ? (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          void perform(updateClient.install);
+        }}
+      >
+        Install update and restart
+      </button>
+    ) : null}
+    {phase !== "unconfigured" && phase !== "ready" ? (
+      <button
+        type="button"
+        disabled={isWorking(phase, busy)}
+        onClick={() => {
+          void perform(updateClient.check);
+        }}
+      >
+        Check for updates
+      </button>
+    ) : null}
+  </>
+);
+
 export const UpdateControls = () => {
-  const [status, setStatus] = useState<UpdateStatus>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const refresh = useCallback(async () => {
-    try {
-      setStatus(await updateClient.status());
-    } catch {
-      setError("Update controls are unavailable. Retry.");
-    }
-  }, []);
-  useEffect(() => {
-    let disposed = false;
-    let off: (() => void) | undefined;
-    const connect = async () => {
-      try {
-        const unsubscribe = await listen("update-changed", () => {
-          void refresh();
-        });
-        if (disposed) {
-          unsubscribe();
-          return;
-        }
-        off = unsubscribe;
-        await refresh();
-      } catch {
-        if (!disposed) {
-          setError("Update controls are unavailable. Retry.");
-        }
-      }
-    };
-    void connect();
-    return () => {
-      disposed = true;
-      off?.();
-    };
-  }, [refresh]);
-  const perform = async (operation: () => Promise<void>) => {
-    setBusy(true);
-    setError("");
-    try {
-      await operation();
-      await refresh();
-    } catch {
-      setError(
-        "Could not complete the update action. Retry; your work remains available."
-      );
-    }
-    setBusy(false);
-  };
-  const phase = status?.phase;
+  const { status, busy, error, perform } = useApplicationUpdates();
   return (
     <section aria-label="Application updates" className="wf-banner">
-      <output>
-        {status?.version
-          ? `pr0 ${status.version} is available. `
-          : "Application updates. "}
-        {phase === "unconfigured"
-          ? "This build has no update signing configuration. Contact your application distributor for a signed release."
-          : null}
-        {phase === "current" ? "You are up to date." : null}
-        {phase === "ready"
-          ? "Download verified. Install and restart when you are ready; unsaved changes will be reviewed first."
-          : null}
-        {busy || phase === "downloading" || phase === "checking"
-          ? "Working…"
-          : null}
-      </output>
+      <UpdateSummary status={status} busy={busy} />
       {status?.error ? <p role="alert">{errors[status.error]}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
-      {phase === "available" ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            void perform(updateClient.download);
-          }}
-        >
-          Download update
-        </button>
-      ) : null}
-      {phase === "ready" ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            void perform(updateClient.install);
-          }}
-        >
-          Install update and restart
-        </button>
-      ) : null}
-      {phase !== "unconfigured" && phase !== "ready" ? (
-        <button
-          type="button"
-          disabled={busy || phase === "checking" || phase === "downloading"}
-          onClick={() => {
-            void perform(updateClient.check);
-          }}
-        >
-          Check for updates
-        </button>
-      ) : null}
+      <UpdateActions phase={status?.phase} busy={busy} perform={perform} />
     </section>
   );
 };
