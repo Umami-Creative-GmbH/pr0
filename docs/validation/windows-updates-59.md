@@ -22,3 +22,9 @@ Required operator evidence and publication procedure: [Windows releases](../oper
 - `./apps/desktop/release.ps1` with no operator configuration: refused the release at `PR0_UPDATE_PUBLIC_KEY`, before building or signing.
 
 Host Windows version: 10.0.26200.0; Bun 1.4.2; Tauri CLI 2.11.5. The Windows native test harness needed an explicit common-controls v6 manifest; the app retains its existing Tauri resource manifest. WebView2 emitted shutdown class-unregistration messages during several completed UI journeys; all behavioral assertions and process exits passed.
+
+Rust: 1.94.0. WebView2 installed version: 153.0.4234.48.
+
+The code review found that direct upgrades could invoke a predecessor uninstaller before the new running-process check. The corrected NSIS initialization uses in-place upgrades, retains normal fresh-install shortcuts, and refuses unsupported machine-wide/MSI migrations. An isolated NSIS macro probe (no application installation) used a temporary HKCU fixture to verify update mode for a prior version and normal mode for a fresh installation. Before the fix the predecessor probe returned 9; after the fix it returned 0, while the fresh-install probe correctly returned 9 (normal install mode). This is supporting control-flow evidence, not an installed upgrade journey.
+
+After the review fix, unsigned x64 NSIS packaging and `bun run check` passed again. The resulting debug installer's SHA-256 is `68E55AFC255EE2E16E81EF030CB9BD04E995CF24D74E012FB417EF4FD391021D`. Standards review: zero findings. Spec review: the installer defect is resolved; one remaining blocker is the signed installed acceptance evidence.
