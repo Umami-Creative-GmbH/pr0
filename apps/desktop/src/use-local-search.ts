@@ -5,6 +5,8 @@ import type {
 import { organizationSearch } from "@pr0/api-contract/organization";
 import { promptQuerySchema, promptSortSchema } from "@pr0/api-contract/prompts";
 import type { PromptSort, PromptView } from "@pr0/api-contract/prompts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 
 import { launcherClient } from "./launcher-client";
@@ -31,6 +33,8 @@ export const useLocalSearch = (
   ) => Promise<void>,
   mode: "library" | "launcher" = "library"
 ) => {
+  const t = useTranslations();
+
   const [view, setView] = useState<PromptView>("all");
   const [viewCollectionId, setViewCollectionId] = useState<string>();
   const [query, setQuery] = useState("");
@@ -91,7 +95,9 @@ export const useLocalSearch = (
       try {
         const validation = promptQuerySchema.safeParse(input.query);
         if (!validation.success) {
-          setErrorText(validation.error.issues[0]?.message ?? "Invalid query.");
+          setErrorText(
+            validation.error.issues[0]?.message ?? translate("invalidQuery")
+          );
           setPage(undefined);
           selected.current = null;
           setSelectedId(null);
@@ -275,7 +281,7 @@ export const useLocalSearch = (
         return;
       }
       setBusy(true);
-      setErrorText("Preparing search…");
+      setErrorText(t("preparingSearch"));
       let retrying = false;
       try {
         await libraryClient.recoverSearch(input);

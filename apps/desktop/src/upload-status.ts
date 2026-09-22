@@ -1,14 +1,17 @@
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
+import { translate } from "@pr0/ui/lib/i18n";
 
 const serviceFailureLabel = (upload?: UploadStatus) => {
   if (upload?.error === "compatibility_update_required") {
-    return "Update required · Changes waiting";
+    return translate("updateRequiredChangesWaiting");
   }
   if (upload?.error === "account_suspended") {
-    return "Account suspended · Changes retained";
+    return translate("accountSuspendedChangesRetained");
   }
   if (upload?.error?.startsWith("retry_after:") && upload.retryAfterMs > 0) {
-    return `Service busy · Retrying in ${Math.ceil(upload.retryAfterMs / 1000)} seconds · Changes retained`;
+    return translate("serviceBusyRetryingInValueSecondsChangesRetained", [
+      Math.ceil(upload.retryAfterMs / 1000),
+    ]);
   }
 };
 export const uploadLabel = (
@@ -22,33 +25,41 @@ export const uploadLabel = (
     return failure;
   }
   if (!signedIn || upload?.error === "authentication_required") {
-    return pending ? "Sign in to sync · Changes waiting" : "Sign in to sync";
+    return pending
+      ? translate("signInToSyncChangesWaiting")
+      : translate("signInToSync");
   }
   if (upload?.errors.length) {
-    return "Changes need attention · Changes waiting";
+    return translate("changesNeedAttentionChangesWaiting");
   }
   if (offline || upload?.error === "network_unavailable") {
-    return pending ? "Offline · Changes waiting to sync" : "Offline";
+    return pending
+      ? translate("offlineChangesWaitingToSync")
+      : translate("offline");
   }
   if (upload?.error) {
-    return "Couldn't sync · Changes waiting";
+    return translate("couldnTSyncChangesWaiting");
   }
   if (upload?.awaitingDownload) {
     return pending
-      ? "Updating this device's library… · Changes waiting"
-      : "Updating this device's library…";
+      ? translate("updatingThisDeviceSLibraryChangesWaiting")
+      : translate("updatingThisDeviceSLibrary");
   }
-  return pending ? "Changes waiting to sync" : "Library status";
+  return pending
+    ? translate("changesWaitingToSync")
+    : translate("libraryStatus");
 };
 export const uploadFailureMessage = (code: string) => {
   if (code === "recovery_required") {
-    return "The server was restored. This saved variant needs your review before recovery. Copy its text into a new prompt to preserve it separately; the original pending identity is retained.";
+    return translate("theServerWasRestoredThisSavedVariantNeedsYourReview");
   }
   if (code === "quota_exceeded") {
-    return "Server capacity reached. Free capacity and retry; archiving does not free capacity. Your text remains available to edit or copy.";
+    return translate(
+      "serverCapacityReachedFreeCapacityAndRetryArchivingDoesNot"
+    );
   }
   if (code === "dependency_blocked") {
-    return "Waiting for an earlier change to be accepted. Your text is retained.";
+    return translate("waitingForAnEarlierChangeToBeAcceptedYourText");
   }
-  return "This change needs attention. Your text is retained; open it to review or copy.";
+  return translate("thisChangeNeedsAttentionYourTextIsRetainedOpenIt");
 };

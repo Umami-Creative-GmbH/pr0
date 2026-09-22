@@ -3,6 +3,8 @@ import {
   localConflictReviewSchema,
   localAdjustmentPageSchema as pageSchema,
 } from "@pr0/api-contract/local-prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import type { z } from "zod";
@@ -18,6 +20,8 @@ export const LocalAdjustments = ({
   refresh: number;
   onChanged: () => void;
 }) => {
+  const t = useTranslations();
+
   const [page, setPage] = useState<z.infer<typeof pageSchema>>();
   const [offset, setOffset] = useState(0);
   const [version, setVersion] = useState(0);
@@ -76,12 +80,12 @@ export const LocalAdjustments = ({
       });
       heading.current?.focus();
       setMessage(
-        "Organization notice reviewed on this device. Your prompts were kept."
+        t("organizationNoticeReviewedOnThisDeviceYourPromptsWereKept")
       );
       setVersion((value) => value + 1);
       onChanged();
     } catch {
-      setMessage("Review was not saved. Retry; your prompts remain available.");
+      setMessage(t("reviewWasNotSavedRetryYourPromptsRemainAvailable"));
     }
     setBusy(false);
   };
@@ -90,28 +94,32 @@ export const LocalAdjustments = ({
   }
   return (
     <section
-      aria-label="Organization adjustments"
+      aria-label={t("organizationAdjustments")}
       className="space-y-3 rounded border p-3"
     >
       <h3 ref={heading} tabIndex={-1}>
-        Organization adjustments to review
+        {t("organizationAdjustmentsToReview")}
       </h3>
-      <output>{message}</output>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
       {error ? (
         <p>
-          Could not load retained notices.{" "}
+          {t("couldNotLoadRetainedNotices")}{" "}
           <button
             type="button"
             onClick={() => setVersion((value) => value + 1)}
           >
-            Retry notices
+            {t("retryNotices")}
           </button>
         </p>
       ) : null}
       <ul>
         {page?.notices.map((notice) => (
           <li key={notice.id}>
-            <p>{notice.message}</p>
+            <p>
+              <LocalizedMessage value={notice.message} />
+            </p>
             <button
               type="button"
               disabled={busy}
@@ -119,7 +127,7 @@ export const LocalAdjustments = ({
                 void review(notice.id);
               }}
             >
-              Mark adjustment reviewed
+              {t("markAdjustmentReviewed")}
             </button>
           </li>
         ))}
@@ -129,7 +137,7 @@ export const LocalAdjustments = ({
           type="button"
           onClick={() => setOffset(Math.max(0, offset - 100))}
         >
-          Previous adjustments
+          {t("previousAdjustments")}
         </button>
       ) : null}
       {page?.nextOffset !== null && page?.nextOffset !== undefined ? (
@@ -137,7 +145,7 @@ export const LocalAdjustments = ({
           type="button"
           onClick={() => setOffset(page.nextOffset ?? offset)}
         >
-          More adjustments
+          {t("moreAdjustments")}
         </button>
       ) : null}
     </section>

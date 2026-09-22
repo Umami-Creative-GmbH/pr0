@@ -1,5 +1,7 @@
 import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import { localConflictReviewSchema } from "@pr0/api-contract/local-prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 
@@ -21,6 +23,8 @@ export const OrganizationAttention = ({
   disabled: boolean;
   onEditing: (value: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const retry = async (entry: LocalOrganization["pending"][number]) => {
@@ -41,10 +45,10 @@ export const OrganizationAttention = ({
           }),
         }
       );
-      setMessage("Review queued for retry. Prompt text is retained.");
+      setMessage(t("reviewQueuedForRetryPromptTextIsRetained"));
       await onSaved();
     } catch {
-      setMessage("Could not retry the review. Local work is retained.");
+      setMessage(t("couldNotRetryTheReviewLocalWorkIsRetained"));
     }
   };
   const rejected = snapshot.pending.filter((entry) => entry.error);
@@ -52,26 +56,26 @@ export const OrganizationAttention = ({
     return null;
   }
   return (
-    <section aria-label="Organization changes need attention">
-      <h3>Changes need attention</h3>
-      <output>{message}</output>
-      <p>
-        Organization changes are saved on this device. Dependent prompts wait;
-        unrelated work continues synchronizing.
-      </p>
+    <section aria-label={t("organizationChangesNeedAttention")}>
+      <h3>{t("changesNeedAttention")}</h3>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
+      <p>{t("organizationChangesAreSavedOnThisDeviceDependentPromptsWait")}</p>
       <ul>
         {rejected.map((entry) => (
           <li key={entry.id}>
             {"name" in entry.operation
               ? entry.operation.name
-              : entry.operation.kind}
+              : t("organizationChange")}
             : {organizationError(entry.error)}
             <CapacityDetails failure={entry.failure} />
             {entry.operation.kind.endsWith(".review") ? (
               <>
                 <p>
-                  Review acknowledgement is waiting; reviewing never removes
-                  prompt text.
+                  {t(
+                    "reviewAcknowledgementIsWaitingReviewingNeverRemovesPromptText"
+                  )}
                 </p>
                 <button
                   type="button"
@@ -80,7 +84,7 @@ export const OrganizationAttention = ({
                     void retry(entry);
                   }}
                 >
-                  Retry review
+                  {t("retryReview")}
                 </button>
               </>
             ) : null}
@@ -95,7 +99,7 @@ export const OrganizationAttention = ({
           onEditing(true);
         }}
       >
-        Rename or correct organization
+        {t("renameOrCorrectOrganization")}
       </button>
       {open ? (
         <OrganizationManager

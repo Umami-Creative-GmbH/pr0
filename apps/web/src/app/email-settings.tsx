@@ -1,7 +1,9 @@
 "use client";
-
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -13,20 +15,21 @@ const inputClass =
   "bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
 const buttonClass = "wf-btn";
 const notificationMessages = {
-  pending:
-    "Your email changed. The notification to your old address is queued; delivery is not confirmed.",
-  sent: "Your email changed. The mail server accepted the notification to your old address; inbox delivery is not confirmed.",
-  failed:
-    "Your email changed, but the notification to your old address could not be delivered. Automatic retries have ended. Your new address remains active. Contact your instance operator if you need help.",
+  pending: translate("yourEmailChangedTheNotificationToYourOldAddressIs"),
+  sent: translate("yourEmailChangedTheMailServerAcceptedTheNotificationTo"),
+  failed: translate("yourEmailChangedButTheNotificationToYourOldAddress"),
 };
 
-export const EmailSettings = ({
-  accountId,
-  methodResult,
-}: {
+interface EmailSettingsProps {
   accountId: string;
   methodResult?: string;
-}) => {
+}
+
+const useEmailSettings = ({
+  accountId,
+}: Pick<EmailSettingsProps, "accountId">) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -87,9 +90,7 @@ export const EmailSettings = ({
         emailVersion,
       });
       setChallenge({ id: result.challengeId, purpose: "reauth", emailVersion });
-      setMessage(
-        "A code has been queued for your current verified email. It expires in five minutes and allows three wrong attempts. Resending replaces the previous code."
-      );
+      setMessage(t("aCodeHasBeenQueuedForYourCurrentVerifiedEmail"));
     });
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -111,22 +112,18 @@ export const EmailSettings = ({
         const input = { ...identity, challengeId: challenge.id, code };
         if (challenge.purpose === "email") {
           await client.verifyEmailChange(input);
-          setMessage("Email updated. Notification status is shown below.");
+          setMessage(t("emailUpdatedNotificationStatusIsShownBelow"));
           await queryClient.invalidateQueries({
             queryKey: ["account-library", client.baseUrl],
           });
         } else {
           await client.reauthenticate(input);
-          setMessage(
-            "Identity confirmed for ten minutes. You can change your email or manage login methods."
-          );
+          setMessage(t("identityConfirmedForTenMinutesYouCanChangeYourEmail"));
         }
         setChallenge(null);
       } else if (password) {
         await client.reauthenticate({ ...identity, password });
-        setMessage(
-          "Identity confirmed for ten minutes. You can change your email or manage login methods."
-        );
+        setMessage(t("identityConfirmedForTenMinutesYouCanChangeYourEmail"));
       } else {
         const result = await client.requestEmailChange({ ...identity, email });
         setChallenge({
@@ -134,13 +131,136 @@ export const EmailSettings = ({
           purpose: "email",
           emailVersion: identity.emailVersion,
         });
-        setMessage(
-          "A code has been queued for the replacement address. Your current email remains active until you verify it. The code expires in five minutes and allows three wrong attempts."
-        );
+        setMessage(t("aCodeHasBeenQueuedForTheReplacementAddressYour"));
       }
       form.reset();
     });
   };
+  return {
+    busy,
+    message,
+    challenge,
+    setChallenge,
+    setMessage,
+    statusRef,
+    settings,
+    requestCode,
+    submit,
+  };
+};
+
+const EmailVerificationFields = ({
+  challenge,
+  fresh,
+  reauthentication,
+  onRequestCode,
+  onReset,
+}: {
+  challenge: ReturnType<typeof useEmailSettings>["challenge"];
+  fresh: boolean;
+  reauthentication: string;
+  onRequestCode: () => void;
+  onReset: () => void;
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      {challenge ? (
+        <>
+          <label className="block font-medium" htmlFor="account-code">
+            {challenge.purpose === "reauth"
+              ? t("currentEmailCode")
+              : t("replacementEmailCode")}
+          </label>
+          <input
+            className={inputClass}
+            id="account-code"
+            name="code"
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            pattern="[0-9]{8}"
+            minLength={8}
+            maxLength={8}
+            required
+            aria-describedby="account-code-help"
+          />
+          <p id="account-code-help" className="text-sm">
+            {t("enterAllEightDigitsInThisBrowserThreeWrongAttempts")}
+          </p>
+          <button className={buttonClass} type="submit">
+            {challenge.purpose === "reauth"
+              ? t("confirmIdentity")
+              : t("verifyAndChangeEmail")}
+          </button>
+          <button className={buttonClass} type="button" onClick={onReset}>
+            {t("startAgainOrRequestAnotherCode")}
+          </button>
+        </>
+      ) : null}
+      {!challenge && fresh ? (
+        <>
+          <label className="block font-medium" htmlFor="replacement-email">
+            {t("replacementEmail")}
+          </label>
+          <input
+            className={inputClass}
+            id="replacement-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            maxLength={254}
+            required
+          />
+          <button className={buttonClass} type="submit">
+            {t("sendReplacementVerificationCode")}
+          </button>
+        </>
+      ) : null}
+      {!challenge && !fresh && reauthentication === "password" ? (
+        <>
+          <label className="block font-medium" htmlFor="reauth-password">
+            {t("confirmCurrentPassword")}
+          </label>
+          <input
+            className={inputClass}
+            id="reauth-password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            minLength={12}
+            maxLength={128}
+            required
+          />
+          <button className={buttonClass} type="submit">
+            {t("confirmIdentity")}
+          </button>
+        </>
+      ) : null}
+      {!challenge && !fresh && reauthentication === "email" ? (
+        <button className={buttonClass} type="button" onClick={onRequestCode}>
+          {t("sendIdentityCodeToCurrentEmail")}
+        </button>
+      ) : null}
+    </>
+  );
+};
+
+export const EmailSettings = ({
+  accountId,
+  methodResult,
+}: EmailSettingsProps) => {
+  const t = useTranslations();
+  const {
+    busy,
+    message,
+    challenge,
+    setChallenge,
+    setMessage,
+    statusRef,
+    settings,
+    requestCode,
+    submit,
+  } = useEmailSettings({ accountId });
   const fresh = Boolean(settings.data?.freshUntil);
   return (
     <section
@@ -148,12 +268,10 @@ export const EmailSettings = ({
       className="rounded-lg border p-6"
     >
       <h2 className="text-xl font-medium" id="email-settings-title">
-        Account security
+        {t("accountSecurity")}
       </h2>
       <p className="mt-2 text-sm">
-        Confirm your identity to manage login methods or change your account
-        email. A replacement email must be verified before your current address
-        changes.
+        {t("confirmYourIdentityToManageLoginMethodsOrChangeYour")}
       </p>
       <p
         aria-live="polite"
@@ -161,14 +279,14 @@ export const EmailSettings = ({
         ref={statusRef}
         tabIndex={-1}
       >
-        {message}
+        <LocalizedMessage value={message} />
       </p>
       {settings.data?.notification ? (
         <output className="my-3 block text-sm">
           {notificationMessages[settings.data.notification]}
         </output>
       ) : null}
-      {settings.isPending ? <output>Loading email settings…</output> : null}
+      {settings.isPending ? <output>{t("loadingEmailSettings")}</output> : null}
       {settings.isError ? (
         <p role="alert">
           {accountErrorMessage(settings.error)}{" "}
@@ -179,7 +297,7 @@ export const EmailSettings = ({
               void settings.refetch();
             }}
           >
-            Retry email settings
+            {t("retryEmailSettings")}
           </button>
         </p>
       ) : null}
@@ -187,106 +305,21 @@ export const EmailSettings = ({
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <fieldset disabled={busy} className="space-y-3">
             <legend className="sr-only">
-              Verify identity and replacement email
+              {t("verifyIdentityAndReplacementEmail")}
             </legend>
-            {challenge ? (
-              <>
-                <label className="block font-medium" htmlFor="account-code">
-                  {challenge.purpose === "reauth"
-                    ? "Current email code"
-                    : "Replacement email code"}
-                </label>
-                <input
-                  className={inputClass}
-                  id="account-code"
-                  name="code"
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  pattern="[0-9]{8}"
-                  minLength={8}
-                  maxLength={8}
-                  required
-                  aria-describedby="account-code-help"
-                />
-                <p id="account-code-help" className="text-sm">
-                  Enter all eight digits in this browser. Three wrong attempts
-                  invalidate the code.
-                </p>
-                <button className={buttonClass} type="submit">
-                  {challenge.purpose === "reauth"
-                    ? "Confirm identity"
-                    : "Verify and change email"}
-                </button>
-                <button
-                  className={buttonClass}
-                  type="button"
-                  onClick={() => {
-                    setChallenge(null);
-                    setMessage(
-                      "Enter your details to request a replacement code. Your account email has not changed."
-                    );
-                  }}
-                >
-                  Start again or request another code
-                </button>
-              </>
-            ) : null}
-            {!challenge && fresh ? (
-              <>
-                <label
-                  className="block font-medium"
-                  htmlFor="replacement-email"
-                >
-                  Replacement email
-                </label>
-                <input
-                  className={inputClass}
-                  id="replacement-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  maxLength={254}
-                  required
-                />
-                <button className={buttonClass} type="submit">
-                  Send replacement verification code
-                </button>
-              </>
-            ) : null}
-            {!challenge &&
-            !fresh &&
-            settings.data.reauthentication === "password" ? (
-              <>
-                <label className="block font-medium" htmlFor="reauth-password">
-                  Confirm current password
-                </label>
-                <input
-                  className={inputClass}
-                  id="reauth-password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  minLength={12}
-                  maxLength={128}
-                  required
-                />
-                <button className={buttonClass} type="submit">
-                  Confirm identity
-                </button>
-              </>
-            ) : null}
-            {!challenge &&
-            !fresh &&
-            settings.data.reauthentication === "email" ? (
-              <button
-                className={buttonClass}
-                type="button"
-                onClick={requestCode}
-              >
-                Send identity code to current email
-              </button>
-            ) : null}
-            {busy ? <output>Working…</output> : null}
+            <EmailVerificationFields
+              challenge={challenge}
+              fresh={fresh}
+              reauthentication={settings.data.reauthentication}
+              onRequestCode={requestCode}
+              onReset={() => {
+                setChallenge(null);
+                setMessage(
+                  t("enterYourDetailsToRequestAReplacementCodeYourAccount")
+                );
+              }}
+            />
+            {busy ? <output>{t("working")}</output> : null}
           </fieldset>
           <LoginMethodSettings
             identity={{ accountId, emailVersion: settings.data.emailVersion }}

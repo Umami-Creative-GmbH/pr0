@@ -1,13 +1,19 @@
 "use client";
-
 import { useId, useState } from "react";
 
+import { useTranslations } from "../hooks/use-translations";
+import { localizedLabel, translate } from "../lib/i18n";
 import { accentFor } from "../lib/present";
 import { PickerSearch } from "./picker-search";
 
 const buttonClass = "wf-btn";
 const countsLabel = (entry: CollectionOption) =>
-  `${entry.name} · ${entry.totalCount} total, ${entry.activeCount} active, ${entry.archivedCount} archived`;
+  translate("valueValueTotalValueActiveValueArchived", [
+    entry.name,
+    entry.totalCount,
+    entry.activeCount,
+    entry.archivedCount,
+  ]);
 export interface CollectionOption {
   id: string;
   name: string;
@@ -36,18 +42,19 @@ export const CollectionPicker = ({
   compact?: boolean;
   unavailableName?: string;
 }) => {
+  const t = useTranslations();
+
   const id = useId();
   const [query, setQuery] = useState("");
   const visible = collections.filter((entry) => search(entry.name, query));
   const selected = collections.find((entry) => entry.id === value);
   const selectedName =
-    selected?.name ?? unavailableName ?? "Unavailable collection";
+    selected?.name ?? unavailableName ?? t("unavailableCollection");
   return (
     <fieldset disabled={disabled} className="wf-field">
       <legend className={compact ? "sr-only" : "wf-label mb-2"}>{label}</legend>
       <p hidden={compact || !collections.length} className="wf-hint">
-        Counts are library-wide, including the archive, for the available
-        snapshot.
+        {t("countsAreLibraryWideIncludingTheArchiveForTheAvailable")}
       </p>
       {value ? (
         <div className="max-h-24 overflow-y-auto">
@@ -55,9 +62,9 @@ export const CollectionPicker = ({
             className={buttonClass}
             type="button"
             onClick={() => onChange(null)}
-            aria-label={`Remove collection ${selectedName}`}
+            aria-label={t("removeCollectionValue", [selectedName])}
           >
-            {selectedName} · Remove
+            {selectedName} {t("remove3")}
           </button>
         </div>
       ) : null}
@@ -66,19 +73,21 @@ export const CollectionPicker = ({
           className={compact ? "sr-only" : "wf-hint mt-2 block"}
           htmlFor={id}
         >
-          Search {label.toLowerCase()}
+          {t("search")} {localizedLabel(label)}
         </label>
         <input
           id={id}
           className="mt-1 w-full text-sm"
-          placeholder={compact ? `Search ${label.toLowerCase()}` : undefined}
+          placeholder={
+            compact ? t("searchValue", [localizedLabel(label)]) : undefined
+          }
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       </PickerSearch>
       <fieldset
         className={compact ? "wf-chips" : "wf-chips max-h-48 overflow-y-auto"}
-        aria-label={`${label} options`}
+        aria-label={t("valueOptions", [label])}
       >
         <button
           type="button"

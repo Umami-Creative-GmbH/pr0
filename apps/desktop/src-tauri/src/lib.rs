@@ -42,6 +42,7 @@ type ManagedAuth = Result<Arc<AuthService>, String>;
 
 include!("launcher_commands.rs");
 include!("resident_commands.rs");
+include!("locale_commands.rs");
 include!("startup_commands.rs");
 
 fn authorize(window: &tauri::WebviewWindow) -> Result<(), String> {
@@ -193,6 +194,7 @@ pub fn run() {
             surface_visible,
             startup_action,
             resident_status,
+            desktop_language,
             resident_action,
             resident_hide,
             resident_finish_quit,

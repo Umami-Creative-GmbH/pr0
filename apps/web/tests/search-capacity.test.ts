@@ -81,7 +81,7 @@ test("records maximum-size text search including real debounce and rendering", a
   });
   const rendering = [];
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
         const split = cookie.indexOf("=");

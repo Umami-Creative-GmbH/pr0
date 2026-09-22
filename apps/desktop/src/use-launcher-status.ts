@@ -1,4 +1,5 @@
 import type { LauncherStatus } from "@pr0/api-contract/desktop-launcher";
+import { translate } from "@pr0/ui/lib/i18n";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -19,13 +20,13 @@ export const useLauncherStatus = () => {
         setStatus(next);
         setError(
           next.error
-            ? "Your local library could not be opened. Open the library to review recovery, then refresh status."
+            ? translate("yourLocalLibraryCouldNotBeOpenedOpenTheLibrary")
             : ""
         );
       }
     } catch {
       if (attempt === request.current) {
-        setError("Launcher status unavailable. Retry or reopen pr0.");
+        setError(translate("launcherStatusUnavailableRetryOrReopenPr0"));
       }
     }
   }, []);
@@ -64,7 +65,7 @@ export const useLauncherStatus = () => {
         }
       } catch {
         if (!disposed) {
-          setError("Launcher updates unavailable. Retry or reopen pr0.");
+          setError(translate("launcherUpdatesUnavailableRetryOrReopenPr0"));
         }
       }
     };

@@ -52,7 +52,7 @@ test("reload recovers the pinned deletion receipt without a surviving session", 
     headless: true,
   });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     context.setDefaultTimeout(6000);
     await setAccount(context, account.Cookie);
     const page = await context.newPage();
@@ -99,7 +99,7 @@ test("a delayed old receipt cannot clear another account's unsaved draft", async
   const gate = Promise.withResolvers<undefined>();
   const requested = Promise.withResolvers<undefined>();
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     context.setDefaultTimeout(8000);
     await setAccount(context, account.Cookie);
     const page = await context.newPage();
@@ -202,6 +202,7 @@ test("keyboard confirmation can be cancelled and completion clears the browser l
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       viewport: { width: 640, height: 900 },
     });
     context.setDefaultTimeout(6000);

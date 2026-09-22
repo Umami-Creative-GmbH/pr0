@@ -4,6 +4,8 @@ import type {
   OrganizationLocalImpact,
 } from "@pr0/api-contract/local-organization";
 import { CollectionList } from "@pr0/ui/components/collection-list";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import type { RefObject } from "react";
 
 import { organizationError, organizationMatches } from "./organization-client";
@@ -29,50 +31,62 @@ const OrganizationConfirmation = ({
   entity: string;
   onConfirm: () => void;
   onCancel: () => void;
-}) => (
-  <section
-    aria-label="Confirm organization change"
-    className="space-y-2 rounded border p-3"
-  >
-    <p>
-      {confirmation.impact.effect.kind === "tag.merge"
-        ? `Merge “${confirmation.impact.effect.sourceName}” into “${confirmation.impact.effect.targetName}”? The target identity and capitalization remain. Prompts already using both will have the target once.`
-        : `Delete “${confirmation.impact.effect.sourceName}”?`}
-    </p>
-    <p>
-      {confirmation.impact.effect.activeCount} active and{" "}
-      {confirmation.impact.effect.archivedCount} archived prompts.{" "}
-      {confirmation.impact.effect.kind === "collection.delete"
-        ? "These prompts will become unassigned."
-        : "Tag assignments will change."}{" "}
-      Your prompts will be kept.
-    </p>
-    {confirmation.impact.effect.kind === "tag.merge" ? (
-      <p>
-        Result: {confirmation.impact.effect.targetActiveCount} active and{" "}
-        {confirmation.impact.effect.targetArchivedCount} archived distinct
-        prompts.
-      </p>
-    ) : null}
-    <p>
-      Selected source filters become unavailable until you explicitly remove or
-      replace them. Counts describe this device’s available snapshot.
-    </p>
-    <button
-      type="button"
-      className={button}
-      disabled={busy}
-      onClick={onConfirm}
+}) => {
+  const t = useTranslations();
+  return (
+    <section
+      aria-label={t("confirmOrganizationChange")}
+      className="space-y-2 rounded border p-3"
     >
-      {confirmation.impact.effect.kind === "tag.merge"
-        ? `Merge into ${confirmation.impact.effect.targetName}`
-        : `Delete ${entity}`}
-    </button>
-    <button type="button" className={button} disabled={busy} onClick={onCancel}>
-      Cancel
-    </button>
-  </section>
-);
+      <p>
+        {confirmation.impact.effect.kind === "tag.merge"
+          ? t("mergeValueIntoValueTheTargetIdentityAndCapitalizationRemain", [
+              confirmation.impact.effect.sourceName,
+              confirmation.impact.effect.targetName,
+            ])
+          : t("deleteValue", [confirmation.impact.effect.sourceName])}
+      </p>
+      <p>
+        {confirmation.impact.effect.activeCount} {t("activeAnd")}{" "}
+        {confirmation.impact.effect.archivedCount} {t("archivedPrompts")}{" "}
+        {confirmation.impact.effect.kind === "collection.delete"
+          ? t("thesePromptsWillBecomeUnassigned")
+          : t("tagAssignmentsWillChange")}{" "}
+        {t("yourPromptsWillBeKept")}
+      </p>
+      {confirmation.impact.effect.kind === "tag.merge" ? (
+        <p>
+          {t("result")} {confirmation.impact.effect.targetActiveCount}{" "}
+          {t("activeAnd")} {confirmation.impact.effect.targetArchivedCount}{" "}
+          {t("archivedDistinctPrompts")}
+        </p>
+      ) : null}
+      <p>
+        {t("selectedSourceFiltersBecomeUnavailableUntilYouExplicitlyRemoveOr")}
+      </p>
+      <button
+        type="button"
+        className={button}
+        disabled={busy}
+        onClick={onConfirm}
+      >
+        {confirmation.impact.effect.kind === "tag.merge"
+          ? t("mergeIntoValue", [confirmation.impact.effect.targetName])
+          : t("deleteValue2", [
+              t(entity === "collection" ? "collection" : "tag"),
+            ])}
+      </button>
+      <button
+        type="button"
+        className={button}
+        disabled={busy}
+        onClick={onCancel}
+      >
+        {t("cancel")}
+      </button>
+    </section>
+  );
+};
 
 const PendingCleanup = ({
   entry,
@@ -83,6 +97,8 @@ const PendingCleanup = ({
   disabled: boolean;
   onReview: (action: OrganizationAction) => void;
 }) => {
+  const t = useTranslations();
+
   const { operation } = entry;
   let action: OrganizationAction | null = null;
   if (operation.kind === "collection.delete") {
@@ -109,7 +125,7 @@ const PendingCleanup = ({
           disabled={disabled}
           onClick={() => onReview(selected)}
         >
-          Review current cleanup and confirm again
+          {t("reviewCurrentCleanupAndConfirmAgain")}
         </button>
       ) : null}
     </div>
@@ -124,45 +140,50 @@ const OrganizationTabs = ({
   tab: Tab;
   disabled: boolean;
   onSelect: (tab: Tab) => void;
-}) => (
-  <div role="tablist" aria-label="Organization" className="flex gap-2">
-    {(["collections", "tags"] as const).map((value) => (
-      <button
-        key={value}
-        id={`native-${value}-tab`}
-        role="tab"
-        aria-selected={tab === value}
-        aria-controls="native-organization-panel"
-        tabIndex={tab === value ? 0 : -1}
-        disabled={disabled}
-        className={button}
-        type="button"
-        onClick={() => {
-          onSelect(value);
-        }}
-        onKeyDown={(event) => {
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-            return;
-          }
-          event.preventDefault();
-          let next: Tab = tab === "tags" ? "collections" : "tags";
-          if (event.key === "Home") {
-            next = "collections";
-          }
-          if (event.key === "End") {
-            next = "tags";
-          }
-          onSelect(next);
-          document
-            .querySelector<HTMLButtonElement>(`#native-${next}-tab`)
-            ?.focus();
-        }}
-      >
-        {value === "collections" ? "Collections" : "Tags"}
-      </button>
-    ))}
-  </div>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <div role="tablist" aria-label={t("organization")} className="flex gap-2">
+      {(["collections", "tags"] as const).map((value) => (
+        <button
+          key={value}
+          id={`native-${value}-tab`}
+          role="tab"
+          aria-selected={tab === value}
+          aria-controls="native-organization-panel"
+          tabIndex={tab === value ? 0 : -1}
+          disabled={disabled}
+          className={button}
+          type="button"
+          onClick={() => {
+            onSelect(value);
+          }}
+          onKeyDown={(event) => {
+            if (
+              !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
+            ) {
+              return;
+            }
+            event.preventDefault();
+            let next: Tab = tab === "tags" ? "collections" : "tags";
+            if (event.key === "Home") {
+              next = "collections";
+            }
+            if (event.key === "End") {
+              next = "tags";
+            }
+            onSelect(next);
+            document
+              .querySelector<HTMLButtonElement>(`#native-${next}-tab`)
+              ?.focus();
+          }}
+        >
+          {value === "collections" ? t("collections") : t("tags")}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const PendingOrganizationChanges = ({
   pending,
@@ -175,15 +196,17 @@ const PendingOrganizationChanges = ({
   onReview: (action: OrganizationAction, operationId: string) => void;
   onCorrect: (tab: Tab, entry: OrganizationEdit) => void;
 }) => {
+  const t = useTranslations();
+
   if (!pending.some((entry) => entry.error)) {
     return null;
   }
   return (
     <section
-      aria-label="Changes need attention"
+      aria-label={t("changesNeedAttention")}
       className="space-y-2 rounded border p-3"
     >
-      <h3>Changes need attention</h3>
+      <h3>{t("changesNeedAttention")}</h3>
       {pending.map((entry) => {
         if (!entry.error) {
           return null;
@@ -220,7 +243,7 @@ const PendingOrganizationChanges = ({
                 });
               }}
             >
-              Correct name or review merge
+              {t("correctNameOrReviewMerge")}
             </button>
           </div>
         );
@@ -239,27 +262,30 @@ const OrganizationSnapshotStatus = ({
   count: number;
   limit: number;
   tab: Tab;
-}) => (
-  <>
-    {" "}
-    <p>
-      Counts include active and archived prompts in the available device
-      snapshot.{" "}
-      {snapshot.complete
-        ? "Download complete."
-        : "Download incomplete; counts may be incomplete."}{" "}
-      {snapshot.pending.length} changes pending server acceptance.
-    </p>
-    {count >= limit * 0.9 ? (
-      <output>
-        {count} of {limit} {tab} used. Browsing and cleanup remain available.
-      </output>
-    ) : null}
-    {snapshot.textBytes >= 94_371_840 ? (
-      <output>Library text is near its 100 MiB limit.</output>
-    ) : null}
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      {" "}
+      <p>
+        {t("countsIncludeActiveAndArchivedPromptsInTheAvailableDevice")}{" "}
+        {snapshot.complete
+          ? t("downloadComplete")
+          : t("downloadIncompleteCountsMayBeIncomplete")}{" "}
+        {snapshot.pending.length} {t("changesPendingServerAcceptance")}
+      </p>
+      {count >= limit * 0.9 ? (
+        <output>
+          {count} {t("of")} {limit} {tab}{" "}
+          {t("usedBrowsingAndCleanupRemainAvailable")}
+        </output>
+      ) : null}
+      {snapshot.textBytes >= 94_371_840 ? (
+        <output>{t("libraryTextIsNearIts100MibLimit")}</output>
+      ) : null}
+    </>
+  );
+};
 
 const SavedOrganizationChanges = ({
   effects,
@@ -271,12 +297,14 @@ const SavedOrganizationChanges = ({
     effect: OrganizationLocalImpact["effect"];
   }) => void;
 }) => {
+  const t = useTranslations();
+
   if (!effects.length) {
     return null;
   }
   return (
-    <section aria-label="Saved organization changes">
-      <h3>Saved organization changes</h3>
+    <section aria-label={t("savedOrganizationChanges")}>
+      <h3>{t("savedOrganizationChanges")}</h3>
       {effects.map((saved) => (
         <button
           key={saved.id}
@@ -284,8 +312,8 @@ const SavedOrganizationChanges = ({
           type="button"
           onClick={() => onReview({ id: saved.id, effect: saved.effect })}
         >
-          Review {saved.effect.sourceName} ·{" "}
-          {saved.accepted ? "Accepted by server" : "Saved on this device"}
+          {t("review")} {saved.effect.sourceName} ·{" "}
+          {saved.accepted ? t("acceptedByServer") : t("savedOnThisDevice")}
         </button>
       ))}
     </section>
@@ -318,42 +346,45 @@ const OrganizationNameForm = ({
   onSubmit: () => void;
   onChange: (name: string) => void;
   onCancel: () => void;
-}) => (
-  <form
-    className="space-y-2"
-    onSubmit={(event) => {
-      event.preventDefault();
-      onSubmit();
-    }}
-  >
-    <label htmlFor="native-organization-name">
-      {entity === "tag" ? "Tag" : "Collection"} name
-    </label>
-    <input
-      ref={input}
-      id="native-organization-name"
-      value={name}
-      readOnly={busy || confirming || uncertain}
-      aria-invalid={invalid}
-      aria-describedby="native-organization-error"
-      className="bg-background block w-full rounded border p-2"
-      onChange={(event) => onChange(event.target.value)}
-    />
-    <button className={button} type="submit" disabled={busy || confirming}>
-      {saveLabel}
-    </button>
-    {renaming ? (
-      <button
-        className={button}
-        type="button"
-        disabled={busy || uncertain}
-        onClick={onCancel}
-      >
-        Cancel rename
+}) => {
+  const t = useTranslations();
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <label htmlFor="native-organization-name">
+        {entity === "tag" ? t("tag") : t("collection")} {t("name")}
+      </label>
+      <input
+        ref={input}
+        id="native-organization-name"
+        value={name}
+        readOnly={busy || confirming || uncertain}
+        aria-invalid={invalid}
+        aria-describedby="native-organization-error"
+        className="bg-background block w-full rounded border p-2"
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <button className={button} type="submit" disabled={busy || confirming}>
+        {saveLabel}
       </button>
-    ) : null}
-  </form>
-);
+      {renaming ? (
+        <button
+          className={button}
+          type="button"
+          disabled={busy || uncertain}
+          onClick={onCancel}
+        >
+          {t("cancelRename")}
+        </button>
+      ) : null}
+    </form>
+  );
+};
 
 type OrganizationConfirmationState = NonNullable<
   ReturnType<typeof useOrganizationManager>["confirmation"]
@@ -414,25 +445,27 @@ const OrganizationDiscardConfirmation = ({
   onDiscard: () => void;
   onContinue: () => void;
 }) => {
+  const t = useTranslations();
+
   if (!open) {
     return null;
   }
   return (
-    <section aria-label="Discard unsaved name">
-      <p>
-        Discard this unsaved name? Saved pending work remains on this device.
-      </p>
+    <section aria-label={t("discardUnsavedName")}>
+      <p>{t("discardThisUnsavedNameSavedPendingWorkRemainsOnThis")}</p>
       <button type="button" className={button} onClick={onDiscard}>
-        Discard name
+        {t("discardName")}
       </button>
       <button type="button" className={button} onClick={onContinue}>
-        Keep editing
+        {t("keepEditing")}
       </button>
     </section>
   );
 };
 
 export const OrganizationManager = (props: ManagerProps) => {
+  const t = useTranslations();
+
   const { snapshot, onClose } = props;
   const {
     dialog,
@@ -477,7 +510,7 @@ export const OrganizationManager = (props: ManagerProps) => {
       }}
     >
       <h2 id="native-organization-title" className="text-xl font-semibold">
-        Manage collections and tags
+        {t("manageCollectionsAndTags")}
       </h2>
       <OrganizationTabs
         tab={tab}
@@ -516,12 +549,14 @@ export const OrganizationManager = (props: ManagerProps) => {
           onCancel={clear}
         />
         <p role="alert" id="native-organization-error">
-          {errorText}
+          <LocalizedMessage value={errorText} />
         </p>
-        <output>{message}</output>
+        <output>
+          <LocalizedMessage value={message} />
+        </output>
         <CollectionList
           collections={entries}
-          label={tab === "tags" ? "Tags" : "Collections"}
+          label={tab === "tags" ? t("tags") : t("collections")}
           search={organizationMatches}
           disabled={interactionBlocked}
           onRename={(entry) => {
@@ -546,7 +581,7 @@ export const OrganizationManager = (props: ManagerProps) => {
           edit(entry);
         }}
       />
-      {replaces ? <p>Correcting a saved change that needs attention.</p> : null}
+      {replaces ? <p>{t("correctingASavedChangeThatNeedsAttention")}</p> : null}
       <PendingOrganizationConfirmation
         confirmation={confirmation}
         busy={busy}
@@ -566,7 +601,7 @@ export const OrganizationManager = (props: ManagerProps) => {
       />
       <SelectedOrganizationReview result={result} snapshot={snapshot} />
       <button type="button" className={button} disabled={busy} onClick={close}>
-        Close
+        {t("close")}
       </button>
       <OrganizationDiscardConfirmation
         open={discard}

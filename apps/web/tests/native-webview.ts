@@ -4,7 +4,8 @@ import { chromium } from "playwright";
 export const nativeWebview = async (
   executable: string,
   directory: string,
-  env: Record<string, string> = {}
+  env: Record<string, string> = {},
+  locale = "en-US"
 ) => {
   const reservation = Bun.serve({ port: 0, fetch: () => new Response() });
   const { port } = reservation;
@@ -24,7 +25,7 @@ export const nativeWebview = async (
         ...process.env,
         ...env,
         PR0_SEARCH_WEBVIEW_DIRECTORY: directory,
-        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}`,
+        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --lang=${locale} --accept-lang=${locale}`,
       },
     }
   );

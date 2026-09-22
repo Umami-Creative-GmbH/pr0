@@ -1,8 +1,8 @@
 "use client";
-
 import { PromptApiError } from "@pr0/api-client/prompts";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useQuery } from "@tanstack/react-query";
 
 import { promptRetryDelay, retryPromptRead } from "./prompt-query";
@@ -17,6 +17,8 @@ export const PromptOriginal = ({
   id: string;
   onOpen: (id: string) => void;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const original = useQuery({
     queryKey: [
@@ -38,12 +40,12 @@ export const PromptOriginal = ({
     original.error instanceof PromptApiError &&
     original.error.status === 404
   ) {
-    return <p>Original is no longer available.</p>;
+    return <p>{t("originalIsNoLongerAvailable")}</p>;
   }
   if (original.isError) {
     return (
       <div role="alert">
-        <p>Could not check the original. Your draft remains available.</p>
+        <p>{t("couldNotCheckTheOriginalYourDraftRemainsAvailable")}</p>
         <button
           className={buttonClass}
           type="button"
@@ -51,17 +53,17 @@ export const PromptOriginal = ({
             void original.refetch();
           }}
         >
-          Retry original
+          {t("retryOriginal")}
         </button>
       </div>
     );
   }
   if (original.isPending) {
-    return <p>Checking original…</p>;
+    return <p>{t("checkingOriginal")}</p>;
   }
   return (
     <button className={buttonClass} type="button" onClick={() => onOpen(id)}>
-      Open original
+      {t("openOriginal")}
     </button>
   );
 };

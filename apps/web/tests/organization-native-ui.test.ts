@@ -21,6 +21,7 @@ test("full native organization pickers stay searchable at 200 collections and 10
   });
   try {
     const page = await browser.newPage({
+      locale: "en-US",
       viewport: { width: 640, height: 360 },
       deviceScaleFactor: 2,
     });
@@ -74,7 +75,7 @@ test("native organization dialog keeps invalid drafts editable and persists expl
     headless: true,
   });
   try {
-    let page = await browser.newPage();
+    let page = await browser.newPage({ locale: "en-US" });
     page.setDefaultTimeout(10_000);
     await connect(page, native, () => "");
     page.on("pageerror", (error) => process.stderr.write(`${error.message}\n`));
@@ -142,7 +143,7 @@ test("native organization dialog keeps invalid drafts editable and persists expl
     await page.close();
     await native.stop();
     native = await localNativeWorker(directory);
-    page = await browser.newPage();
+    page = await browser.newPage({ locale: "en-US" });
     await connect(page, native, () => "");
     await page
       .getByRole("button", { name: "Manage tags", exact: true })

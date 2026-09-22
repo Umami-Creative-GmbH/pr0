@@ -1,6 +1,8 @@
 "use client";
-
 import { useApiClient } from "@pr0/api-client/provider";
+import { LanguageSetting } from "@pr0/ui/components/language-setting";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -8,6 +10,8 @@ import type { FormEvent } from "react";
 import { accountErrorMessage } from "../account-errors";
 
 export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const [code, setCode] = useState(initialCode);
   const [busy, setBusy] = useState(false);
@@ -27,7 +31,11 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
       await operation();
     } catch (error) {
       setMessage(
-        `${accountErrorMessage(error instanceof Error ? error : new Error("Approval failed"))} Return to the desktop and start a new approval if the code has expired or was already used.`
+        t("valueReturnToTheDesktopAndStartANewApproval", [
+          accountErrorMessage(
+            error instanceof Error ? error : new Error("Approval failed")
+          ),
+        ])
       );
     }
     setBusy(false);
@@ -59,21 +67,20 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
       setFinished(true);
       setMessage(
         approve
-          ? "Desktop approved. Return to pr0 on your computer."
-          : "Desktop denied. No desktop sign-in was created."
+          ? t("desktopApprovedReturnToPr0OnYourComputer")
+          : t("desktopDeniedNoDesktopSignInWasCreated")
       );
     });
   };
   return (
     <main className="mx-auto max-w-lg space-y-6 p-8">
-      <h1 className="text-2xl font-semibold">Approve your desktop</h1>
-      <p>
-        Only approve a code shown by pr0 on a computer you are signing into.
-      </p>
+      <LanguageSetting />
+      <h1 className="text-2xl font-semibold">{t("approveYourDesktop")}</h1>
+      <p>{t("onlyApproveACodeShownByPr0OnAComputer")}</p>
       {!account.data && !finished ? (
         <form className="space-y-4" onSubmit={login}>
           <label className="block">
-            Email
+            {t("email")}
             <input
               autoComplete="username"
               className="block w-full rounded border p-2"
@@ -83,7 +90,7 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
             />
           </label>
           <label className="block">
-            Password
+            {t("password")}
             <input
               autoComplete="current-password"
               className="block w-full rounded border p-2"
@@ -93,13 +100,13 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
             />
           </label>
           <button className="wf-btn" disabled={busy} type="submit">
-            Sign in
+            {t("signIn")}
           </button>
           <p>
             <a className="underline" href="/" rel="noopener" target="_blank">
-              Register, recover access, or use another sign-in method
+              {t("registerRecoverAccessOrUseAnotherSignInMethod")}
             </a>
-            . Then return to this tab.
+            {t("thenReturnToThisTab")}
           </p>
           <button
             className="wf-btn"
@@ -109,18 +116,20 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
             }}
             type="button"
           >
-            Check sign-in
+            {t("checkSignIn")}
           </button>
         </form>
       ) : null}
       {account.data && !finished ? (
         <section className="space-y-4">
           <p>
-            Account: <strong>{account.data.account.email}</strong>
+            {t("account2")} <strong>{account.data.account.email}</strong>
           </p>
-          <p>Server: {account.data.instance.origin}</p>
+          <p>
+            {t("server")} {account.data.instance.origin}
+          </p>
           <label className="block">
-            Matching desktop code
+            {t("matchingDesktopCode")}
             <input
               className="block w-full rounded border p-2 font-mono text-xl"
               maxLength={8}
@@ -128,10 +137,7 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
               value={code}
             />
           </label>
-          <p>
-            Check that this code matches the one on your desktop. Approval
-            creates a separate desktop session for this account.
-          </p>
+          <p>{t("checkThatThisCodeMatchesTheOneOnYourDesktop")}</p>
           <div className="flex gap-3">
             <button
               className="wf-btn"
@@ -139,7 +145,7 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
               onClick={() => decide(true)}
               type="button"
             >
-              Approve matching code
+              {t("approveMatchingCode")}
             </button>
             <button
               className="wf-btn"
@@ -147,16 +153,16 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
               onClick={() => decide(false)}
               type="button"
             >
-              Deny
+              {t("deny")}
             </button>
           </div>
           <a className="underline" href="/" rel="noopener" target="_blank">
-            Manage or change the browser account
+            {t("manageOrChangeTheBrowserAccount")}
           </a>
         </section>
       ) : null}
       <p aria-live="polite" ref={status} tabIndex={-1}>
-        {message}
+        <LocalizedMessage value={message} />
       </p>
     </main>
   );

@@ -99,16 +99,17 @@ fn setup_resident(app: &tauri::AppHandle, directory: std::path::PathBuf) -> taur
     std::fs::create_dir_all(&directory)?;
     app.manage(Resident::default());
     app.manage(ResidencyNotice(directory.join("residency-explained")));
-    let library = MenuItem::with_id(app, "resident-library", "Open &library", true, None::<&str>)?;
+    let copy = native_copy("en").expect("bundled English native copy");
+    let library = MenuItem::with_id(app, "resident-library", &copy.native_open_library, true, None::<&str>)?;
     let launcher = MenuItem::with_id(
         app,
         "resident-launcher",
-        "Open quic&k launcher",
+        &copy.native_open_launcher,
         true,
         None::<&str>,
     )?;
-    let settings = MenuItem::with_id(app, "resident-settings", "&Settings", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "resident-quit", "&Quit pr0", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "resident-settings", &copy.native_settings, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "resident-quit", &copy.native_quit, true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&library, &launcher, &settings, &quit])?;
     TrayIconBuilder::with_id("resident")
         .icon(
@@ -116,7 +117,7 @@ fn setup_resident(app: &tauri::AppHandle, directory: std::path::PathBuf) -> taur
                 .expect("bundled application icon")
                 .clone(),
         )
-        .tooltip("pr0 — Open library")
+        .tooltip(&copy.native_tooltip)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {
@@ -144,5 +145,7 @@ fn setup_resident(app: &tauri::AppHandle, directory: std::path::PathBuf) -> taur
             }
         })
         .build(app)?;
+    app.manage(NativeMenuCopy([library, launcher, settings, quit]));
+    app.manage(NativeLanguageCopy(std::sync::Mutex::new(copy)));
     Ok(())
 }

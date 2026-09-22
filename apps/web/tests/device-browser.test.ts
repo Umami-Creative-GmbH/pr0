@@ -20,6 +20,7 @@ test("system-browser page signs in with email, shows the matching code and requi
   });
   try {
     const page = await browser.newPage({
+      locale: "en-US",
       viewport: { width: 1000, height: 800 },
     });
     const failures: string[] = [];

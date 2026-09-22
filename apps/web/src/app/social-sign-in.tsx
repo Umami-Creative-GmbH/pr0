@@ -1,13 +1,16 @@
 "use client";
-
 import { useApiClient } from "@pr0/api-client/provider";
 import type { SocialProvider } from "@pr0/api-contract/accounts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { accountErrorMessage } from "./account-errors";
 
 export const SocialSignIn = () => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -36,7 +39,7 @@ export const SocialSignIn = () => {
   return (
     <div className="flex flex-col gap-3 empty:hidden">
       {providers.data?.providers.length ? (
-        <p className="wf-divider">or</p>
+        <p className="wf-divider">{t("or")}</p>
       ) : null}
       {providers.data?.providers.map((provider) => (
         <button
@@ -48,7 +51,8 @@ export const SocialSignIn = () => {
           }}
           type="button"
         >
-          Continue with {provider === "google" ? "Google" : "GitHub"}
+          {t("continueWith")}{" "}
+          {provider === "google" ? t("google") : t("github")}
         </button>
       ))}
       {providers.isError ? (
@@ -59,7 +63,7 @@ export const SocialSignIn = () => {
           }}
           type="button"
         >
-          Retry loading sign-in methods
+          {t("retryLoadingSignInMethods")}
         </button>
       ) : null}
       <p
@@ -68,7 +72,7 @@ export const SocialSignIn = () => {
         ref={status}
         tabIndex={-1}
       >
-        {errorText}
+        <LocalizedMessage value={errorText} />
       </p>
     </div>
   );

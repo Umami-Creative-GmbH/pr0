@@ -3,6 +3,7 @@ import { organizationSearch } from "@pr0/api-contract/organization";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
 import { WayfinderShell } from "@pr0/ui/components/wayfinder-shell";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { accentFor } from "@pr0/ui/lib/present";
 import { Search } from "lucide-react";
 import { StrictMode, useEffect, useEffectEvent, useRef, useState } from "react";
@@ -28,74 +29,79 @@ const LauncherFilters = ({
   search,
 }: {
   search: ReturnType<typeof useLocalSearch>;
-}) => (
-  <details className="wf-launcher-filters">
-    <summary>
-      Filters
-      {search.collectionId || search.tagIds.length || search.favorite
-        ? " (active)"
-        : ""}
-    </summary>
-    <div className="flex flex-col gap-3 pb-2">
-      <CollectionPicker
-        compact
-        label="Collection filter"
-        emptyLabel="All collections"
-        collections={search.page?.collections ?? []}
-        value={search.collectionId ?? null}
-        onChange={(collectionId) =>
-          search.changeFilters({ collectionId, tagIds: search.tagIds })
-        }
-        search={matches}
-        unavailableName="Unavailable collection"
-      />
-      <TagPicker
-        compact
-        label="Tag filters"
-        tags={search.page?.tags ?? []}
-        value={search.tagIds}
-        onChange={(tagIds) =>
-          search.changeFilters({
-            collectionId: search.collectionId ?? null,
-            tagIds,
-          })
-        }
-        search={matches}
-      />
-      <div className="wf-filter-row">
-        <label className="wf-chip">
-          <input
-            type="checkbox"
-            checked={search.favorite}
-            onChange={(event) => search.changeFavorite(event.target.checked)}
-          />
-          Favorites only
-        </label>
-        <button
-          className="wf-btn-quiet"
-          type="button"
-          onClick={() => search.clearFilters()}
-        >
-          Clear filters
-        </button>
+}) => {
+  const t = useTranslations();
+  return (
+    <details className="wf-launcher-filters">
+      <summary>
+        {t("filters")}
+        {search.collectionId || search.tagIds.length || search.favorite
+          ? " (active)"
+          : ""}
+      </summary>
+      <div className="flex flex-col gap-3 pb-2">
+        <CollectionPicker
+          compact
+          label={t("collectionFilter")}
+          emptyLabel={t("allCollections")}
+          collections={search.page?.collections ?? []}
+          value={search.collectionId ?? null}
+          onChange={(collectionId) =>
+            search.changeFilters({ collectionId, tagIds: search.tagIds })
+          }
+          search={matches}
+          unavailableName={t("unavailableCollection")}
+        />
+        <TagPicker
+          compact
+          label={t("tagFilters")}
+          tags={search.page?.tags ?? []}
+          value={search.tagIds}
+          onChange={(tagIds) =>
+            search.changeFilters({
+              collectionId: search.collectionId ?? null,
+              tagIds,
+            })
+          }
+          search={matches}
+        />
+        <div className="wf-filter-row">
+          <label className="wf-chip">
+            <input
+              type="checkbox"
+              checked={search.favorite}
+              onChange={(event) => search.changeFavorite(event.target.checked)}
+            />
+            {t("favoritesOnly")}
+          </label>
+          <button
+            className="wf-btn-quiet"
+            type="button"
+            onClick={() => search.clearFilters()}
+          >
+            {t("clearFilters")}
+          </button>
+        </div>
       </div>
-    </div>
-  </details>
-);
+    </details>
+  );
+};
 
 const EmptyResults = ({
   search,
 }: {
   search: ReturnType<typeof useLocalSearch>;
 }) => {
+  const t = useTranslations();
+
   if (search.busy || search.error || search.page?.prompts.length) {
     return null;
   }
   return (
     <output className="wf-launcher-note">
       {search.restricted
-        ? "No matching prompts"
-        : "No active downloaded prompts. Open the library to add prompts."}
+        ? t("noMatchingPrompts")
+        : t("noActiveDownloadedPromptsOpenTheLibraryToAddPrompts")}
     </output>
   );
 };
@@ -109,6 +115,8 @@ const LauncherSearch = ({
   revision: number;
   account: NonNullable<LauncherStatus["account"]>;
 }) => {
+  const t = useTranslations();
+
   const search = useLocalSearch(account, revision, select, "launcher");
   const input = useRef<HTMLInputElement>(null);
   const rows = useRef(new Map<string, HTMLButtonElement>());
@@ -165,15 +173,15 @@ const LauncherSearch = ({
     (prompt) => prompt.id === search.selectedId
   );
   return (
-    <section aria-label="Find and copy" className="wf-launcher">
+    <section aria-label={t("findAndCopy")} className="wf-launcher">
       <PromptVariables copy={copying} />
       <div className="wf-launcher-search">
         <Search aria-hidden="true" size={18} />
         <input
           ref={input}
-          aria-label="Search prompts"
+          aria-label={t("searchPrompts")}
           type="search"
-          placeholder="Find a prompt and copy it with ↵…"
+          placeholder={t("findAPromptAndCopyItWith")}
           value={search.query}
           onChange={(event) => search.changeQuery(event.target.value)}
           onKeyDown={(event) => move(event)}
@@ -184,11 +192,11 @@ const LauncherSearch = ({
             type="button"
             onClick={() => search.changeQuery("")}
           >
-            Clear query
+            {t("clearQuery")}
           </button>
         ) : null}
         <kbd aria-hidden="true" className="wf-kbd">
-          esc
+          {t("esc")}
         </kbd>
       </div>
       <LauncherFilters search={search} />
@@ -197,20 +205,20 @@ const LauncherSearch = ({
           <p className="wf-notice" role="alert">
             {copyMessage || search.error}
             {search.recoveryNeeded
-              ? " Open the library to rebuild the search index."
+              ? t("openTheLibraryToRebuildTheSearchIndex")
               : ""}
           </p>
         ) : null}
       </div>
       <p className="sr-only">
-        Arrow keys select; Enter copies. Tab reaches filters and pages.
+        {t("arrowKeysSelectEnterCopiesTabReachesFiltersAndPages")}
       </p>
       <div
         aria-busy={search.busy}
         className="wf-launcher-list"
         data-search-query={search.busy ? undefined : search.query}
       >
-        <ul aria-label="Launcher results">
+        <ul aria-label={t("launcherResults")}>
           {search.page?.prompts.map((prompt) => (
             <li key={prompt.id}>
               <button
@@ -245,7 +253,7 @@ const LauncherSearch = ({
                     : ""}
                 </span>
                 <kbd>
-                  <span className="sr-only">Copy </span>↵
+                  <span className="sr-only">{t("copy")} </span>↵
                 </kbd>
               </button>
             </li>
@@ -254,17 +262,17 @@ const LauncherSearch = ({
         <EmptyResults search={search} />
       </div>
       <div className="wf-launcher-foot">
-        <span>↑↓ Navigate</span>
-        <span>↵ Copy</span>
+        <span>{t("navigate")}</span>
+        <span>{t("copy2")}</span>
         <span className="wf-grow" />
-        <nav aria-label="Launcher result pages" className="flex gap-2">
+        <nav aria-label={t("launcherResultPages")} className="flex gap-2">
           <button
             className="wf-btn-quiet"
             type="button"
             disabled={search.busy || busy || !search.offset}
             onClick={() => search.previous()}
           >
-            Previous
+            {t("previous")}
           </button>
           <button
             className="wf-btn-quiet"
@@ -272,7 +280,7 @@ const LauncherSearch = ({
             disabled={search.busy || busy || !search.page?.nextCursor}
             onClick={() => search.next()}
           >
-            Next
+            {t("next")}
           </button>
         </nav>
         <button
@@ -285,7 +293,7 @@ const LauncherSearch = ({
             }
           }}
         >
-          Copy selected prompt
+          {t("copySelectedPrompt")}
         </button>
       </div>
     </section>
@@ -300,37 +308,40 @@ const LauncherNotices = ({
   status?: LauncherStatus;
   alert: string;
   onFocus: () => void;
-}) => (
-  <div className="wf-launcher-status">
-    {status?.visible && !status.focused ? (
-      <div className="wf-notice" data-tone="attention">
-        <button type="button" className="wf-btn" onClick={onFocus}>
-          Click to search
-        </button>
-        <p className="mt-2">
-          Use Alt+Tab to select Quick launcher, or open it from the library.
+}) => {
+  const t = useTranslations();
+  return (
+    <div className="wf-launcher-status">
+      {status?.visible && !status.focused ? (
+        <div className="wf-notice" data-tone="attention">
+          <button type="button" className="wf-btn" onClick={onFocus}>
+            {t("clickToSearch")}
+          </button>
+          <p className="mt-2">{t("useAltTabToSelectQuickLauncherOrOpenIt")}</p>
+        </div>
+      ) : null}
+      {status?.visible && status.account && !status.complete ? (
+        <output className="wf-notice">
+          {t("libraryDownloadIncompleteSearchingDownloadedPromptsOnly")}
+        </output>
+      ) : null}
+      {status && !status.error && !status.account ? (
+        <p className="wf-notice">
+          {t("openTheLibraryToSignInAndDownloadPrompts")}
         </p>
-      </div>
-    ) : null}
-    {status?.visible && status.account && !status.complete ? (
-      <output className="wf-notice">
-        Library download incomplete. Searching downloaded prompts only.
-      </output>
-    ) : null}
-    {status && !status.error && !status.account ? (
-      <p className="wf-notice">
-        Open the library to sign in and download prompts.
-      </p>
-    ) : null}
-    {alert ? (
-      <p className="wf-notice" role="alert">
-        {alert}
-      </p>
-    ) : null}
-  </div>
-);
+      ) : null}
+      {alert ? (
+        <p className="wf-notice" role="alert">
+          {alert}
+        </p>
+      ) : null}
+    </div>
+  );
+};
 
 const LauncherWindow = () => {
+  const t = useTranslations();
+
   const { status, revision, error, refresh } = useLauncherStatus();
   const [message, setMessage] = useState("");
   const opening = status?.opening;
@@ -338,9 +349,7 @@ const LauncherWindow = () => {
     try {
       await launcherClient.libraryDetails();
     } catch {
-      setMessage(
-        "Could not open library details. Use Alt+Tab to open the library."
-      );
+      setMessage(t("couldNotOpenLibraryDetailsUseAltTabToOpen"));
     }
   };
   const close = async () => {
@@ -350,16 +359,14 @@ const LauncherWindow = () => {
     try {
       await launcherClient.hide(opening);
     } catch {
-      setMessage("Could not close the launcher. Try again.");
+      setMessage(t("couldNotCloseTheLauncherTryAgain"));
     }
   };
   const focus = async () => {
     try {
       await launcherClient.focus();
     } catch {
-      setMessage(
-        "Use Alt+Tab to select Quick launcher, or open it from the library."
-      );
+      setMessage(t("useAltTabToSelectQuickLauncherOrOpenIt"));
     }
   };
   const escape = useEffectEvent((event: globalThis.KeyboardEvent) => {
@@ -378,7 +385,7 @@ const LauncherWindow = () => {
   return (
     <WayfinderShell surface="launcher">
       <main className="wf-launcher" data-opening={status?.opening}>
-        <h1 className="sr-only">Quick launcher</h1>
+        <h1 className="sr-only">{t("quickLauncher")}</h1>
         <LauncherNotices
           status={status}
           alert={error || message}
@@ -401,9 +408,9 @@ const LauncherWindow = () => {
             className="wf-shortcut"
             data-state={status?.shortcut ? undefined : "unavailable"}
           >
-            {status?.shortcut ?? "Global shortcut unavailable"}
+            {status?.shortcut ?? t("globalShortcutUnavailable")}
           </span>
-          <span>{status?.syncStatus ?? "Library status"}</span>
+          <span>{status?.syncStatus ?? t("libraryStatus")}</span>
           <button
             className="wf-link"
             type="button"
@@ -411,7 +418,7 @@ const LauncherWindow = () => {
               void showDetails();
             }}
           >
-            Open library details
+            {t("openLibraryDetails")}
           </button>
           <span className="wf-grow" />
           <button
@@ -421,7 +428,7 @@ const LauncherWindow = () => {
               void refresh();
             }}
           >
-            Refresh status
+            {t("refreshStatus")}
           </button>
           <button
             className="wf-btn-quiet"
@@ -432,7 +439,7 @@ const LauncherWindow = () => {
               }
             }}
           >
-            Close (Esc)
+            {t("closeEsc")}
           </button>
         </footer>
       </main>

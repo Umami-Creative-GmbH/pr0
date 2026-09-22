@@ -47,7 +47,7 @@ test("relative time is compact, monotonic and never negative", () => {
   expect(relativeTime(ago(30 * hour), now)).toBe("yesterday");
   expect(relativeTime(ago(4 * day), now)).toBe("4 days ago");
   expect(relativeTime(ago(45 * day), now)).toBe(
-    new Date(now - 45 * day).toLocaleDateString()
+    new Date(now - 45 * day).toLocaleDateString("en")
   );
   expect(relativeTime("not a date", now)).toBe("");
 });

@@ -15,7 +15,7 @@ test("desktop review remains available offline and acknowledgement survives nati
   try {
     await native.command("library_refresh_conflicts");
     await native.command("library_refresh_adjustments");
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     await page.exposeFunction(
       "nativeCommand",
       async (command: string, args: NativeArgs) => {

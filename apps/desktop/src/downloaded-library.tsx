@@ -9,6 +9,7 @@ import {
   EmptyDetail,
   LibraryWorkspace,
 } from "@pr0/ui/components/wayfinder-shell";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -44,6 +45,8 @@ const useDownloadedLibrary = ({
   editingDisabled: boolean;
   onEditing: (editing: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const [snapshot, setSnapshot] = useState<{
     status?: DownloadStatus;
     upload?: UploadStatus;
@@ -218,9 +221,7 @@ const useDownloadedLibrary = ({
       }
     } catch {
       if (alive.current) {
-        setErrorText(
-          "Usage still could not be saved. Free disk space and retry usage; the clipboard is unchanged."
-        );
+        setErrorText(t("usageStillCouldNotBeSavedFreeDiskSpaceAnd"));
       }
     }
   };
@@ -240,9 +241,7 @@ const useDownloadedLibrary = ({
       setSnapshot((previous) => ({ ...previous, status: result }));
       refreshLibrary();
     } catch {
-      setErrorText(
-        "Could not change download state. Retry; local work is retained."
-      );
+      setErrorText(t("couldNotChangeDownloadStateRetryLocalWorkIsRetained"));
     }
   };
   const promptSaved = (value: LocalPrompt) => {
@@ -288,6 +287,8 @@ interface LibraryProps {
 }
 
 export const DownloadedLibrary = (props: LibraryProps) => {
+  const t = useTranslations();
+
   const [saveFailure, setSaveFailure] = useState(false);
   const { account, signedIn, editingDisabled, onEditing } = props;
   const {
@@ -315,9 +316,9 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     lifecycle,
   } = useDownloadedLibrary(props);
   return (
-    <section aria-label="Downloaded library" className="contents">
+    <section aria-label={t("downloadedLibrary")} className="contents">
       <PromptVariables copy={copy} />
-      <h2 className="sr-only">Downloaded library</h2>
+      <h2 className="sr-only">{t("downloadedLibrary")}</h2>
       <DownloadedStatus
         saveFailure={saveFailure}
         organization={organization}
@@ -383,7 +384,7 @@ export const DownloadedLibrary = (props: LibraryProps) => {
                   }}
                 >
                   <Plus aria-hidden="true" size={13} />
-                  New prompt
+                  {t("newPrompt")}
                 </button>
               }
               attentionIds={
@@ -465,7 +466,7 @@ export const DownloadedLibrary = (props: LibraryProps) => {
             }}
           />
         ) : (
-          <EmptyDetail hint="Choose a prompt on the left, or open the quick launcher, type its name and press Enter." />
+          <EmptyDetail hint={t("chooseAPromptOnTheLeftOrOpenTheQuick")} />
         )}
         {localDetail && organization ? (
           <div className="wf-meta">

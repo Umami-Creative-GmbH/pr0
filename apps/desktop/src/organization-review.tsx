@@ -3,6 +3,9 @@ import type {
   OrganizationLocalImpact,
   OrganizationLocalReview,
 } from "@pr0/api-contract/local-organization";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { useEffect, useState } from "react";
 
 import { organizationClient } from "./organization-client";
@@ -16,6 +19,8 @@ export const OrganizationReview = ({
   effect: OrganizationLocalImpact["effect"];
   snapshot: LocalOrganization;
 }) => {
+  const t = useTranslations();
+
   const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const [review, setReview] = useState<OrganizationLocalReview>();
@@ -34,7 +39,7 @@ export const OrganizationReview = ({
         }
       } catch {
         if (!cancelled) {
-          setError("Could not refresh the affected prompts.");
+          setError(translate("couldNotRefreshTheAffectedPrompts"));
         }
       }
     };
@@ -46,16 +51,16 @@ export const OrganizationReview = ({
   }, [operationId, offset, open, snapshot]);
   return (
     <section
-      aria-label="Organization result"
+      aria-label={t("organizationResult")}
       className="space-y-2 rounded border p-3"
     >
       <p>
         “{effect.sourceName}”{" "}
         {effect.kind === "tag.merge"
-          ? `merged into “${effect.targetName}”`
+          ? t("mergedIntoValue2", [effect.targetName])
           : "deleted"}
-        . {effect.activeCount} active and {effect.archivedCount} archived
-        prompts affected. Your prompts were kept. Saved on this device.
+        . {effect.activeCount} {t("activeAnd")} {effect.archivedCount}{" "}
+        {t("archivedPromptsAffectedYourPromptsWereKeptSavedOnThis")}
       </p>
       <button
         type="button"
@@ -65,29 +70,30 @@ export const OrganizationReview = ({
           setOpen(!open);
         }}
       >
-        Review affected prompts
+        {t("reviewAffectedPrompts")}
       </button>
       {open ? (
         <>
           <p>
-            Original affected identities; current state is shown. Later changes
-            are separate from this operation.
+            {t("originalAffectedIdentitiesCurrentStateIsShownLaterChangesAre")}
           </p>
-          <p role="alert">{error}</p>
+          <p role="alert">
+            <LocalizedMessage value={error} />
+          </p>
           {[false, true].map((archived) => (
             <section
               key={String(archived)}
-              aria-label={archived ? "Archived prompts" : "Active prompts"}
+              aria-label={archived ? t("archivedPrompts2") : t("activePrompts")}
             >
-              <h3>{archived ? "Archived prompts" : "Active prompts"}</h3>
+              <h3>{archived ? t("archivedPrompts2") : t("activePrompts")}</h3>
               <ul className="max-h-48 overflow-y-auto">
                 {review?.prompts.map((entry) =>
                   (entry.current?.archived ?? entry.originallyArchived) ===
                   archived ? (
                     <li key={entry.id}>
                       {entry.current
-                        ? `${entry.current.title} · ${snapshot.collections.find((collection) => collection.id === entry.current?.collectionId)?.name ?? "Unassigned"}`
-                        : "Prompt subsequently deleted"}
+                        ? `${entry.current.title} · ${snapshot.collections.find((collection) => collection.id === entry.current?.collectionId)?.name ?? t("unassigned")}`
+                        : t("promptSubsequentlyDeleted")}
                     </li>
                   ) : null
                 )}
@@ -99,7 +105,7 @@ export const OrganizationReview = ({
             disabled={offset === 0}
             onClick={() => setOffset(Math.max(0, offset - 100))}
           >
-            Previous affected prompts
+            {t("previousAffectedPrompts")}
           </button>
           <button
             type="button"
@@ -108,7 +114,7 @@ export const OrganizationReview = ({
             }
             onClick={() => setOffset(review?.nextOffset ?? offset)}
           >
-            Next affected prompts
+            {t("nextAffectedPrompts")}
           </button>
         </>
       ) : null}

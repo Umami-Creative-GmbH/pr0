@@ -2,8 +2,11 @@ import type {
   ResidentAction,
   ResidentStatus,
 } from "@pr0/api-contract/desktop-resident";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { DialogHead } from "@pr0/ui/components/wayfinder-dialog";
 import { AppBarStatus } from "@pr0/ui/components/wayfinder-shell";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { listen } from "@tauri-apps/api/event";
 import { Power, Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,8 +18,9 @@ import { ResidentEditorContext } from "./resident-editor";
 import type { ResidentEditor } from "./resident-editor";
 import { StartupControls } from "./startup-controls";
 
-const residencyExplanation =
-  "pr0 is still running in the notification area. Use Quit pr0 to exit; its global shortcut stops working when you quit.";
+const residencyExplanation = translate(
+  "pr0IsStillRunningInTheNotificationAreaUseQuit"
+);
 
 const ResidentDialog = ({
   title,
@@ -27,6 +31,8 @@ const ResidentDialog = ({
   onCancel: () => void;
   children: ReactNode;
 }) => {
+  const t = useTranslations();
+
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
@@ -42,13 +48,15 @@ const ResidentDialog = ({
         onCancel();
       }}
     >
-      <DialogHead eyebrow="pr0 desktop" title={title} />
+      <DialogHead eyebrow={t("pr0Desktop")} title={title} />
       <div className="wf-dialog-body">{children}</div>
     </dialog>
   );
 };
 
 export const ResidentControls = ({ children }: { children: ReactNode }) => {
+  const t = useTranslations();
+
   const editor = useRef<ResidentEditor | null>(null);
   const registerEditor = useCallback((current: ResidentEditor) => {
     editor.current = current;
@@ -66,7 +74,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
       setStatus(await residentClient.status());
     } catch {
       setError(
-        "Desktop controls are unavailable. Retry; your draft remains open."
+        translate("desktopControlsAreUnavailableRetryYourDraftRemainsOpen")
       );
     }
   }, []);
@@ -87,7 +95,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
       } catch {
         if (!disposed) {
           setError(
-            "Desktop controls are unavailable. Retry; your draft remains open."
+            translate("desktopControlsAreUnavailableRetryYourDraftRemainsOpen")
           );
         }
       }
@@ -106,7 +114,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
         await refresh();
       } catch {
         setError(
-          "Could not complete this action. Your draft remains open; retry or cancel."
+          translate("couldNotCompleteThisActionYourDraftRemainsOpenRetry")
         );
       }
     },
@@ -139,9 +147,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
         }
       } catch {
         if (!cancelled) {
-          setError(
-            "The save or quit could not be confirmed. Your draft remains open."
-          );
+          setError(translate("theSaveOrQuitCouldNotBeConfirmedYourDraft"));
         }
       }
       if (!cancelled) {
@@ -166,23 +172,21 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
         await refresh();
       }
     } catch {
-      setError(
-        "Could not confirm Save and quit. Your draft remains open; cancel to review it."
-      );
+      setError(t("couldNotConfirmSaveAndQuitYourDraftRemainsOpen"));
     }
     setWaiting(false);
   };
   return (
     <ResidentEditorContext value={registerEditor}>
       <AppBarStatus slot="menu">
-        <nav aria-label="Desktop controls" className="contents">
+        <nav aria-label={t("desktopControls")} className="contents">
           <button
             className="wf-menu-item"
             type="button"
             onClick={() => action("settings")}
           >
             <Settings aria-hidden="true" size={15} />
-            Settings
+            {t("settings")}
           </button>
           <button
             className="wf-menu-item"
@@ -190,7 +194,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
             onClick={() => action("quit")}
           >
             <Power aria-hidden="true" size={15} />
-            Quit pr0
+            {t("quitPr0")}
           </button>
         </nav>
       </AppBarStatus>
@@ -203,7 +207,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
       !status?.closeNotice &&
       !status?.settings ? (
         <p className="wf-banner" role="alert">
-          {error}{" "}
+          <LocalizedMessage value={error} />{" "}
           <button
             className="wf-link"
             type="button"
@@ -211,13 +215,13 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
               void refresh();
             }}
           >
-            Retry desktop controls
+            {t("retryDesktopControls")}
           </button>
         </p>
       ) : null}
       {status?.quitRequested ? (
         <ResidentDialog
-          title="Quit pr0"
+          title={t("quitPr0")}
           onCancel={() => {
             if (!waiting) {
               action("cancel_quit");
@@ -225,12 +229,14 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
           }}
         >
           <p>
-            Save your changes before quitting? Discarding loses the unsaved
-            draft. Earlier saved work and changes waiting to sync stay on this
-            device.
+            {t("saveYourChangesBeforeQuittingDiscardingLosesTheUnsavedDraft")}
           </p>
-          {waiting ? <output>Waiting for the local save…</output> : null}
-          {error ? <p role="alert">{error}</p> : null}
+          {waiting ? <output>{t("waitingForTheLocalSave")}</output> : null}
+          {error ? (
+            <p role="alert">
+              <LocalizedMessage value={error} />
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-4">
             <button
               className="wf-btn-accent"
@@ -240,7 +246,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
                 void saveAndQuit();
               }}
             >
-              Save and quit
+              {t("saveAndQuit")}
             </button>
             <button
               className="wf-btn wf-btn-danger"
@@ -250,30 +256,31 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
                 void perform(residentClient.finishQuit);
               }}
             >
-              Discard and quit
+              {t("discardAndQuit")}
             </button>
             <button
               type="button"
               disabled={waiting}
               onClick={() => action("cancel_quit")}
             >
-              Cancel
+              {t("cancel")}
             </button>
           </div>
         </ResidentDialog>
       ) : null}
       {status?.closeNotice ? (
         <ResidentDialog
-          title="Keep pr0 running"
+          title={t("keepPr0Running")}
           onCancel={() => action("cancel_close")}
         >
           <p>{residencyExplanation}</p>
-          <p>
-            An unsaved draft stays in memory while pr0 runs. Save it to keep it
-            after a restart.
-          </p>
+          <p>{t("anUnsavedDraftStaysInMemoryWhilePr0RunsSave")}</p>
           <LauncherEntry />
-          {error ? <p role="alert">{error}</p> : null}
+          {error ? (
+            <p role="alert">
+              <LocalizedMessage value={error} />
+            </p>
+          ) : null}
           <div className="flex gap-4">
             <button
               type="button"
@@ -281,31 +288,30 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
                 void perform(residentClient.hide);
               }}
             >
-              Hide library
+              {t("hideLibrary")}
             </button>
             <button type="button" onClick={() => action("cancel_close")}>
-              Keep library open
+              {t("keepLibraryOpen")}
             </button>
           </div>
         </ResidentDialog>
       ) : null}
       {status?.settings ? (
         <ResidentDialog
-          title="Settings"
+          title={t("settings")}
           onCancel={() => action("close_settings")}
         >
           <StartupControls />
           <p>{residencyExplanation}</p>
-          <p>
-            Closing the library keeps your unsaved draft in memory. Minimize
-            works normally. Use Windows notification-area overflow to find pr0;
-            with the keyboard, press Win+B and open its menu. Open library, Open
-            quick launcher, Settings and Quit pr0 are available there.
-          </p>
+          <p>{t("closingTheLibraryKeepsYourUnsavedDraftInMemoryMinimize")}</p>
           <LauncherEntry />
-          {error ? <p role="alert">{error}</p> : null}
+          {error ? (
+            <p role="alert">
+              <LocalizedMessage value={error} />
+            </p>
+          ) : null}
           <button type="button" onClick={() => action("close_settings")}>
-            Close Settings
+            {t("closeSettings")}
           </button>
         </ResidentDialog>
       ) : null}

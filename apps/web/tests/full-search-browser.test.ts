@@ -33,7 +33,7 @@ test("collection navigation resets extras, restores per-view sorts and retains f
     headless: true,
   });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
         const split = cookie.indexOf("=");
@@ -127,6 +127,7 @@ test("complete pickers reach capacity entries and a deleted collection view stay
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       viewport: { width: 640, height: 900 },
     });
     await context.addCookies(

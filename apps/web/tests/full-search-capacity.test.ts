@@ -94,7 +94,7 @@ test("records maximum-size five-field search including real debounce and renderi
   });
   const rendering = [];
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
         const split = cookie.indexOf("=");

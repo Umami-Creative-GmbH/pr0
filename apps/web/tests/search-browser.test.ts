@@ -20,7 +20,7 @@ test("typeahead keeps literal input, supports sort and clear, and never selects 
     channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
     headless: true,
   });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ locale: "en-US" });
   try {
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
@@ -81,7 +81,7 @@ test("selection follows identity across pages and a changed-revision page restar
     channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
     headless: true,
   });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ locale: "en-US" });
   try {
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {

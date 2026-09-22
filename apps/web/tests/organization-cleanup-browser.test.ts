@@ -32,6 +32,7 @@ test("manager requires explicit merge, preserves filters and focus, and confirms
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       viewport: { width: 640, height: 900 },
     });
     await context.addCookies(
@@ -198,6 +199,7 @@ test("collection deletion reviews live assignments and keeps the deleted filter 
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       viewport: { width: 640, height: 900 },
     });
     await context.addCookies(
@@ -312,7 +314,7 @@ test("remote deletion clears actionable detail even when the selected filter has
     headless: true,
   });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
         const split = cookie.indexOf("=");

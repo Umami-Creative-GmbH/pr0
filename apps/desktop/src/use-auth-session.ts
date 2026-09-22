@@ -6,6 +6,7 @@ import type {
   DesktopStatus,
   SignOutRequest,
 } from "@pr0/api-contract/desktop-session";
+import { translate } from "@pr0/ui/lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
@@ -33,49 +34,51 @@ const command = async (name: Command, input?: string | SignOutRequest) => {
       : { origin: z.string().optional().parse(input) };
   return desktopStatusSchema.parse(await invoke(name, args));
 };
-const errors = {
+const errorKeys = {
   invalid_deletion_evidence:
-    "Deletion evidence could not be verified. Local work is preserved; check the connection and retry.",
+    "deletionEvidenceCouldNotBeVerifiedLocalWorkIsPreserved" as const,
   sync_incomplete:
-    "Synchronization did not complete. Local work is preserved. Retry, cancel, or explicitly discard.",
+    "synchronizationDidNotCompleteLocalWorkIsPreservedRetryCancel" as const,
   network_unavailable:
-    "The server could not be reached. Local work is preserved. Retry when online, cancel, or explicitly discard.",
+    "theServerCouldNotBeReachedLocalWorkIsPreserved" as const,
   storage_unavailable:
-    "Local cleanup could not finish. Check storage access and retry cleanup before signing into another account.",
+    "localCleanupCouldNotFinishCheckStorageAccessAndRetry" as const,
   cleanup_required:
-    "Finish sign-out cleanup before choosing another account or server.",
+    "finishSignOutCleanupBeforeChoosingAnotherAccountOrServer" as const,
   transition_in_progress:
-    "An account transition is still running. Wait for it to finish or cancel synchronization.",
+    "anAccountTransitionIsStillRunningWaitForItTo" as const,
   operation_cancelled:
-    "The account operation was cancelled. Refresh the current account before retrying.",
+    "theAccountOperationWasCancelledRefreshTheCurrentAccountBefore" as const,
   discard_confirmation_required:
-    "Confirm that pending local changes will be lost before discarding.",
+    "confirmThatPendingLocalChangesWillBeLostBeforeDiscarding" as const,
   pending_work:
-    "Changes are waiting to sync. Synchronize first, cancel, or explicitly discard them.",
+    "changesAreWaitingToSyncSynchronizeFirstCancelOrExplicitly" as const,
   invalid_instance:
-    "Enter a trusted HTTPS server address without a path, username, or query.",
+    "enterATrustedHttpsServerAddressWithoutAPathUsername" as const,
   incompatible_instance:
-    "This server is incompatible. Check the address or update pr0.",
+    "thisServerIsIncompatibleCheckTheAddressOrUpdatePr0" as const,
   instance_identity_changed:
-    "This server's identity changed. Retained local files are preserved. Contact your server operator.",
-  same_account_required:
-    "Sign in to the same account on the same server. Retained local files cannot move to another account.",
+    "thisServerSIdentityChangedRetainedLocalFilesArePreserved" as const,
+  same_account_required: "signInToTheSameAccountOnTheSameServer" as const,
   credential_unavailable:
-    "Windows could not access the credential. Retry sign-in or sign-out cleanup; local work remains protected from account switching.",
+    "windowsCouldNotAccessTheCredentialRetrySignInOr" as const,
   local_data_requires_review:
-    "Local files could not be safely identified for cleanup. Local work is retained. Check storage access and retry.",
+    "localFilesCouldNotBeSafelyIdentifiedForCleanupLocal" as const,
   authentication_required:
-    "Sign in again to resume this session. Local files are preserved.",
+    "signInAgainToResumeThisSessionLocalFilesAre" as const,
   account_suspended:
-    "This account is suspended. Contact your instance operator. Local files and pending work are retained.",
-  approval_failed:
-    "Approval was denied, expired, or already used. Start a new sign-in.",
+    "thisAccountIsSuspendedContactYourInstanceOperatorLocalFiles" as const,
+  approval_failed: "approvalWasDeniedExpiredOrAlreadyUsedStartANew" as const,
   redirect_rejected:
-    "The server redirected the request. Use its canonical HTTPS address.",
+    "theServerRedirectedTheRequestUseItsCanonicalHttpsAddress" as const,
 };
-const errorMessages = new Map(Object.entries(errors));
-const messageFor = (code: string | undefined) =>
-  code ? (upgradeRecoveryMessage(code) ?? errorMessages.get(code)) : undefined;
+const errorMessages = new Map(Object.entries(errorKeys));
+const messageFor = (code: string | undefined) => {
+  const key = code ? errorMessages.get(code) : undefined;
+  return code
+    ? (upgradeRecoveryMessage(code) ?? (key ? translate(key) : undefined))
+    : undefined;
+};
 export const useAuthSession = () => {
   const [status, setStatus] = useState<Status>();
   const [busy, setBusy] = useState(false);
@@ -107,8 +110,10 @@ export const useAuthSession = () => {
               (name === "auth_sign_out" &&
               signOutRequestSchema.safeParse(selected).data?.choice ===
                 "synchronize"
-                ? errors.sync_incomplete
-                : "The operation did not complete. Retry; retained local files are preserved.")
+                ? translate(errorKeys.sync_incomplete)
+                : translate(
+                    "theOperationDidNotCompleteRetryRetainedLocalFilesAre"
+                  ))
           );
           try {
             const next = await command("auth_status");
@@ -141,9 +146,7 @@ export const useAuthSession = () => {
         }
       } catch {
         if (active) {
-          setErrorText(
-            "The saved sign-in could not be loaded. Retry; local files are preserved."
-          );
+          setErrorText(translate("theSavedSignInCouldNotBeLoadedRetryLocal"));
         }
       }
     };
@@ -176,7 +179,7 @@ export const useAuthSession = () => {
           await run("auth_status");
           setErrorText(
             messageFor(z.string().safeParse(error).data) ??
-              "Approval did not complete. Start a new sign-in. An undelivered session can be revoked in browser settings."
+              translate("approvalDidNotCompleteStartANewSignInAn")
           );
         }
       }

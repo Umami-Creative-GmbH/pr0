@@ -4,7 +4,9 @@ import type {
 } from "@pr0/api-contract/local-organization";
 import type { LocalPrompt } from "@pr0/api-contract/local-prompts";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useRef, useState } from "react";
 import { z } from "zod";
 
@@ -37,12 +39,14 @@ export const OrganizationControls = ({
   disabled: boolean;
   onEditing: (value: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const [manager, setManager] = useState<"collections" | "tags">();
   const selectedTags = new Set(filters.tagIds);
   const unavailable = new Map(
     snapshot.states.map((entry) => [
       entry.id,
-      `${entry.name} · ${entry.state === "merged" ? `Merged into ${entry.targetName ?? "a deleted tag"}` : "Deleted"}`,
+      `${entry.name} · ${entry.state === "merged" ? t("mergedIntoValue", [entry.targetName ?? t("aDeletedTag")]) : t("deleted")}`,
     ])
   );
   const open = (tab: "collections" | "tags") => {
@@ -50,19 +54,22 @@ export const OrganizationControls = ({
     onEditing(true);
   };
   return (
-    <section aria-label="Collections and tags" className="flex flex-col gap-2">
+    <section
+      aria-label={t("collectionsAndTags")}
+      className="flex flex-col gap-2"
+    >
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2">
           <div className="wf-section-head">
-            <h3 className="wf-eyebrow">Collections</h3>
+            <h3 className="wf-eyebrow">{t("collections")}</h3>
             <button
               type="button"
-              aria-label="Manage collections"
+              aria-label={t("manageCollections")}
               className="wf-btn-quiet"
               disabled={disabled}
               onClick={() => open("collections")}
             >
-              Manage
+              {t("manage")}
             </button>
           </div>
           <CollectionPicker
@@ -71,27 +78,27 @@ export const OrganizationControls = ({
             value={filters.collectionId}
             onChange={(collectionId) => onFilters({ ...filters, collectionId })}
             search={organizationMatches}
-            label="Collection filter"
-            emptyLabel="All collections"
+            label={t("collectionFilter")}
+            emptyLabel={t("allCollections")}
             unavailableName={
               filters.collectionId
                 ? (unavailable.get(filters.collectionId) ??
-                  "Deleted collection")
+                  t("deletedCollection"))
                 : undefined
             }
           />
         </div>
         <div className="flex flex-col gap-2">
           <div className="wf-section-head">
-            <h3 className="wf-eyebrow">Tags</h3>
+            <h3 className="wf-eyebrow">{t("tags")}</h3>
             <button
               type="button"
-              aria-label="Manage tags"
+              aria-label={t("manageTags")}
               className="wf-btn-quiet"
               disabled={disabled}
               onClick={() => open("tags")}
             >
-              Manage
+              {t("manage")}
             </button>
           </div>
           <TagPicker
@@ -100,7 +107,7 @@ export const OrganizationControls = ({
             value={filters.tagIds}
             onChange={(tagIds) => onFilters({ ...filters, tagIds })}
             search={organizationMatches}
-            label="Tag filters"
+            label={t("tagFilters")}
             unavailableNames={unavailable}
           />
         </div>
@@ -126,7 +133,7 @@ export const OrganizationControls = ({
               }
             }}
           >
-            Use {state.targetName} instead
+            {t("use")} {state.targetName} {t("instead")}
           </button>
         ) : null
       )}
@@ -158,6 +165,8 @@ export const PromptOrganization = ({
   onSaved: () => Promise<void>;
   disabled: boolean;
 }) => {
+  const t = useTranslations();
+
   const [busy, setBusy] = useState(false);
   const unresolved = useRef<OrganizeRequest | null>(null);
   const flight = useRef(false);
@@ -184,13 +193,11 @@ export const PromptOrganization = ({
       await organizationClient.save(request);
       unresolved.current = null;
       setUncertain(false);
-      setMessage("Saved on this device · Changes waiting to sync");
+      setMessage(t("savedOnThisDeviceChangesWaitingToSync"));
       try {
         await onSaved();
       } catch {
-        setMessage(
-          "Saved on this device. Refresh the library to update the displayed assignment."
-        );
+        setMessage(t("savedOnThisDeviceRefreshTheLibraryToUpdateThe"));
       }
     } catch (error) {
       const known =
@@ -205,7 +212,7 @@ export const PromptOrganization = ({
     setBusy(false);
   };
   return (
-    <section aria-label="Prompt organization" className="space-y-2">
+    <section aria-label={t("promptOrganization")} className="space-y-2">
       <CollectionPicker
         compact
         collections={snapshot.collections}
@@ -218,8 +225,8 @@ export const PromptOrganization = ({
           });
         }}
         search={organizationMatches}
-        label="Prompt collection"
-        emptyLabel="No collection"
+        label={t("promptCollection")}
+        emptyLabel={t("noCollection")}
         disabled={disabled || busy || uncertain}
       />
       <TagPicker
@@ -237,10 +244,12 @@ export const PromptOrganization = ({
           });
         }}
         search={organizationMatches}
-        label="Prompt tags"
+        label={t("promptTags")}
         disabled={disabled || busy || uncertain}
       />
-      <output>{message}</output>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
       {uncertain ? (
         <button
           type="button"
@@ -251,7 +260,7 @@ export const PromptOrganization = ({
             }
           }}
         >
-          Retry saved assignment
+          {t("retrySavedAssignment")}
         </button>
       ) : null}
     </section>

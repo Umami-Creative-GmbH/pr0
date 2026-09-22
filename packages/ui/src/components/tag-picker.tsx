@@ -1,7 +1,8 @@
 "use client";
-
 import { useId, useState } from "react";
 
+import { useTranslations } from "../hooks/use-translations";
+import { localizedLabel } from "../lib/i18n";
 import type { CollectionOption } from "./collection-picker";
 import { PickerSearch } from "./picker-search";
 
@@ -24,19 +25,20 @@ export const TagPicker = ({
   compact?: boolean;
   unavailableNames?: ReadonlyMap<string, string>;
 }) => {
+  const t = useTranslations();
+
   const id = useId();
   const [query, setQuery] = useState("");
   const selected = new Set(value);
   const visible = tags.filter((tag) => search(tag.name, query));
   const names = new Map(tags.map((tag) => [tag.id, tag.name]));
   const nameFor = (tagId: string) =>
-    names.get(tagId) ?? unavailableNames?.get(tagId) ?? "Unavailable tag";
+    names.get(tagId) ?? unavailableNames?.get(tagId) ?? t("unavailableTag");
   return (
     <fieldset disabled={disabled} className="wf-field">
       <legend className={compact ? "sr-only" : "wf-label mb-2"}>{label}</legend>
       <p hidden={compact || !tags.length} className="wf-hint">
-        Counts are library-wide, including the archive, for the available
-        snapshot.
+        {t("countsAreLibraryWideIncludingTheArchiveForTheAvailable")}
       </p>
       <div className="wf-chips max-h-24 overflow-y-auto empty:hidden">
         {value.map((tagId) => (
@@ -47,9 +49,9 @@ export const TagPicker = ({
             data-kind="tag"
             data-active="true"
             onClick={() => onChange(value.filter((entry) => entry !== tagId))}
-            aria-label={`Remove tag ${nameFor(tagId)}`}
+            aria-label={t("removeTagValue", [nameFor(tagId)])}
           >
-            {nameFor(tagId)} · Remove
+            {nameFor(tagId)} {t("remove3")}
           </button>
         ))}
       </div>
@@ -58,14 +60,16 @@ export const TagPicker = ({
           className={compact ? "sr-only" : "wf-hint mt-2 block"}
           htmlFor={id}
         >
-          Search {label.toLowerCase()}
+          {t("search")} {localizedLabel(label)}
         </label>
         <input
           id={id}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           className="mt-1 w-full text-sm"
-          placeholder={compact ? `Search ${label.toLowerCase()}` : undefined}
+          placeholder={
+            compact ? t("searchValue", [localizedLabel(label)]) : undefined
+          }
         />
       </PickerSearch>
       <div
@@ -89,8 +93,8 @@ export const TagPicker = ({
               {tag.name}
               <span className="sr-only">
                 {" "}
-                · {tag.totalCount} total, {tag.activeCount} active,{" "}
-                {tag.archivedCount} archived
+                · {tag.totalCount} {t("total2")} {tag.activeCount} {t("active")}{" "}
+                {tag.archivedCount} {t("archived2")}
               </span>
             </span>
             <small aria-hidden="true">{tag.totalCount}</small>

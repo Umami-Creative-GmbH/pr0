@@ -1,6 +1,8 @@
 import type { DesktopCopy } from "@pr0/api-contract/desktop-copy";
 import type { Prompt } from "@pr0/api-contract/prompts";
 import { parseTemplate } from "@pr0/api-contract/variables";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
@@ -11,27 +13,29 @@ import { listenWhenVisible } from "./surface-visibility";
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- IPC errors are untrusted; display only fixed messages.
 export const copyError = (error: unknown) => {
   if (error === "clipboard_busy") {
-    return "Another copy is in progress. Wait for it to finish, then try again.";
+    return translate("anotherCopyIsInProgressWaitForItToFinish");
   }
   if (error === "operation_cancelled") {
-    return "The account changed. Select the prompt again before copying.";
+    return translate("theAccountChangedSelectThePromptAgainBeforeCopying");
   }
   if (error === "prompt_unavailable" || error === "prompt_not_found") {
-    return "This prompt is no longer available. Refresh the library.";
+    return translate("thisPromptIsNoLongerAvailableRefreshTheLibrary");
   }
   if (error === "template_changed") {
-    return "Template changed. Restart with the updated template before copying.";
+    return translate(
+      "templateChangedRestartWithTheUpdatedTemplateBeforeCopying"
+    );
   }
   if (error === "invalid_variable_values") {
-    return "Check the variable values. Nothing was copied.";
+    return translate("checkTheVariableValuesNothingWasCopied");
   }
   if (error === "variable_output_too_large") {
-    return "Combined output must be at most 256 KiB of UTF-8 text. Nothing was copied.";
+    return translate("combinedOutputMustBeAtMost256KibOfUtf");
   }
   if (error instanceof Error && error.message === "copy_uncertain") {
-    return "Copy could not be confirmed. Check the clipboard before copying again.";
+    return translate("copyCouldNotBeConfirmedCheckTheClipboardBeforeCopying");
   }
-  return "Could not copy. Your prompt is preserved. Try Copy again.";
+  return translate("couldNotCopyYourPromptIsPreservedTryCopyAgain");
 };
 
 interface Interaction {
@@ -50,6 +54,8 @@ export const usePromptCopy = (
   refresh: () => void,
   opening?: number
 ) => {
+  const t = useTranslations();
+
   const alive = useRef(true);
   const operation = useRef(0);
   const writing = useRef(false);
@@ -169,8 +175,8 @@ export const usePromptCopy = (
         setInteraction(undefined);
         setMessage(
           result.usageSaved
-            ? "Copied."
-            : "Copied. Usage could not be saved. Retry usage without copying again; this retry may be lost if the app closes."
+            ? t("copied2")
+            : t("copiedUsageCouldNotBeSavedRetryUsageWithoutCopying")
         );
         refresh();
       }
@@ -261,6 +267,6 @@ export const usePromptCopy = (
     },
     invalidate: endInteraction,
     usageRetried: () =>
-      setMessage("Usage saved. The clipboard was not written again."),
+      setMessage(t("usageSavedTheClipboardWasNotWrittenAgain")),
   };
 };

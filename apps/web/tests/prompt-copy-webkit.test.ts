@@ -17,6 +17,7 @@ test("WebKit copies after asynchronous eligibility checks with the original user
   const browser = await webkit.launch({ headless: true });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       permissions: ["clipboard-read"],
     });
     await context.addCookies(

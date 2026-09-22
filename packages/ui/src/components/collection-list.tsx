@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 
+import { useTranslations } from "../hooks/use-translations";
+import { localizedLabel, translate } from "../lib/i18n";
 import type { CollectionOption } from "./collection-picker";
 
 const buttonClass = "wf-btn";
@@ -10,15 +12,17 @@ export const CollectionList = ({
   disabled,
   onRename,
   onDelete,
-  label = "Collections",
+  label = translate("collections"),
 }: {
-  label?: "Collections" | "Tags";
+  label?: string;
   collections: CollectionOption[];
   search: (name: string, query: string) => boolean;
   disabled: boolean;
   onRename: (entry: CollectionOption) => void;
   onDelete?: (entry: CollectionOption) => void;
 }) => {
+  const t = useTranslations();
+
   const [query, setQuery] = useState("");
   const [unused, setUnused] = useState(false);
   const visible = collections.filter(
@@ -27,7 +31,7 @@ export const CollectionList = ({
   return (
     <>
       <label className="block" htmlFor="collection-search">
-        Search {label.toLowerCase()}
+        {t("search")} {localizedLabel(label)}
       </label>
       <input
         id="collection-search"
@@ -41,7 +45,7 @@ export const CollectionList = ({
           checked={unused}
           onChange={(event) => setUnused(event.target.checked)}
         />
-        Unused
+        {t("unused")}
       </label>
       <ul aria-label={label} className="max-h-72 space-y-2 overflow-y-auto p-1">
         {visible.map((entry) => (
@@ -52,34 +56,38 @@ export const CollectionList = ({
             <div className="min-w-0 break-words">
               <span className="font-medium">{entry.name}</span>
               <p>
-                {entry.totalCount} total · {entry.activeCount} active ·{" "}
-                {entry.archivedCount} archived
+                {entry.totalCount} {t("total")} {entry.activeCount}{" "}
+                {t("active2")} {entry.archivedCount} {t("archived2")}
               </p>
             </div>
             <button
               className={buttonClass}
-              aria-label={`Rename ${entry.name}`}
+              aria-label={t("renameValue", [entry.name])}
               disabled={disabled}
               type="button"
               onClick={() => onRename(entry)}
             >
-              Rename
+              {t("rename")}
             </button>
             {onDelete ? (
               <button
                 type="button"
                 className={buttonClass}
-                aria-label={`Delete ${entry.name}`}
+                aria-label={t("deleteValue2", [entry.name])}
                 disabled={disabled}
                 onClick={() => onDelete(entry)}
               >
-                Delete
+                {t("delete")}
               </button>
             ) : null}
           </li>
         ))}
       </ul>
-      {visible.length ? null : <p>No matching {label.toLowerCase()}.</p>}
+      {visible.length ? null : (
+        <p>
+          {t("noMatching")} {localizedLabel(label)}.
+        </p>
+      )}
     </>
   );
 };

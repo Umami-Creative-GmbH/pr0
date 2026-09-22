@@ -3,7 +3,10 @@ import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { AuthLayout } from "@pr0/ui/components/auth-layout";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { WayfinderShell } from "@pr0/ui/components/wayfinder-shell";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Search } from "lucide-react";
 import { useRef, useState } from "react";
@@ -43,16 +46,16 @@ const accountStatus = (
   message: string,
   signedIn?: PrivateLibrary,
   methodResult?: string
-) => error || message || (!signedIn && methodResultMessage(methodResult));
+) => error || message || (signedIn ? "" : methodResultMessage(methodResult));
 const initialError = (verification?: string, socialError?: string) => {
   if (socialError === "rate_limited") {
-    return "Too many account creation attempts. Wait up to one hour before trying again. Existing accounts can still sign in.";
+    return translate("tooManyAccountCreationAttemptsWaitUpToOneHour");
   }
   if (socialError) {
     return accountErrorMessage(new ApiError(400, socialError));
   }
   return verification === "invalid"
-    ? "This verification link is invalid or expired. Request another email below."
+    ? translate("thisVerificationLinkIsInvalidOrExpiredRequestAnotherEmail")
     : "";
 };
 
@@ -68,8 +71,9 @@ const QuickAccessButton = ({
   signedIn?: PrivateLibrary;
   disabled: boolean;
   onOpen: () => void;
-}) =>
-  signedIn ? (
+}) => {
+  const t = useTranslations();
+  return signedIn ? (
     <button
       className="wf-omnibar"
       type="button"
@@ -77,10 +81,11 @@ const QuickAccessButton = ({
       onClick={onOpen}
     >
       <Search aria-hidden="true" size={15} />
-      <span>Quick access — find and copy a prompt</span>
-      <kbd className="wf-kbd">Ctrl K</kbd>
+      <span>{t("quickAccessFindAndCopyAPrompt")}</span>
+      <kbd className="wf-kbd">{t("ctrlK")}</kbd>
     </button>
   ) : null;
+};
 const AccountSettings = ({
   library,
   draftOpen,
@@ -89,30 +94,33 @@ const AccountSettings = ({
   library: PrivateLibrary;
   draftOpen: boolean;
   methodResult?: string;
-}) => (
-  <>
-    <section aria-labelledby="account-title" className="wf-card">
-      <h2 id="account-title">Account and instance</h2>
-      <dl className="grid gap-1 text-sm break-all">
-        <dt className="wf-eyebrow">Account</dt>
-        <dd>{library.account.email}</dd>
-        <dt className="wf-eyebrow mt-2">Instance</dt>
-        <dd>{library.instance.origin}</dd>
-        <dt className="wf-eyebrow mt-2">Instance identity</dt>
-        <dd className="wf-mono">{library.instance.id}</dd>
-      </dl>
-      <p className="wf-hint">
-        {draftOpen ? "Unsaved changes in this tab." : "No open draft."}
-      </p>
-    </section>
-    <SessionSettings accountId={library.account.id} />
-    <EmailSettings
-      key={library.account.id}
-      accountId={library.account.id}
-      methodResult={methodResult}
-    />
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      <section aria-labelledby="account-title" className="wf-card">
+        <h2 id="account-title">{t("accountAndInstance")}</h2>
+        <dl className="grid gap-1 text-sm break-all">
+          <dt className="wf-eyebrow">{t("account")}</dt>
+          <dd>{library.account.email}</dd>
+          <dt className="wf-eyebrow mt-2">{t("instance")}</dt>
+          <dd>{library.instance.origin}</dd>
+          <dt className="wf-eyebrow mt-2">{t("instanceIdentity")}</dt>
+          <dd className="wf-mono">{library.instance.id}</dd>
+        </dl>
+        <p className="wf-hint">
+          {draftOpen ? t("unsavedChangesInThisTab") : t("noOpenDraft")}
+        </p>
+      </section>
+      <SessionSettings accountId={library.account.id} />
+      <EmailSettings
+        key={library.account.id}
+        accountId={library.account.id}
+        methodResult={methodResult}
+      />
+    </>
+  );
+};
 
 const AccountSignIn = ({
   mode,
@@ -131,25 +139,26 @@ const AccountSignIn = ({
   onResend: () => void;
   onToggle: () => void;
 }) => {
-  const submitLabel = mode === "login" ? "Sign in" : "Create account";
+  const t = useTranslations();
+
+  const submitLabel = mode === "login" ? t("signIn") : t("createAccount");
   return (
     <section aria-labelledby="form-title" className="contents">
       <header className="flex flex-col gap-2">
         <span className="wf-eyebrow-accent">
-          {mode === "login" ? "Welcome to pr0" : "One account, every device"}
+          {mode === "login" ? t("welcomeToPr0") : t("oneAccountEveryDevice")}
         </span>
         <h2 id="form-title">
-          {mode === "login" ? "Sign in" : "Create an account"}
+          {mode === "login" ? t("signIn") : t("createAnAccount")}
         </h2>
         <p className="wf-hint">
-          Verify your email before accessing your library. Registration depends
-          on this instance’s admission settings.
+          {t("verifyYourEmailBeforeAccessingYourLibraryRegistrationDependsOn")}
         </p>
       </header>
       <form onSubmit={onSubmit} ref={formRef}>
         <div className="wf-field">
           <label className="wf-label" htmlFor="email">
-            Email
+            {t("email")}
           </label>
           <input
             autoComplete="email"
@@ -157,14 +166,14 @@ const AccountSignIn = ({
             id="email"
             maxLength={254}
             name="email"
-            placeholder="name@company.com"
+            placeholder={t("nameCompanyCom")}
             required
             type="email"
           />
         </div>
         <div className="wf-field">
           <label className="wf-label" htmlFor="password">
-            Password
+            {t("password")}
           </label>
           <input
             aria-describedby="password-help"
@@ -180,7 +189,7 @@ const AccountSignIn = ({
             type="password"
           />
           <p className="wf-hint" id="password-help">
-            Use 12–128 characters.
+            {t("use12128Characters")}
           </p>
         </div>
         <button
@@ -188,7 +197,7 @@ const AccountSignIn = ({
           disabled={busy || pending}
           type="submit"
         >
-          {busy ? "Please wait…" : submitLabel}
+          {busy ? t("pleaseWait") : submitLabel}
           <ArrowRight aria-hidden="true" size={15} />
         </button>
         <button
@@ -197,7 +206,7 @@ const AccountSignIn = ({
           onClick={onResend}
           type="button"
         >
-          Send another verification email
+          {t("sendAnotherVerificationEmail")}
         </button>
       </form>
       <SocialSignIn />
@@ -208,8 +217,8 @@ const AccountSignIn = ({
         type="button"
       >
         {mode === "login"
-          ? "Create a new account"
-          : "Already registered? Sign in"}
+          ? t("createANewAccount")
+          : t("alreadyRegisteredSignIn")}
       </button>
     </section>
   );
@@ -222,14 +231,16 @@ const LibraryLoadError = ({
   error: Error | null;
   onRetry: () => void;
 }) => {
+  const t = useTranslations();
+
   if (!error || (error instanceof ApiError && error.status === 401)) {
     return null;
   }
   return (
     <p className="wf-notice" role="alert">
-      Unable to open your library.{" "}
+      {t("unableToOpenYourLibrary")}{" "}
       <button className="wf-link" type="button" onClick={onRetry}>
-        Retry
+        {t("retry")}
       </button>
     </p>
   );
@@ -258,44 +269,50 @@ const AccountPage = ({
   onBack: () => void;
   onRetry: () => void;
   onDeleted: ComponentProps<typeof AccountDeletionSettings>["onDeleted"];
-}) => (
-  <div className="wf-page" hidden={Boolean(signedIn) && !showSettings}>
-    {showSettings ? (
-      <div className="flex items-center justify-between gap-3">
-        <h2>Account settings</h2>
-        <button className="wf-btn" type="button" onClick={onBack}>
-          Back to library
-        </button>
-      </div>
-    ) : null}
-    {signedIn && !accountChanged ? (
-      <AccountSettings
-        library={signedIn}
-        draftOpen={draftOpen}
-        methodResult={methodResult}
-      />
-    ) : null}
-    {!signedIn && !pending ? <RecoveryForm /> : null}
-    <LibraryLoadError error={error} onRetry={onRetry} />
-    <details className="wf-card" open={!signedIn}>
-      <summary>Account deletion and recovery</summary>{" "}
-      <AccountDeletionSettings
-        accountId={signedIn?.account.id}
-        onDeleted={onDeleted}
-      />
-    </details>
-  </div>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <div className="wf-page" hidden={Boolean(signedIn) && !showSettings}>
+      {showSettings ? (
+        <div className="flex items-center justify-between gap-3">
+          <h2>{t("accountSettings")}</h2>
+          <button className="wf-btn" type="button" onClick={onBack}>
+            {t("backToLibrary")}
+          </button>
+        </div>
+      ) : null}
+      {signedIn && !accountChanged ? (
+        <AccountSettings
+          library={signedIn}
+          draftOpen={draftOpen}
+          methodResult={methodResult}
+        />
+      ) : null}
+      {!signedIn && !pending ? <RecoveryForm /> : null}
+      <LibraryLoadError error={error} onRetry={onRetry} />
+      <details className="wf-card" open={!signedIn}>
+        <summary>{t("accountDeletionAndRecovery")}</summary>{" "}
+        <AccountDeletionSettings
+          accountId={signedIn?.account.id}
+          onDeleted={onDeleted}
+        />
+      </details>
+    </div>
+  );
+};
 
-export const AccountScreen = ({
-  verification,
-  socialError,
-  methodResult,
-}: {
+interface AccountScreenProps {
   verification?: string;
   socialError?: string;
   methodResult?: string;
-}) => {
+}
+
+const useAccountSession = ({
+  verification,
+  socialError,
+}: Pick<AccountScreenProps, "verification" | "socialError">) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -303,7 +320,7 @@ export const AccountScreen = ({
   const [draftLibrary, setDraftLibrary] = useState<PrivateLibrary | null>(null);
   const draftOpen = Boolean(draftLibrary);
   const [message, setMessage] = useState(
-    verification === "ok" ? "Email verified. Sign in to open your library." : ""
+    verification === "ok" ? t("emailVerifiedSignInToOpenYourLibrary") : ""
   );
   const [errorText, setErrorText] = useState(() =>
     initialError(verification, socialError)
@@ -347,9 +364,7 @@ export const AccountScreen = ({
       if (mode === "register") {
         await client.register(credentials);
         form.reset();
-        setMessage(
-          "If this address can register, a verification email has been queued. Check your inbox and spam folder, then sign in. If it does not arrive, request another email."
-        );
+        setMessage(t("ifThisAddressCanRegisterAVerificationEmailHasBeen"));
       } else {
         await queryClient.cancelQueries();
         queryClient.clear();
@@ -359,7 +374,7 @@ export const AccountScreen = ({
         if (result.error) {
           throw result.error;
         }
-        setMessage("Signed in. Your library is ready.");
+        setMessage(t("signedInYourLibraryIsReady"));
       }
     });
   };
@@ -371,9 +386,7 @@ export const AccountScreen = ({
     }
     void run(async () => {
       await client.resendVerification(input.value);
-      setMessage(
-        "If this address needs verification, an email has been queued. Check your inbox and spam folder. Delivery may take a few minutes."
-      );
+      setMessage(t("ifThisAddressNeedsVerificationAnEmailHasBeenQueued"));
     });
   };
 
@@ -384,10 +397,56 @@ export const AccountScreen = ({
       setDraftLibrary(null);
       queryClient.clear();
       await library.refetch();
-      setMessage("Signed out.");
+      setMessage(t("signedOut"));
     });
   };
 
+  return {
+    client,
+    queryClient,
+    mode,
+    setMode,
+    busy,
+    draftLibrary,
+    setDraftLibrary,
+    draftOpen,
+    message,
+    errorText,
+    setErrorText,
+    formRef,
+    statusRef,
+    library,
+    submit,
+    resend,
+    logout,
+  };
+};
+
+export const AccountScreen = ({
+  verification,
+  socialError,
+  methodResult,
+}: AccountScreenProps) => {
+  const t = useTranslations();
+  const {
+    client,
+    queryClient,
+    mode,
+    setMode,
+    busy,
+    draftLibrary,
+    setDraftLibrary,
+    draftOpen,
+    message,
+    errorText,
+    setErrorText,
+    formRef,
+    statusRef,
+    library,
+    submit,
+    resend,
+    logout,
+  } = useAccountSession({ verification, socialError });
   const signedIn = draftLibrary ?? library.data;
   const retainDraft = (dirty: boolean) => {
     setDraftLibrary((current) =>
@@ -419,7 +478,7 @@ export const AccountScreen = ({
               type="button"
               onClick={() => setSettingsOpen(!settingsOpen)}
             >
-              {settingsOpen ? "Back to library" : "Account settings"}
+              {settingsOpen ? t("backToLibrary") : t("accountSettings")}
             </button>
             <SignOutControl busy={busy} dirty={draftOpen} onSignOut={logout} />
           </>
@@ -428,7 +487,7 @@ export const AccountScreen = ({
     >
       <main className="wf-main">
         <h1 className="sr-only">
-          {signedIn ? "Your library" : "Welcome to pr0"}
+          {signedIn ? t("yourLibrary") : t("welcomeToPr0")}
         </h1>
         <p
           aria-live="polite"
@@ -436,16 +495,18 @@ export const AccountScreen = ({
           ref={statusRef}
           tabIndex={-1}
         >
-          {accountStatus(errorText, message, signedIn, methodResult)}
+          <LocalizedMessage
+            value={accountStatus(errorText, message, signedIn, methodResult)}
+          />
         </p>
         {library.isPending ? (
-          <output className="wf-empty">Checking your session…</output>
+          <output className="wf-empty">{t("checkingYourSession")}</output>
         ) : null}
         {signedIn && accountChanged ? (
           <p className="wf-banner" role="alert">
-            Your browser is now signed in to a different account. This draft
-            belongs to {signedIn.account.email}. Return to that account to save,
-            or copy your text before discarding the draft.
+            {t("yourBrowserIsNowSignedInToADifferentAccount")}
+            {signedIn.account.email}
+            {t("returnToThatAccountToSaveOrCopyYourText")}
           </p>
         ) : null}
         {signedIn ? (
@@ -466,7 +527,7 @@ export const AccountScreen = ({
           </div>
         ) : null}
         {signedIn || library.isPending ? null : (
-          <AuthLayout keys="Ctrl K ⦁ Search ⦁ ↵ ⦁ Copied">
+          <AuthLayout keys={t("ctrlKSearchCopied")}>
             <AccountSignIn
               mode={mode}
               busy={busy}

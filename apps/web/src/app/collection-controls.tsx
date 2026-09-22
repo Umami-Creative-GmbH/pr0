@@ -6,7 +6,9 @@ import type {
   organizationStateSchema,
 } from "@pr0/api-contract/prompts";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -25,6 +27,8 @@ const UnavailableTags = ({
   tagIds: string[];
   onTagsChange: (ids: string[]) => void;
 }) => {
+  const t = useTranslations();
+
   const selectedTags = new Set(tagIds);
   return (
     <div className="max-h-36 overflow-y-auto">
@@ -33,9 +37,9 @@ const UnavailableTags = ({
           <p key={state.id}>
             {state.name} ·{" "}
             {state.state === "deleted"
-              ? "Deleted"
-              : `Merged into ${state.targetName ?? "a deleted tag"}`}
-            . No matches until removed or replaced.{" "}
+              ? t("deleted")
+              : t("mergedIntoValue", [state.targetName ?? t("aDeletedTag")])}
+            {t("noMatchesUntilRemovedOrReplaced")}{" "}
             {state.targetId ? (
               <button
                 type="button"
@@ -51,7 +55,7 @@ const UnavailableTags = ({
                   }
                 }}
               >
-                Use {state.targetName} instead
+                {t("use")} {state.targetName} {t("instead")}
               </button>
             ) : null}
           </p>
@@ -71,6 +75,8 @@ const useSelectedOrganization = (
   viewCollectionId: string | null,
   tagIds: string[]
 ) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const selectedIds = [
     ...new Set([
@@ -111,7 +117,7 @@ const useSelectedOrganization = (
   const unavailableNames = new Map(
     states.data?.map((state) => [
       state.id,
-      `${state.name} · ${state.state === "deleted" ? "Deleted" : "Merged"}`,
+      `${state.name} · ${state.state === "deleted" ? t("deleted") : t("merged")}`,
     ])
   );
   return { selectedIds, states, unavailableNames };
@@ -144,6 +150,8 @@ export const CollectionControls = ({
   onAccepted: () => void | Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const [managing, setManaging] = useState<"collections" | "tags" | null>(null);
   const { selectedIds, states, unavailableNames } = useSelectedOrganization(
     library,
@@ -158,13 +166,13 @@ export const CollectionControls = ({
     textBytes = 0,
   } = organization.data ?? {};
   const error = organization.isError
-    ? "Could not refresh collections. Counts may be stale."
+    ? t("couldNotRefreshCollectionsCountsMayBeStale")
     : "";
   const refresh = () => {
     void organization.refetch();
   };
   return (
-    <section aria-label="Collections" className="wf-section">
+    <section aria-label={t("collections")} className="wf-section">
       {managing ? (
         <OrganizationManager
           library={library}
@@ -185,24 +193,24 @@ export const CollectionControls = ({
         />
       ) : null}
       <div className="wf-section-head">
-        <h2 className="wf-eyebrow">Collections</h2>
+        <h2 className="wf-eyebrow">{t("collections")}</h2>
         <button
           className="wf-btn-quiet"
           type="button"
-          aria-label="Manage collections"
+          aria-label={t("manageCollections")}
           onClick={() => {
             setManaging("collections");
             refresh();
           }}
         >
-          Manage
+          {t("manage")}
         </button>
       </div>
       {error ? (
         <p className="wf-notice" role="alert">
-          {error}{" "}
+          <LocalizedMessage value={error} />{" "}
           <button className={buttonClass} type="button" onClick={refresh}>
-            Retry collections
+            {t("retryCollections")}
           </button>
         </p>
       ) : null}
@@ -211,8 +219,8 @@ export const CollectionControls = ({
         unavailableName={
           viewCollectionId ? unavailableNames.get(viewCollectionId) : undefined
         }
-        label="Collection view"
-        emptyLabel="All prompts"
+        label={t("collectionView")}
+        emptyLabel={t("allPrompts")}
         collections={collections}
         value={viewCollectionId}
         search={collectionMatches}
@@ -221,9 +229,9 @@ export const CollectionControls = ({
       {viewCollectionId &&
       states.data?.some((state) => state.id === viewCollectionId) ? (
         <p>
-          This collection was deleted and is unavailable.{" "}
+          {t("thisCollectionWasDeletedAndIsUnavailable")}{" "}
           <button type="button" className={buttonClass} onClick={onAllPrompts}>
-            Go to All prompts
+            {t("goToAllPrompts")}
           </button>
         </p>
       ) : null}
@@ -232,14 +240,14 @@ export const CollectionControls = ({
         hidden={!collections.length && !collectionId}
         open={Boolean(collectionId)}
       >
-        <summary>Filter within this view</summary>
+        <summary>{t("filterWithinThisView")}</summary>
         <CollectionPicker
           compact
           unavailableName={
             collectionId ? unavailableNames.get(collectionId) : undefined
           }
-          label="Collection filter"
-          emptyLabel="All collections"
+          label={t("collectionFilter")}
+          emptyLabel={t("allCollections")}
           collections={collections}
           value={collectionId}
           search={collectionMatches}
@@ -248,37 +256,37 @@ export const CollectionControls = ({
         {collectionId &&
         states.data?.some((state) => state.id === collectionId) ? (
           <p>
-            {states.data.find((state) => state.id === collectionId)?.name} ·
-            Deleted. This collection is unavailable; no prompts match.{" "}
+            {states.data.find((state) => state.id === collectionId)?.name}{" "}
+            {t("deletedThisCollectionIsUnavailableNoPromptsMatch")}{" "}
             <button
               type="button"
               className={buttonClass}
               onClick={onAllPrompts}
             >
-              Go to All prompts
+              {t("goToAllPrompts")}
             </button>
           </p>
         ) : null}
       </details>
       <div className="wf-section-head">
-        <h2 className="wf-eyebrow">Tags</h2>
+        <h2 className="wf-eyebrow">{t("tags")}</h2>
         <button
           type="button"
           className="wf-btn-quiet"
-          aria-label="Manage tags"
+          aria-label={t("manageTags")}
           onClick={() => {
             setManaging("tags");
             refresh();
           }}
         >
-          Manage
+          {t("manage")}
         </button>
       </div>
       <TagPicker
         compact
         unavailableNames={unavailableNames}
         tags={tags}
-        label="Tag filters"
+        label={t("tagFilters")}
         value={tagIds}
         search={collectionMatches}
         onChange={onTagsChange}

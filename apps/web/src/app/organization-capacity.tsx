@@ -1,4 +1,7 @@
 import { promptLimits } from "@pr0/api-contract/prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
+import { localizedLabel } from "@pr0/ui/lib/i18n";
 
 export const OrganizationCapacity = ({
   count,
@@ -18,35 +21,45 @@ export const OrganizationCapacity = ({
   loading: boolean;
   error: string;
   onRetry: () => void;
-}) => (
-  <>
-    <p>
-      {count} / {limit} {plural.toLowerCase()} ·{" "}
-      {(textBytes / 1_048_576).toFixed(2)} / 100 MiB library text
-    </p>
-    <p className="text-muted-foreground text-sm">
-      Counts are library-wide, including the archive, for the available
-      snapshot.
-    </p>
-    {count >= limit * promptLimits.warningRatio ? (
-      <output>
-        Your library is at or above 90% of its {limit.toLocaleString("en-US")}{" "}
-        {singular.toLowerCase()} limit.
-      </output>
-    ) : null}
-    {textBytes >= promptLimits.libraryBytes * promptLimits.warningRatio ? (
-      <output>
-        Your library is at or above 90% of its 100 MiB text limit.
-      </output>
-    ) : null}
-    {loading ? <output>Loading {plural.toLowerCase()}…</output> : null}
-    {error ? (
-      <div role="alert">
-        {error}{" "}
-        <button className="wf-btn" type="button" onClick={onRetry}>
-          Retry {plural.toLowerCase()}
-        </button>
-      </div>
-    ) : null}
-  </>
-);
+}) => {
+  const locale = useLocale();
+
+  const t = useTranslations();
+  return (
+    <>
+      <p>
+        {count} / {limit} {localizedLabel(plural)} ·{" "}
+        {(textBytes / 1_048_576).toLocaleString(locale, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}{" "}
+        {t("text100MibLibraryText")}
+      </p>
+      <p className="text-muted-foreground text-sm">
+        {t("countsAreLibraryWideIncludingTheArchiveForTheAvailable")}
+      </p>
+      {count >= limit * promptLimits.warningRatio ? (
+        <output>
+          {t("yourLibraryIsAtOrAbove90OfIts")} {limit.toLocaleString(locale)}{" "}
+          {localizedLabel(singular)} {t("limit")}
+        </output>
+      ) : null}
+      {textBytes >= promptLimits.libraryBytes * promptLimits.warningRatio ? (
+        <output>{t("yourLibraryIsAtOrAbove90OfIts100")}</output>
+      ) : null}
+      {loading ? (
+        <output>
+          {t("loading")} {localizedLabel(plural)}…
+        </output>
+      ) : null}
+      {error ? (
+        <div role="alert">
+          <LocalizedMessage value={error} />{" "}
+          <button className="wf-btn" type="button" onClick={onRetry}>
+            {t("retry")} {localizedLabel(plural)}
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+};
