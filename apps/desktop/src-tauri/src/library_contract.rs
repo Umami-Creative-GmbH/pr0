@@ -81,6 +81,7 @@ pub struct Summary {
     pub id: String,
     pub title: String,
     pub archived: bool,
+    pub excerpt: String,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

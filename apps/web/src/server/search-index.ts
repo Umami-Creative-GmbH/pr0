@@ -1,6 +1,7 @@
 // oxlint-disable react-doctor/js-set-map-lookups -- Literal substring matching operates on strings, not array membership.
 import { Database } from "bun:sqlite";
 
+import { contentExcerpt } from "@pr0/api-contract/excerpt";
 import { organizationSearch } from "@pr0/api-contract/organization";
 
 import { trigramQuery } from "./search-grams";
@@ -8,10 +9,11 @@ import { organizationIndex } from "./search-organization-index";
 import { shortPostings, SearchSlots } from "./search-postings";
 import type { SearchInput, SearchRecord } from "./search-types";
 
-const summaryFor = (row: SearchRecord) => ({
+const summaryFor = (row: SearchRecord, excerpt: string) => ({
   id: row.id,
   title: row.title,
   description: row.description,
+  excerpt,
   revision: row.revision,
   createdAt: row.created_at.toISOString(),
   modifiedAt: row.modified_at.toISOString(),
@@ -255,17 +257,18 @@ export const openSearchIndex = (filename: string) => {
     upsert(row: SearchRecord) {
       if (row.content === null) {
         const current = db
-          .query<{ slot: number }, [string]>(
-            "SELECT slot FROM search_metadata WHERE id=?"
+          .query<{ slot: number; excerpt: string }, [string]>(
+            "SELECT slot,json_extract(summary,'$.excerpt') AS excerpt FROM search_metadata WHERE id=?"
           )
           .get(row.id);
-        if (current) {
-          organization.assign(current.slot, row.collection_id, row.tag_ids);
+        if (!current) {
+          throw new Error("Missing search summary for metadata update");
         }
+        organization.assign(current.slot, row.collection_id, row.tag_ids);
         db.query(
           "UPDATE search_metadata SET summary=?,modified=?,used=?,archived=?,favorite=?,collection_id=?,tags=? WHERE id=?"
         ).run(
-          JSON.stringify(summaryFor(row)),
+          JSON.stringify(summaryFor(row, current.excerpt)),
           row.modified_at.getTime(),
           row.last_used_at?.getTime() ?? null,
           Number(row.archived),
@@ -312,7 +315,7 @@ export const openSearchIndex = (filename: string) => {
         Buffer.from(normalized.title),
         Buffer.from(normalized.description),
         Buffer.byteLength(normalized.content),
-        JSON.stringify(summaryFor(row)),
+        JSON.stringify(summaryFor(row, contentExcerpt(row.content))),
         row.created_at.getTime(),
         row.modified_at.getTime(),
         row.last_used_at?.getTime() ?? null,

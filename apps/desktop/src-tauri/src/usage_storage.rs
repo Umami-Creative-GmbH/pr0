@@ -188,16 +188,19 @@ impl LibraryStore {
                 id.clone(),
             )
         });
-        Ok(rows
+        rows
             .into_iter()
             .skip(offset as usize)
             .take(50)
-            .map(|(id, title, _)| Summary {
-                id,
-                title,
-                archived: false,
+            .map(|(id, title, _)| {
+                let excerpt = self.db.query_row(
+                    "SELECT json_extract(record,'$.content') FROM visible_prompt WHERE id=?1",
+                    [&id],
+                    |r| Ok(super::excerpt::excerpt(&r.get::<_, String>(0)?)),
+                ).map_err(io)?;
+                Ok(Summary { excerpt, id, title, archived: false })
             })
-            .collect())
+            .collect()
     }
     pub fn usage_status(&self) -> Result<UsageStatus, String> {
         self.db.query_row("SELECT (SELECT count(*) FROM pending_usage WHERE receipt IS NULL),(SELECT count(*) FROM pending_usage WHERE receipt IS NOT NULL),CASE WHEN EXISTS(SELECT 1 FROM pending_usage WHERE recovery=1) THEN 'recovery_required' ELSE error END,max(0,next_attempt-?1) FROM usage_state",[now()],|r| Ok(UsageStatus {waiting:r.get(0)?,awaiting_download:r.get(1)?,memory_only:0,error:r.get(2)?,retry_after_ms:r.get::<_,i64>(3)? as u64})).map_err(io)

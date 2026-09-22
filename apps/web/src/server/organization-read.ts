@@ -73,10 +73,10 @@ export const getOrganizationReview = (
       throw unavailableOrganization();
     }
     const rows =
-      await tx`SELECT a.prompt_id AS affected_id, a.originally_archived, p.id, p.title, p.description, p.favorite, p.archived, p.collection_id, p.created_at, p.modified_at, p.revision::text,
+      await tx`SELECT a.prompt_id AS affected_id, a.originally_archived, p.id, p.title, p.description, p.content, p.favorite, p.archived, p.collection_id, p.created_at, p.modified_at, p.revision::text,
     to_json(ARRAY(SELECT m.tag_id FROM prompt_tag m WHERE m.instance_id = a.instance_id AND m.account_id = a.account_id AND m.prompt_id = a.prompt_id AND m.add_revision > m.remove_revision ORDER BY m.tag_id)) AS tag_ids
     FROM (SELECT * FROM organization_affected WHERE instance_id = ${scope.instanceId} AND account_id = ${scope.accountId} AND operation_id = ${id} ORDER BY prompt_id LIMIT 101 OFFSET ${offset}) a
-    LEFT JOIN LATERAL (SELECT id, title, description, favorite, archived, collection_id, created_at, modified_at, revision FROM prompt WHERE instance_id = ${scope.instanceId} AND account_id = ${scope.accountId} AND id = a.prompt_id LIMIT 1) p ON true ORDER BY a.prompt_id`;
+    LEFT JOIN LATERAL (SELECT id, title, description, content, favorite, archived, collection_id, created_at, modified_at, revision FROM prompt WHERE instance_id = ${scope.instanceId} AND account_id = ${scope.accountId} AND id = a.prompt_id LIMIT 1) p ON true ORDER BY a.prompt_id`;
     return organizationReviewSchema.parse({
       ...scope,
       operationId: id,

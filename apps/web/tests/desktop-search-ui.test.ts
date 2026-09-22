@@ -84,6 +84,24 @@ test("desktop search preserves scope, selection, sort memory and explicit no-mat
     await page.getByRole("button", { name: "First", exact: true }).waitFor();
     expect(await search.inputValue()).toBe("");
     expect(await page.getByLabel("Sort prompts").inputValue()).toBe("title");
+    await page.getByRole("button", { name: "New prompt", exact: true }).click();
+    const editor = page.getByRole("dialog", {
+      name: "New prompt",
+      exact: true,
+    });
+    await editor.getByLabel("Title", { exact: true }).fill("Literal excerpt");
+    await editor
+      .getByLabel("Content", { exact: true })
+      .fill(" Hello\n{{name}} <b>world</b> ");
+    await editor.getByRole("button", { name: "Save", exact: true }).click();
+    await editor.waitFor({ state: "detached" });
+    const row = page
+      .locator("[data-prompt-row]")
+      .filter({ hasText: "Literal excerpt" });
+    expect(await row.locator(".wf-row-preview").textContent()).toBe(
+      "Hello {{name}} <b>world</b>"
+    );
+    expect(await row.locator("b, input").count()).toBe(0);
     await page.screenshot({
       path: "docs/evidence/issue-50-desktop-search.png",
       fullPage: true,
