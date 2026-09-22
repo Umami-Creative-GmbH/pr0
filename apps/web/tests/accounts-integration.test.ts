@@ -42,6 +42,7 @@ test("verification email enables a private library with a renewable browser sess
   expect(cookie).toContain("session_token");
   expect(login.headers.get("set-cookie")).toContain("HttpOnly");
   expect(login.headers.get("set-cookie")).toContain("SameSite=Lax");
+  expect(login.headers.get("set-cookie")).toContain("Max-Age=34560000");
   expect(await login.json()).toEqual({ status: "ok" });
   const library = await fetch(`${origin}/api/v1/library`, {
     headers: { Cookie: cookie },
@@ -56,7 +57,7 @@ test("verification email enables a private library with a renewable browser sess
   expect(Date.parse(body.session.expiresAt) - Date.now()).toBeGreaterThan(
     29 * 24 * 60 * 60 * 1000
   );
-  expect(library.headers.get("set-cookie")).toContain("session_token");
+  expect(library.headers.get("set-cookie")).toBeNull();
   const logout = await post("/api/auth/sign-out", {}, { Cookie: cookie });
   expect(logout.status).toBe(200);
   const afterLogout = await fetch(`${origin}/api/v1/library`, {

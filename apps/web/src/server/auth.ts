@@ -15,6 +15,7 @@ import {
 import { configuration } from "./config";
 import { database } from "./database";
 import { enqueueRecovery, enqueueVerification } from "./mail";
+import { sessionCookiePolicy } from "./session-cookies";
 import {
   sessionAuthenticationVersion,
   sessionProvenance,
@@ -28,6 +29,7 @@ const createAuth = () => {
     baseURL: config.origin,
     secret: config.authSecret,
     trustedOrigins: [config.origin],
+    hooks: { after: sessionCookiePolicy },
     plugins: [
       socialAuthentication(),
       bearer(),
