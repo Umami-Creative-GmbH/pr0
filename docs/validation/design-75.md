@@ -68,7 +68,7 @@ Not performed: installer, tray, OS title bar, screen reader and multi-monitor ch
 
 ## Reference and destination map (recorded before UI changes)
 
-Reference commit: `ae390cd8d2dd67b3ec6f9eb999a0f8e170cb9a57`, `packages/prototype-library`. Its source is unchanged. Captures use English controls and the original German fixture content.
+Reference commit: `ae390cd8d2dd67b3ec6f9eb999a0f8e170cb9a57`, `packages/prototype-library`. The prototype package and `/prototype/library` route were removed in issue #94; its source remains available at that commit. The historical captures are retained unchanged and use English controls and the original German fixture content.
 
 | Surface | Accepted reference | Production destination | Boundary retained |
 | --- | --- | --- | --- |
@@ -81,7 +81,7 @@ Library captures use a 1440×1000 viewport and preserve the prototype mode selec
 
 ## Implementation constraints
 
-Shared presentation and locally bundled fonts belong in `packages/ui`. Production must not import the prototype runtime, fixtures or store. Keep the prototype route available. Preserve complete result navigation rather than its seven-result prototype cap.
+Shared presentation and locally bundled fonts belong in `packages/ui`. Production must not import the prototype runtime, fixtures or store. The original requirement to keep the prototype route available is superseded by its removal in #94. Preserve complete result navigation rather than its seven-result prototype cap.
 
 Remove decorative traffic lights, fake identity/sync badges and simulated native shortcuts. Retain the real OS title bar on desktop. Show actual account, network, save and recovery states. Browser quick access and the dedicated native launcher are separate surfaces.
 

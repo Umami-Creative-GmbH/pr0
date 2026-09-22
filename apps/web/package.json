@@ -47,7 +47,6 @@
     "@better-auth/drizzle-adapter": "1.7.5",
     "@pr0/api-client": "workspace:*",
     "@pr0/api-contract": "workspace:*",
-    "@pr0/prototype-library": "workspace:*",
     "@pr0/ui": "workspace:*",
     "@tanstack/react-query": "^5.103.1",
     "better-auth": "1.7.5",

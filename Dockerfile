@@ -12,11 +12,12 @@ COPY apps/desktop/package.json apps/desktop/package.json
 COPY packages/api-client/package.json packages/api-client/package.json
 COPY packages/api-contract/package.json packages/api-contract/package.json
 COPY packages/ui/package.json packages/ui/package.json
-COPY packages/prototype-library/package.json packages/prototype-library/package.json
 COPY packages/typescript-config/package.json packages/typescript-config/package.json
 RUN bun install --frozen-lockfile
 
 COPY apps/web ./apps/web
+# Web typechecking includes presentation tests that import desktop components.
+COPY apps/desktop/src ./apps/desktop/src
 COPY packages ./packages
 RUN bun run --cwd apps/web build
 
