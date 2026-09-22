@@ -1,0 +1,81 @@
+{
+  "date": "2026-09-22",
+  "baseline": "ee0913d24565888d94295446611e96c15ce60548",
+  "browser": "Microsoft Edge",
+  "version": "153.0.4234.48",
+  "headless": true,
+  "windowsBuild": "26200.9457",
+  "bun": "1.4.2",
+  "accessibility": {
+    "assertions": 252,
+    "journeys": [
+      "(pass) keyboard editor contains focus, identifies errors and offers a focused safe discard choice [1227.89ms]",
+      "(pass) keyboard recovery returns to verified sign-in and account settings at a narrow viewport [2774.25ms]",
+      "(pass) competing text and collection saves announce both outcomes (successor draft: %s) [2301.14ms]",
+      "(pass) competing text and collection saves announce both outcomes (successor draft: %s) [2284.46ms]",
+      "(pass) all entries and Unused remain reachable at capacity; management retains filter, selection and keyboard focus [16751.98ms]",
+      "(pass) lost acknowledgements replay unchanged; colliding rename retains its input and closing requires explicit discard [2985.12ms]",
+      "(pass) keyboard collection management creates, assigns, renames and restores focus without losing the prompt draft [4399.68ms]",
+      "(pass) failed web save keeps the draft and prevents an all-clear status [1125.73ms]",
+      "(pass) conflict review retries a failed acknowledgement and keeps both without losing keyboard focus [1181.38ms]",
+      "(pass) collection navigation resets extras, restores per-view sorts and retains five-field selection [1534.61ms]",
+      "(pass) complete pickers reach capacity entries and a deleted collection view stays unavailable [2785.86ms]",
+      "(pass) manager requires explicit merge, preserves filters and focus, and confirms unused deletion [14533.73ms]",
+      "(pass) collection deletion reviews live assignments and keeps the deleted filter until explicitly cleared [7154.44ms]",
+      "(pass) remote deletion clears actionable detail even when the selected filter has another result page [5001.24ms]",
+      "(pass) keyboard cancellation and confirmation work in active and archived views; a lost acknowledgement is retried exactly [2705.33ms]",
+      "(pass) active-list deletion preserves an unseen edit and leaves an open draft recoverable as a second copy [4129.41ms]",
+      "(pass) capacity-refused deletion retains the frozen intent for retry after freeing space [21185.14ms]",
+      "(pass) keyboard lifecycle controls retain archived edits and retry a lost duplicate acknowledgement [5848.28ms]",
+      "(pass) multiple externally archived selections refresh stale rows without cycling [6967.85ms]",
+      "(pass) automatic selection follows identity across reordering and checks archive eligibility before the last page [3975.96ms]",
+      "(pass) quota errors keep the duplicate snapshot available while archive changes preserve an open editor [11007.84ms]",
+      "(pass) browser retains a lost-response draft, reports real clipboard results, retries once and reopens after reload [2371.25ms]",
+      "(pass) an account change in another tab preserves this draft and never saves it into the new account [2427.13ms]",
+      "(pass) browser reaches later pages and keeps an unsaved draft when a changed library restarts results [2742.38ms]",
+      "(pass) browser warns before limits, preserves invalid input and an open draft during list changes [1354.33ms]",
+      "(pass) typeahead keeps literal input, supports sort and clear, and never selects a nonmatch [1363.61ms]",
+      "(pass) selection follows identity across pages and a changed-revision page restarts visibly [7283.40ms]",
+      "(pass) keyboard management creates unused tags, reports equivalents, renames and assigns without leaving the library [4791.80ms]",
+      "(pass) all 1,000 tags remain searchable with archived counts, unused filtering and capacity feedback [1721.92ms]",
+      "(pass) saving a retained editor after selecting another prompt blocks duplication until its saved snapshot refreshes [3013.75ms]",
+      "(pass) a lost tag-save response retains the draft and retries the same operation without duplicate effects [1260.36ms]",
+      "(pass) typed values copy literally without changing the saved template or usage payload [1551.21ms]",
+      "(pass) blank and numeric errors preserve input; failure retains values, usage-only retry clears them [2547.06ms]",
+      "(pass) observed edits require explicit restart, revalidate surviving names and clear removed names [1883.95ms]",
+      "(pass) observed deletion ends filling and metadata-only changes do not restart it [2029.88ms]",
+      "(pass) bounded expansion blocks before writing without truncating values [1668.51ms]",
+      "(pass) many variables remain reachable at zoom with keyboard entry and cancellation [2927.35ms]",
+      "(pass) account switches and page exit clear filled values, including a pending OS write [2654.83ms]",
+      "(pass) escaped templates without fields copy directly and archived templates still accept values [1851.30ms]",
+      "(pass) pending writes freeze inputs and Escape; cancellation clears values [2151.39ms]",
+      "(pass) a retained editor draft can copy again after switching away during a write and returning [3650.39ms]",
+      "(pass) a late usage-only retry cannot publish copy status after an account transition [3708.11ms]"
+    ],
+    "files": 11,
+    "seconds": 176.98,
+    "failed": 0,
+    "passed": 42
+  },
+  "deletion": {
+    "passed": 3,
+    "journeys": [
+      "(pass) reload recovers the pinned deletion receipt without a surviving session [4074.51ms]",
+      "(pass) a delayed old receipt cannot clear another account's unsaved draft [4777.47ms]",
+      "(pass) keyboard confirmation can be cancelled and completion clears the browser library [3319.57ms]"
+    ],
+    "failed": 0
+  },
+  "earlierRun": {
+    "passed": 41,
+    "failure": "Tag assignment: Ready checkbox not found after opening Edit tags. Passed on earlier focused run and final full rerun; cause not established.",
+    "failed": 1
+  },
+  "checks": {
+    "typecheck": "6 tasks successful, 5 cached",
+    "lint": "pass",
+    "test": "9 tasks successful, 8 cached"
+  },
+  "manualScreenReader": "not performed",
+  "otherBrowsers": "deferred by owner"
+}

@@ -3,6 +3,12 @@ import { expect, test } from "bun:test";
 import { chromium } from "playwright";
 import type { BrowserContext, Page } from "playwright";
 
+import {
+  browseKeepingDraft,
+  chooseAccountAction,
+  resumeDraft,
+  trackNetwork,
+} from "./app-menus";
 import { freshSocialBrowser } from "./email-change-fixture";
 import { origin } from "./http-fixture";
 
@@ -17,7 +23,15 @@ const setAccount = (context: BrowserContext, Cookie: string) =>
       };
     })
   );
+const openDeletionSettings = async (page: Page) => {
+  await chooseAccountAction(page, "Account settings");
+  await page.keyboard.press("Escape");
+  await page
+    .getByText("Account deletion and recovery", { exact: true })
+    .press("Enter");
+};
 const confirmDeletion = async (page: Page) => {
+  await openDeletionSettings(page);
   await page
     .getByRole("button", { name: "Delete account", exact: true })
     .click();
@@ -42,8 +56,9 @@ test("reload recovers the pinned deletion receipt without a surviving session", 
     context.setDefaultTimeout(6000);
     await setAccount(context, account.Cookie);
     const page = await context.newPage();
+    const network = trackNetwork(page);
     await page.goto(origin);
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     const interrupted = Promise.withResolvers<undefined>();
     await page.route(
       "**/api/v1/account-deletions/verification",
@@ -55,9 +70,9 @@ test("reload recovers the pinned deletion receipt without a surviving session", 
     await confirmDeletion(page);
     await interrupted.promise;
     await page.getByRole("button", { name: "Check deletion status" }).waitFor();
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     await page.getByRole("button", { name: "Check deletion status" }).waitFor();
     expect(
       await page
@@ -88,8 +103,9 @@ test("a delayed old receipt cannot clear another account's unsaved draft", async
     context.setDefaultTimeout(8000);
     await setAccount(context, account.Cookie);
     const page = await context.newPage();
+    const network = trackNetwork(page);
     await page.goto(origin);
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     await page.route(
       "**/api/v1/account-deletions/verification",
       async (route) => {
@@ -124,12 +140,19 @@ test("a delayed old receipt cannot clear another account's unsaved draft", async
       account: { id: nextAccount.identity.accountId },
     });
     try {
-      await page.getByText(nextAccount.email, { exact: true }).waitFor();
+      await page
+        .getByRole("region", { name: "Account and instance" })
+        .getByText(nextAccount.email, { exact: true })
+        .waitFor();
     } catch {
       throw new Error(
         `Switch status: ${await page.locator("main").textContent()}`
       );
     }
+    await page
+      .getByRole("button", { name: "Back to library", exact: true })
+      .last()
+      .click();
     await page
       .getByRole("button", { name: "Create prompt", exact: true })
       .click();
@@ -138,18 +161,33 @@ test("a delayed old receipt cannot clear another account's unsaved draft", async
       .getByLabel("Content (required)")
       .fill("Another account's unsaved work");
     gate.resolve();
-    await page
-      .getByRole("button", { name: "Download deletion receipt" })
-      .waitFor();
+    await network.idle();
     expect(await page.getByLabel("Content (required)").inputValue()).toBe(
       "Another account's unsaved work"
     );
+    await browseKeepingDraft(page);
+    await chooseAccountAction(page, "Account settings");
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "Download deletion receipt" })
+      .waitFor();
     await page
       .getByText("Unsaved changes in this tab.", { exact: true })
       .waitFor();
     expect(
-      await page.getByText(nextAccount.email, { exact: true }).count()
+      await page
+        .getByRole("region", { name: "Account and instance" })
+        .getByText(nextAccount.email, { exact: true })
+        .count()
     ).toBe(1);
+    await page
+      .getByRole("button", { name: "Back to library", exact: true })
+      .last()
+      .click();
+    await resumeDraft(page);
+    expect(await page.getByLabel("Content (required)").inputValue()).toBe(
+      "Another account's unsaved work"
+    );
   } finally {
     gate.resolve();
     await browser.close();
@@ -178,8 +216,10 @@ test("keyboard confirmation can be cancelled and completion clears the browser l
       })
     );
     const page = await context.newPage();
+    const network = trackNetwork(page);
     await page.goto(origin);
-    await page.waitForLoadState("networkidle");
+    await network.idle();
+    await openDeletionSettings(page);
     const opener = page.getByRole("button", {
       name: "Delete account",
       exact: true,
@@ -198,6 +238,9 @@ test("keyboard confirmation can be cancelled and completion clears the browser l
     await confirmation
       .getByRole("button", { name: "Cancel", exact: true })
       .press("Enter");
+    await page.waitForFunction(
+      () => document.activeElement?.textContent?.trim() === "Delete account"
+    );
     expect(
       await opener.evaluate((element) => element === document.activeElement)
     ).toBe(true);
