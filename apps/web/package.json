@@ -25,6 +25,7 @@
     "test:accessibility": "bun --env-file=tests/social.env tests/accessibility-runner.ts",
     "test:variables": "bun --env-file=tests/social.env tests/variables-runner.ts",
     "test:accounts": "bun --env-file=tests/compose.env test tests/deployment-integration.test.ts",
+    "test:session-race": "bun --env-file=tests/social.env tests/session-race-runner.ts",
     "test:device": "bun --env-file=tests/device.env tests/device-runner.ts",
     "test:snapshots": "bun --env-file=tests/device.env tests/snapshots-runner.ts",
     "test:desktop-recovery": "bun --env-file=tests/device.env tests/recovery-runner.ts",
