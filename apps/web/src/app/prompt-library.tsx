@@ -24,6 +24,7 @@ import {
   EmptyDetail,
   LibraryWorkspace,
 } from "@pr0/ui/components/wayfinder-shell";
+import { useDeviceTimeZone } from "@pr0/ui/hooks/use-device-time-zone";
 import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
 import { translate } from "@pr0/ui/lib/i18n";
 import { accentFor } from "@pr0/ui/lib/present";
@@ -99,6 +100,7 @@ const PromptDetail = ({
   onDelete: (prompt: Prompt) => void;
 }) => {
   const locale = useLocale();
+  const timeZone = useDeviceTimeZone();
 
   const t = useTranslations();
 
@@ -256,13 +258,13 @@ const PromptDetail = ({
         <span>
           {t("created")}{" "}
           <time dateTime={prompt.createdAt}>
-            {new Date(prompt.createdAt).toLocaleString(locale)}
+            {new Date(prompt.createdAt).toLocaleString(locale, { timeZone })}
           </time>
         </span>
         <span>
           {t("modified")}{" "}
           <time dateTime={prompt.modifiedAt}>
-            {new Date(prompt.modifiedAt).toLocaleString(locale)}
+            {new Date(prompt.modifiedAt).toLocaleString(locale, { timeZone })}
           </time>
         </span>
         <span>
@@ -690,11 +692,55 @@ const LibrarySidebar = ({
   );
 };
 
+const LibraryDetail = ({
+  model,
+}: {
+  model: ReturnType<typeof usePromptLibrary>;
+}) => {
+  const t = useTranslations();
+  const {
+    selectedId,
+    searchBlocked,
+    copy,
+    detail,
+    collections,
+    editing,
+    tagEditing,
+    detailUnavailable,
+    tags,
+    setTagEditing,
+    setEditing,
+    setNotice,
+    actions,
+    setDeleting,
+  } = model;
+  return selectedId && !searchBlocked ? (
+    <PromptDetail
+      copy={copy}
+      detail={detail}
+      collections={collections}
+      key={selectedId}
+      editing={Boolean(editing || tagEditing) || detailUnavailable}
+      tags={tags}
+      onTags={setTagEditing}
+      onEdit={(prompt) => {
+        setEditing(prompt);
+        setNotice("");
+      }}
+      actionsBlocked={actions.blocked || detailUnavailable}
+      onDelete={setDeleting}
+      onAction={(prompt, action, value) => {
+        void actions.act(prompt, action, value);
+      }}
+    />
+  ) : (
+    <EmptyDetail hint={t("chooseAPromptOnTheLeftOrOpenQuickAccess")} />
+  );
+};
+
 export const PromptLibrary = (
   props: Parameters<typeof usePromptLibrary>[0]
 ) => {
-  const t = useTranslations();
-
   const { library, quickOpen, onQuickClose } = props;
   const model = usePromptLibrary(props);
   const {
@@ -704,8 +750,6 @@ export const PromptLibrary = (
     setDeleting,
     actions,
     editing,
-    setEditing,
-    setNotice,
     tagEditing,
     tags,
     setTagEditing,
@@ -715,10 +759,8 @@ export const PromptLibrary = (
     cancelEditor,
     saved,
     searchBlocked,
-    detail,
     detailUnavailable,
     copy,
-    selectedId,
     markDraft,
     accepted,
   } = model;
@@ -794,28 +836,7 @@ export const PromptLibrary = (
             />
           ) : null}
         </div>
-        {selectedId && !searchBlocked ? (
-          <PromptDetail
-            copy={copy}
-            detail={detail}
-            collections={collections}
-            key={selectedId}
-            editing={Boolean(editing || tagEditing) || detailUnavailable}
-            tags={tags}
-            onTags={setTagEditing}
-            onEdit={(prompt) => {
-              setEditing(prompt);
-              setNotice("");
-            }}
-            actionsBlocked={actions.blocked || detailUnavailable}
-            onDelete={setDeleting}
-            onAction={(prompt, action, value) => {
-              void actions.act(prompt, action, value);
-            }}
-          />
-        ) : (
-          <EmptyDetail hint={t("chooseAPromptOnTheLeftOrOpenQuickAccess")} />
-        )}
+        <LibraryDetail model={model} />
         <footer className="wf-meta">
           <LibraryCapacity usage={usage} />
         </footer>

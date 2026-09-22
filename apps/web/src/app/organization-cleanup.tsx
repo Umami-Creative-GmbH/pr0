@@ -55,21 +55,25 @@ const actionLabel = (
     ? translate("deleteCollection")
     : translate("deleteTag");
 };
-export const OrganizationCleanupPanel = ({
-  library,
-  request,
-  onCancel,
-  onAccepted,
-  onBusyChange,
-  selected,
-}: {
+interface OrganizationCleanupPanelProps {
   library: PrivateLibrary;
   request: CleanupRequest | null;
   onCancel: () => void;
   onAccepted: () => void | Promise<void>;
   onBusyChange: (busy: boolean) => void;
   selected: boolean;
-}) => {
+}
+
+const useOrganizationCleanup = ({
+  library,
+  request,
+  onCancel,
+  onAccepted,
+  onBusyChange,
+}: Pick<
+  OrganizationCleanupPanelProps,
+  "library" | "request" | "onCancel" | "onAccepted" | "onBusyChange"
+>) => {
   const t = useTranslations();
 
   const client = useApiClient();
@@ -183,7 +187,97 @@ export const OrganizationCleanupPanel = ({
     inFlight.current = false;
     onBusyChange(remainsUncertain);
   };
+  return { impact, focusRef, busy, uncertain, message, result, confirm };
+};
+
+const CleanupImpact = ({
+  model,
+  request,
+  selected,
+}: {
+  model: ReturnType<typeof useOrganizationCleanup>;
+  request: CleanupRequest;
+  selected: boolean;
+}) => {
+  const t = useTranslations();
+  const { impact, focusRef, busy, uncertain, confirm } = model;
   const effect = impact.data?.effect;
+  if (!effect) {
+    return <output>{t("loadingAffectedCounts")}</output>;
+  }
+  return (
+    <>
+      <h3 className="font-semibold">
+        {request.kind === "tag.merge"
+          ? t("mergeValueIntoValue", [effect.sourceName, effect.targetName])
+          : t("deleteValue", [effect.sourceName])}
+      </h3>
+      <p>
+        {effect.activeCount} {t("activePromptsAnd")} {effect.archivedCount}{" "}
+        {t("archivedPrompts")}
+      </p>
+      {request.kind === "tag.merge" ? (
+        <p>
+          {effect.targetName} {t("willRemainPromptsUsing")} {effect.sourceName}{" "}
+          {t("willUse")} {effect.targetName}
+          {t("promptsUsingBothWillHave")}
+          {effect.targetName} {t("onceResult")} {effect.targetActiveCount}{" "}
+          {t("activeAnd")} {effect.targetArchivedCount}{" "}
+          {t("archivedPromptsYourPromptsWillBeKept")}
+        </p>
+      ) : (
+        <p>
+          {request.kind === "collection.delete"
+            ? t("thesePromptsWillBecomeUnassigned")
+            : t("thisTagWillBeRemovedFromThesePrompts")}{" "}
+          {t("yourPromptsWillBeKept")}
+        </p>
+      )}
+      {selected ? (
+        <p>
+          {t("thisSelectedConditionWillBecomeUnavailableAndReturnNoMatches")}
+          {effect.targetName
+            ? t("youCanChooseUseValueInstead", [effect.targetName])
+            : ""}
+        </p>
+      ) : null}
+      <p className="text-sm">
+        {t("countsDescribeTheAvailableServerSnapshotTheResultWillReport")}
+      </p>
+      <button
+        ref={focusRef}
+        type="button"
+        className={buttonClass}
+        disabled={busy || (impact.isError && !uncertain)}
+        onClick={() => {
+          void confirm();
+        }}
+      >
+        {uncertain
+          ? t("retryOriginalAction")
+          : actionLabel(request.kind, effect.targetName)}
+      </button>
+    </>
+  );
+};
+
+export const OrganizationCleanupPanel = ({
+  library,
+  request,
+  onCancel,
+  onAccepted,
+  onBusyChange,
+  selected,
+}: OrganizationCleanupPanelProps) => {
+  const t = useTranslations();
+  const model = useOrganizationCleanup({
+    library,
+    request,
+    onCancel,
+    onAccepted,
+    onBusyChange,
+  });
+  const { impact, busy, uncertain, message, result } = model;
   return (
     <div className="space-y-3">
       {request ? (
@@ -191,70 +285,7 @@ export const OrganizationCleanupPanel = ({
           aria-label={t("confirmOrganizationChange")}
           className="space-y-2 rounded-md border p-3"
         >
-          {effect ? (
-            <>
-              <h3 className="font-semibold">
-                {request.kind === "tag.merge"
-                  ? t("mergeValueIntoValue", [
-                      effect.sourceName,
-                      effect.targetName,
-                    ])
-                  : t("deleteValue", [effect.sourceName])}
-              </h3>
-              <p>
-                {effect.activeCount} {t("activePromptsAnd")}{" "}
-                {effect.archivedCount} {t("archivedPrompts")}
-              </p>
-              {request.kind === "tag.merge" ? (
-                <p>
-                  {effect.targetName} {t("willRemainPromptsUsing")}{" "}
-                  {effect.sourceName} {t("willUse")} {effect.targetName}
-                  {t("promptsUsingBothWillHave")}
-                  {effect.targetName} {t("onceResult")}{" "}
-                  {effect.targetActiveCount} {t("activeAnd")}{" "}
-                  {effect.targetArchivedCount}{" "}
-                  {t("archivedPromptsYourPromptsWillBeKept")}
-                </p>
-              ) : (
-                <p>
-                  {request.kind === "collection.delete"
-                    ? t("thesePromptsWillBecomeUnassigned")
-                    : t("thisTagWillBeRemovedFromThesePrompts")}{" "}
-                  {t("yourPromptsWillBeKept")}
-                </p>
-              )}
-              {selected ? (
-                <p>
-                  {t(
-                    "thisSelectedConditionWillBecomeUnavailableAndReturnNoMatches"
-                  )}
-                  {effect.targetName
-                    ? t("youCanChooseUseValueInstead", [effect.targetName])
-                    : ""}
-                </p>
-              ) : null}
-              <p className="text-sm">
-                {t(
-                  "countsDescribeTheAvailableServerSnapshotTheResultWillReport"
-                )}
-              </p>
-              <button
-                ref={focusRef}
-                type="button"
-                className={buttonClass}
-                disabled={busy || (impact.isError && !uncertain)}
-                onClick={() => {
-                  void confirm();
-                }}
-              >
-                {uncertain
-                  ? t("retryOriginalAction")
-                  : actionLabel(request.kind, effect.targetName)}
-              </button>
-            </>
-          ) : (
-            <output>{t("loadingAffectedCounts")}</output>
-          )}
+          <CleanupImpact model={model} request={request} selected={selected} />
           {impact.isError ? (
             <p role="alert">
               {t("couldNotRefreshAffectedCounts")}{" "}

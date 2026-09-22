@@ -2,6 +2,7 @@
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
 import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useDeviceTimeZone } from "@pr0/ui/hooks/use-device-time-zone";
 import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -10,6 +11,7 @@ import { accountErrorMessage } from "./account-errors";
 
 export const SessionSettings = ({ accountId }: { accountId: string }) => {
   const locale = useLocale();
+  const timeZone = useDeviceTimeZone();
 
   const t = useTranslations();
 
@@ -107,13 +109,23 @@ export const SessionSettings = ({ accountId }: { accountId: string }) => {
                   <dt>{t("sessionIdentity")}</dt>
                   <dd>{session.id}</dd>
                   <dt>{t("signedIn")}</dt>
-                  <dd>{new Date(session.createdAt).toLocaleString(locale)}</dd>
+                  <dd>
+                    {new Date(session.createdAt).toLocaleString(locale, {
+                      timeZone,
+                    })}
+                  </dd>
                   <dt>{t("lastActive")}</dt>
                   <dd>
-                    {new Date(session.lastActiveAt).toLocaleString(locale)}
+                    {new Date(session.lastActiveAt).toLocaleString(locale, {
+                      timeZone,
+                    })}
                   </dd>
                   <dt>{t("expires")}</dt>
-                  <dd>{new Date(session.expiresAt).toLocaleString(locale)}</dd>
+                  <dd>
+                    {new Date(session.expiresAt).toLocaleString(locale, {
+                      timeZone,
+                    })}
+                  </dd>
                 </dl>
                 <button
                   aria-label={t("revokeValue", [

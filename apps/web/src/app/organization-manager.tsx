@@ -34,20 +34,7 @@ const tabLabels = () => ({
     entity: "tag" as const,
   },
 });
-export const OrganizationManager = ({
-  library,
-  collections,
-  tags,
-  initialTab = "collections",
-  textBytes,
-  loading,
-  error,
-  onRetry,
-  onAccepted,
-  onClose,
-  onDirtyChange,
-  selectedIds,
-}: {
+interface OrganizationManagerProps {
   library: PrivateLibrary;
   collections: Collection[];
   tags: Tag[];
@@ -60,9 +47,26 @@ export const OrganizationManager = ({
   onClose: () => void;
   onDirtyChange: (value: boolean) => void;
   selectedIds: string[];
-}) => {
-  const t = useTranslations();
+}
 
+const useOrganizationManager = ({
+  library,
+  collections,
+  tags,
+  initialTab = "collections",
+  onAccepted,
+  onClose,
+  onDirtyChange,
+}: Pick<
+  OrganizationManagerProps,
+  | "library"
+  | "collections"
+  | "tags"
+  | "initialTab"
+  | "onAccepted"
+  | "onClose"
+  | "onDirtyChange"
+>) => {
   const [tab, setTab] = useState(initialTab);
   const client = useApiClient();
   const [cleanup, setCleanup] = useState<CleanupRequest | null>(null);
@@ -144,9 +148,169 @@ export const OrganizationManager = ({
       }
     }
   };
+  return {
+    tab,
+    setTab,
+    cleanup,
+    setCleanup,
+    cleanupBusy,
+    setCleanupBusy,
+    entries,
+    singular,
+    plural,
+    limit,
+    entity,
+    dialogRef,
+    nameRef,
+    name,
+    setName,
+    baseline,
+    setBaseline,
+    editing,
+    setEditing,
+    discard,
+    setDiscard,
+    state,
+    dirty,
+    close,
+    clear,
+    submit,
+  };
+};
+
+const OrganizationNameForm = ({
+  model,
+  loading,
+  onDirtyChange,
+}: {
+  model: ReturnType<typeof useOrganizationManager>;
+  loading: boolean;
+  onDirtyChange: (value: boolean) => void;
+}) => {
+  const t = useTranslations();
+  const {
+    singular,
+    editing,
+    state,
+    nameRef,
+    cleanup,
+    name,
+    setName,
+    baseline,
+    submit,
+    dirty,
+    setDiscard,
+    clear,
+  } = model;
   const actionLabel = editing
     ? t("saveName")
     : t("createValue", [localizedLabel(singular)]);
+  return (
+    <form
+      className="space-y-2 rounded-md border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <label className="block font-medium" htmlFor="collection-name">
+        {singular} {t("name")}
+      </label>
+      <input
+        id="collection-name"
+        ref={nameRef}
+        aria-invalid={Boolean(state.error)}
+        aria-describedby="collection-name-error"
+        readOnly={loading || state.busy || state.uncertain || Boolean(cleanup)}
+        className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
+        value={name}
+        onChange={(event) => {
+          setName(event.target.value);
+          onDirtyChange(event.target.value !== baseline);
+        }}
+      />
+      <p id="collection-name-error">
+        <LocalizedMessage value={state.error} />
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="submit"
+          className={buttonClass}
+          disabled={state.busy || loading || Boolean(cleanup)}
+        >
+          {state.uncertain ? t("retry") : actionLabel}
+        </button>
+        {editing ? (
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={state.busy || state.uncertain || Boolean(cleanup)}
+            onClick={() => {
+              if (dirty) {
+                setDiscard("create");
+              } else {
+                clear();
+              }
+            }}
+          >
+            {t("cancelRename")}
+          </button>
+        ) : null}
+      </div>
+    </form>
+  );
+};
+
+export const OrganizationManager = ({
+  library,
+  collections,
+  tags,
+  initialTab = "collections",
+  textBytes,
+  loading,
+  error,
+  onRetry,
+  onAccepted,
+  onClose,
+  onDirtyChange,
+  selectedIds,
+}: OrganizationManagerProps) => {
+  const t = useTranslations();
+  const model = useOrganizationManager({
+    library,
+    collections,
+    tags,
+    initialTab,
+    onAccepted,
+    onClose,
+    onDirtyChange,
+  });
+  const {
+    tab,
+    setTab,
+    cleanup,
+    setCleanup,
+    cleanupBusy,
+    setCleanupBusy,
+    entries,
+    singular,
+    plural,
+    limit,
+    entity,
+    dialogRef,
+    nameRef,
+    name,
+    setName,
+    baseline,
+    setBaseline,
+    setEditing,
+    discard,
+    setDiscard,
+    state,
+    dirty,
+    close,
+    clear,
+  } = model;
   return (
     <dialog
       ref={dialogRef}
@@ -184,60 +348,11 @@ export const OrganizationManager = ({
           error={error}
           onRetry={onRetry}
         />
-        <form
-          className="space-y-2 rounded-md border p-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <label className="block font-medium" htmlFor="collection-name">
-            {singular} {t("name")}
-          </label>
-          <input
-            id="collection-name"
-            ref={nameRef}
-            aria-invalid={Boolean(state.error)}
-            aria-describedby="collection-name-error"
-            readOnly={
-              loading || state.busy || state.uncertain || Boolean(cleanup)
-            }
-            className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value);
-              onDirtyChange(event.target.value !== baseline);
-            }}
-          />
-          <p id="collection-name-error">
-            <LocalizedMessage value={state.error} />
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="submit"
-              className={buttonClass}
-              disabled={state.busy || loading || Boolean(cleanup)}
-            >
-              {state.uncertain ? t("retry") : actionLabel}
-            </button>
-            {editing ? (
-              <button
-                type="button"
-                className={buttonClass}
-                disabled={state.busy || state.uncertain || Boolean(cleanup)}
-                onClick={() => {
-                  if (dirty) {
-                    setDiscard("create");
-                  } else {
-                    clear();
-                  }
-                }}
-              >
-                {t("cancelRename")}
-              </button>
-            ) : null}
-          </div>
-        </form>
+        <OrganizationNameForm
+          model={model}
+          loading={loading}
+          onDirtyChange={onDirtyChange}
+        />
         <output>
           <LocalizedMessage value={state.message} />
         </output>

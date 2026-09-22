@@ -6,6 +6,7 @@ import type {
   MutationEnvelope,
 } from "@pr0/api-contract/prompts";
 import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useDeviceTimeZone } from "@pr0/ui/hooks/use-device-time-zone";
 import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -22,6 +23,7 @@ export const PromptConflicts = ({
   onOpen: (id: string) => void;
 }) => {
   const locale = useLocale();
+  const timeZone = useDeviceTimeZone();
 
   const t = useTranslations();
 
@@ -136,7 +138,9 @@ export const PromptConflicts = ({
             <p className="my-2 text-sm">
               {t("preserved")}{" "}
               <time dateTime={notice.createdAt}>
-                {new Date(notice.createdAt).toLocaleString(locale)}
+                {new Date(notice.createdAt).toLocaleString(locale, {
+                  timeZone,
+                })}
               </time>
             </p>
             <div className="flex flex-wrap gap-3">

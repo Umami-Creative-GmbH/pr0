@@ -301,15 +301,16 @@ const AccountPage = ({
   );
 };
 
-export const AccountScreen = ({
-  verification,
-  socialError,
-  methodResult,
-}: {
+interface AccountScreenProps {
   verification?: string;
   socialError?: string;
   methodResult?: string;
-}) => {
+}
+
+const useAccountSession = ({
+  verification,
+  socialError,
+}: Pick<AccountScreenProps, "verification" | "socialError">) => {
   const t = useTranslations();
 
   const client = useApiClient();
@@ -400,6 +401,52 @@ export const AccountScreen = ({
     });
   };
 
+  return {
+    client,
+    queryClient,
+    mode,
+    setMode,
+    busy,
+    draftLibrary,
+    setDraftLibrary,
+    draftOpen,
+    message,
+    errorText,
+    setErrorText,
+    formRef,
+    statusRef,
+    library,
+    submit,
+    resend,
+    logout,
+  };
+};
+
+export const AccountScreen = ({
+  verification,
+  socialError,
+  methodResult,
+}: AccountScreenProps) => {
+  const t = useTranslations();
+  const {
+    client,
+    queryClient,
+    mode,
+    setMode,
+    busy,
+    draftLibrary,
+    setDraftLibrary,
+    draftOpen,
+    message,
+    errorText,
+    setErrorText,
+    formRef,
+    statusRef,
+    library,
+    submit,
+    resend,
+    logout,
+  } = useAccountSession({ verification, socialError });
   const signedIn = draftLibrary ?? library.data;
   const retainDraft = (dirty: boolean) => {
     setDraftLibrary((current) =>
