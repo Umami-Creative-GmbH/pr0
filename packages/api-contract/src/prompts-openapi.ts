@@ -107,7 +107,7 @@ export const promptPaths = {
       tags: ["Organization"],
       security: [{ BrowserSession: [] }],
       description:
-        "Pages of 100 original affected identities, ordered by UUID. Membership is immutable; current summaries reflect later edits and archive changes, or null after prompt deletion. Offset is stable across live changes. Foreign operations are not found. No prompt content is loaded.",
+        "Pages of 100 original affected identities, ordered by UUID. Membership is immutable; current summaries reflect later edits and archive changes, or null after prompt deletion. Offset is stable across live changes. Foreign operations are not found. Summaries include a bounded plain-text content excerpt; full content is not returned.",
       parameters: [
         {
           name: "id",
