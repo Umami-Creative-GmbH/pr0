@@ -35,12 +35,15 @@ fn quit_waits_for_a_local_save_and_requires_an_explicit_decision() {
 fn activation_during_startup_has_one_owner_and_is_retained_until_ready() {
     use crate::resident_instance::Instance;
     let directory = std::env::temp_dir().join(format!("pr0-owner-{}", uuid::Uuid::new_v4()));
-    let owner = Instance::acquire(&directory).unwrap().unwrap();
+    let owner = Instance::acquire(&directory, false).unwrap().unwrap();
     // The owner has not created a window or started an activation listener yet.
-    assert!(Instance::acquire(&directory).unwrap().is_none());
+    assert!(Instance::acquire(&directory, false).unwrap().is_none());
+    assert!(!owner.wait_for_activation(0));
+    assert!(Instance::acquire(&directory, true).unwrap().is_none());
+    assert!(Instance::acquire(&directory, false).unwrap().is_none());
     assert!(owner.wait_for_activation(0));
     assert!(!owner.wait_for_activation(0));
     drop(owner);
-    assert!(Instance::acquire(&directory).unwrap().is_some());
+    assert!(Instance::acquire(&directory, true).unwrap().is_some());
     std::fs::remove_dir_all(directory).unwrap();
 }

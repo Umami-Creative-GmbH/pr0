@@ -13,6 +13,8 @@
     "windows": [
       {
         "label": "main",
+        "visible": false,
+        "focus": false,
         "title": "pr0",
         "width": 1100,
         "height": 760,

@@ -1,0 +1,605 @@
+﻿{
+  "startedUtc": "2026-09-22T09:37:53.1497724Z",
+  "phase": "quiet-login",
+  "build": "Issue 55 uncommitted debug test build; production Vite assets, WebView2 CDP attached; not installed or signed",
+  "executable": "Y:\\Codex\\Worktrees\\4403\\pr0\\apps\\desktop\\src-tauri\\target\\debug\\deps\\pr0_desktop_lib-796ad15a90ad8f87.exe",
+  "executableSha256": "8a9fe771234676269658eeb192aa2ba177c9c6d728f50f080fad4b0f32df2284",
+  "signature": "Unavailable (verify separately)",
+  "workload": "Small isolated offline fixture; native synchronization workers are absent in this test harness; sampler smoke test only",
+  "normalSyncEnabled": false,
+  "windows": {
+    "caption": "Microsoft Windows 11 Business",
+    "build": "26200",
+    "version": "10.0.26200"
+  },
+  "hardware": {
+    "logicalProcessors": 32,
+    "disks": [
+      {
+        "FriendlyName": "Samsung SSD 9100 PRO 2TB",
+        "MediaType": "SSD",
+        "BusType": "NVMe",
+        "Size": 2000398934016
+      },
+      {
+        "FriendlyName": "WD_BLACK SN850X 4000GB",
+        "MediaType": "SSD",
+        "BusType": "NVMe",
+        "Size": 4000787030016
+      },
+      {
+        "FriendlyName": "WD_BLACK SN850X 2000GB",
+        "MediaType": "SSD",
+        "BusType": "NVMe",
+        "Size": 2000398934016
+      }
+    ],
+    "processors": [
+      {
+        "Name": "AMD Ryzen 9 9950X3D2 16-Core Processor         ",
+        "NumberOfCores": 16,
+        "NumberOfLogicalProcessors": 32
+      }
+    ],
+    "model": "System Product Name",
+    "ramBytes": 100579700736
+  },
+  "attribution": "Root PID and recursively observed descendants, qualified by process creation time; includes all attributable WebView2 processes. Sampler process is excluded.",
+  "method": "Approximately one-second samples of PrivateMemorySize64 (private committed bytes) and TotalProcessorTime, divided by wall time and total logical CPU count. Process turnover invalidates settled accounting.",
+  "intervalSeconds": 10.6851285,
+  "processAccountingComplete": true,
+  "peakPrivateMiB": 234.29296875,
+  "meanMachineCpuPercent": 0.0045697274487620813,
+  "targets": {
+    "intervalSeconds": 600,
+    "peakPrivateMiB": 300,
+    "meanMachineCpuPercentExclusive": 1
+  },
+  "resourceTargetsMet": false,
+  "releaseCertification": false,
+  "note": "Verify the signed installed build, accepted hardware and maximum-library workload separately. Short smoke runs or incomplete process accounting cannot establish the release targets.",
+  "processes": [
+    {
+      "pid": 64100,
+      "parentPid": 67656,
+      "name": "msedgewebview2.exe",
+      "path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe",
+      "fileVersion": "153.0.4234.48",
+      "startedUtc": "2026-09-22T09:37:52.7168460Z",
+      "firstCpuSeconds": 0.5,
+      "lastCpuSeconds": 0.5
+    },
+    {
+      "pid": 13900,
+      "parentPid": 73212,
+      "name": "pr0_desktop_lib-796ad15a90ad8f87.exe",
+      "path": "Y:\\Codex\\Worktrees\\4403\\pr0\\apps\\desktop\\src-tauri\\target\\debug\\deps\\pr0_desktop_lib-796ad15a90ad8f87.exe",
+      "fileVersion": null,
+      "startedUtc": "2026-09-22T09:37:52.5620890Z",
+      "firstCpuSeconds": 0.078125,
+      "lastCpuSeconds": 0.078125
+    },
+    {
+      "pid": 59008,
+      "parentPid": 67656,
+      "name": "msedgewebview2.exe",
+      "path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe",
+      "fileVersion": "153.0.4234.48",
+      "startedUtc": "2026-09-22T09:37:52.7965020Z",
+      "firstCpuSeconds": 0.265625,
+      "lastCpuSeconds": 0.265625
+    },
+    {
+      "pid": 29532,
+      "parentPid": 67656,
+      "name": "msedgewebview2.exe",
+      "path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe",
+      "fileVersion": "153.0.4234.48",
+      "startedUtc": "2026-09-22T09:37:52.8901640Z",
+      "firstCpuSeconds": 0.125,
+      "lastCpuSeconds": 0.125
+    },
+    {
+      "pid": 15308,
+      "parentPid": 67656,
+      "name": "msedgewebview2.exe",
+      "path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe",
+      "fileVersion": "153.0.4234.48",
+      "startedUtc": "2026-09-22T09:37:52.6247180Z",
+      "firstCpuSeconds": 0.015625,
+      "lastCpuSeconds": 0.015625
+    },
+    {
+      "pid": 39616,
+      "parentPid": 67656,
+      "name": "msedgewebview2.exe",
+      "path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe",
+      "fileVersion": "153.0.4234.48",
+      "startedUtc": "2026-09-22T09:37:52.7411080Z",
+      "firstCpuSeconds": 0.03125,
+      "lastCpuSeconds": 0.03125
+    },
+    {
+      "pid": 22536,
+      "parentPid": 67656,
+      "name": "msedgewebview2.exe",
+      "path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe",
+      "fileVersion": "153.0.4234.48",
+      "startedUtc": "2026-09-22T09:37:52.7207940Z",
+      "firstCpuSeconds": 0.234375,
+      "lastCpuSeconds": 0.234375
+    },
+    {
+      "pid": 67656,
+      "parentPid": 13900,
+      "name": "msedgewebview2.exe",
+      "path": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe",
+      "fileVersion": "153.0.4234.48",
+      "startedUtc": "2026-09-22T09:37:52.6074080Z",
+      "firstCpuSeconds": 0.734375,
+      "lastCpuSeconds": 0.75
+    }
+  ],
+  "samples": [
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7933952
+        },
+        {
+          "cpuSeconds": 0.734375,
+          "pid": 67656,
+          "privateBytes": 47501312
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88424448
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13467648
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 41619456
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 35848192
+        }
+      ],
+      "privateBytes": 245673984,
+      "elapsedSeconds": 0.0021176000000000528
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7933952
+        },
+        {
+          "cpuSeconds": 0.734375,
+          "pid": 67656,
+          "privateBytes": 47276032
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88379392
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13467648
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 41619456
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 35848192
+        }
+      ],
+      "privateBytes": 245403648,
+      "elapsedSeconds": 1.2258312
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7933952
+        },
+        {
+          "cpuSeconds": 0.734375,
+          "pid": 67656,
+          "privateBytes": 47276032
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88379392
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13467648
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 41619456
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 35848192
+        }
+      ],
+      "privateBytes": 245403648,
+      "elapsedSeconds": 2.3983716
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7933952
+        },
+        {
+          "cpuSeconds": 0.734375,
+          "pid": 67656,
+          "privateBytes": 47280128
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88444928
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13467648
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 41627648
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 35848192
+        }
+      ],
+      "privateBytes": 245481472,
+      "elapsedSeconds": 3.5694568
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7933952
+        },
+        {
+          "cpuSeconds": 0.734375,
+          "pid": 67656,
+          "privateBytes": 47280128
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88444928
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13467648
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 41635840
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 35856384
+        }
+      ],
+      "privateBytes": 245497856,
+      "elapsedSeconds": 4.7545999
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7933952
+        },
+        {
+          "cpuSeconds": 0.734375,
+          "pid": 67656,
+          "privateBytes": 47280128
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88444928
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13463552
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 41635840
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 35856384
+        }
+      ],
+      "privateBytes": 245493760,
+      "elapsedSeconds": 5.9331885
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7933952
+        },
+        {
+          "cpuSeconds": 0.734375,
+          "pid": 67656,
+          "privateBytes": 47280128
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88444928
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13623296
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 41635840
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 35856384
+        }
+      ],
+      "privateBytes": 245653504,
+      "elapsedSeconds": 7.123331
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7856128
+        },
+        {
+          "cpuSeconds": 0.75,
+          "pid": 67656,
+          "privateBytes": 47378432
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88444928
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13500416
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 38711296
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 33464320
+        }
+      ],
+      "privateBytes": 240234496,
+      "elapsedSeconds": 8.3122636
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7856128
+        },
+        {
+          "cpuSeconds": 0.75,
+          "pid": 67656,
+          "privateBytes": 47263744
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88444928
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13492224
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 38711296
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 33464320
+        }
+      ],
+      "privateBytes": 240111616,
+      "elapsedSeconds": 9.5063514
+    },
+    {
+      "processes": [
+        {
+          "cpuSeconds": 0.078125,
+          "pid": 13900,
+          "privateBytes": 7856128
+        },
+        {
+          "cpuSeconds": 0.75,
+          "pid": 67656,
+          "privateBytes": 47263744
+        },
+        {
+          "cpuSeconds": 0.015625,
+          "pid": 15308,
+          "privateBytes": 2617344
+        },
+        {
+          "cpuSeconds": 0.5,
+          "pid": 64100,
+          "privateBytes": 88444928
+        },
+        {
+          "cpuSeconds": 0.234375,
+          "pid": 22536,
+          "privateBytes": 13492224
+        },
+        {
+          "cpuSeconds": 0.03125,
+          "pid": 39616,
+          "privateBytes": 8261632
+        },
+        {
+          "cpuSeconds": 0.265625,
+          "pid": 59008,
+          "privateBytes": 38711296
+        },
+        {
+          "cpuSeconds": 0.125,
+          "pid": 29532,
+          "privateBytes": 33464320
+        }
+      ],
+      "privateBytes": 240111616,
+      "elapsedSeconds": 10.6851285
+    }
+  ]
+}

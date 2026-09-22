@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { launcherClient } from "./launcher-client";
 import { libraryClient } from "./library-client";
+import { listenWhenVisible } from "./surface-visibility";
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- IPC errors are untrusted; display only fixed messages.
 export const copyError = (error: unknown) => {
@@ -117,7 +118,9 @@ export const usePromptCopy = (
     let stopInvalidation: (() => void) | undefined;
     const connect = async () => {
       try {
-        const off = await listen("library-changed", () => onObservedChange());
+        const off = await listenWhenVisible("library-changed", () =>
+          onObservedChange()
+        );
         if (disposed) {
           off();
         } else {

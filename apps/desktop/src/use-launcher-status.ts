@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { launcherClient } from "./launcher-client";
+import { listenWhenVisible } from "./surface-visibility";
 
 export const useLauncherStatus = () => {
   const [status, setStatus] = useState<LauncherStatus>();
@@ -48,8 +49,10 @@ export const useLauncherStatus = () => {
           "auth-changed",
         ]) {
           // Events carry invalidation only; native status and storage own the data.
+          const subscribe =
+            event === "launcher-changed" ? listen : listenWhenVisible;
           // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Register and clean up each native subscription in order.
-          const unsubscribe = await listen(event, () => changed(event));
+          const unsubscribe = await subscribe(event, () => changed(event));
           if (disposed) {
             unsubscribe();
           } else {

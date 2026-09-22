@@ -7,7 +7,8 @@ fn desktop_search_webview_worker() {
         return;
     };
     let directory = std::path::PathBuf::from(directory);
-    let Some(instance) = crate::resident_instance::Instance::acquire(&directory).unwrap() else { return; };
+    let quiet = std::env::var("PR0_TEST_STARTUP_LAUNCH").as_deref() == Ok("true");
+    let Some(instance) = crate::resident_instance::Instance::acquire(&directory, !quiet).unwrap() else { return; };
     let instance = Arc::new(instance);
     let service: crate::ManagedAuth = Ok(Arc::new(
         AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap(),
@@ -20,12 +21,16 @@ fn desktop_search_webview_worker() {
         .manage(crate::launcher_runtime::Launcher::default())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            crate::startup_status,
+            crate::surface_visible,
+            crate::startup_action,
             crate::resident_status,
             crate::resident_action,
             crate::resident_hide,
             crate::resident_finish_quit,
             crate::copy_template,
             crate::launcher_status,
+            crate::launcher_library_details,
             crate::launcher_open,
             crate::launcher_hide,
             crate::launcher_focus,
@@ -71,6 +76,11 @@ fn desktop_search_webview_worker() {
         ])
         .setup(move |app| {
             crate::setup_resident(app.handle(), directory.clone())?;
+            let startup_root = format!(r"Software\pr0-startup-tests\{}", directory.file_name().unwrap().to_string_lossy());
+            if std::env::var("PR0_TEST_STARTUP").as_deref() != Ok("true") {
+                std::fs::write(directory.join("startup-offered"), "")?;
+            }
+            app.manage(crate::startup::Startup::isolated(directory.clone(), startup_root));
             let profile = std::env::var("PR0_TEST_WEBVIEW_PROFILE")
                 .map(std::path::PathBuf::from).unwrap_or_else(|_| directory.join("webview"));
             tauri::WebviewWindowBuilder::new(
@@ -80,6 +90,8 @@ fn desktop_search_webview_worker() {
             )
             .title("pr0 — Offline search validation")
             .inner_size(1100.0, 900.0)
+            .visible(false)
+            .focused(false)
             .data_directory(profile.clone())
             .build()?;
             tauri::WebviewWindowBuilder::new(app, "launcher", tauri::WebviewUrl::App("launcher.html".into()))
@@ -90,6 +102,7 @@ fn desktop_search_webview_worker() {
                 .data_directory(profile)
                 .build()?;
             crate::register_launcher_shortcut(app.handle())?;
+            if !quiet { crate::show_library(app.handle())?; }
             instance.listen(app.handle().clone());
             if let Some(gate) = std::env::var_os("PR0_TEST_CLIPBOARD_GATE") {
                 let app = app.handle().clone();

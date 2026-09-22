@@ -1,23 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useId, useState } from "react";
+import { useId } from "react";
 
+import { usePresentationTime } from "../hooks/use-presentation-time";
 import type { Accent } from "../lib/present";
 import { relativeTime } from "../lib/present";
 
-const minute = 60_000;
-const useNow = () => {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), minute);
-    return () => clearInterval(timer);
-  }, []);
-  return now;
-};
-
 export const RelativeTime = ({ at }: { at: string }) => {
-  const now = useNow();
+  const now = usePresentationTime();
   return (
     <time dateTime={at} title={new Date(at).toLocaleString()}>
       {relativeTime(at, now)}

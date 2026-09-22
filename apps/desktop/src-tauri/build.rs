@@ -1,6 +1,9 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "startup_status",
+            "surface_visible",
+            "startup_action",
             "resident_status",
             "resident_action",
             "resident_hide",

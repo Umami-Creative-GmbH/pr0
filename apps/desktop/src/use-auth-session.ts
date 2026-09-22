@@ -7,10 +7,10 @@ import type {
   SignOutRequest,
 } from "@pr0/api-contract/desktop-session";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
+import { listenWhenVisible, surfaceVisible } from "./surface-visibility";
 import { upgradeRecoveryMessage } from "./upgrade-recovery";
 
 export type Status = DesktopStatus;
@@ -131,6 +131,9 @@ export const useAuthSession = () => {
   useEffect(() => {
     let active = true;
     const load = async () => {
+      if (!surfaceVisible()) {
+        return;
+      }
       try {
         const next = await command("auth_status");
         if (active) {
@@ -145,7 +148,7 @@ export const useAuthSession = () => {
       }
     };
     void load();
-    const unlisten = listen("auth-changed", () => {
+    const unlisten = listenWhenVisible("auth-changed", () => {
       void load();
     });
     const stopListening = async () => {

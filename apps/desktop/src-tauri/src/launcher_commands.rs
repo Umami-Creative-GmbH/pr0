@@ -29,6 +29,11 @@ fn register_launcher_shortcut(app: &tauri::AppHandle) -> Result<(), String> {
                 })
                 .is_ok()
         })?;
+    if let Some(tray) = app.tray_by_id("resident") {
+        let status = app.state::<launcher_runtime::Launcher>().status()?;
+        let shortcut = status.shortcut.as_deref().unwrap_or("Global shortcut unavailable");
+        let _ = tray.set_tooltip(Some(format!("pr0 — {shortcut}")));
+    }
     let _ = app.emit("launcher-changed", ());
     Ok(())
 }
@@ -115,7 +120,7 @@ async fn launcher_status(
 fn launcher_library_details(window: tauri::WebviewWindow) -> Result<(),String> {
     authorize_labels(&window,&["launcher"])?;
     let main=window.app_handle().get_webview_window("main").ok_or("library_unavailable")?;
-    main.unminimize().and_then(|_|main.show()).and_then(|_|main.set_focus()).map_err(|_|"library_unavailable")?;
+    show_library(window.app_handle())?;
     main.emit("show-sync-details",()).map_err(|_|"library_unavailable".into())
 }
 #[tauri::command]

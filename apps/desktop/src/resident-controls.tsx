@@ -13,6 +13,7 @@ import { LauncherEntry } from "./launcher-entry";
 import { residentClient } from "./resident-client";
 import { ResidentEditorContext } from "./resident-editor";
 import type { ResidentEditor } from "./resident-editor";
+import { StartupControls } from "./startup-controls";
 
 const residencyExplanation =
   "pr0 is still running in the notification area. Use Quit pr0 to exit; its global shortcut stops working when you quit.";
@@ -193,6 +194,9 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
           </button>
         </nav>
       </AppBarStatus>
+      <div hidden={status?.settings}>
+        <StartupControls offerOnly />
+      </div>
       {children}
       {error &&
       !status?.quitRequested &&
@@ -290,6 +294,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
           title="Settings"
           onCancel={() => action("close_settings")}
         >
+          <StartupControls />
           <p>{residencyExplanation}</p>
           <p>
             Closing the library keeps your unsaved draft in memory. Minimize
