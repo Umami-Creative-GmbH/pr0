@@ -1,5 +1,92 @@
 // Public typed commands over the real persisted library, using the approved native seam.
 #[test]
+fn content_excerpt_shared_whitespace_and_literal_fixtures() {
+    let (directory, service, _) = downloaded_change_fixture();
+    let fixtures: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "../../../../packages/api-contract/src/excerpt-fixtures.json"
+    )).unwrap();
+    for fixture in fixtures {
+        let mut request = save_request(&service);
+        request.prompt_id = uuid::Uuid::new_v4().to_string();
+        request.operation_id = uuid::Uuid::new_v4().to_string();
+        request.desired.content = fixture["content"].as_str().unwrap().into();
+        service.library_create(request.clone()).unwrap();
+        let page = service.library_search(search_request(&service, "")).unwrap();
+        let row = page.prompts.iter().find(|row| row.id == request.prompt_id).unwrap();
+        assert_eq!(row.excerpt, fixture["excerpt"].as_str().unwrap());
+    }
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn content_excerpt_old_cache_rebuilds_on_reopen_offline() {
+    let directory = std::env::temp_dir().join(format!("pr0-excerpt-upgrade-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), vault.clone());
+    let request = search_request(&service, "Hello");
+    drop(service);
+    let db = rusqlite::Connection::open(super::library_storage::library_path(
+        &directory, &request.instance_id, &request.account_id,
+    ).unwrap()).unwrap();
+    db.execute_batch("UPDATE local_search_version SET version=2; UPDATE search_metadata SET summary=json_remove(summary,'$.excerpt');").unwrap();
+    drop(db);
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    let page = service.library_search(search_request(&service, "Hello")).unwrap();
+    assert_eq!(page.prompts.len(), 2);
+    assert!(page.prompts.iter().all(|row| !row.excerpt.is_empty()));
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn content_excerpt_tracks_offline_edits_without_exposing_content() {
+    let (directory, service, _) = downloaded_change_fixture();
+    let mut request = save_request(&service);
+    request.desired.content = "  Hello\n\t{{name}}  <b>world</b> ".into();
+    request.desired.description = "Not the preview".into();
+    let saved = service.library_create(request.clone()).unwrap();
+    let page = service.library_search(search_request(&service, "")).unwrap();
+    let row = page.prompts.iter().find(|row| row.id == request.prompt_id).unwrap();
+    let wire = serde_json::to_value(row).unwrap();
+    assert_eq!(wire["excerpt"], "Hello {{name}} <b>world</b>");
+    assert!(wire.get("content").is_none());
+    request.operation_id = uuid::Uuid::new_v4().to_string();
+    request.expected_local_revision = Some(saved.local_revision);
+    request.desired.content = "😀".repeat(141);
+    service.library_edit(request.clone()).unwrap();
+    let page = service.library_search(search_request(&service, "")).unwrap();
+    let row = page.prompts.iter().find(|row| row.id == request.prompt_id).unwrap();
+    assert_eq!(serde_json::to_value(row).unwrap()["excerpt"], "😀".repeat(140));
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn content_excerpt_rebuilds_old_summaries_and_follows_synchronization() {
+    let (directory, service, transport) = downloaded_change_fixture();
+    let request = search_request(&service, "");
+    let db = rusqlite::Connection::open(super::library_storage::library_path(
+        &directory, &request.instance_id, &request.account_id,
+    ).unwrap()).unwrap();
+    db.execute_batch("UPDATE local_search_version SET version=2; UPDATE search_metadata SET summary=json_remove(summary,'$.excerpt');").unwrap();
+    drop(db);
+    service.library_recover_search(request).unwrap();
+    let page = service.library_search(search_request(&service, "")).unwrap();
+    assert!(page.prompts.iter().all(|row| !row.excerpt.is_empty()));
+    transport.0.lock().unwrap().push(change_fixture());
+    assert!(service.library_changes(0).unwrap().error.is_none());
+    let page = service.library_search(search_request(&service, "Remote")).unwrap();
+    let row = page.prompts.iter().find(|row| row.id == "66666666-6666-4666-8666-666666666666").unwrap();
+    assert_eq!(row.excerpt, "Remote content");
+    let rows = service.library_list(0, super::lifecycle_contract::LibraryView::All).unwrap();
+    let row = rows.iter().find(|row| row.id == "66666666-6666-4666-8666-666666666666").unwrap();
+    assert_eq!(serde_json::to_value(row).unwrap()["excerpt"], "Remote content");
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn search_tracks_offline_organization_names_assignments_and_removal() {
     let (directory, service, _) = downloaded_change_fixture();
     let id = "66666666-6666-4666-8666-666666666666";

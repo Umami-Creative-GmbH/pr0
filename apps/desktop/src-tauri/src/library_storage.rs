@@ -319,7 +319,7 @@ impl LibraryStore {
         };
         let mut statement = self
             .db
-            .prepare(&format!("SELECT id,title,archived FROM visible_prompt WHERE {filter} ORDER BY id LIMIT 50 OFFSET ?1"))
+            .prepare(&format!("SELECT id,title,archived,json_extract(record,'$.content') FROM visible_prompt WHERE {filter} ORDER BY id LIMIT 50 OFFSET ?1"))
             .map_err(io)?;
         let result = statement
             .query_map([offset], |r| {
@@ -327,6 +327,7 @@ impl LibraryStore {
                     id: r.get(0)?,
                     title: r.get(1)?,
                     archived: r.get(2)?,
+                    excerpt: super::excerpt::excerpt(&r.get::<_, String>(3)?),
                 })
             })
             .map_err(io)?

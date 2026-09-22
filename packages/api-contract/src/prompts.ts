@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { excerptSchema } from "./excerpt";
+
 export const promptLimits = {
   title: 200,
   description: 2000,
@@ -73,6 +75,7 @@ export const promptSummarySchema = z.strictObject({
   id: promptIdentitySchema,
   title: z.string(),
   description: z.string(),
+  excerpt: excerptSchema,
   revision: revisionSchema,
   createdAt: z.iso.datetime(),
   modifiedAt: z.iso.datetime(),
@@ -84,7 +87,7 @@ export const promptSummarySchema = z.strictObject({
     .max(promptLimits.tagsPerPrompt)
     .default([]),
 });
-export const promptSchema = promptSummarySchema.extend({
+export const promptSchema = promptSummarySchema.omit({ excerpt: true }).extend({
   libraryRevision: revisionSchema.optional(),
   content: promptTextSchema.shape.content,
   ...libraryScopeSchema.shape,

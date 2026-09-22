@@ -1,0 +1,11 @@
+[
+  {
+    "content": " \tHello\r\n{{name}}\u0085\u00a0world\u3000",
+    "excerpt": "Hello {{name}} world"
+  },
+  {
+    "content": "\ufeffKeep CASE <b>literal</b>\ufeff",
+    "excerpt": "\ufeffKeep CASE <b>literal</b>\ufeff"
+  },
+  { "content": "é 😀 👩‍💻", "excerpt": "é 😀 👩‍💻" }
+]

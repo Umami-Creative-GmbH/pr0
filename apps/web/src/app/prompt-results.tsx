@@ -55,7 +55,7 @@ const PromptListRow = ({
   return (
     <PromptRow
       title={prompt.title}
-      preview={prompt.description}
+      preview={prompt.excerpt}
       collection={collection}
       accent={accentFor(prompt.collectionId)}
       tags={tagNames}

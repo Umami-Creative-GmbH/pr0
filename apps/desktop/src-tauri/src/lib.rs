@@ -8,6 +8,7 @@ mod change_contract;
 mod clipboard;
 mod conflict_contract;
 mod deletion_proof;
+mod excerpt;
 mod launcher_runtime;
 mod library_contract;
 mod library_migrations;

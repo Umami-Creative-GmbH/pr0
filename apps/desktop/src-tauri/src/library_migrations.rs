@@ -116,7 +116,7 @@ pub fn migrate(
         }
         let indexed: bool = tx
             .query_row(
-                "SELECT version=2 FROM local_search_version WHERE singleton=1",
+                "SELECT version IN (2,3) FROM local_search_version WHERE singleton=1",
                 [],
                 |r| r.get(0),
             )

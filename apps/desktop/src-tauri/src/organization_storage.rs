@@ -172,7 +172,7 @@ impl LibraryStore {
             return Err("invalid_input".into());
         }
         // Filter identities deliberately do not follow aliases or broaden after deletion.
-        let mut statement=self.db.prepare("SELECT id,title,archived FROM visible_prompt WHERE archived=0 AND (?1 IS NULL OR json_extract(record,'$.collectionId')=?1) AND (?1 IS NULL OR EXISTS(SELECT 1 FROM organization_local WHERE id=?1 AND kind='collection')) AND NOT EXISTS(SELECT 1 FROM json_each(?2) wanted WHERE NOT EXISTS(SELECT 1 FROM organization_local WHERE id=wanted.value AND kind='tag') OR NOT EXISTS(SELECT 1 FROM json_each(record,'$.tagIds') present WHERE present.value=wanted.value)) AND (NOT ?3 OR json_extract(record,'$.lastUsedAt') IS NOT NULL OR EXISTS(SELECT 1 FROM pending_usage WHERE prompt_id=visible_prompt.id)) ORDER BY CASE WHEN ?3 THEN max(coalesce((SELECT max(occurred_at) FROM pending_usage WHERE prompt_id=visible_prompt.id),''),coalesce(json_extract(record,'$.lastUsedAt'),'')) END DESC,id LIMIT 50 OFFSET ?4").map_err(io)?;
+        let mut statement=self.db.prepare("SELECT id,title,archived,json_extract(record,'$.content') FROM visible_prompt WHERE archived=0 AND (?1 IS NULL OR json_extract(record,'$.collectionId')=?1) AND (?1 IS NULL OR EXISTS(SELECT 1 FROM organization_local WHERE id=?1 AND kind='collection')) AND NOT EXISTS(SELECT 1 FROM json_each(?2) wanted WHERE NOT EXISTS(SELECT 1 FROM organization_local WHERE id=wanted.value AND kind='tag') OR NOT EXISTS(SELECT 1 FROM json_each(record,'$.tagIds') present WHERE present.value=wanted.value)) AND (NOT ?3 OR json_extract(record,'$.lastUsedAt') IS NOT NULL OR EXISTS(SELECT 1 FROM pending_usage WHERE prompt_id=visible_prompt.id)) ORDER BY CASE WHEN ?3 THEN max(coalesce((SELECT max(occurred_at) FROM pending_usage WHERE prompt_id=visible_prompt.id),''),coalesce(json_extract(record,'$.lastUsedAt'),'')) END DESC,id LIMIT 50 OFFSET ?4").map_err(io)?;
         let rows = statement
             .query_map(
                 params![
@@ -186,6 +186,7 @@ impl LibraryStore {
                         id: r.get(0)?,
                         title: r.get(1)?,
                         archived: r.get(2)?,
+                        excerpt: super::excerpt::excerpt(&r.get::<_, String>(3)?),
                     })
                 },
             )

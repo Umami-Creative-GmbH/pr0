@@ -10,6 +10,7 @@ import {
   desktopSearchPageSchema,
 } from "@pr0/api-contract/desktop-search";
 import type { DesktopSearch } from "@pr0/api-contract/desktop-search";
+import { excerptSchema } from "@pr0/api-contract/excerpt";
 import {
   localPromptSchema,
   localSaveSchema,
@@ -38,7 +39,12 @@ import { upgradeRecoveryMessage } from "./upgrade-recovery";
 const statusSchema = downloadStatusSchema;
 const summariesSchema = z
   .array(
-    z.strictObject({ id: z.uuidv4(), title: z.string(), archived: z.boolean() })
+    z.strictObject({
+      id: z.uuidv4(),
+      title: z.string(),
+      archived: z.boolean(),
+      excerpt: excerptSchema,
+    })
   )
   .max(50);
 export type DownloadStatus = z.infer<typeof statusSchema>;

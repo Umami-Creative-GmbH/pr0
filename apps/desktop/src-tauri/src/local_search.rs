@@ -135,7 +135,7 @@ pub fn migrate(db: &Connection) -> rusqlite::Result<()> {
 
 pub fn recover(db: &mut Connection, path: &std::path::Path) -> Result<(), String> {
     use super::library_storage::io;
-    let compatible = db.query_row("SELECT version=2 AND normalization='pr0-search-v1-ucd17' FROM local_search_version WHERE singleton=1", [], |r| r.get::<_, bool>(0)).unwrap_or(false);
+    let compatible = db.query_row("SELECT version=3 AND normalization='pr0-search-v1-ucd17' FROM local_search_version WHERE singleton=1", [], |r| r.get::<_, bool>(0)).unwrap_or(false);
     let readable = [
         "local_search",
         "search_metadata",
@@ -456,7 +456,7 @@ fn create(db: &Connection) -> rusqlite::Result<()> {
     db.execute_batch("CREATE TABLE local_search(slot INTEGER PRIMARY KEY CHECK(slot BETWEEN 0 AND 9999),id TEXT UNIQUE NOT NULL,title TEXT NOT NULL,description TEXT NOT NULL,content TEXT NOT NULL,content_bytes INTEGER NOT NULL,revision INTEGER NOT NULL);
         CREATE TABLE local_search_short(field TEXT NOT NULL,gram TEXT NOT NULL,representation TEXT NOT NULL,payload BLOB NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(field,gram)) WITHOUT ROWID;
         CREATE TABLE local_search_version(singleton INTEGER PRIMARY KEY CHECK(singleton=1),version INTEGER NOT NULL,normalization TEXT NOT NULL);
-        INSERT INTO local_search_version VALUES(1,2,'pr0-search-v1-ucd17');
+        INSERT INTO local_search_version VALUES(1,3,'pr0-search-v1-ucd17');
         CREATE TABLE search_metadata(slot INTEGER PRIMARY KEY,id TEXT UNIQUE NOT NULL,summary TEXT NOT NULL,created TEXT NOT NULL,modified TEXT NOT NULL,used TEXT,archived INTEGER NOT NULL,favorite INTEGER NOT NULL,collection_id TEXT,tags TEXT NOT NULL,title TEXT NOT NULL,description TEXT NOT NULL,content_bytes INTEGER NOT NULL);")?;
     db.execute_batch("CREATE TABLE search_organization(slot INTEGER PRIMARY KEY CHECK(slot BETWEEN 0 AND 1199),kind TEXT NOT NULL,id TEXT NOT NULL,name TEXT NOT NULL,UNIQUE(kind,id));
         CREATE VIRTUAL TABLE local_f_name USING fts5(name,content='search_organization',content_rowid='slot',detail=none,columnsize=0,tokenize='trigram case_sensitive 1');
@@ -559,7 +559,7 @@ pub fn flush(tx: &Transaction) -> rusqlite::Result<()> {
             [&id],
             |r| r.get(0),
         )?;
-        if text_changed || !indexed {
+        let excerpt = if text_changed || !indexed {
             let record: String = tx.query_row(
                 "SELECT record FROM visible_prompt WHERE id=?1",
                 [&id],
@@ -568,14 +568,21 @@ pub fn flush(tx: &Transaction) -> rusqlite::Result<()> {
             let prompt: Prompt =
                 serde_json::from_str(&record).map_err(|_| rusqlite::Error::InvalidQuery)?;
             update(tx, &prompt, revision)?;
-        }
+            super::excerpt::excerpt(&prompt.content)
+        } else {
+            tx.query_row(
+                "SELECT json_extract(summary,'$.excerpt') FROM search_metadata WHERE id=?1",
+                [&id],
+                |r| r.get::<_, String>(0),
+            )?
+        };
         let assignments_changed:bool=tx.query_row("SELECT NOT EXISTS(SELECT 1 FROM search_metadata m JOIN visible_prompt v USING(id) WHERE m.id=?1 AND m.collection_id IS json_extract(v.record,'$.collectionId') AND m.tags=json_extract(v.record,'$.tagIds'))",[&id],|r|r.get(0))?;
         tx.execute("INSERT OR REPLACE INTO search_metadata
-            SELECT s.slot,v.id,json_remove(v.record,'$.content','$.instanceId','$.accountId','$.useCount','$.lastUsedAt','$.sourceTitle'),
+            SELECT s.slot,v.id,json_set(json_remove(v.record,'$.content','$.instanceId','$.accountId','$.useCount','$.lastUsedAt','$.sourceTitle'),'$.excerpt',?2),
             json_extract(v.record,'$.createdAt'),json_extract(v.record,'$.modifiedAt'),
             nullif(max(coalesce((SELECT json_extract(record,'$.lastUsedAt') FROM prompt WHERE snapshot=(SELECT active FROM state) AND id=v.id),''),coalesce((SELECT max(coalesce(json_extract(receipt,'$.usedAt'),occurred_at)) FROM pending_usage WHERE prompt_id=v.id),'')),''),
             v.archived,json_extract(v.record,'$.favorite'),json_extract(v.record,'$.collectionId'),json_extract(v.record,'$.tagIds'),s.title,s.description,s.content_bytes
-            FROM visible_prompt v JOIN local_search s USING(id) WHERE v.id=?1", [&id])?;
+            FROM visible_prompt v JOIN local_search s USING(id) WHERE v.id=?1", params![id, excerpt])?;
         if assignments_changed {
             tx.execute(
             "DELETE FROM search_membership WHERE slot=(SELECT slot FROM local_search WHERE id=?1)",

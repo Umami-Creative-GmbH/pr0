@@ -225,7 +225,7 @@ const SearchResults = ({
               suffix={`${row.archived ? " (Archived)" : ""}${
                 attentionIds?.has(row.id) ? t("changesNeedAttention2") : ""
               }`}
-              preview={row.description}
+              preview={row.excerpt}
               collection={
                 row.collectionId
                   ? collectionNames.get(row.collectionId)

@@ -49,6 +49,7 @@ export const DownloadedRows = ({
             >
               {row.title}
               {row.archived ? " (Archived)" : ""}
+              <span className="wf-row-preview">{row.excerpt}</span>
             </button>
             <button
               className="wf-btn"

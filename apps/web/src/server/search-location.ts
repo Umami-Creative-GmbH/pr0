@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { searchNormalizationVersion } from "@pr0/api-contract/prompts";
 
-export const indexVersion = `4:${searchNormalizationVersion}`;
+export const indexVersion = `5:${searchNormalizationVersion}`;
 export const searchDirectory = () =>
   path.resolve(process.env.PR0_SEARCH_DIRECTORY ?? ".data/search");
 export const searchFilename = (instance: string, account: string) =>
