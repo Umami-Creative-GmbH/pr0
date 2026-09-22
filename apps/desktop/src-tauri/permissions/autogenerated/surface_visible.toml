@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-surface-visible"
+description = "Enables the surface_visible command without any pre-configured scope."
+commands.allow = ["surface_visible"]
+
+[[permission]]
+identifier = "deny-surface-visible"
+description = "Denies the surface_visible command without any pre-configured scope."
+commands.deny = ["surface_visible"]

@@ -24,6 +24,9 @@ mod resident_instance;
 mod resident_tests;
 mod search_contract;
 mod search_query;
+mod startup;
+#[cfg(windows)]
+mod startup_windows;
 mod upload_contract;
 mod usage_contract;
 mod variables;
@@ -38,6 +41,7 @@ type ManagedAuth = Result<Arc<AuthService>, String>;
 
 include!("launcher_commands.rs");
 include!("resident_commands.rs");
+include!("startup_commands.rs");
 
 fn authorize(window: &tauri::WebviewWindow) -> Result<(), String> {
     authorize_labels(window, &["main"])
@@ -166,13 +170,16 @@ async fn auth_sign_out(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let quiet = std::env::args_os()
+        .skip(1)
+        .any(|argument| argument == "--startup");
     let context = tauri::generate_context!();
     #[cfg(windows)]
     let instance = {
         let directory = dirs::data_local_dir()
             .expect("Windows local application data")
             .join(&context.config().identifier);
-        let Some(instance) = resident_instance::Instance::acquire(&directory)
+        let Some(instance) = resident_instance::Instance::acquire(&directory, !quiet)
             .expect("pr0 could not acquire its resident writer")
         else {
             return;
@@ -181,6 +188,9 @@ pub fn run() {
     };
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            startup_status,
+            surface_visible,
+            startup_action,
             resident_status,
             resident_action,
             resident_hide,
@@ -240,9 +250,11 @@ pub fn run() {
         ])
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(move |app| {
+            app.manage(startup::Startup::new(
+                app.path().app_local_data_dir()?,
+                app.config().identifier.clone(),
+            ));
             setup_resident(app.handle(), app.path().app_local_data_dir()?)?;
-            #[cfg(windows)]
-            instance.listen(app.handle().clone());
             let service: ManagedAuth = (|| {
                 let directory = app
                     .path()
@@ -336,6 +348,11 @@ pub fn run() {
             app.manage(service);
             app.manage(launcher_runtime::Launcher::default());
             register_launcher_shortcut(app.handle())?;
+            if !quiet {
+                show_library(app.handle())?;
+            }
+            #[cfg(windows)]
+            instance.listen(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {

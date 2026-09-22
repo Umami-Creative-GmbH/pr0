@@ -54,6 +54,7 @@ export const nativeWebview = async (
     return {
       browser,
       page,
+      processId: child.pid,
       exited: child.exited,
       async stop() {
         await browser.close();

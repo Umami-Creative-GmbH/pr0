@@ -1,17 +1,24 @@
-import { listen } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent } from "react";
 
 import { libraryClient } from "./library-client";
+import { listenWhenVisible, surfaceVisible } from "./surface-visibility";
 
 export const useLibraryRefresh = (refresh: () => void) => {
   const onRefresh = useEffectEvent(refresh);
   useEffect(() => {
-    const handleRefresh = () => onRefresh();
+    const handleRefresh = () => {
+      if (surfaceVisible()) {
+        onRefresh();
+      }
+    };
     let disposed = false;
     let stop: (() => void) | undefined;
     const subscribe = async () => {
       try {
-        const unlisten = await listen("library-changed", handleRefresh);
+        const unlisten = await listenWhenVisible(
+          "library-changed",
+          handleRefresh
+        );
         if (disposed) {
           unlisten();
         } else {

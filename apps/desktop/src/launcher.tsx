@@ -10,6 +10,7 @@ import type { KeyboardEvent } from "react";
 import { createRoot } from "react-dom/client";
 
 import { launcherClient } from "./launcher-client";
+import { NativePresentation } from "./native-presentation";
 import { PromptVariables } from "./prompt-variables";
 import { useLauncherStatus } from "./use-launcher-status";
 import { useLocalSearch } from "./use-local-search";
@@ -445,6 +446,8 @@ if (!root) {
 }
 createRoot(root).render(
   <StrictMode>
-    <LauncherWindow />
+    <NativePresentation>
+      <LauncherWindow />
+    </NativePresentation>
   </StrictMode>
 );

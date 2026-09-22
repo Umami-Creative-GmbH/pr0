@@ -1108,7 +1108,7 @@ fn commands_reject_untrusted_instance_urls_without_network_access() {
 fn sign_out_preserves_resident_ownership_and_notice() {
     let directory =
         std::env::temp_dir().join(format!("pr0-resident-signout-{}", uuid::Uuid::new_v4()));
-    let owner = crate::resident_instance::Instance::acquire(&directory)
+    let owner = crate::resident_instance::Instance::acquire(&directory, true)
         .unwrap()
         .unwrap();
     std::fs::write(directory.join("residency-explained"), b"").unwrap();
@@ -1118,9 +1118,11 @@ fn sign_out_preserves_resident_ownership_and_notice() {
     service.sign_out().unwrap();
     assert_eq!(view(&service)["state"], "signed_out");
     assert!(directory.join("residency-explained").is_file());
-    assert!(crate::resident_instance::Instance::acquire(&directory)
-        .unwrap()
-        .is_none());
+    assert!(
+        crate::resident_instance::Instance::acquire(&directory, true)
+            .unwrap()
+            .is_none()
+    );
     drop(service);
     drop(owner);
     std::fs::remove_dir_all(directory).unwrap();

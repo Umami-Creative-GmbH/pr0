@@ -33,7 +33,7 @@ impl Instance {
             }
         });
     }
-    pub fn acquire(directory: &Path) -> std::io::Result<Option<Self>> {
+    pub fn acquire(directory: &Path, manual: bool) -> std::io::Result<Option<Self>> {
         std::fs::create_dir_all(directory)?;
         let directory = directory.canonicalize()?;
         let identity = directory.to_string_lossy().to_lowercase();
@@ -60,7 +60,7 @@ impl Instance {
                 activation,
             })),
             Err(TryLockError::WouldBlock) => {
-                if unsafe { SetEvent(activation.0) } == 0 {
+                if manual && unsafe { SetEvent(activation.0) } == 0 {
                     return Err(std::io::Error::last_os_error());
                 }
                 Ok(None)

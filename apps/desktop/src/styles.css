@@ -1,2 +1,9 @@
 @import "@pr0/ui/globals.css";
 @source "./";
+
+html[data-surface-hidden="true"] *,
+html[data-surface-hidden="true"] *::before,
+html[data-surface-hidden="true"] *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}

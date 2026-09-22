@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./app";
+import { NativePresentation } from "./native-presentation";
 
 import "./styles.css";
 
@@ -11,6 +12,8 @@ if (!root) {
 }
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <NativePresentation>
+      <App />
+    </NativePresentation>
   </StrictMode>
 );

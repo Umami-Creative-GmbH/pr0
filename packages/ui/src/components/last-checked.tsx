@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { usePresentationTime } from "../hooks/use-presentation-time";
 
 const age = (at: string, now: number) => {
   const minutes = Math.max(0, Math.floor((now - Date.parse(at)) / 60_000));
@@ -17,11 +17,7 @@ const age = (at: string, now: number) => {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 };
 export const LastChecked = ({ at }: { at?: string | null }) => {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
+  const now = usePresentationTime();
   return at ? (
     <p>
       Last checked for updates{" "}

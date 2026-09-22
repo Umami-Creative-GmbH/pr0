@@ -18,3 +18,15 @@ export const residentActionSchema = z.enum([
 ]);
 export type ResidentStatus = z.infer<typeof residentStatusSchema>;
 export type ResidentAction = z.infer<typeof residentActionSchema>;
+
+export const startupStatusSchema = z.strictObject({
+  state: z.enum(["enabled", "disabled", "disabled_by_windows", "unavailable"]),
+  offer: z.boolean(),
+});
+export const startupActionSchema = z.enum([
+  "enable",
+  "disable",
+  "dismiss_offer",
+]);
+export type StartupStatus = z.infer<typeof startupStatusSchema>;
+export type StartupAction = z.infer<typeof startupActionSchema>;
