@@ -16,7 +16,7 @@ import {
   WayfinderDialog,
 } from "@pr0/ui/components/wayfinder-dialog";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { collectionMatches } from "./collection-query";
 import { PromptOriginal } from "./prompt-original";
@@ -137,6 +137,12 @@ export const PromptEditor = ({
     onDirtyChange,
   });
   const [browsing, setBrowsing] = useState(false);
+  const keepEditingRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirmDiscard && !browsing) {
+      keepEditingRef.current?.focus();
+    }
+  }, [confirmDiscard, browsing]);
   const editorLabel = prompt ? "Edit prompt" : "Create prompt";
   const locked = !prompt && (state.status === "saving" || state.uncertain);
   const requestClose = () => {
@@ -257,7 +263,7 @@ export const PromptEditor = ({
                   className="wf-notice"
                   data-tone="attention"
                 >
-                  <p>
+                  <p id="discard-prompt-warning">
                     {state.uncertain
                       ? "Discard this open-tab draft? The server may already have saved this prompt. Retry first to confirm its outcome."
                       : "Discard this unsaved prompt? Your draft will be lost."}
@@ -272,6 +278,8 @@ export const PromptEditor = ({
                     </button>
                     <button
                       className={buttonClass}
+                      ref={keepEditingRef}
+                      aria-describedby="discard-prompt-warning"
                       onClick={() => {
                         setConfirmDiscard(false);
                         titleRef.current?.focus();
