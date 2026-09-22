@@ -5,6 +5,7 @@ use std::sync::Mutex;
 #[serde(rename_all = "camelCase")]
 pub struct ResidentStatus {
     pub quit_requested: bool,
+    pub update_requested: bool,
     pub close_notice: bool,
     pub settings: bool,
     pub saving: u32,
@@ -36,11 +37,15 @@ impl Resident {
         }
         match action {
             ResidentAction::Quit => {
+                state.update_requested = false;
                 state.quit_requested = true;
                 state.close_notice = false;
                 state.settings = false;
             }
-            ResidentAction::CancelQuit => state.quit_requested = false,
+            ResidentAction::CancelQuit => {
+                state.quit_requested = false;
+                state.update_requested = false;
+            }
             ResidentAction::Close if !state.quit_requested => {
                 state.close_notice = true;
                 state.settings = false;
@@ -62,6 +67,24 @@ impl Resident {
             return Err("quitting".into());
         }
         state.saving += 1;
+        Ok(())
+    }
+    pub fn request_update(&self) -> Result<(), String> {
+        let mut state = self.0.lock().map_err(|_| "resident_unavailable")?;
+        if state.quitting || state.quit_requested {
+            return Err("quit_in_progress".into());
+        }
+        state.quit_requested = true;
+        state.update_requested = true;
+        state.settings = false;
+        state.close_notice = false;
+        Ok(())
+    }
+    pub fn cancel_failed_update(&self) -> Result<(), String> {
+        let mut state = self.0.lock().map_err(|_| "resident_unavailable")?;
+        state.quitting = false;
+        state.quit_requested = false;
+        state.update_requested = false;
         Ok(())
     }
     pub fn end_save(&self) {

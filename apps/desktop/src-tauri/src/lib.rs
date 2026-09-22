@@ -27,6 +27,9 @@ mod search_query;
 mod startup;
 #[cfg(windows)]
 mod startup_windows;
+#[cfg(test)]
+mod update_tests;
+mod updates;
 mod upload_contract;
 mod usage_contract;
 mod variables;
@@ -42,6 +45,7 @@ type ManagedAuth = Result<Arc<AuthService>, String>;
 include!("launcher_commands.rs");
 include!("resident_commands.rs");
 include!("startup_commands.rs");
+include!("update_commands.rs");
 
 fn authorize(window: &tauri::WebviewWindow) -> Result<(), String> {
     authorize_labels(window, &["main"])
@@ -188,6 +192,10 @@ pub fn run() {
     };
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
+            update_status,
+            update_check,
+            update_download,
+            update_request_install,
             startup_status,
             surface_visible,
             startup_action,
@@ -249,12 +257,25 @@ pub fn run() {
             library_retry_usage
         ])
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             app.manage(startup::Startup::new(
                 app.path().app_local_data_dir()?,
                 app.config().identifier.clone(),
             ));
             setup_resident(app.handle(), app.path().app_local_data_dir()?)?;
+            let configured = update_source(app.handle()).is_ok();
+            app.manage(updates::Updates::new(
+                app.path().app_local_data_dir()?,
+                configured,
+                &app.package_info().version.to_string(),
+            ));
+            if configured {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = check_application_update(&handle).await;
+                });
+            }
             let service: ManagedAuth = (|| {
                 let directory = app
                     .path()

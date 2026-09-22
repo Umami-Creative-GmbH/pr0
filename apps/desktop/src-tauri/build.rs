@@ -1,6 +1,21 @@
 fn main() {
+    // The native command test harness links Tauri's dialog APIs too. Rust's
+    // test executable needs the same Windows common-controls activation as the app.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'");
+        // Tauri already embeds the app binary's complete manifest as resource 1.
+        // Only the test/example executables need the linker-generated manifest.
+        println!("cargo:rustc-link-arg-bin=pr0-desktop=/MANIFEST:NO");
+    }
+    println!("cargo:rerun-if-env-changed=PR0_UPDATE_ENDPOINT");
+    println!("cargo:rerun-if-env-changed=PR0_UPDATE_PUBLIC_KEY");
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "update_status",
+            "update_check",
+            "update_download",
+            "update_request_install",
             "startup_status",
             "surface_visible",
             "startup_action",

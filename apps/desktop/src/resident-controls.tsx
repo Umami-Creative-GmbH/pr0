@@ -14,9 +14,19 @@ import { residentClient } from "./resident-client";
 import { ResidentEditorContext } from "./resident-editor";
 import type { ResidentEditor } from "./resident-editor";
 import { StartupControls } from "./startup-controls";
+import { UpdateControls } from "./update-controls";
 
 const residencyExplanation =
   "pr0 is still running in the notification area. Use Quit pr0 to exit; its global shortcut stops working when you quit.";
+
+const quitLabels = (updating: boolean) =>
+  updating
+    ? {
+        title: "Install update and restart",
+        save: "Save and update",
+        discard: "Discard draft and update",
+      }
+    : { title: "Quit pr0", save: "Save and quit", discard: "Discard and quit" };
 
 const ResidentDialog = ({
   title,
@@ -198,6 +208,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
         <StartupControls offerOnly />
       </div>
       {children}
+      <UpdateControls />
       {error &&
       !status?.quitRequested &&
       !status?.closeNotice &&
@@ -217,7 +228,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
       ) : null}
       {status?.quitRequested ? (
         <ResidentDialog
-          title="Quit pr0"
+          title={quitLabels(status.updateRequested).title}
           onCancel={() => {
             if (!waiting) {
               action("cancel_quit");
@@ -240,7 +251,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
                 void saveAndQuit();
               }}
             >
-              Save and quit
+              {quitLabels(status.updateRequested).save}
             </button>
             <button
               className="wf-btn wf-btn-danger"
@@ -250,7 +261,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
                 void perform(residentClient.finishQuit);
               }}
             >
-              Discard and quit
+              {quitLabels(status.updateRequested).discard}
             </button>
             <button
               type="button"

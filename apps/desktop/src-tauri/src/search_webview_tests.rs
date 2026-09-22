@@ -21,6 +21,10 @@ fn desktop_search_webview_worker() {
         .manage(crate::launcher_runtime::Launcher::default())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            crate::update_status,
+            crate::update_check,
+            crate::update_download,
+            crate::update_request_install,
             crate::startup_status,
             crate::surface_visible,
             crate::startup_action,
@@ -76,6 +80,7 @@ fn desktop_search_webview_worker() {
         ])
         .setup(move |app| {
             crate::setup_resident(app.handle(), directory.clone())?;
+            app.manage(crate::updates::Updates::new(directory.clone(), false, "0.1.0"));
             let startup_root = format!(r"Software\pr0-startup-tests\{}", directory.file_name().unwrap().to_string_lossy());
             if std::env::var("PR0_TEST_STARTUP").as_deref() != Ok("true") {
                 std::fs::write(directory.join("startup-offered"), "")?;
