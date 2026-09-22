@@ -5,11 +5,11 @@ import type {
 } from "@pr0/api-contract/local-prompts";
 import type { PromptText } from "@pr0/api-contract/prompts";
 import { parseTemplate } from "@pr0/api-contract/variables";
+import { EditorFooter } from "@pr0/ui/components/editor-footer";
 import {
   DialogHead,
   WayfinderDialog,
 } from "@pr0/ui/components/wayfinder-dialog";
-import { Braces } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { z } from "zod";
@@ -140,59 +140,6 @@ const EditorSaveStatus = ({
       </p>
     ) : null}
   </>
-);
-
-const variableHint = (content: string) => {
-  const { fields } = parseTemplate(content);
-  if (!fields.length) {
-    return "{{variable}} is requested when copying";
-  }
-  const names = fields.map((field) => `{{${field.name}}}`).join(" ⦁ ");
-  return `${names} ${fields.length === 1 ? "is" : "are"} requested when copying`;
-};
-
-const EditorFooter = ({
-  content,
-  saving,
-  retry,
-  onCancel,
-  onCopy,
-  onSaveAsNew,
-}: {
-  content: string;
-  saving: boolean;
-  retry: boolean;
-  onCancel: () => void;
-  onCopy: () => void;
-  /** Present only after a conflict that a new prompt can resolve. */
-  onSaveAsNew?: () => void;
-}) => (
-  <footer className="wf-dialog-foot">
-    <span className="flex items-center gap-2">
-      <Braces aria-hidden="true" size={14} />
-      {variableHint(content)}
-    </span>
-    <span className="wf-grow" />
-    <button
-      className="wf-btn"
-      disabled={saving}
-      type="button"
-      onClick={onCancel}
-    >
-      Cancel
-    </button>
-    <button className="wf-btn" type="button" onClick={onCopy}>
-      Copy text
-    </button>
-    {onSaveAsNew ? (
-      <button className="wf-btn" type="button" onClick={onSaveAsNew}>
-        Save as new prompt
-      </button>
-    ) : null}
-    <button className="wf-btn-accent" disabled={saving} type="submit">
-      {retry ? "Retry" : "Save"}
-    </button>
-  </footer>
 );
 
 /** Ways out to the library that keep the mounted draft. */
@@ -490,7 +437,9 @@ export const LocalPromptEditor = ({
             ) : null}
           </div>
           <EditorFooter
-            content={draft.content}
+            variableNames={parseTemplate(draft.content).fields.map(
+              (field) => field.name
+            )}
             saving={saving}
             retry={Boolean(saveError)}
             onCancel={() => setDiscard(true)}
