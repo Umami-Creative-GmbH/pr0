@@ -1,6 +1,6 @@
 # Deploy the web account slice
 
-Issue #24 supplies email/password registration, verification, sign-in, an empty private library, account/instance display, and sign-out when there is no pending work. Issue #25 adds verified-email recovery, password reset and active-session management. Prompt editing and native account sessions are subsequent slices. `/prototype/library` remains a separate throwaway demonstration with synthetic data.
+Issue #24 supplies email/password registration, verification, sign-in, an empty private library, account/instance display, and sign-out when there is no pending work. Issue #25 adds verified-email recovery, password reset and active-session management. Prompt editing and native account sessions are subsequent slices.
 
 The web server uses Better Auth 1.7.5, its Drizzle adapter 1.7.5 with transactions enabled, Drizzle 0.45.2, and Bun SQL. PostgreSQL 17.10 holds accounts, sessions, library ownership, registration admission, request admission, the encrypted email outbox, and immutable instance identity. There is no Redis dependency. The mail worker and operational commands also run under Bun as a non-root container user.
 
