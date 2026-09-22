@@ -1,14 +1,11 @@
 import { parseTemplate, substituteTemplate } from "@pr0/api-contract/variables";
-import {
-  DialogHead,
-  WayfinderDialog,
-} from "@pr0/ui/components/wayfinder-dialog";
+import { VariablesDialogBody } from "@pr0/ui/components/variables-dialog-body";
+import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { usePromptCopy } from "./use-prompt-copy";
 
-const buttonClass = "wf-btn";
 type Copy = ReturnType<typeof usePromptCopy>;
 
 const VariableContainer = ({
@@ -104,111 +101,26 @@ const VariableDialog = ({
       opener={opener}
     >
       <div className="flex min-h-0 flex-1 flex-col" ref={dialogRef}>
-        <DialogHead
-          eyebrow="Variables"
-          title="Fill prompt variables"
-          titleId="variables-heading"
-        />
-        <form
-          autoComplete="off"
-          className="flex min-h-0 flex-1 flex-col"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
+        <VariablesDialogBody
+          title={prompt.title}
+          content={prompt.content}
+          fields={template.fields}
+          values={values}
+          errors={errors}
+          message={message}
+          copyMessage={copy.message}
+          busy={copy.busy}
+          changed={changed}
+          cancelLabel={inline ? "Back to results" : "Cancel"}
+          onValueChange={(name, value) =>
+            setValues(new Map(values).set(name, value))
+          }
+          onSubmit={submit}
+          onRestart={() => {
+            void copy.restartVariables();
           }}
-        >
-          <div className="wf-dialog-body">
-            <p className="wf-row-title">{prompt.title}</p>
-            <p className="wf-hint">
-              All values are required and kept only for this copy interaction.
-              Each value and the combined output may use at most 256 KiB.
-            </p>
-            <details className="wf-hint">
-              <summary>Frozen template</summary>
-              <pre className="wf-mono mt-2 max-h-48 overflow-auto break-words whitespace-pre-wrap">
-                {prompt.content}
-              </pre>
-            </details>
-            {changed ? (
-              <div role="alert" className="wf-notice">
-                <p>
-                  Template changed. Restart with the updated template before
-                  copying.
-                </p>
-                <button
-                  className={`${buttonClass} mt-2`}
-                  disabled={copy.busy}
-                  type="button"
-                  onClick={() => copy.restartVariables()}
-                >
-                  Restart with updated template
-                </button>
-              </div>
-            ) : null}
-            <fieldset disabled={copy.busy} className="flex flex-col gap-4">
-              <legend className="sr-only">Variable values</legend>
-              {template.fields.map((field, index) => (
-                <div className="wf-field" key={field.name}>
-                  <label
-                    className="wf-label"
-                    data-kind="variable"
-                    htmlFor={`variable-${index}`}
-                  >
-                    {field.name} ({field.type})
-                  </label>
-                  <textarea
-                    id={`variable-${index}`}
-                    autoComplete="off"
-                    spellCheck={false}
-                    inputMode={field.type === "number" ? "decimal" : "text"}
-                    aria-required="true"
-                    aria-invalid={errors.has(field.name)}
-                    aria-describedby={
-                      errors.has(field.name)
-                        ? `variable-error-${index}`
-                        : undefined
-                    }
-                    placeholder={`Value for ${field.name}`}
-                    rows={field.type === "number" ? 1 : 3}
-                    value={values.get(field.name) ?? ""}
-                    onChange={(event) => {
-                      setValues(
-                        new Map(values).set(field.name, event.target.value)
-                      );
-                    }}
-                  />
-                  {errors.has(field.name) ? (
-                    <p id={`variable-error-${index}`} className="wf-error">
-                      {errors.get(field.name)}
-                    </p>
-                  ) : null}
-                </div>
-              ))}
-            </fieldset>
-            <p className="wf-error" role="alert">
-              {message}
-            </p>
-            <output className="wf-notice">{copy.message}</output>
-          </div>
-          <footer className="wf-dialog-foot">
-            <span className="wf-grow">Every value is required.</span>
-            <button
-              className={buttonClass}
-              disabled={copy.busy}
-              type="button"
-              onClick={() => copy.cancelVariables()}
-            >
-              {inline ? "Back to results" : "Cancel"}
-            </button>
-            <button
-              className="wf-btn-accent"
-              type="submit"
-              disabled={changed || copy.busy}
-            >
-              {copy.busy ? "Copying…" : "Copy"}
-            </button>
-          </footer>
-        </form>
+          onCancel={() => copy.cancelVariables()}
+        />
       </div>
     </VariableContainer>
   );

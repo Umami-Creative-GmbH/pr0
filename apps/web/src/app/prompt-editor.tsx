@@ -8,13 +8,13 @@ import type {
 } from "@pr0/api-contract/prompts";
 import { parseTemplate } from "@pr0/api-contract/variables";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
+import { EditorFooter } from "@pr0/ui/components/editor-footer";
 import { PromptFields } from "@pr0/ui/components/prompt-fields";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
 import {
   DialogHead,
   WayfinderDialog,
 } from "@pr0/ui/components/wayfinder-dialog";
-import { Braces } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
@@ -23,55 +23,6 @@ import { PromptOriginal } from "./prompt-original";
 import { usePromptEditor } from "./use-prompt-editor";
 
 const buttonClass = "wf-btn";
-const variableHint = (content: string) => {
-  const { fields } = parseTemplate(content);
-  if (!fields.length) {
-    return "{{variable}} is requested when copying";
-  }
-  const names = fields.map((field) => `{{${field.name}}}`).join(" ⦁ ");
-  return `${names} ${fields.length === 1 ? "is" : "are"} requested when copying`;
-};
-const EditorFooter = ({
-  content,
-  saving,
-  failed,
-  saveDisabled,
-  onCancel,
-  onCopy,
-}: {
-  content: string;
-  saving: boolean;
-  failed: boolean;
-  saveDisabled: boolean;
-  onCancel: () => void;
-  onCopy: () => void;
-}) => (
-  <footer className="wf-dialog-foot">
-    <span className="flex items-center gap-2">
-      <Braces aria-hidden="true" size={14} />
-      {variableHint(content)}
-    </span>
-    <span className="wf-grow" />
-    <button
-      className={buttonClass}
-      disabled={saving}
-      onClick={onCancel}
-      type="button"
-    >
-      Cancel
-    </button>
-    <button className={buttonClass} onClick={onCopy} type="button">
-      Copy text
-    </button>
-    <button
-      className="wf-btn-accent"
-      disabled={saving || saveDisabled}
-      type="submit"
-    >
-      {failed ? "Retry" : "Save"}
-    </button>
-  </footer>
-);
 export const PromptEditor = ({
   library,
   collections,
@@ -302,9 +253,11 @@ export const PromptEditor = ({
               </p>
             </div>
             <EditorFooter
-              content={draft.content}
+              variableNames={parseTemplate(draft.content).fields.map(
+                (field) => field.name
+              )}
               saving={state.status === "saving"}
-              failed={state.status === "failed"}
+              retry={state.status === "failed"}
               saveDisabled={tagIds.length > 20}
               onCancel={requestClose}
               onCopy={() => {
