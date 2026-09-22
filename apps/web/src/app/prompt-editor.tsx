@@ -23,6 +23,70 @@ import { PromptOriginal } from "./prompt-original";
 import { usePromptEditor } from "./use-prompt-editor";
 
 const buttonClass = "wf-btn";
+type Editor = ReturnType<typeof usePromptEditor>;
+
+const EditorNotices = ({
+  state,
+  statusRef,
+  statusText,
+  nearingFieldLimit,
+}: Pick<
+  Editor,
+  "state" | "statusRef" | "statusText" | "nearingFieldLimit"
+>) => (
+  <>
+    {state.status === "draft" && state.message ? (
+      <output className="wf-notice">{state.message}</output>
+    ) : null}
+    <p
+      aria-live="polite"
+      className="wf-notice empty:hidden"
+      ref={statusRef}
+      tabIndex={-1}
+    >
+      {statusText}
+    </p>
+    {state.uncertain ? (
+      <p className="wf-hint">
+        Retry confirms the earlier Save with its original text. Any newer edits
+        still need their own Save. Copy text remains available.
+      </p>
+    ) : null}
+    {nearingFieldLimit ? (
+      <p className="wf-hint">
+        A prompt field is at or above 90% of its limit. Input is never
+        truncated.
+      </p>
+    ) : null}
+  </>
+);
+
+const OrganizationErrors = ({
+  fields,
+  tagCount,
+}: {
+  fields: Editor["state"]["fields"];
+  tagCount: number;
+}) => (
+  <>
+    {fields.collectionId ? (
+      <p className="wf-error" role="alert">
+        {fields.collectionId}
+      </p>
+    ) : null}
+    {tagCount > 20 ? (
+      <p className="wf-error" role="alert">
+        Choose at most 20 tags.
+      </p>
+    ) : null}
+    {fields.tagIds ? (
+      <p className="wf-error" role="alert">
+        {fields.tagIds}
+      </p>
+    ) : null}
+  </>
+);
+
 export const PromptEditor = ({
   library,
   collections,
@@ -146,30 +210,12 @@ export const PromptEditor = ({
                   />
                 </div>
               ) : null}
-              {state.status === "draft" && state.message ? (
-                <output className="wf-notice">{state.message}</output>
-              ) : null}
-              <p
-                aria-live="polite"
-                className="wf-notice empty:hidden"
-                ref={statusRef}
-                tabIndex={-1}
-              >
-                {statusText}
-              </p>
-              {state.uncertain ? (
-                <p className="wf-hint">
-                  Retry confirms the earlier Save with its original text. Any
-                  newer edits still need their own Save. Copy text remains
-                  available.
-                </p>
-              ) : null}
-              {nearingFieldLimit ? (
-                <p className="wf-hint">
-                  A prompt field is at or above 90% of its limit. Input is never
-                  truncated.
-                </p>
-              ) : null}
+              <EditorNotices
+                state={state}
+                statusRef={statusRef}
+                statusText={statusText}
+                nearingFieldLimit={nearingFieldLimit}
+              />
               <PromptFields
                 errors={state.fields}
                 onChange={change}
@@ -200,21 +246,10 @@ export const PromptEditor = ({
                     />
                   )}
                 </div>
-                {state.fields.collectionId ? (
-                  <p className="wf-error" role="alert">
-                    {state.fields.collectionId}
-                  </p>
-                ) : null}
-                {tagIds.length > 20 ? (
-                  <p className="wf-error" role="alert">
-                    Choose at most 20 tags.
-                  </p>
-                ) : null}
-                {state.fields.tagIds ? (
-                  <p className="wf-error" role="alert">
-                    {state.fields.tagIds}
-                  </p>
-                ) : null}
+                <OrganizationErrors
+                  fields={state.fields}
+                  tagCount={tagIds.length}
+                />
               </PromptFields>
               {confirmDiscard ? (
                 <section
