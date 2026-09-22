@@ -1,10 +1,19 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
+import { Command, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
-import { useSyncExternalStore } from "react";
+import {
+  createContext,
+  use,
+  useState,
+  useSyncExternalStore,
+  useMemo,
+} from "react";
+import { createPortal } from "react-dom";
 
+import { useDismissable } from "../hooks/use-dismissable";
 import { useLibraryKeyboard } from "../hooks/use-library-keyboard";
+import { initials } from "../lib/present";
 
 const themeKey = "pr0.theme";
 let temporaryTheme: "light" | "dark" | undefined;
@@ -28,18 +37,38 @@ const readTheme = () => {
 };
 const serverTheme = () => "dark";
 
-export const WayfinderShell = ({
+interface AppBarSlots {
+  status: HTMLElement | null;
+  controls: HTMLElement | null;
+  menu: HTMLElement | null;
+}
+const StatusSlot = createContext<AppBarSlots>({
+  status: null,
+  controls: null,
+  menu: null,
+});
+
+/**
+ * Renders real library state into the app bar from wherever that state lives,
+ * so the shell does not need to own synchronization data.
+ */
+export const AppBarStatus = ({
   children,
-  surface,
-  actions,
-  identity,
+  slot = "status",
 }: {
   children: ReactNode;
-  surface: "web" | "desktop" | "launcher";
-  actions?: ReactNode;
-  identity?: string | null;
+  /** `controls` sits before theme and account; `menu` is inside the account menu. */
+  slot?: keyof AppBarSlots;
 }) => {
-  const theme = useSyncExternalStore(subscribe, readTheme, serverTheme);
+  const target = use(StatusSlot)[slot];
+  return target ? createPortal(children, target) : null;
+};
+
+const useTheme = () => useSyncExternalStore(subscribe, readTheme, serverTheme);
+
+/** Switches the theme shared by every pr0 window of this origin. */
+export const ThemeToggle = ({ size = "md" }: { size?: "sm" | "md" }) => {
+  const theme = useTheme();
   const toggleTheme = () => {
     temporaryTheme = theme === "dark" ? "light" : "dark";
     try {
@@ -51,29 +80,115 @@ export const WayfinderShell = ({
     window.dispatchEvent(new Event("pr0-theme"));
   };
   return (
+    <button
+      className="wf-icon-btn"
+      data-size={size}
+      type="button"
+      onClick={toggleTheme}
+      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+    >
+      {theme === "dark" ? (
+        <Sun aria-hidden="true" size={15} />
+      ) : (
+        <Moon aria-hidden="true" size={15} />
+      )}
+    </button>
+  );
+};
+
+export const Wordmark = ({ size }: { size?: "lg" }) => (
+  <span className="wf-wordmark" data-size={size}>
+    pr<span>0</span>
+  </span>
+);
+
+/** A disclosure in the app bar whose content floats below it. */
+export const AppMenu = ({
+  label,
+  summary,
+  variant,
+  children,
+}: {
+  label?: string;
+  summary: ReactNode;
+  /** `sync` styles the summary as the app bar's status indicator. */
+  variant?: "sync";
+  children: ReactNode;
+}) => {
+  const ref = useDismissable();
+  return (
+    <details className="wf-menu" ref={ref}>
+      <summary
+        aria-label={label}
+        className={variant === "sync" ? "wf-sync" : undefined}
+      >
+        {summary}
+      </summary>
+      <div className="wf-popover">{children}</div>
+    </details>
+  );
+};
+
+export const WayfinderShell = ({
+  children,
+  surface,
+  actions,
+  status,
+  identity,
+  menu,
+}: {
+  children: ReactNode;
+  surface: "web" | "desktop" | "launcher";
+  /** Surface entry point: browser quick access or the native launcher shortcut. */
+  actions?: ReactNode;
+  /** Real account, save and synchronization state. */
+  status?: ReactNode;
+  identity?: string | null;
+  /** Account menu content shown beneath the identity. */
+  menu?: ReactNode;
+}) => {
+  const theme = useTheme();
+  const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
+  const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
+  const [menuSlot, setMenuSlot] = useState<HTMLElement | null>(null);
+  const slots = useMemo(
+    () => ({ status: statusSlot, controls: controlsSlot, menu: menuSlot }),
+    [statusSlot, controlsSlot, menuSlot]
+  );
+  const desktop = surface === "desktop";
+  return (
     <div className="wf" data-theme={theme} data-surface={surface}>
-      <header className="wf-chrome">
-        <span className="wf-wordmark">
-          pr<span>0</span>
-        </span>
-        {actions}
-        <span className="wf-chrome-space" />
-        {identity ? <span className="wf-identity">{identity}</span> : null}
-        <button
-          className="wf-theme"
-          type="button"
-          onClick={toggleTheme}
-          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-        >
-          {theme === "dark" ? (
-            <Sun aria-hidden="true" size={16} />
-          ) : (
-            <Moon aria-hidden="true" size={16} />
-          )}
-          {theme === "dark" ? "Light" : "Dark"}
-        </button>
+      <header className="wf-appbar" data-surface={surface}>
+        <Wordmark />
+        {desktop ? null : actions}
+        <span className="wf-grow" />
+        <div className="contents" ref={setStatusSlot}>
+          {status}
+        </div>
+        {desktop ? actions : null}
+        <div className="contents" ref={setControlsSlot} />
+        <ThemeToggle />
+        {identity || menu || desktop ? (
+          <AppMenu
+            label="Account menu"
+            summary={
+              <span className="wf-avatar" aria-hidden="true">
+                {initials(identity)}
+              </span>
+            }
+          >
+            {identity ? (
+              <p className="wf-identity">
+                <span className="wf-eyebrow">Signed in as</span>
+                <strong title={identity}>{identity}</strong>
+              </p>
+            ) : null}
+            {menu}
+            <div className="contents" ref={setMenuSlot} />
+          </AppMenu>
+        ) : null}
       </header>
-      {children}
+      <StatusSlot value={slots}>{children}</StatusSlot>
     </div>
   );
 };
@@ -100,13 +215,10 @@ export const LibraryWorkspace = ({
   );
 };
 
-export const EmptyDetail = () => (
+export const EmptyDetail = ({ hint }: { hint: string }) => (
   <div className="wf-empty">
-    <span className="wf-eyebrow">Your prompt library</span>
+    <Command aria-hidden="true" size={30} />
     <h2>No prompt selected</h2>
-    <p>
-      Choose a prompt to read, edit or copy it. Create a prompt to start
-      something new.
-    </p>
+    <p>{hint}</p>
   </div>
 );

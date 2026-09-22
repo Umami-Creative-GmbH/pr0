@@ -92,7 +92,7 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
               type="password"
             />
           </label>
-          <button className="rounded border p-2" disabled={busy} type="submit">
+          <button className="wf-btn" disabled={busy} type="submit">
             Sign in
           </button>
           <p>
@@ -102,7 +102,7 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
             . Then return to this tab.
           </p>
           <button
-            className="rounded border p-2"
+            className="wf-btn"
             disabled={busy}
             onClick={() => {
               void account.refetch();
@@ -134,7 +134,7 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
           </p>
           <div className="flex gap-3">
             <button
-              className="rounded border p-2"
+              className="wf-btn"
               disabled={busy || !/^[A-Z2-9]{8}$/u.test(code)}
               onClick={() => decide(true)}
               type="button"
@@ -142,7 +142,7 @@ export const DeviceApproval = ({ initialCode }: { initialCode: string }) => {
               Approve matching code
             </button>
             <button
-              className="rounded border p-2"
+              className="wf-btn"
               disabled={busy}
               onClick={() => decide(false)}
               type="button"

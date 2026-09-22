@@ -99,7 +99,7 @@ export const LocalConflicts = ({
     return null;
   }
   return (
-    <details className="space-y-3 rounded border p-3">
+    <details className="wf-notice" data-tone="attention">
       <summary ref={summary}>Conflicts to review</summary>
       <p>
         Competing edits were preserved independently. Reviewing keeps the text;

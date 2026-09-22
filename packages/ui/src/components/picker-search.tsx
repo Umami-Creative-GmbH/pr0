@@ -1,19 +1,12 @@
 import type { ReactNode } from "react";
 
+export const pickerSearchThreshold = 8;
+/** Shows a picker's search field once its list is long enough to need one. */
 export const PickerSearch = ({
-  compact,
-  label,
+  count,
   children,
 }: {
-  compact: boolean;
-  label: string;
+  /** Entries available to search; short lists need no search field. */
+  count: number;
   children: ReactNode;
-}) =>
-  compact ? (
-    <details className="wf-picker-search">
-      <summary>Search {label.toLowerCase()}</summary>
-      {children}
-    </details>
-  ) : (
-    children
-  );
+}) => (count > pickerSearchThreshold ? children : null);

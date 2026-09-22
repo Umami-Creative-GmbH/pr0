@@ -6,10 +6,15 @@ import type {
   Prompt,
   MutationReceipt,
 } from "@pr0/api-contract/prompts";
+import { parseTemplate } from "@pr0/api-contract/variables";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
 import { PromptFields } from "@pr0/ui/components/prompt-fields";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
-import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
+import {
+  DialogHead,
+  WayfinderDialog,
+} from "@pr0/ui/components/wayfinder-dialog";
+import { Braces } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
@@ -17,8 +22,56 @@ import { collectionMatches } from "./collection-query";
 import { PromptOriginal } from "./prompt-original";
 import { usePromptEditor } from "./use-prompt-editor";
 
-const buttonClass =
-  "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
+const buttonClass = "wf-btn";
+const variableHint = (content: string) => {
+  const { fields } = parseTemplate(content);
+  if (!fields.length) {
+    return "{{variable}} is requested when copying";
+  }
+  const names = fields.map((field) => `{{${field.name}}}`).join(" ⦁ ");
+  return `${names} ${fields.length === 1 ? "is" : "are"} requested when copying`;
+};
+const EditorFooter = ({
+  content,
+  saving,
+  failed,
+  saveDisabled,
+  onCancel,
+  onCopy,
+}: {
+  content: string;
+  saving: boolean;
+  failed: boolean;
+  saveDisabled: boolean;
+  onCancel: () => void;
+  onCopy: () => void;
+}) => (
+  <footer className="wf-dialog-foot">
+    <span className="flex items-center gap-2">
+      <Braces aria-hidden="true" size={14} />
+      {variableHint(content)}
+    </span>
+    <span className="wf-grow" />
+    <button
+      className={buttonClass}
+      disabled={saving}
+      onClick={onCancel}
+      type="button"
+    >
+      Cancel
+    </button>
+    <button className={buttonClass} onClick={onCopy} type="button">
+      Copy text
+    </button>
+    <button
+      className="wf-btn-accent"
+      disabled={saving || saveDisabled}
+      type="submit"
+    >
+      {failed ? "Retry" : "Save"}
+    </button>
+  </footer>
+);
 export const PromptEditor = ({
   library,
   collections,
@@ -70,9 +123,21 @@ export const PromptEditor = ({
   });
   const [browsing, setBrowsing] = useState(false);
   const editorLabel = prompt ? "Edit prompt" : "Create prompt";
+  const locked = !prompt && (state.status === "saving" || state.uncertain);
+  const requestClose = () => {
+    if (state.status === "saving") {
+      return;
+    }
+    if (dirty || state.uncertain) {
+      setConfirmDiscard(true);
+    } else {
+      discard();
+    }
+  };
   return (
     <>
       <button
+        className="wf-btn-quiet"
         hidden={!browsing}
         type="button"
         onClick={() => setBrowsing(false)}
@@ -82,172 +147,171 @@ export const PromptEditor = ({
       <WayfinderDialog
         suspended={browsing}
         label={editorLabel}
-        onRequestClose={() => {
-          if (state.status === "saving") {
-            return;
-          }
-          if (dirty || state.uncertain) {
-            setConfirmDiscard(true);
-          } else {
-            discard();
-          }
-        }}
+        onRequestClose={requestClose}
       >
-        <section
-          aria-labelledby="editor-heading"
-          className="rounded-lg border p-6"
-        >
-          <button type="button" onClick={() => setBrowsing(true)}>
-            Browse library (keep draft)
-          </button>
-          {savedActions}
-          <h2 className="text-xl font-semibold" id="editor-heading">
-            {editorLabel}
-          </h2>
-          <p className="text-muted-foreground mt-2 text-sm">
-            Only title and content are required. This draft stays in this open
-            tab; closing or reloading the tab may lose it.
-          </p>
-          {mappedOriginal ? (
-            <div className="my-3 rounded-md border p-3">
-              <p>You&apos;re editing the conflict copy.</p>
-              <PromptOriginal
-                library={library}
-                id={mappedOriginal}
-                onOpen={(id) => {
-                  onOpen(id);
-                  setBrowsing(true);
-                }}
-              />
-            </div>
-          ) : null}
-          {state.status === "draft" && state.message ? (
-            <output>{state.message}</output>
-          ) : null}
-          <p aria-live="polite" className="my-3" ref={statusRef} tabIndex={-1}>
-            {statusText}
-          </p>
-          {state.uncertain ? (
-            <p className="mb-3 text-sm">
-              Retry confirms the earlier Save with its original text. Any newer
-              edits still need their own Save. Copy text remains available.
-            </p>
-          ) : null}
-          {nearingFieldLimit ? (
-            <p className="mb-3 text-sm">
-              A prompt field is at or above 90% of its limit. Input is never
-              truncated.
-            </p>
-          ) : null}
+        {/* Journeys and assistive technology address the editor as a named region. */}
+        <section aria-label={editorLabel} className="contents">
+          <DialogHead
+            eyebrow={prompt ? "Edit prompt" : "New prompt"}
+            title={prompt ? draft.title || prompt.title : "Create prompt"}
+            titleId="editor-heading"
+            closeLabel="Close editor"
+            closeDisabled={state.status === "saving"}
+            onClose={requestClose}
+          />
           <form
-            className="space-y-4"
+            aria-labelledby="editor-heading"
+            className="flex min-h-0 flex-1 flex-col"
             noValidate
             onSubmit={(event) => {
               void save(event);
             }}
           >
-            <PromptFields
-              errors={state.fields}
-              onChange={change}
-              readOnly={
-                !prompt && (state.status === "saving" || state.uncertain)
-              }
-              titleRef={titleRef}
-              value={draft}
-            />
-            <CollectionPicker
-              collections={collections}
-              label="Collection (optional)"
-              emptyLabel="No collection"
-              value={draft.collectionId}
-              search={collectionMatches}
-              disabled={
-                !prompt && (state.status === "saving" || state.uncertain)
-              }
-              onChange={(collectionId) => change({ ...draft, collectionId })}
-            />
-            {state.fields.collectionId ? (
-              <p role="alert">{state.fields.collectionId}</p>
-            ) : null}
-            {prompt ? null : (
-              <TagPicker
-                label="Tags (optional)"
-                tags={tags}
-                value={tagIds}
-                onChange={changeTags}
-                search={collectionMatches}
-                disabled={state.status === "saving" || state.uncertain}
-              />
-            )}
-            {tagIds.length > 20 ? (
-              <p role="alert">Choose at most 20 tags.</p>
-            ) : null}
-            {state.fields.tagIds ? (
-              <p role="alert">{state.fields.tagIds}</p>
-            ) : null}
-            <div className="flex flex-wrap gap-3">
-              <button
-                className={buttonClass}
-                disabled={state.status === "saving" || tagIds.length > 20}
-                type="submit"
-              >
-                {state.status === "failed" ? "Retry" : "Save"}
-              </button>
-              <button
-                className={buttonClass}
-                onClick={() => {
-                  void copy();
-                }}
-                type="button"
-              >
-                Copy text
-              </button>
-              <button
-                className={buttonClass}
-                disabled={state.status === "saving"}
-                onClick={() => {
-                  if (dirty || state.uncertain) {
-                    setConfirmDiscard(true);
-                  } else {
-                    discard();
-                  }
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-          {confirmDiscard ? (
-            <section
-              aria-label="Discard unsaved prompt"
-              className="mt-4 rounded-md border p-3"
-            >
-              <p>
-                {state.uncertain
-                  ? "Discard this open-tab draft? The server may already have saved this prompt. Retry first to confirm its outcome."
-                  : "Discard this unsaved prompt? Your draft will be lost."}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-3">
-                <button className={buttonClass} onClick={discard} type="button">
-                  Discard draft
-                </button>
+            <div className="wf-dialog-body">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  className={buttonClass}
-                  onClick={() => {
-                    setConfirmDiscard(false);
-                    titleRef.current?.focus();
-                  }}
+                  className="wf-btn-quiet"
                   type="button"
+                  onClick={() => setBrowsing(true)}
                 >
-                  Keep editing
+                  Browse library (keep draft)
                 </button>
+                {savedActions}
               </div>
-            </section>
-          ) : null}
-          <p aria-live="polite" className="mt-3 text-sm">
-            {copyMessage}
-          </p>
+              <p className="wf-hint">
+                Only title and content are required. This draft stays in this
+                open tab; closing or reloading the tab may lose it.
+              </p>
+              {mappedOriginal ? (
+                <div className="wf-notice">
+                  <p>You&apos;re editing the conflict copy.</p>
+                  <PromptOriginal
+                    library={library}
+                    id={mappedOriginal}
+                    onOpen={(id) => {
+                      onOpen(id);
+                      setBrowsing(true);
+                    }}
+                  />
+                </div>
+              ) : null}
+              {state.status === "draft" && state.message ? (
+                <output className="wf-notice">{state.message}</output>
+              ) : null}
+              <p
+                aria-live="polite"
+                className="wf-notice empty:hidden"
+                ref={statusRef}
+                tabIndex={-1}
+              >
+                {statusText}
+              </p>
+              {state.uncertain ? (
+                <p className="wf-hint">
+                  Retry confirms the earlier Save with its original text. Any
+                  newer edits still need their own Save. Copy text remains
+                  available.
+                </p>
+              ) : null}
+              {nearingFieldLimit ? (
+                <p className="wf-hint">
+                  A prompt field is at or above 90% of its limit. Input is never
+                  truncated.
+                </p>
+              ) : null}
+              <PromptFields
+                errors={state.fields}
+                onChange={change}
+                readOnly={locked}
+                titleRef={titleRef}
+                value={draft}
+              >
+                <div className="wf-field-row">
+                  <CollectionPicker
+                    collections={collections}
+                    label="Collection (optional)"
+                    emptyLabel="No collection"
+                    value={draft.collectionId}
+                    search={collectionMatches}
+                    disabled={locked}
+                    onChange={(collectionId) =>
+                      change({ ...draft, collectionId })
+                    }
+                  />
+                  {prompt ? null : (
+                    <TagPicker
+                      label="Tags (optional)"
+                      tags={tags}
+                      value={tagIds}
+                      onChange={changeTags}
+                      search={collectionMatches}
+                      disabled={state.status === "saving" || state.uncertain}
+                    />
+                  )}
+                </div>
+                {state.fields.collectionId ? (
+                  <p className="wf-error" role="alert">
+                    {state.fields.collectionId}
+                  </p>
+                ) : null}
+                {tagIds.length > 20 ? (
+                  <p className="wf-error" role="alert">
+                    Choose at most 20 tags.
+                  </p>
+                ) : null}
+                {state.fields.tagIds ? (
+                  <p className="wf-error" role="alert">
+                    {state.fields.tagIds}
+                  </p>
+                ) : null}
+              </PromptFields>
+              {confirmDiscard ? (
+                <section
+                  aria-label="Discard unsaved prompt"
+                  className="wf-notice"
+                  data-tone="attention"
+                >
+                  <p>
+                    {state.uncertain
+                      ? "Discard this open-tab draft? The server may already have saved this prompt. Retry first to confirm its outcome."
+                      : "Discard this unsaved prompt? Your draft will be lost."}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <button
+                      className="wf-btn wf-btn-danger"
+                      onClick={discard}
+                      type="button"
+                    >
+                      Discard draft
+                    </button>
+                    <button
+                      className={buttonClass}
+                      onClick={() => {
+                        setConfirmDiscard(false);
+                        titleRef.current?.focus();
+                      }}
+                      type="button"
+                    >
+                      Keep editing
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+              <p aria-live="polite" className="wf-hint empty:hidden">
+                {copyMessage}
+              </p>
+            </div>
+            <EditorFooter
+              content={draft.content}
+              saving={state.status === "saving"}
+              failed={state.status === "failed"}
+              saveDisabled={tagIds.length > 20}
+              onCancel={requestClose}
+              onCopy={() => {
+                void copy();
+              }}
+            />
+          </form>
         </section>
       </WayfinderDialog>
     </>

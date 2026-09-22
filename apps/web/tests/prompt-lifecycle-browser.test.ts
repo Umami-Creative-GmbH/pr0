@@ -2,6 +2,13 @@ import { expect, test } from "bun:test";
 
 import { chromium } from "playwright";
 
+import {
+  browseKeepingDraft,
+  openActionsMenu,
+  openActionsMenuByKeyboard,
+  resumeDraft,
+  trackNetwork,
+} from "./app-menus";
 import { origin } from "./http-fixture";
 import { seedCapacity } from "./prompt-capacity-fixture";
 import {
@@ -15,7 +22,10 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
   const account = await promptBrowser();
   const create = promptOperation();
   await account.mutate([create]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -31,13 +41,15 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
       })
     );
     const page = await context.newPage();
+    const network = trackNetwork(page);
     await page.goto(origin);
     const row = page.getByRole("button", {
       name: "Writing helper",
       exact: true,
     });
     await row.focus();
-    await page.keyboard.press("Enter");
+    // Enter on a focused row copies it; Space activates the row without copying.
+    await page.keyboard.press("Space");
     const favorite = page.getByRole("button", {
       name: "Favorite Writing helper",
       exact: true,
@@ -49,6 +61,8 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
       name: "Writing helper",
       exact: true,
     });
+    // Lifecycle actions rest inside the detail's "More prompt actions" menu.
+    await openActionsMenuByKeyboard(page, detail, "More prompt actions");
     await detail
       .getByRole("button", { name: "Archive prompt", exact: true })
       .focus();
@@ -57,14 +71,14 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
     await page.getByRole("button", { name: "Archive", exact: true }).focus();
     await page.keyboard.press("Enter");
     await row.focus();
-    await page.keyboard.press("Enter");
+    await page.keyboard.press("Space");
     await page
       .getByRole("button", { name: "Edit prompt", exact: true })
       .click();
     await page.getByLabel("Content (required)").fill("Retained archive edit");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await page.getByText("Saved to server.", { exact: true }).waitFor();
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     const payloads: string[] = [];
     await page.route("**/api/v1/sync/mutations", async (route) => {
       payloads.push(route.request().postData() ?? "");
@@ -73,6 +87,7 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
         ? route.abort("failed")
         : route.fulfill({ response }));
     });
+    await openActionsMenuByKeyboard(page, detail, "More prompt actions");
     await detail
       .getByRole("button", { name: "Duplicate prompt", exact: true })
       .focus();
@@ -98,6 +113,7 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
       name: "Restore prompt",
       exact: true,
     });
+    await openActionsMenu(detail, "More prompt actions");
     // A cached archive row may render before its canonical detail refresh finishes.
     await restore.click({ trial: true });
     await restore.focus();
@@ -105,7 +121,7 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
     await page.getByText("Prompt restored.", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Favorites", exact: true }).click();
     await row.waitFor();
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     await page.screenshot({
       path: "docs/evidence/issue-31-lifecycle.png",
       fullPage: true,
@@ -142,7 +158,10 @@ test("multiple externally archived selections refresh stale rows without cycling
     client.getPrompt(a.promptId),
     client.getPrompt(b.promptId),
   ]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(
@@ -156,22 +175,31 @@ test("multiple externally archived selections refresh stale rows without cycling
       })
     );
     const page = await context.newPage();
+    const network = trackNetwork(page);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(origin);
     await page
       .getByRole("heading", { name: "External B", exact: true })
       .waitFor();
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     await account.mutate(
       sources.map((source) => promptState(source, "archived", true))
     );
     await page.evaluate(() =>
       window.dispatchEvent(new Event("visibilitychange"))
     );
+    // Archived prompts still count toward the library, so since #37 the list
+    // reports no active prompts rather than an empty library.
     await page
-      .getByRole("heading", { name: "Your library is empty", exact: true })
+      .getByText(
+        "No active prompts. Create a prompt or open the Archive view.",
+        { exact: true }
+      )
       .waitFor();
+    expect(
+      await page.getByRole("button", { name: /^External [AB]$/u }).count()
+    ).toBe(0);
     expect(await page.getByLabel("Saved content").count()).toBe(0);
     expect(errors).toEqual([]);
   } finally {
@@ -198,7 +226,10 @@ test("automatic selection follows identity across reordering and checks archive 
     first,
   ]);
   const source = await client.getPrompt(first.promptId);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(
@@ -212,6 +243,7 @@ test("automatic selection follows identity across reordering and checks archive 
       })
     );
     const page = await context.newPage();
+    const network = trackNetwork(page);
     await page.goto(origin);
     await page
       .getByRole("heading", { name: "Selected A", exact: true })
@@ -220,7 +252,7 @@ test("automatic selection follows identity across reordering and checks archive 
       .getByRole("button", { name: "Favorite Other B", exact: true })
       .click();
     await page.getByText("Favorite updated.", { exact: true }).waitFor();
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     expect(
       await page
         .getByRole("heading", { name: "Selected A", exact: true })
@@ -233,7 +265,7 @@ test("automatic selection follows identity across reordering and checks archive 
     await page
       .getByRole("button", { name: "Favorite Other B", exact: true })
       .waitFor();
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     expect(
       await page
         .getByRole("heading", { name: "Selected A", exact: true })
@@ -265,7 +297,10 @@ test("quota errors keep the duplicate snapshot available while archive changes p
     content: "Preserve this source",
   });
   await account.mutate([create]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       permissions: ["clipboard-read", "clipboard-write"],
@@ -281,6 +316,7 @@ test("quota errors keep the duplicate snapshot available while archive changes p
       })
     );
     const page = await context.newPage();
+    const network = trackNetwork(page);
     await page.goto(origin);
     await page
       .getByRole("button", { name: "Capacity source", exact: true })
@@ -291,11 +327,18 @@ test("quota errors keep the duplicate snapshot available while archive changes p
     await page
       .getByLabel("Content (required)")
       .fill("Keep my unsaved editor text");
+    // The editor is modal; keep the draft mounted while archiving behind it.
+    await browseKeepingDraft(page);
+    await openActionsMenuByKeyboard(page, page, "More prompt actions");
     await page
       .getByRole("button", { name: "Archive prompt", exact: true })
       .focus();
     await page.keyboard.press("Enter");
     await page.getByText("Prompt archived.", { exact: true }).waitFor();
+    expect(await page.getByLabel("Content (required)").inputValue()).toBe(
+      "Keep my unsaved editor text"
+    );
+    await resumeDraft(page);
     expect(await page.getByLabel("Content (required)").inputValue()).toBe(
       "Keep my unsaved editor text"
     );
@@ -305,11 +348,14 @@ test("quota errors keep the duplicate snapshot available while archive changes p
     await page
       .getByRole("button", { name: "Capacity source", exact: true })
       .click();
+    await openActionsMenuByKeyboard(page, page, "More prompt actions");
     await page
       .getByRole("button", { name: "Duplicate prompt", exact: true })
       .focus();
     await page.keyboard.press("Enter");
+    // The attention link repeats this text; assert the recovery alert itself.
     await page
+      .getByRole("alert")
       .getByText(
         "Your library has reached 10,000 prompts. Archiving does not free capacity.",
         { exact: true }
@@ -332,7 +378,7 @@ test("quota errors keep the duplicate snapshot available while archive changes p
     await page
       .getByRole("button", { name: "Dismiss action", exact: true })
       .waitFor();
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     await page.screenshot({
       path: "docs/evidence/issue-31-quota.png",
       fullPage: true,
@@ -340,6 +386,7 @@ test("quota errors keep the duplicate snapshot available while archive changes p
     await page
       .getByRole("button", { name: "Dismiss action", exact: true })
       .click();
+    await openActionsMenu(page, "More prompt actions");
     await page
       .getByRole("button", { name: "Restore prompt", exact: true })
       .click();

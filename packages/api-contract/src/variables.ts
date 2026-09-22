@@ -38,10 +38,16 @@ const candidateEnd = (text: string, start: number) => {
   return end;
 };
 
-export const parseTemplate = (content: string): PromptTemplate => {
-  const fields = new Map<string, PromptVariable>();
-  const segments: Segment[] = [];
-  let literalStart = 0;
+interface Placeholder {
+  start: number;
+  end: number;
+  name: string;
+  type: PromptVariable["type"];
+  escaped: boolean;
+}
+// One scanner backs parsing and display, so highlighting cannot drift from substitution.
+const scanPlaceholders = (content: string): Placeholder[] => {
+  const found: Placeholder[] = [];
   let cursor = 0;
   while (cursor < content.length) {
     if (content[cursor] !== "{" || content[cursor + 1] !== "{") {
@@ -49,33 +55,72 @@ export const parseTemplate = (content: string): PromptTemplate => {
       continue;
     }
     const end = candidateEnd(content, cursor);
-    const token = content.slice(cursor, end);
-    const match = placeholder.exec(token);
+    const match = placeholder.exec(content.slice(cursor, end));
     const name = match?.groups?.name;
     if (name) {
-      const escaped = content[cursor - 1] === "\\";
-      segments.push({
-        text: content.slice(literalStart, cursor - (escaped ? 1 : 0)),
+      found.push({
+        start: cursor,
+        end,
+        name,
+        type: match?.groups?.type === "number" ? "number" : "string",
+        escaped: content[cursor - 1] === "\\",
       });
-      if (escaped) {
-        segments.push({ text: token });
-      } else {
-        const type = match?.groups?.type === "number" ? "number" : "string";
-        const previous = fields.get(name);
-        fields.set(name, {
-          name,
-          type: previous?.type === "number" ? "number" : type,
-        });
-        segments.push({ name });
-      }
-      literalStart = end;
     }
     cursor = end;
+  }
+  return found;
+};
+
+export const parseTemplate = (content: string): PromptTemplate => {
+  const fields = new Map<string, PromptVariable>();
+  const segments: Segment[] = [];
+  let literalStart = 0;
+  for (const token of scanPlaceholders(content)) {
+    segments.push({
+      text: content.slice(literalStart, token.start - (token.escaped ? 1 : 0)),
+    });
+    if (token.escaped) {
+      segments.push({ text: content.slice(token.start, token.end) });
+    } else {
+      const previous = fields.get(token.name);
+      fields.set(token.name, {
+        name: token.name,
+        type: previous?.type === "number" ? "number" : token.type,
+      });
+      segments.push({ name: token.name });
+    }
+    literalStart = token.end;
   }
   segments.push({ text: content.slice(literalStart) });
   return { fields: [...fields.values()], segments };
 };
 
+export interface TemplateSpan {
+  text: string;
+  variable?: string;
+}
+/** Splits stored content for display. Joined span text always equals the source. */
+export const templateSpans = (content: string): TemplateSpan[] => {
+  const spans: TemplateSpan[] = [];
+  let literalStart = 0;
+  for (const token of scanPlaceholders(content)) {
+    if (token.escaped) {
+      continue;
+    }
+    if (token.start > literalStart) {
+      spans.push({ text: content.slice(literalStart, token.start) });
+    }
+    spans.push({
+      text: content.slice(token.start, token.end),
+      variable: token.name,
+    });
+    literalStart = token.end;
+  }
+  if (literalStart < content.length) {
+    spans.push({ text: content.slice(literalStart) });
+  }
+  return spans;
+};
 export const variableError = (
   field: PromptVariable,
   value: string

@@ -4,7 +4,12 @@ import type {
   UploadStatus,
 } from "@pr0/api-contract/local-prompts";
 import type { PromptText } from "@pr0/api-contract/prompts";
-import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
+import { parseTemplate } from "@pr0/api-contract/variables";
+import {
+  DialogHead,
+  WayfinderDialog,
+} from "@pr0/ui/components/wayfinder-dialog";
+import { Braces } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { z } from "zod";
@@ -46,33 +51,42 @@ const PromptFields = ({
   change: (field: keyof PromptText, value: string) => void;
 }) => (
   <>
-    <label className="block" htmlFor="draft-title">
-      Title
-    </label>
-    <input
-      id="draft-title"
-      className="block w-full rounded border p-2"
-      value={draft.title}
-      onChange={(event) => change("title", event.target.value)}
-    />
-    <label className="block" htmlFor="draft-description">
-      Description
-    </label>
-    <textarea
-      id="draft-description"
-      className="block w-full rounded border p-2"
-      value={draft.description}
-      onChange={(event) => change("description", event.target.value)}
-    />
-    <label className="block" htmlFor="draft-content">
-      Content
-    </label>
-    <textarea
-      id="draft-content"
-      className="min-h-48 w-full rounded border p-2"
-      value={draft.content}
-      onChange={(event) => change("content", event.target.value)}
-    />
+    <div className="wf-field">
+      <label className="wf-label" htmlFor="draft-title">
+        Title
+      </label>
+      <input
+        id="draft-title"
+        placeholder="e.g. Website accessibility audit"
+        value={draft.title}
+        onChange={(event) => change("title", event.target.value)}
+      />
+    </div>
+    <div className="wf-field">
+      <label className="wf-label" htmlFor="draft-description">
+        Description
+      </label>
+      <textarea
+        className="font-sans"
+        id="draft-description"
+        placeholder="One sentence on what this prompt is good for"
+        rows={2}
+        value={draft.description}
+        onChange={(event) => change("description", event.target.value)}
+      />
+    </div>
+    <div className="wf-field">
+      <label className="wf-label" htmlFor="draft-content">
+        Content
+      </label>
+      <textarea
+        data-size="lg"
+        id="draft-content"
+        rows={10}
+        value={draft.content}
+        onChange={(event) => change("content", event.target.value)}
+      />
+    </div>
   </>
 );
 
@@ -85,14 +99,25 @@ const DiscardConfirmation = ({
   onCancel: () => void;
   onKeep: () => void;
 }) => (
-  <section aria-label="Discard draft confirmation">
+  <section
+    aria-label="Discard draft confirmation"
+    className="wf-notice"
+    data-tone="attention"
+  >
     <p>Discard this unsaved draft? Its text will be lost.</p>
-    <button type="button" disabled={saving} onClick={onCancel}>
-      Discard draft
-    </button>
-    <button type="button" onClick={onKeep}>
-      Keep editing
-    </button>
+    <div className="mt-3 flex flex-wrap gap-3">
+      <button
+        className="wf-btn wf-btn-danger"
+        type="button"
+        disabled={saving}
+        onClick={onCancel}
+      >
+        Discard draft
+      </button>
+      <button className="wf-btn" type="button" onClick={onKeep}>
+        Keep editing
+      </button>
+    </div>
   </section>
 );
 
@@ -104,13 +129,98 @@ const EditorSaveStatus = ({
   saveError: string;
 }) => (
   <>
-    {" "}
-    <p aria-live="polite">
+    <p aria-live="polite" className="wf-notice">
       {saving ? "Saving…" : ""}
       {!saving && saveError ? "Not saved" : ""}
       {!saving && !saveError ? "Unsaved changes" : ""}
     </p>
-    {saveError ? <p role="alert">{saveError}</p> : null}
+    {saveError ? (
+      <p className="wf-notice" role="alert">
+        {saveError}
+      </p>
+    ) : null}
+  </>
+);
+
+const variableHint = (content: string) => {
+  const { fields } = parseTemplate(content);
+  if (!fields.length) {
+    return "{{variable}} is requested when copying";
+  }
+  const names = fields.map((field) => `{{${field.name}}}`).join(" ⦁ ");
+  return `${names} ${fields.length === 1 ? "is" : "are"} requested when copying`;
+};
+
+const EditorFooter = ({
+  content,
+  saving,
+  retry,
+  onCancel,
+  onCopy,
+  onSaveAsNew,
+}: {
+  content: string;
+  saving: boolean;
+  retry: boolean;
+  onCancel: () => void;
+  onCopy: () => void;
+  /** Present only after a conflict that a new prompt can resolve. */
+  onSaveAsNew?: () => void;
+}) => (
+  <footer className="wf-dialog-foot">
+    <span className="flex items-center gap-2">
+      <Braces aria-hidden="true" size={14} />
+      {variableHint(content)}
+    </span>
+    <span className="wf-grow" />
+    <button
+      className="wf-btn"
+      disabled={saving}
+      type="button"
+      onClick={onCancel}
+    >
+      Cancel
+    </button>
+    <button className="wf-btn" type="button" onClick={onCopy}>
+      Copy text
+    </button>
+    {onSaveAsNew ? (
+      <button className="wf-btn" type="button" onClick={onSaveAsNew}>
+        Save as new prompt
+      </button>
+    ) : null}
+    <button className="wf-btn-accent" disabled={saving} type="submit">
+      {retry ? "Retry" : "Save"}
+    </button>
+  </footer>
+);
+
+/** Ways out to the library that keep the mounted draft. */
+const EditorContext = ({
+  redirected,
+  onBrowse,
+  onOpenOriginal,
+}: {
+  redirected: boolean;
+  onBrowse: () => void;
+  onOpenOriginal?: () => void;
+}) => (
+  <>
+    <div className="flex flex-wrap items-center gap-2">
+      <button className="wf-btn-quiet" type="button" onClick={onBrowse}>
+        Browse library (keep draft)
+      </button>
+      {onOpenOriginal ? (
+        <button className="wf-btn-quiet" type="button" onClick={onOpenOriginal}>
+          Open original
+        </button>
+      ) : null}
+    </div>
+    {redirected ? (
+      <p className="wf-notice">
+        You&apos;re editing the conflict copy. Your unsaved text is retained.
+      </p>
+    ) : null}
   </>
 );
 
@@ -318,9 +428,15 @@ export const LocalPromptEditor = ({
   };
   const [browsing, setBrowsing] = useState(false);
   const editorLabel = initial ? "Edit prompt" : "New prompt";
+  const requestClose = () => {
+    if (!saving) {
+      setDiscard(true);
+    }
+  };
   return (
     <>
       <button
+        className="wf-btn-quiet"
         hidden={!browsing}
         type="button"
         onClick={() => setBrowsing(false)}
@@ -330,85 +446,70 @@ export const LocalPromptEditor = ({
       <WayfinderDialog
         suspended={browsing}
         label={editorLabel}
-        onRequestClose={() => {
-          if (!saving) {
-            setDiscard(true);
-          }
-        }}
+        onRequestClose={requestClose}
       >
+        <DialogHead
+          eyebrow={editorLabel}
+          title={
+            initial ? draft.title || initial.prompt.title : "Create a prompt"
+          }
+          closeLabel="Close editor"
+          closeDisabled={saving}
+          onClose={requestClose}
+        />
         <form
           aria-label="Prompt editor"
-          className="space-y-4 rounded border p-4"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={submit}
         >
-          <button type="button" onClick={() => setBrowsing(true)}>
-            Browse library (keep draft)
-          </button>
-          {originalId ? (
-            <button
-              type="button"
-              onClick={() => {
-                onOpenOriginal(originalId);
-                setBrowsing(true);
-              }}
-            >
-              Open original
-            </button>
-          ) : null}
-          {redirected ? (
-            <p>
-              You&apos;re editing the conflict copy. Your unsaved text is
-              retained.
-            </p>
-          ) : null}
-          <h3 className="text-lg font-semibold">{editorLabel}</h3>
-          <PromptFields draft={draft} change={change} />
-          <EditorSaveStatus saving={saving} saveError={saveError} />
-          <div className="flex flex-wrap gap-4">
-            <button
-              className="rounded border px-4 py-2"
-              disabled={saving}
-              type="submit"
-            >
-              {saveError ? "Retry" : "Save"}
-            </button>
-            <button
-              className="rounded border px-4 py-2"
-              type="button"
-              onClick={() => {
-                void copy();
-              }}
-            >
-              Copy text
-            </button>
-            {conflict ? (
-              <button
-                type="button"
-                onClick={() => {
-                  target.current = { id: crypto.randomUUID(), revision: null };
-                  attempt.current = null;
-                  void save();
-                }}
-              >
-                Save as new prompt
-              </button>
-            ) : null}
-            <button
-              disabled={saving}
-              type="button"
-              onClick={() => setDiscard(true)}
-            >
-              Cancel
-            </button>
-          </div>
-          <p aria-live="polite">{copyMessage}</p>
-          {discard ? (
-            <DiscardConfirmation
-              saving={saving}
-              onCancel={onCancel}
-              onKeep={() => setDiscard(false)}
+          <div className="wf-dialog-body">
+            <EditorContext
+              redirected={redirected}
+              onBrowse={() => setBrowsing(true)}
+              onOpenOriginal={
+                originalId
+                  ? () => {
+                      onOpenOriginal(originalId);
+                      setBrowsing(true);
+                    }
+                  : undefined
+              }
             />
-          ) : null}
+            <h3 className="sr-only">{editorLabel}</h3>
+            <PromptFields draft={draft} change={change} />
+            <EditorSaveStatus saving={saving} saveError={saveError} />
+            <p aria-live="polite" className="wf-hint empty:hidden">
+              {copyMessage}
+            </p>
+            {discard ? (
+              <DiscardConfirmation
+                saving={saving}
+                onCancel={onCancel}
+                onKeep={() => setDiscard(false)}
+              />
+            ) : null}
+          </div>
+          <EditorFooter
+            content={draft.content}
+            saving={saving}
+            retry={Boolean(saveError)}
+            onCancel={() => setDiscard(true)}
+            onCopy={() => {
+              void copy();
+            }}
+            onSaveAsNew={
+              conflict
+                ? () => {
+                    target.current = {
+                      id: crypto.randomUUID(),
+                      revision: null,
+                    };
+                    attempt.current = null;
+                    void save();
+                  }
+                : undefined
+            }
+          />
         </form>
       </WayfinderDialog>
     </>

@@ -11,8 +11,7 @@ import { useRef, useState } from "react";
 import { useReportAttention } from "./library-attention";
 import { retryPromptRead, promptRetryDelay } from "./prompt-query";
 
-const buttonClass =
-  "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
+const buttonClass = "wf-btn";
 export const PromptConflicts = ({
   library,
   onOpen,

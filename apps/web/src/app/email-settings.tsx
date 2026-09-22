@@ -11,8 +11,7 @@ import { LoginMethodSettings } from "./login-method-settings";
 
 const inputClass =
   "bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
-const buttonClass =
-  "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
+const buttonClass = "wf-btn";
 const notificationMessages = {
   pending:
     "Your email changed. The notification to your old address is queued; delivery is not confirmed.",

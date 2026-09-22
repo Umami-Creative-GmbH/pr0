@@ -34,10 +34,13 @@ export const SocialSignIn = () => {
     }
   };
   return (
-    <div className="mt-4 space-y-3">
+    <div className="flex flex-col gap-3 empty:hidden">
+      {providers.data?.providers.length ? (
+        <p className="wf-divider">or</p>
+      ) : null}
       {providers.data?.providers.map((provider) => (
         <button
-          className="mr-3 rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="wf-btn wf-btn-block"
           disabled={busy}
           key={provider}
           onClick={() => {
@@ -50,7 +53,7 @@ export const SocialSignIn = () => {
       ))}
       {providers.isError ? (
         <button
-          className="underline"
+          className="wf-link self-start"
           onClick={() => {
             void providers.refetch();
           }}
@@ -59,7 +62,12 @@ export const SocialSignIn = () => {
           Retry loading sign-in methods
         </button>
       ) : null}
-      <p aria-live="polite" ref={status} tabIndex={-1}>
+      <p
+        aria-live="polite"
+        className="wf-error empty:hidden"
+        ref={status}
+        tabIndex={-1}
+      >
         {errorText}
       </p>
     </div>

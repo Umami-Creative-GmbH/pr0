@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 
 export interface PromptFieldsValue {
   title: string;
@@ -13,66 +13,71 @@ export const PromptFields = ({
   readOnly,
   errors,
   titleRef,
+  children,
 }: {
   value: PromptFieldsValue;
   onChange: (value: PromptFieldsValue) => void;
   readOnly: boolean;
   errors: Record<string, string>;
   titleRef: RefObject<HTMLInputElement | null>;
+  /** Organization controls, placed between the title and the description. */
+  children?: ReactNode;
 }) => (
-  <div className="space-y-4">
-    <div>
-      <label className="block font-medium" htmlFor="prompt-title">
+  <>
+    <div className="wf-field">
+      <label className="wf-label" htmlFor="prompt-title">
         Title (required)
       </label>
       <input
         aria-describedby="prompt-title-help prompt-title-error"
         aria-invalid={Boolean(errors.title)}
-        className="bg-background mt-2 w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
         id="prompt-title"
         onChange={(event) => onChange({ ...value, title: event.target.value })}
+        placeholder="e.g. Website accessibility audit"
         readOnly={readOnly}
         ref={titleRef}
         value={value.title}
       />
-      <p className="text-muted-foreground text-sm" id="prompt-title-help">
+      <p className="wf-hint sr-only" id="prompt-title-help">
         Up to 200 Unicode code points.
       </p>
-      <p className="text-sm" id="prompt-title-error">
+      <p className="wf-error empty:hidden" id="prompt-title-error">
         {errors.title}
       </p>
     </div>
-    <div>
-      <label className="block font-medium" htmlFor="prompt-description">
+    {children}
+    <div className="wf-field">
+      <label className="wf-label" htmlFor="prompt-description">
         Description (optional)
       </label>
       <textarea
         aria-describedby="prompt-description-help prompt-description-error"
         aria-invalid={Boolean(errors.description)}
-        className="bg-background mt-2 w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="font-sans"
         id="prompt-description"
         onChange={(event) =>
           onChange({ ...value, description: event.target.value })
         }
+        placeholder="One sentence on what this prompt is good for"
         readOnly={readOnly}
         rows={2}
         value={value.description}
       />
-      <p className="text-muted-foreground text-sm" id="prompt-description-help">
+      <p className="wf-hint sr-only" id="prompt-description-help">
         Up to 2,000 Unicode code points.
       </p>
-      <p className="text-sm" id="prompt-description-error">
+      <p className="wf-error empty:hidden" id="prompt-description-error">
         {errors.description}
       </p>
     </div>
-    <div>
-      <label className="block font-medium" htmlFor="prompt-content">
+    <div className="wf-field">
+      <label className="wf-label" htmlFor="prompt-content">
         Content (required)
       </label>
       <textarea
         aria-describedby="prompt-content-help prompt-content-error"
         aria-invalid={Boolean(errors.content)}
-        className="bg-background mt-2 w-full rounded-md border px-3 py-2 font-mono focus-visible:outline-2 focus-visible:outline-offset-2"
+        data-size="lg"
         id="prompt-content"
         onChange={(event) =>
           onChange({ ...value, content: event.target.value })
@@ -81,12 +86,12 @@ export const PromptFields = ({
         rows={10}
         value={value.content}
       />
-      <p className="text-muted-foreground text-sm" id="prompt-content-help">
+      <p className="wf-hint" id="prompt-content-help">
         Up to 256 KiB of UTF-8 text. Indentation and whitespace are preserved.
       </p>
-      <p className="text-sm" id="prompt-content-error">
+      <p className="wf-error empty:hidden" id="prompt-content-error">
         {errors.content}
       </p>
     </div>
-  </div>
+  </>
 );

@@ -2,6 +2,12 @@ import { expect, test } from "bun:test";
 
 import { chromium } from "playwright";
 
+import {
+  browseKeepingDraft,
+  openActionsMenu,
+  resumeDraft,
+  trackNetwork,
+} from "./app-menus";
 import { origin } from "./http-fixture";
 import { seedCapacity } from "./prompt-capacity-fixture";
 import {
@@ -16,7 +22,10 @@ test("keyboard cancellation and confirmation work in active and archived views; 
   const account = await promptBrowser();
   const create = promptOperation();
   await account.mutate([create]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -38,6 +47,10 @@ test("keyboard cancellation and confirmation work in active and archived views; 
       name: "Permanently delete prompt",
       exact: true,
     });
+    // Deletion rests inside the detail's "More prompt actions" menu.
+    const menu = page.getByLabel("More prompt actions", { exact: true });
+    await menu.focus();
+    await page.keyboard.press("Enter");
     await trigger.focus();
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog", {
@@ -56,13 +69,16 @@ test("keyboard cancellation and confirmation work in active and archived views; 
     expect(
       await promptClient(account.Cookie).getPrompt(create.promptId)
     ).toMatchObject(create.desired);
+    await openActionsMenu(page, "More prompt actions");
     await trigger.click();
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await openActionsMenu(page, "More prompt actions");
     await page
       .getByRole("button", { name: "Archive prompt", exact: true })
       .click();
     await page.getByText("Prompt archived.", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Archive", exact: true }).click();
+    await openActionsMenu(page, "More prompt actions");
     await trigger.click();
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     const payloads: string[] = [];
@@ -73,6 +89,7 @@ test("keyboard cancellation and confirmation work in active and archived views; 
         ? route.abort("failed")
         : route.fulfill({ response }));
     });
+    await openActionsMenu(page, "More prompt actions");
     await trigger.click();
     await page.screenshot({
       path: "docs/evidence/issue-32-confirmation.png",
@@ -106,7 +123,10 @@ test("active-list deletion preserves an unseen edit and leaves an open draft rec
   const create = promptOperation();
   await account.mutate([create]);
   const base = await client.getPrompt(create.promptId);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(
@@ -126,6 +146,9 @@ test("active-list deletion preserves an unseen edit and leaves an open draft rec
       .getByRole("button", { name: "Edit prompt", exact: true })
       .click();
     await page.getByLabel("Content (required)").fill("My open draft");
+    // The editor is modal; keep the draft mounted while using the row menu.
+    await browseKeepingDraft(page);
+    await openActionsMenu(page, "More actions for Writing helper");
     await page
       .getByRole("button", {
         name: "Permanently delete Writing helper",
@@ -148,6 +171,7 @@ test("active-list deletion preserves an unseen edit and leaves an open draft rec
     expect(await page.getByLabel("Content (required)").inputValue()).toBe(
       "My open draft"
     );
+    await resumeDraft(page);
     const held = Promise.withResolvers<undefined>();
     await page.route("**/api/v1/sync/mutations", async (route) => {
       const response = await route.fetch();
@@ -224,7 +248,10 @@ test("capacity-refused deletion retains the frozen intent for retry after freein
     throw new Error("Expected capacity prompts");
   }
   const base = await client.getPrompt(first.id);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -240,8 +267,10 @@ test("capacity-refused deletion retains the frozen intent for retry after freein
       })
     );
     const page = await context.newPage();
+    const network = trackNetwork(page);
     page.setDefaultTimeout(10_000);
     await page.goto(origin);
+    await openActionsMenu(page, "More prompt actions");
     await page
       .getByRole("button", { name: "Permanently delete prompt", exact: true })
       .click();
@@ -261,7 +290,9 @@ test("capacity-refused deletion retains the frozen intent for retry after freein
       .getByRole("dialog")
       .getByRole("button", { name: "Permanently delete", exact: true })
       .click();
+    // The attention link repeats this text; assert the recovery alert itself.
     await page
+      .getByRole("alert")
       .getByText(
         "Unseen text needs a conflict copy, but your library has reached capacity. Nothing was changed. Keep this tab open, free capacity, and retry; your pending action or draft is retained.",
         { exact: true }
@@ -285,7 +316,7 @@ test("capacity-refused deletion retains the frozen intent for retry after freein
       )
       .waitFor();
     expect(payloads[0]).toBe(payloads[1]);
-    await page.waitForLoadState("networkidle");
+    await network.idle();
     await expect(client.getPrompt(base.id)).rejects.toMatchObject({
       status: 404,
     });

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { promptUseFixtures } from "@pr0/api-contract/prompt-use-fixtures";
 
+import { trackContextNetwork } from "./app-menus";
 import { copyBrowser, waitForCopy } from "./copy-browser-fixture";
 import { origin } from "./http-fixture";
 import { promptBrowser, promptClient, promptOperation } from "./prompt-fixture";
@@ -112,17 +113,22 @@ test("usage transport failures and lost acknowledgements retry only the same usa
       await route.fetch();
       await route.abort();
     });
+    const lostAcknowledgement = page.waitForEvent("requestfailed", (request) =>
+      request.url().endsWith("/api/v1/sync/mutations")
+    );
     await page
       .getByRole("button", { name: "Retry usage", exact: true })
       .click();
+    await lostAcknowledgement;
     await page
       .getByRole("button", { name: "Retry usage", exact: true })
       .waitFor();
+    // Other controls may be disabled too; wait for this retry to be offered again.
     await page.waitForFunction(
       () =>
-        !document
-          .querySelector<HTMLButtonElement>("button:disabled")
-          ?.textContent?.includes("Retry usage")
+        ![
+          ...document.querySelectorAll<HTMLButtonElement>("button:disabled"),
+        ].some((button) => button.textContent?.includes("Retry usage"))
     );
     await page.unroute("**/api/v1/sync/mutations");
     await page
@@ -201,6 +207,7 @@ test("an account switch during a clipboard write cannot record usage or copy sta
   await account.mutate([create]);
   await other.mutate([foreign]);
   const ui = await copyBrowser(account.Cookie);
+  const network = trackContextNetwork(ui.context);
   try {
     const page = await ui.open();
     await page.getByLabel("Saved content").waitFor();
@@ -211,6 +218,9 @@ test("an account switch during a clipboard write cannot record usage or copy sta
       .getByRole("button", { name: "Copy prompt", exact: true })
       .click();
     await page.waitForFunction(() => Boolean(window.clipboardTest.finish));
+    // Each API response re-sets the session cookie it was sent with, so a late
+    // response from the first account would undo the switch made in the other tab.
+    await network.idle();
     await ui.setAccount(other.Cookie);
     await page.evaluate(() => {
       window.dispatchEvent(new Event("visibilitychange"));
@@ -286,6 +296,7 @@ test("account changes during prompt preparation reject the clipboard payload bef
   await account.mutate([create]);
   await other.mutate([foreign]);
   const ui = await copyBrowser(account.Cookie);
+  const network = trackContextNetwork(ui.context);
   const release = Promise.withResolvers<undefined>();
   try {
     const page = await ui.open();
@@ -304,6 +315,8 @@ test("account changes during prompt preparation reject the clipboard payload bef
       .getByRole("button", { name: "Copy prompt", exact: true })
       .click();
     await requested.promise;
+    // A late response from the prior account would re-set its session cookie.
+    await network.idle(`/api/v1/library/prompts/${create.promptId}`);
     await ui.setAccount(other.Cookie);
     await page.evaluate(() =>
       window.dispatchEvent(new Event("visibilitychange"))

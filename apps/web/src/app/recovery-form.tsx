@@ -54,11 +54,7 @@ export const RecoveryForm = () => {
           required
           type="email"
         />
-        <button
-          className="rounded-md border px-4 py-2"
-          disabled={busy}
-          type="submit"
-        >
+        <button className="wf-btn" disabled={busy} type="submit">
           {busy ? "Please wait…" : "Send recovery email"}
         </button>
       </form>

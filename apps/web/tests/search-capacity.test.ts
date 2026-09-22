@@ -75,7 +75,10 @@ test("records maximum-size text search including real debounce and rendering", a
     }
     rest.push({ query, samples, server });
   }
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const rendering = [];
   try {
     const context = await browser.newContext();

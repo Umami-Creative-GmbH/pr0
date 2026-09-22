@@ -28,7 +28,10 @@ test("collection navigation resets extras, restores per-view sorts and retains f
       },
     },
   ]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(
@@ -118,7 +121,10 @@ test("complete pickers reach capacity entries and a deleted collection view stay
   if (!collection) {
     throw new Error("Missing capacity collection");
   }
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },

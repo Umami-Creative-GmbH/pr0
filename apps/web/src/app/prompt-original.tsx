@@ -7,8 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { promptRetryDelay, retryPromptRead } from "./prompt-query";
 
-const buttonClass =
-  "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
+const buttonClass = "wf-btn";
 export const PromptOriginal = ({
   library,
   id,

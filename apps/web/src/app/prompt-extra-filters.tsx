@@ -1,5 +1,7 @@
 "use client";
 
+import { Star } from "lucide-react";
+
 export const PromptExtraFilters = ({
   favorite,
   hasExtraFilters,
@@ -11,23 +13,24 @@ export const PromptExtraFilters = ({
   onFavorite: (value: boolean) => void;
   onClear: () => void;
 }) => (
-  <div className="flex flex-wrap items-center gap-3">
-    <label className="flex items-center gap-2">
+  <>
+    <label className="wf-chip">
       <input
         type="checkbox"
         checked={favorite}
         onChange={(event) => onFavorite(event.target.checked)}
       />
+      <Star
+        aria-hidden="true"
+        size={12}
+        fill={favorite ? "currentColor" : "none"}
+      />
       Favorites only
     </label>
     {hasExtraFilters ? (
-      <button
-        type="button"
-        className="rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-        onClick={onClear}
-      >
+      <button type="button" className="wf-btn-quiet" onClick={onClear}>
         Clear extra filters
       </button>
     ) : null}
-  </div>
+  </>
 );

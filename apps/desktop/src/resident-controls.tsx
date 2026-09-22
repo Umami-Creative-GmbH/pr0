@@ -2,7 +2,10 @@ import type {
   ResidentAction,
   ResidentStatus,
 } from "@pr0/api-contract/desktop-resident";
+import { DialogHead } from "@pr0/ui/components/wayfinder-dialog";
+import { AppBarStatus } from "@pr0/ui/components/wayfinder-shell";
 import { listen } from "@tauri-apps/api/event";
+import { Power, Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -31,14 +34,15 @@ const ResidentDialog = ({
     <dialog
       ref={dialog}
       aria-label={title}
-      className="bg-background text-foreground m-auto max-w-lg space-y-4 rounded border p-6 backdrop:bg-black/40"
+      className="wf-dialog"
+      data-size="sm"
       onCancel={(event) => {
         event.preventDefault();
         onCancel();
       }}
     >
-      <h2 className="text-xl font-semibold">{title}</h2>
-      {children}
+      <DialogHead eyebrow="pr0 desktop" title={title} />
+      <div className="wf-dialog-body">{children}</div>
     </dialog>
   );
 };
@@ -169,25 +173,35 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
   };
   return (
     <ResidentEditorContext value={registerEditor}>
-      <nav
-        aria-label="Desktop controls"
-        className="mx-auto flex max-w-xl gap-4 px-8 pt-4"
-      >
-        <button type="button" onClick={() => action("settings")}>
-          Settings
-        </button>
-        <button type="button" onClick={() => action("quit")}>
-          Quit pr0
-        </button>
-      </nav>
+      <AppBarStatus slot="menu">
+        <nav aria-label="Desktop controls" className="contents">
+          <button
+            className="wf-menu-item"
+            type="button"
+            onClick={() => action("settings")}
+          >
+            <Settings aria-hidden="true" size={15} />
+            Settings
+          </button>
+          <button
+            className="wf-menu-item"
+            type="button"
+            onClick={() => action("quit")}
+          >
+            <Power aria-hidden="true" size={15} />
+            Quit pr0
+          </button>
+        </nav>
+      </AppBarStatus>
       {children}
       {error &&
       !status?.quitRequested &&
       !status?.closeNotice &&
       !status?.settings ? (
-        <p role="alert">
+        <p className="wf-banner" role="alert">
           {error}{" "}
           <button
+            className="wf-link"
             type="button"
             onClick={() => {
               void refresh();
@@ -215,6 +229,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
           {error ? <p role="alert">{error}</p> : null}
           <div className="flex flex-wrap gap-4">
             <button
+              className="wf-btn-accent"
               type="button"
               disabled={waiting}
               onClick={() => {
@@ -224,6 +239,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
               Save and quit
             </button>
             <button
+              className="wf-btn wf-btn-danger"
               type="button"
               disabled={waiting}
               onClick={() => {

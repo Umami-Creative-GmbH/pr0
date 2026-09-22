@@ -32,23 +32,20 @@ export const TagPicker = ({
   const nameFor = (tagId: string) =>
     names.get(tagId) ?? unavailableNames?.get(tagId) ?? "Unavailable tag";
   return (
-    <fieldset
-      disabled={disabled}
-      className="wf-picker min-w-0 space-y-2 rounded-md border p-3"
-    >
-      <legend className={compact ? "sr-only" : "px-1 font-medium"}>
-        {label}
-      </legend>
-      <p hidden={compact} className="text-muted-foreground text-sm">
+    <fieldset disabled={disabled} className="wf-field">
+      <legend className={compact ? "sr-only" : "wf-label mb-2"}>{label}</legend>
+      <p hidden={compact || !tags.length} className="wf-hint">
         Counts are library-wide, including the archive, for the available
         snapshot.
       </p>
-      <div className="max-h-24 space-x-2 overflow-y-auto">
+      <div className="wf-chips max-h-24 overflow-y-auto empty:hidden">
         {value.map((tagId) => (
           <button
             key={tagId}
             type="button"
-            className="rounded-md border px-2 py-1 break-words focus-visible:outline-2"
+            className="wf-chip"
+            data-kind="tag"
+            data-active="true"
             onClick={() => onChange(value.filter((entry) => entry !== tagId))}
             aria-label={`Remove tag ${nameFor(tagId)}`}
           >
@@ -56,23 +53,26 @@ export const TagPicker = ({
           </button>
         ))}
       </div>
-      <PickerSearch compact={compact} label={label}>
-        <label className="block" htmlFor={id}>
+      <PickerSearch count={tags.length}>
+        <label
+          className={compact ? "sr-only" : "wf-hint mt-2 block"}
+          htmlFor={id}
+        >
           Search {label.toLowerCase()}
         </label>
         <input
           id={id}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
+          className="mt-1 w-full text-sm"
+          placeholder={compact ? `Search ${label.toLowerCase()}` : undefined}
         />
-      </PickerSearch>{" "}
-      <div className="max-h-48 space-y-2 overflow-y-auto p-1">
+      </PickerSearch>
+      <div
+        className={compact ? "wf-chips" : "wf-chips max-h-48 overflow-y-auto"}
+      >
         {visible.map((tag) => (
-          <label
-            key={tag.id}
-            className="flex items-start gap-2 rounded-md border p-2 break-words"
-          >
+          <label key={tag.id} className="wf-chip" data-kind="tag">
             <input
               type="checkbox"
               checked={selected.has(tag.id)}
@@ -83,12 +83,17 @@ export const TagPicker = ({
                     : value.filter((entry) => entry !== tag.id)
                 )
               }
-              className="mt-1 focus-visible:outline-2"
             />
             <span>
-              {tag.name} · {tag.totalCount} total, {tag.activeCount} active,{" "}
-              {tag.archivedCount} archived
+              <span aria-hidden="true">#</span>
+              {tag.name}
+              <span className="sr-only">
+                {" "}
+                · {tag.totalCount} total, {tag.activeCount} active,{" "}
+                {tag.archivedCount} archived
+              </span>
             </span>
+            <small aria-hidden="true">{tag.totalCount}</small>
           </label>
         ))}
       </div>

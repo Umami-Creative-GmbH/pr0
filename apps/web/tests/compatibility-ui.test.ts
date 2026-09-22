@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 
+import { closeSyncStatus, syncStatus } from "./desktop-menus";
 import { localNativeWorker } from "./local-native-worker";
 import type { NativeArgs } from "./local-native-worker";
 
@@ -62,13 +63,13 @@ test("desktop incompatible server shows update recovery and retains exact saved 
     await page.goto(
       process.env.PR0_DESKTOP_TEST_URL ?? "http://localhost:1420"
     );
+    // Decomposed on purpose: the saved variant must not be normalized.
+    const exactVariant = "  Exact ß é variant\n";
     await page.getByRole("button", { name: "New prompt", exact: true }).click();
     await page
       .getByLabel("Title", { exact: true })
       .fill("Retained across versions");
-    await page
-      .getByLabel("Content", { exact: true })
-      .fill("  Exact ß é variant\n");
+    await page.getByLabel("Content", { exact: true }).fill(exactVariant);
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await page
       .getByRole("button", { name: "Retained across versions", exact: true })
@@ -77,18 +78,29 @@ test("desktop incompatible server shows update recovery and retains exact saved 
     const pending = await native.command("library_pending");
     await native.command("library_upload");
     await page.reload();
-    const summary = page.getByText("Update required · Changes waiting", {
-      exact: true,
-    });
+    // The status label is now a span inside the focusable popover summary.
+    const summary = syncStatus(page)
+      .locator("summary.wf-sync")
+      .filter({
+        has: page.getByText("Update required · Changes waiting", {
+          exact: true,
+        }),
+      });
     await summary.focus();
     await page.keyboard.press("Enter");
     await page
       .getByText("Sync paused because this desktop", { exact: false })
       .waitFor();
+    // The open popover overlays the results; Escape dismisses it.
+    await closeSyncStatus(page);
     await page
       .getByRole("button", { name: "Retained across versions", exact: true })
       .click();
-    await page.getByText("Exact ß é variant", { exact: false }).waitFor();
+    // The detail shows content in a labelled read-only field over a painted copy.
+    await page.getByLabel("Prompt content", { exact: true }).waitFor();
+    expect(
+      await page.getByLabel("Prompt content", { exact: true }).inputValue()
+    ).toBe(exactVariant);
     expect(await native.command("library_pending")).toEqual(pending);
     await page.screenshot({
       path: ".scratch/issue58-compatibility-recovery.png",

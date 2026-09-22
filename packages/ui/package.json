@@ -11,7 +11,8 @@
     "./wayfinder.css": "./src/styles/wayfinder.css"
   },
   "scripts": {
-    "typecheck": "bun --bun tsc --noEmit"
+    "typecheck": "bun --bun tsc --noEmit",
+    "test": "bun test src"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

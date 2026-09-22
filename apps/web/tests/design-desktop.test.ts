@@ -67,12 +67,14 @@ test("designed desktop keeps offline persistence, theme and a separate native la
       .click();
     await page.evaluate(() => {
       window.scrollTo(0, 0);
-      document.querySelector(".wf-sidebar")?.scrollTo(0, 0);
+      document.querySelector(".wf-list")?.scrollTo(0, 0);
     });
     await page.screenshot({
       path: "docs/evidence/design-75/production-desktop-dark-detail.png",
     });
     await page.getByRole("button", { name: "Switch to light theme" }).click();
+    // Let the theme transition finish before capturing evidence.
+    await page.waitForTimeout(400);
     await page.screenshot({
       path: "docs/evidence/design-75/production-desktop-light-detail.png",
     });
@@ -123,9 +125,16 @@ test("designed desktop keeps offline persistence, theme and a separate native la
     } finally {
       await releaseClipboard();
     }
+    const previousOpening = await launcher
+      .locator("main")
+      .getAttribute("data-opening");
     await page
       .getByRole("button", { name: "Open quick launcher", exact: true })
       .press("Enter");
+    // Each opening remounts the search; type only into the new one.
+    await launcher
+      .locator(`main:not([data-opening="${previousOpening}"])`)
+      .waitFor();
     await search.fill("Text professionell");
     await launcher
       .getByRole("button", { name: /^Text professionell umschreiben Copy/u })
@@ -142,9 +151,9 @@ test("designed desktop keeps offline persistence, theme and a separate native la
     await launcher.screenshot({
       path: "docs/evidence/design-75/production-native-launcher-light-empty.png",
     });
-    await launcher
-      .getByRole("button", { name: "Switch to dark theme" })
-      .click();
+    // The launcher has no theme control; it follows the main window's choice.
+    await page.getByRole("button", { name: "Switch to dark theme" }).click();
+    await launcher.locator('.wf[data-theme="dark"]').waitFor();
     await launcher.screenshot({
       path: "docs/evidence/design-75/production-native-launcher-dark-empty.png",
     });
@@ -182,6 +191,8 @@ test("designed desktop keeps offline persistence, theme and a separate native la
   }
   const reopened = await nativeWebview(native.executable, directory);
   try {
+    // Size the restarted window like the first session before judging visibility.
+    await reopened.page.setViewportSize({ width: 1440, height: 1000 });
     await reopened.page
       .getByRole("heading", {
         name: "Text professionell umschreiben",

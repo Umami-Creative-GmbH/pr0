@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { chromium } from "playwright";
 
+import { openActionsMenu, openCollectionFilter } from "./app-menus";
 import { collectionOperation, assignCollection } from "./collection-fixture";
 import { origin } from "./http-fixture";
 import {
@@ -25,7 +26,10 @@ test("manager requires explicit merge, preserves filters and focus, and confirms
     unused,
     { ...create, desired: { ...create.desired, tagIds: [source.tagId] } },
   ]);
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -188,7 +192,10 @@ test("collection deletion reviews live assignments and keeps the deleted filter 
   await account.mutate(
     saved.slice(3).map((prompt) => promptState(prompt, "archived", true))
   );
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext({
       viewport: { width: 640, height: 900 },
@@ -205,6 +212,7 @@ test("collection deletion reviews live assignments and keeps the deleted filter 
     );
     const page = await context.newPage();
     await page.goto(origin);
+    await openCollectionFilter(page);
     await page
       .getByRole("group", { name: "Collection filter options" })
       .getByRole("button", { name: /^Work ·/u })
@@ -262,18 +270,20 @@ test("collection deletion reviews live assignments and keeps the deleted filter 
       exact: true,
     });
     await deletedFilter.waitFor();
-    expect(
-      await page
-        .getByRole("button", { name: "Duplicate A", exact: true })
-        .count()
-    ).toBe(0);
+    // Row duplication rests in a closed row menu, so match it while hidden.
+    const duplicateA = page.getByRole("button", {
+      name: "Duplicate A",
+      exact: true,
+      includeHidden: true,
+    });
+    expect(await duplicateA.count()).toBe(0);
     await page
       .getByRole("button", { name: "Go to All prompts", exact: true })
       .click();
     await deletedFilter.waitFor({ state: "hidden" });
-    await page
-      .getByRole("button", { name: "Duplicate A", exact: true })
-      .waitFor();
+    await duplicateA.waitFor({ state: "attached" });
+    await openActionsMenu(page, "More actions for A");
+    await duplicateA.waitFor();
   } finally {
     await browser.close();
   }
@@ -297,7 +307,10 @@ test("remote deletion clears actionable detail even when the selected filter has
   });
   await account.mutate(creates.slice(0, 100));
   await account.mutate(creates.slice(100));
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   try {
     const context = await browser.newContext();
     await context.addCookies(
@@ -312,6 +325,7 @@ test("remote deletion clears actionable detail even when the selected filter has
     );
     const page = await context.newPage();
     await page.goto(origin);
+    await openCollectionFilter(page);
     await page
       .getByRole("group", { name: "Collection filter options" })
       .getByRole("button", { name: /^Remote collection ·/u })
@@ -348,7 +362,9 @@ test("remote deletion clears actionable detail even when the selected filter has
       .getByRole("button", { name: "Edit prompt", exact: true })
       .waitFor({ state: "hidden" });
     expect(
-      await page.getByRole("button", { name: /^Duplicate /u }).count()
+      await page
+        .getByRole("button", { name: /^Duplicate /u, includeHidden: true })
+        .count()
     ).toBe(0);
   } finally {
     await browser.close();

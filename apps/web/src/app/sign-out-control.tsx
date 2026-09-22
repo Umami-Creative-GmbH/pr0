@@ -12,12 +12,11 @@ export const SignOutControl = ({
   onSignOut: () => void;
 }) => {
   const [confirm, setConfirm] = useState(false);
-  const buttonClass =
-    "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
+  const buttonClass = "wf-btn";
   return (
-    <div className="mt-3">
+    <div>
       <button
-        className={buttonClass}
+        className="wf-menu-item"
         disabled={busy}
         onClick={() => {
           if (dirty) {
@@ -33,7 +32,8 @@ export const SignOutControl = ({
       {confirm ? (
         <section
           aria-label="Confirm sign out"
-          className="mt-4 rounded-md border p-3"
+          className="wf-notice mt-2"
+          data-tone="attention"
         >
           <p>
             Sign out and discard this unsaved open-tab draft? If saving is

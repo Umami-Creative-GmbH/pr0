@@ -4,6 +4,7 @@ import type { Page } from "playwright";
 
 // These captures exercise the persisted theme setting; the journeys separately
 // test switching themes through the visible button and reopening the application.
+const settleMs = 400;
 export const captureDesign = async (
   page: Page,
   surface: string,
@@ -16,6 +17,9 @@ export const captureDesign = async (
       localStorage.setItem("pr0.theme", value);
       window.dispatchEvent(new Event("pr0-theme"));
     }, theme);
+    // Colour transitions and dialog entrances finish before the capture.
+    // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each capture follows its own theme change.
+    await page.waitForTimeout(settleMs);
     // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Screenshots share one viewport and must be sequential.
     await page.screenshot({
       path: `docs/evidence/design-75/production-${surface}-${theme}-${state}.png`,

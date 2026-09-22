@@ -39,7 +39,7 @@ test("designed web library persists edits and theme; quick access retains failed
       .waitFor();
     await page.evaluate(() => {
       window.scrollTo(0, 0);
-      document.querySelector(".wf-sidebar")?.scrollTo(0, 0);
+      document.querySelector(".wf-list")?.scrollTo(0, 0);
     });
     await page.screenshot({
       path: "docs/evidence/design-75/production-web-dark-detail.png",
@@ -51,6 +51,15 @@ test("designed web library persists edits and theme; quick access retains failed
       .getByRole("button", { name: /^Text professionell umschreiben/u })
       .first()
       .click();
+    await page
+      .getByRole("heading", {
+        name: "Text professionell umschreiben",
+        exact: true,
+      })
+      .waitFor();
+    await page.getByLabel("Saved content").waitFor();
+    // Let the theme transition finish before capturing evidence.
+    await page.waitForTimeout(400);
     await page.screenshot({
       path: "docs/evidence/design-75/production-web-light-detail.png",
     });

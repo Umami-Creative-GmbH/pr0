@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 
+import { trackContextNetwork } from "./app-menus";
 import { copyBrowser, waitForCopy } from "./copy-browser-fixture";
 import {
   promptBrowser,
@@ -326,9 +327,12 @@ test("many variables remain reachable at zoom with keyboard entry and cancellati
     expect(
       await dialog.getByLabel("field_99 (string)", { exact: true }).inputValue()
     ).toBe("value99");
-    expect(await dialog.evaluate((element) => element.scrollTop > 0)).toBe(
-      true
-    );
+    // The dialog keeps its heading and actions fixed; its body scrolls.
+    expect(
+      await dialog
+        .getByRole("group", { name: "Variable values", exact: true })
+        .evaluate((element) => (element.parentElement?.scrollTop ?? 0) > 0)
+    ).toBe(true);
     await page.screenshot({
       path: "docs/evidence/issue-52-variables-zoom.png",
       fullPage: true,
@@ -361,6 +365,7 @@ test("account switches and page exit clear filled values, including a pending OS
   await account.mutate([create]);
   await other.mutate([foreign]);
   const ui = await copyBrowser(account.Cookie);
+  const network = trackContextNetwork(ui.context);
   try {
     const page = await ui.open();
     await page
@@ -388,6 +393,8 @@ test("account switches and page exit clear filled values, including a pending OS
     });
     await dialog.getByRole("button", { name: "Copy", exact: true }).click();
     await page.waitForFunction(() => Boolean(window.clipboardTest.finish));
+    // A late response from the prior account would re-set its session cookie.
+    await network.idle();
     await ui.setAccount(other.Cookie);
     await page.evaluate(() => {
       window.dispatchEvent(new Event("visibilitychange"));
@@ -543,6 +550,7 @@ test("a retained editor draft can copy again after switching away during a write
   });
   await account.mutate([create]);
   const ui = await copyBrowser(account.Cookie);
+  const network = trackContextNetwork(ui.context);
   try {
     const page = await ui.open();
     await page
@@ -566,6 +574,8 @@ test("a retained editor draft can copy again after switching away during a write
     });
     await dialog.getByRole("button", { name: "Copy", exact: true }).click();
     await page.waitForFunction(() => Boolean(window.clipboardTest.finish));
+    // A late response from the prior account would re-set its session cookie.
+    await network.idle();
     await ui.setAccount(other.Cookie);
     await page.evaluate(() => {
       window.dispatchEvent(new Event("visibilitychange"));
@@ -580,6 +590,8 @@ test("a retained editor draft can copy again after switching away during a write
       window.clipboardTest.delay = false;
     });
     await completed;
+    // A late response from the prior account would re-set its session cookie.
+    await network.idle();
     await ui.setAccount(account.Cookie);
     await page.evaluate(() => {
       window.dispatchEvent(new Event("visibilitychange"));
@@ -622,6 +634,7 @@ test("a late usage-only retry cannot publish copy status after an account transi
   });
   await account.mutate([create]);
   const ui = await copyBrowser(account.Cookie);
+  const network = trackContextNetwork(ui.context);
   const release = Promise.withResolvers<undefined>();
   try {
     const page = await ui.open();
@@ -656,6 +669,8 @@ test("a late usage-only retry cannot publish copy status after an account transi
       .getByRole("button", { name: "Retry usage", exact: true })
       .click();
     await requested.promise;
+    // A late response from the prior account would re-set its session cookie.
+    await network.idle("/api/v1/sync/mutations");
     await ui.setAccount(other.Cookie);
     await page.evaluate(() => {
       window.dispatchEvent(new Event("visibilitychange"));
@@ -666,6 +681,8 @@ test("a late usage-only retry cannot publish copy status after an account transi
     const response = page.waitForResponse("**/api/v1/sync/mutations");
     release.resolve();
     await response;
+    // A late response from the prior account would re-set its session cookie.
+    await network.idle();
     await ui.setAccount(account.Cookie);
     await page.evaluate(() => {
       window.dispatchEvent(new Event("visibilitychange"));

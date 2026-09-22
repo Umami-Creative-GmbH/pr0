@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { desktopStatusSchema } from "@pr0/api-contract/desktop-session";
 
+import { chooseAccountAction } from "./app-menus";
 import { localNativeWorker } from "./local-native-worker";
 import type { NativeArgs } from "./local-native-worker";
 import { holdNativeResource } from "./native-resource";
@@ -280,9 +281,7 @@ test("closing the library offers residency and an explicit safe quit", async () 
     await webview.page
       .getByRole("button", { name: "Keep library open", exact: true })
       .click();
-    await webview.page
-      .getByRole("button", { name: "Quit pr0", exact: true })
-      .click();
+    await chooseAccountAction(webview.page, "Quit pr0");
     expect(await webview.exited).toBe(0);
   } finally {
     await webview.stop();

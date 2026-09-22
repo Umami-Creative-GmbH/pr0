@@ -9,7 +9,7 @@ export const PromptCopyStatus = ({
     <output>{copy.message}</output>
     {copy.retryId ? (
       <button
-        className="rounded-md border px-4 py-2"
+        className="wf-btn"
         type="button"
         disabled={copy.busy}
         onClick={() => {
@@ -24,7 +24,7 @@ export const PromptCopyStatus = ({
     {copy.usagePending ? (
       <div className="flex gap-2">
         <button
-          className="rounded-md border px-4 py-2"
+          className="wf-btn"
           type="button"
           disabled={copy.busy}
           onClick={() => {
@@ -34,7 +34,7 @@ export const PromptCopyStatus = ({
           Retry usage
         </button>
         <button
-          className="rounded-md border px-4 py-2"
+          className="wf-btn"
           type="button"
           disabled={copy.busy}
           onClick={() => copy.discardUsage()}

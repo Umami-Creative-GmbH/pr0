@@ -3,6 +3,11 @@ import { expect, test } from "bun:test";
 import { chromium } from "playwright";
 
 import {
+  browseKeepingDraft,
+  openCollectionFilter,
+  resumeDraft,
+} from "./app-menus";
+import {
   collectionOperation,
   seedCollections,
   assignCollection,
@@ -17,7 +22,10 @@ import {
 } from "./prompt-fixture";
 
 const openLibrary = async (Cookie: string) => {
-  const browser = await chromium.launch({ channel: "chrome", headless: true });
+  const browser = await chromium.launch({
+    channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
+    headless: true,
+  });
   const context = await browser.newContext({
     viewport: { width: 640, height: 900 },
   });
@@ -81,8 +89,9 @@ test.each([false, true])(
           .fill("My newer unsaved text");
       }
       releaseResponse?.();
+      // The sync popover lists the adjustment by itself; assert the save status.
       const status = page.getByText(
-        /A concurrent collection assignment was superseded by this saved choice\./u
+        /saved to server\..*A concurrent collection assignment was superseded by this saved choice\./iu
       );
       await status.waitFor({ timeout: 5000 });
       expect(await status.textContent()).toContain("conflict copy");
@@ -125,6 +134,8 @@ test("all entries and Unused remain reachable at capacity; management retains fi
       name: "Collection filter options",
       exact: true,
     });
+    // The collection filter rests inside the "Filter within this view" disclosure.
+    await openCollectionFilter(page);
     await picker
       .getByRole("button", {
         name: "Collection 200 · 1 total, 0 active, 1 archived",
@@ -133,6 +144,7 @@ test("all entries and Unused remain reachable at capacity; management retains fi
       .waitFor();
     expect(await picker.getByRole("button").count()).toBe(201);
     await page.getByRole("button", { name: "Archive", exact: true }).click();
+    await openCollectionFilter(page);
     await page
       .getByLabel("Search collection filter", { exact: true })
       .fill("collection 200");
@@ -310,6 +322,8 @@ test("keyboard collection management creates, assigns, renames and restores focu
       .getByRole("button", { name: "Edit prompt", exact: true })
       .click();
     await page.getByLabel("Content (required)").fill("My underlying draft");
+    // The editor is modal; keep the draft mounted while managing collections.
+    await browseKeepingDraft(page);
     const manage = page.getByRole("button", {
       name: "Manage collections",
       exact: true,
@@ -328,6 +342,10 @@ test("keyboard collection management creates, assigns, renames and restores focu
     expect(
       await manage.evaluate((element) => element === document.activeElement)
     ).toBe(true);
+    expect(await page.getByLabel("Content (required)").inputValue()).toBe(
+      "My underlying draft"
+    );
+    await resumeDraft(page);
     expect(await page.getByLabel("Content (required)").inputValue()).toBe(
       "My underlying draft"
     );

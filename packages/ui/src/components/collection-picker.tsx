@@ -2,10 +2,12 @@
 
 import { useId, useState } from "react";
 
+import { accentFor } from "../lib/present";
 import { PickerSearch } from "./picker-search";
 
-const buttonClass =
-  "rounded-md border px-3 py-2 text-left break-words focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
+const buttonClass = "wf-btn";
+const countsLabel = (entry: CollectionOption) =>
+  `${entry.name} · ${entry.totalCount} total, ${entry.activeCount} active, ${entry.archivedCount} archived`;
 export interface CollectionOption {
   id: string;
   name: string;
@@ -41,14 +43,9 @@ export const CollectionPicker = ({
   const selectedName =
     selected?.name ?? unavailableName ?? "Unavailable collection";
   return (
-    <fieldset
-      disabled={disabled}
-      className="wf-picker min-w-0 space-y-2 rounded-md border p-3"
-    >
-      <legend className={compact ? "sr-only" : "px-1 font-medium"}>
-        {label}
-      </legend>
-      <p hidden={compact} className="text-muted-foreground text-sm">
+    <fieldset disabled={disabled} className="wf-field">
+      <legend className={compact ? "sr-only" : "wf-label mb-2"}>{label}</legend>
+      <p hidden={compact || !collections.length} className="wf-hint">
         Counts are library-wide, including the archive, for the available
         snapshot.
       </p>
@@ -64,39 +61,46 @@ export const CollectionPicker = ({
           </button>
         </div>
       ) : null}
-      <PickerSearch compact={compact} label={label}>
-        <label className="block" htmlFor={id}>
+      <PickerSearch count={collections.length}>
+        <label
+          className={compact ? "sr-only" : "wf-hint mt-2 block"}
+          htmlFor={id}
+        >
           Search {label.toLowerCase()}
         </label>
         <input
           id={id}
-          className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
+          className="mt-1 w-full text-sm"
+          placeholder={compact ? `Search ${label.toLowerCase()}` : undefined}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-      </PickerSearch>{" "}
+      </PickerSearch>
       <fieldset
-        className="max-h-48 space-y-1 overflow-y-auto p-1"
+        className={compact ? "wf-chips" : "wf-chips max-h-48 overflow-y-auto"}
         aria-label={`${label} options`}
       >
         <button
           type="button"
-          className={`${buttonClass} block w-full`}
+          className="wf-chip"
           aria-pressed={!value}
           onClick={() => onChange(null)}
         >
+          <span className="wf-dot" />
           {emptyLabel}
         </button>
         {visible.map((entry) => (
           <button
             key={entry.id}
             type="button"
-            className={`${buttonClass} block w-full`}
+            className="wf-chip"
+            aria-label={countsLabel(entry)}
             aria-pressed={value === entry.id}
             onClick={() => onChange(entry.id)}
           >
-            {entry.name} · {entry.totalCount} total, {entry.activeCount} active,{" "}
-            {entry.archivedCount} archived
+            <span className="wf-dot" data-accent={accentFor(entry.id)} />
+            {entry.name}
+            <small>{entry.totalCount}</small>
           </button>
         ))}
       </fieldset>

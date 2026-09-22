@@ -2,11 +2,15 @@ import type {
   LifecycleAction,
   LocalPrompt,
 } from "@pr0/api-contract/local-prompts";
+import { templateSpans } from "@pr0/api-contract/variables";
 import {
   PromptMoreActions,
   PromptIconAction,
 } from "@pr0/ui/components/prompt-actions";
 import { PromptContent } from "@pr0/ui/components/prompt-content";
+import { PromptHeader, PromptMeta } from "@pr0/ui/components/prompt-header";
+import { accentFor } from "@pr0/ui/lib/present";
+import { Pencil } from "lucide-react";
 
 import { LifecycleActions } from "./lifecycle-actions";
 
@@ -17,6 +21,8 @@ export const LocalPromptDetail = ({
   onCopy,
   copying,
   onAction,
+  collection,
+  tags,
 }: {
   value: LocalPrompt;
   editing: boolean;
@@ -24,30 +30,42 @@ export const LocalPromptDetail = ({
   onCopy: () => void;
   copying: boolean;
   onAction: (value: LocalPrompt, action: LifecycleAction) => void;
+  /** Resolved organization names, when the snapshot is available. */
+  collection?: string;
+  tags?: string[];
 }) => {
   const { prompt } = value;
   return (
-    <article
-      aria-label="Prompt detail"
-      className="space-y-3 rounded border p-4"
-    >
-      <h3 className="text-lg font-semibold">{prompt.title}</h3>
-      <div className="flex flex-wrap gap-3">
+    <article aria-label="Prompt detail" className="wf-article">
+      <PromptHeader
+        title={prompt.title}
+        headingLevel={3}
+        description={prompt.description}
+        accent={accentFor(prompt.collectionId)}
+        collection={collection ?? "No collection"}
+        state={value.pending ? "Saved on this device" : "Saved to server"}
+        tags={tags}
+      >
         <button
-          className="rounded border px-3 py-2 disabled:opacity-50"
-          type="button"
-          disabled={editing}
-          onClick={onEdit}
-        >
-          Edit prompt
-        </button>
-        <button
-          className="wf-primary"
+          className="wf-btn-accent"
           type="button"
           disabled={copying}
           onClick={onCopy}
         >
           Copy prompt
+        </button>
+        <kbd className="wf-kbd" title="With a result focused or from search">
+          Ctrl ↵
+        </kbd>
+        <span className="wf-grow" />
+        <button
+          className="wf-btn"
+          type="button"
+          disabled={editing}
+          onClick={onEdit}
+        >
+          <Pencil aria-hidden="true" size={14} />
+          Edit prompt
         </button>
         <PromptIconAction
           kind="favorite"
@@ -65,31 +83,29 @@ export const LocalPromptDetail = ({
             onAction={onAction}
           />
         </PromptMoreActions>
-      </div>
-      {prompt.description ? (
-        <p className="whitespace-pre-wrap">{prompt.description}</p>
-      ) : null}
-      <PromptContent label="Prompt content" content={prompt.content} />
-      {prompt.sourceTitle ? (
-        <p className="break-words whitespace-pre-wrap">
-          Full source title: {prompt.sourceTitle}
-        </p>
-      ) : null}
-      {value.pending ? (
-        <>
-          <p>Saved on this device</p>
-          <p>Changes waiting to sync</p>
-          <p>Dates are provisional until server acceptance.</p>
-        </>
-      ) : (
-        <p>Saved to server</p>
-      )}
-      <p>
-        Modified:{" "}
-        <time dateTime={prompt.modifiedAt}>
-          {new Date(prompt.modifiedAt).toLocaleString()}
-        </time>
-      </p>
+      </PromptHeader>
+      <PromptContent
+        label="Prompt content"
+        content={prompt.content}
+        spans={templateSpans(prompt.content)}
+      />
+      <PromptMeta>
+        {prompt.sourceTitle ? (
+          <span className="break-words whitespace-pre-wrap">
+            Full source title: {prompt.sourceTitle}
+          </span>
+        ) : null}
+        {value.pending ? <span>Changes waiting to sync</span> : null}
+        {value.pending ? (
+          <span>Dates are provisional until server acceptance.</span>
+        ) : null}
+        <span>
+          Modified:{" "}
+          <time dateTime={prompt.modifiedAt}>
+            {new Date(prompt.modifiedAt).toLocaleString()}
+          </time>
+        </span>
+      </PromptMeta>
     </article>
   );
 };

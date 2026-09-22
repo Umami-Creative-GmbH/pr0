@@ -13,8 +13,7 @@ const labels = {
   google: "Google",
   github: "GitHub",
 };
-const buttonClass =
-  "rounded-md border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
+const buttonClass = "wf-btn";
 const focusConfirmation = (button: HTMLButtonElement | null) => button?.focus();
 export const LoginMethodSettings = ({
   identity,

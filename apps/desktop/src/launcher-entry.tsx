@@ -1,8 +1,10 @@
+import { Command } from "lucide-react";
 import { useState } from "react";
 
 import { launcherClient } from "./launcher-client";
 import { useLauncherStatus } from "./use-launcher-status";
 
+/** Entry to the native launcher, showing the shortcut Windows actually registered. */
 export const LauncherEntry = () => {
   const { status, error, refresh } = useLauncherStatus();
   const [message, setMessage] = useState("");
@@ -18,28 +20,36 @@ export const LauncherEntry = () => {
     }
     setBusy(false);
   };
+  const unavailable = Boolean(status) && !status?.shortcut;
   return (
-    <section aria-label="Quick launcher" className="wf-launcher-entry">
+    <section aria-label="Quick launcher" className="contents">
       <h2 className="sr-only">Quick launcher</h2>
-      <p>
-        {status
-          ? (status.shortcut ?? "Global shortcut unavailable")
-          : "Checking shortcut…"}
-      </p>
-      <button
-        type="button"
-        className="rounded border p-2"
-        disabled={busy}
-        onClick={() => {
-          void run(launcherClient.open);
-        }}
+      <output className="wf-hint">{message || error}</output>
+      <span
+        className="wf-shortcut"
+        data-state={unavailable ? "unavailable" : undefined}
       >
-        Open quick launcher
-      </button>
+        <Command aria-hidden="true" size={13} />
+        <button
+          type="button"
+          className="wf-shortcut-action"
+          disabled={busy}
+          onClick={() => {
+            void run(launcherClient.open);
+          }}
+        >
+          Open quick launcher
+        </button>
+        <span>
+          {status
+            ? (status.shortcut ?? "Global shortcut unavailable")
+            : "Checking shortcut…"}
+        </span>
+      </span>
       {status?.shortcut ? null : (
         <button
           type="button"
-          className="ml-2 rounded border p-2"
+          className="wf-btn-quiet"
           disabled={busy}
           onClick={() => {
             void run(launcherClient.retryShortcut);
@@ -48,7 +58,6 @@ export const LauncherEntry = () => {
           Retry registration
         </button>
       )}
-      <output>{message || error}</output>
     </section>
   );
 };

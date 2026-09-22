@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { chromium } from "playwright";
 
 import fixture from "../../../packages/api-contract/src/snapshot-fixtures.json";
+import { openSyncStatus } from "./desktop-menus";
 
 test("partial desktop download remains browsable with honest offline progress and keyboard detail", async () => {
   const browser = await chromium.launch({
@@ -163,6 +164,8 @@ test("partial desktop download remains browsable with honest offline progress an
       });
     }, fixture);
     await page.goto("http://localhost:1420");
+    // Download progress and its messages rest inside the sync status popover.
+    await openSyncStatus(page);
     await page
       .getByText("Offline. Download paused", { exact: false })
       .waitFor();

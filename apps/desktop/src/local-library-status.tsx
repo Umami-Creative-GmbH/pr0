@@ -1,6 +1,9 @@
 import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
 import { LastChecked } from "@pr0/ui/components/last-checked";
+import { AppBarStatus } from "@pr0/ui/components/wayfinder-shell";
+import { useDismissable } from "@pr0/ui/hooks/use-dismissable";
+import { statusTone } from "@pr0/ui/lib/present";
 import type { ReactNode } from "react";
 
 import type { DownloadStatus } from "./library-client";
@@ -86,7 +89,7 @@ export const DownloadControls = ({
         type="button"
         disabled={busy}
         onClick={onRetry}
-        className="rounded border px-4 py-2"
+        className="wf-btn"
       >
         Retry download
       </button>
@@ -323,6 +326,7 @@ export const LocalLibraryStatus = ({
   saveFailure?: boolean;
 }) => {
   const details = useSyncDetails();
+  useDismissable(details);
   const pendingChanges = status?.pendingChanges ?? 0;
   const label = organizationAttention
     ? "Changes need attention · Changes waiting"
@@ -335,41 +339,52 @@ export const LocalLibraryStatus = ({
         uploadLabel(signedIn, offline, pendingChanges, upload)
       ));
   return (
-    <details ref={details}>
-      <summary>{saveFailure ? "Not saved · Unsaved draft" : label}</summary>
-      {saveFailure ? (
-        <p>
-          {label}. The draft could not be saved. Keep the editor open to retry
-          or copy its text; it may be lost after closing.
-        </p>
-      ) : null}
-      <p>
-        {pendingChanges} pending changes. Saved local changes await
-        synchronization.
-      </p>
-      <LastChecked at={changes?.lastCheckedAt} />
-      <ConnectionDetails
-        signedIn={signedIn}
-        offline={offline}
-        upload={upload}
-        changes={changes}
-      />
-      <TransferDetails status={status} upload={upload} changes={changes} />
-      <RejectedChanges upload={upload} onOpen={onOpen} />
-      <button
-        type="button"
-        disabled={!signedIn || Boolean(upload?.retryAfterMs)}
-        onClick={onRetry}
-      >
-        Retry sync
-      </button>
-      {status &&
-      (status.downloaded >= 9000 || status.textBytes >= 94_371_840) ? (
-        <p>
-          Your library is near its capacity. Archiving does not free capacity.
-        </p>
-      ) : null}
-      {children}
-    </details>
+    <AppBarStatus>
+      <details className="wf-menu" ref={details}>
+        <summary className="wf-sync">
+          <span
+            className="wf-dot"
+            data-tone={statusTone(label, saveFailure || organizationAttention)}
+          />
+          <span>{saveFailure ? "Not saved · Unsaved draft" : label}</span>
+        </summary>
+        <div className="wf-popover">
+          {saveFailure ? (
+            <p>
+              {label}. The draft could not be saved. Keep the editor open to
+              retry or copy its text; it may be lost after closing.
+            </p>
+          ) : null}
+          <p>
+            {pendingChanges} pending changes. Saved local changes await
+            synchronization.
+          </p>
+          <LastChecked at={changes?.lastCheckedAt} />
+          <ConnectionDetails
+            signedIn={signedIn}
+            offline={offline}
+            upload={upload}
+            changes={changes}
+          />
+          <TransferDetails status={status} upload={upload} changes={changes} />
+          <RejectedChanges upload={upload} onOpen={onOpen} />
+          <button
+            type="button"
+            disabled={!signedIn || Boolean(upload?.retryAfterMs)}
+            onClick={onRetry}
+          >
+            Retry sync
+          </button>
+          {status &&
+          (status.downloaded >= 9000 || status.textBytes >= 94_371_840) ? (
+            <p>
+              Your library is near its capacity. Archiving does not free
+              capacity.
+            </p>
+          ) : null}
+          {children}
+        </div>
+      </details>
+    </AppBarStatus>
   );
 };

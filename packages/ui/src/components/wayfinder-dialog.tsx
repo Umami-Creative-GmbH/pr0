@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 
@@ -9,12 +10,14 @@ export const WayfinderDialog = ({
   onRequestClose,
   opener,
   suspended = false,
+  size,
 }: {
   children: ReactNode;
   label: string;
   onRequestClose: () => void;
   opener?: Element | null;
   suspended?: boolean;
+  size?: "sm" | "launcher";
 }) => {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -35,6 +38,7 @@ export const WayfinderDialog = ({
       ref={ref}
       hidden={suspended}
       className="wf-dialog"
+      data-size={size}
       aria-label={label}
       onCancel={(event) => {
         event.preventDefault();
@@ -45,3 +49,38 @@ export const WayfinderDialog = ({
     </dialog>
   );
 };
+
+export const DialogHead = ({
+  eyebrow,
+  title,
+  titleId,
+  onClose,
+  closeLabel,
+  closeDisabled,
+}: {
+  eyebrow: string;
+  title: ReactNode;
+  titleId?: string;
+  onClose?: () => void;
+  closeLabel?: string;
+  closeDisabled?: boolean;
+}) => (
+  <header className="wf-dialog-head">
+    <div>
+      <span className="wf-eyebrow-accent">{eyebrow}</span>
+      <h2 id={titleId}>{title}</h2>
+    </div>
+    {onClose ? (
+      <button
+        type="button"
+        className="wf-icon-btn"
+        data-size="md"
+        aria-label={closeLabel ?? "Close"}
+        disabled={closeDisabled}
+        onClick={onClose}
+      >
+        <X aria-hidden="true" size={15} />
+      </button>
+    ) : null}
+  </header>
+);

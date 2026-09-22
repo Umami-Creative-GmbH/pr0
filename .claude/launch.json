@@ -4,8 +4,22 @@
     {
       "name": "web",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev:web"],
+      "runtimeArgs": [
+        "run",
+        "dev:web"
+      ],
       "port": 3000
+    },
+    {
+      "name": "desktop-frontend",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "--cwd",
+        "apps/desktop",
+        "dev"
+      ],
+      "port": 1420
     }
   ]
 }
