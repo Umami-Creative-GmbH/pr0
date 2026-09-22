@@ -12,6 +12,8 @@
   "nativeSettings": "&Einstellungen",
   "nativeQuit": "pr0 &beenden",
   "nativeTooltip": "pr0 — Bibliothek öffnen",
+  "nativeShortcutTooltip": "pr0 — {0}",
+  "nativeShortcutUnavailable": "Globales Tastenkürzel nicht verfügbar",
   "nativeLauncherTitle": "pr0 Schnellstarter",
   "nativeLanguageFailure": "Die Sprache des Desktop-Menüs konnte nicht aktualisiert werden. Öffne pr0 erneut, um es noch einmal zu versuchen.",
   "variableRequested": "{0} wird beim Kopieren abgefragt",

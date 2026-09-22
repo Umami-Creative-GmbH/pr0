@@ -146,5 +146,6 @@ fn setup_resident(app: &tauri::AppHandle, directory: std::path::PathBuf) -> taur
         })
         .build(app)?;
     app.manage(NativeMenuCopy([library, launcher, settings, quit]));
+    app.manage(NativeLanguageCopy(std::sync::Mutex::new(copy)));
     Ok(())
 }

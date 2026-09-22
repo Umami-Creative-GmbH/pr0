@@ -6,6 +6,7 @@ import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { Toast } from "@pr0/ui/components/toast";
 import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { translate } from "@pr0/ui/lib/i18n";
+import { localizeMessage } from "@pr0/ui/lib/message-localization";
 import type { ReactNode } from "react";
 
 import type { DownloadStatus } from "./library-client";
@@ -25,7 +26,7 @@ const plainSuccess = (
   lifecycle: ReturnType<typeof useLifecycle>,
   usage?: DesktopUsageStatus
 ) =>
-  copyMessage === translate("copied2") &&
+  localizeMessage(copyMessage, "en") === translate("copied2", [], "en") &&
   !lifecycle.message &&
   !lifecycle.failed &&
   !usage?.memoryOnly &&
@@ -84,7 +85,9 @@ export const DownloadedStatus = ({
         <output>
           <LocalizedMessage value={copyMessage} />
         </output>
-        <output>{lifecycle.message}</output>
+        <output>
+          <LocalizedMessage value={lifecycle.message} />
+        </output>
         {/* Usage feedback accompanies the copy result. Uses held only in memory
           can be lost on exit, so their retry always stays in view. */}
         {usageInToast(copyMessage, usage) ? (

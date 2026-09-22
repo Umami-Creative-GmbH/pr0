@@ -12,6 +12,8 @@
   "nativeSettings": "&Settings",
   "nativeQuit": "&Quit pr0",
   "nativeTooltip": "pr0 — Open library",
+  "nativeShortcutTooltip": "pr0 — {0}",
+  "nativeShortcutUnavailable": "Global shortcut unavailable",
   "nativeLauncherTitle": "pr0 Quick launcher",
   "nativeLanguageFailure": "Could not update the desktop menu language. Reopen pr0 to retry.",
   "variableRequested": "{0} is requested when copying",

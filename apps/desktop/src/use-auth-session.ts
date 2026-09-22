@@ -34,7 +34,7 @@ const command = async (name: Command, input?: string | SignOutRequest) => {
       : { origin: z.string().optional().parse(input) };
   return desktopStatusSchema.parse(await invoke(name, args));
 };
-const errors = {
+const errorKeys = {
   invalid_deletion_evidence:
     "deletionEvidenceCouldNotBeVerifiedLocalWorkIsPreserved" as const,
   sync_incomplete:
@@ -72,7 +72,7 @@ const errors = {
   redirect_rejected:
     "theServerRedirectedTheRequestUseItsCanonicalHttpsAddress" as const,
 };
-const errorMessages = new Map(Object.entries(errors));
+const errorMessages = new Map(Object.entries(errorKeys));
 const messageFor = (code: string | undefined) => {
   const key = code ? errorMessages.get(code) : undefined;
   return code
@@ -110,7 +110,7 @@ export const useAuthSession = () => {
               (name === "auth_sign_out" &&
               signOutRequestSchema.safeParse(selected).data?.choice ===
                 "synchronize"
-                ? errors.sync_incomplete
+                ? translate(errorKeys.sync_incomplete)
                 : translate(
                     "theOperationDidNotCompleteRetryRetainedLocalFilesAre"
                   ))

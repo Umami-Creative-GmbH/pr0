@@ -209,7 +209,9 @@ export const OrganizationManager = ({
               onDirtyChange(event.target.value !== baseline);
             }}
           />
-          <p id="collection-name-error">{state.error}</p>
+          <p id="collection-name-error">
+            <LocalizedMessage value={state.error} />
+          </p>
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"

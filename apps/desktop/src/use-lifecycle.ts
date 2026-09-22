@@ -4,28 +4,22 @@ import type {
   LocalPrompt,
 } from "@pr0/api-contract/local-prompts";
 import { useTranslations } from "@pr0/ui/hooks/use-translations";
-import { translate } from "@pr0/ui/lib/i18n";
+import type { MessageKey } from "@pr0/ui/lib/i18n";
 import { useRef, useState } from "react";
 import { z } from "zod";
 
 import { libraryClient } from "./library-client";
 import type { Status } from "./use-auth-session";
 
-const errors = new Map([
-  [
-    "quota_exceeded",
-    translate("capacityReachedFreeCapacityAndRetryArchivingDoesNotFree"),
-  ],
+const errorKeys = new Map<string, MessageKey>([
+  ["quota_exceeded", "capacityReachedFreeCapacityAndRetryArchivingDoesNotFree"],
   [
     "local_revision_conflict",
-    translate("theSavedPromptChangedYourChosenActionWasNotSaved"),
+    "theSavedPromptChangedYourChosenActionWasNotSaved",
   ],
-  ["disk_full", translate("thisDeviceIsOutOfStorageSpaceFreeSpaceAnd2")],
-  ["storage_busy", translate("anotherWriteIsUsingTheLibraryRetryShortly")],
-  [
-    "commit_uncertain",
-    translate("theResultCouldNotBeConfirmedRetryToCheckThis"),
-  ],
+  ["disk_full", "thisDeviceIsOutOfStorageSpaceFreeSpaceAnd2"],
+  ["storage_busy", "anotherWriteIsUsingTheLibraryRetryShortly"],
+  ["commit_uncertain", "theResultCouldNotBeConfirmedRetryToCheckThis"],
 ]);
 export const useLifecycle = (
   account: Status,
@@ -84,8 +78,10 @@ export const useLifecycle = (
         uncertain.current
           ? t("theResultCouldNotBeConfirmedRetryToCheckThis")
           : t("notSavedValue", [
-              errors.get(code) ??
-                t("checkStorageAccessAndRetryTheChosenActionAndSource"),
+              t(
+                errorKeys.get(code) ??
+                  "checkStorageAccessAndRetryTheChosenActionAndSource"
+              ),
             ])
       );
     }

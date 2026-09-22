@@ -7,6 +7,8 @@ struct NativeCopy {
     native_quit: String,
     native_tooltip: String,
     native_launcher_title: String,
+    native_shortcut_tooltip: String,
+    native_shortcut_unavailable: String,
 }
 
 fn native_copy(language: &str) -> Result<NativeCopy, String> {
@@ -19,6 +21,19 @@ fn native_copy(language: &str) -> Result<NativeCopy, String> {
 }
 
 struct NativeMenuCopy([tauri::menu::MenuItem<tauri::Wry>; 4]);
+struct NativeLanguageCopy(std::sync::Mutex<NativeCopy>);
+
+fn update_native_tooltip(app: &tauri::AppHandle) -> Result<(), String> {
+    let language = app.state::<NativeLanguageCopy>();
+    let copy = language.0.lock().map_err(|_| "native_language_unavailable")?;
+    let status = app.state::<launcher_runtime::Launcher>().status()?;
+    let shortcut = status.shortcut.as_deref().unwrap_or(&copy.native_shortcut_unavailable);
+    if let Some(tray) = app.tray_by_id("resident") {
+        tray.set_tooltip(Some(copy.native_shortcut_tooltip.replace("{0}", shortcut)))
+            .map_err(|_| "native_language_unavailable")?;
+    }
+    Ok(())
+}
 
 #[tauri::command]
 fn desktop_language(window: tauri::WebviewWindow, language: String) -> Result<(), String> {
@@ -34,13 +49,10 @@ fn desktop_language(window: tauri::WebviewWindow, language: String) -> Result<()
     ]) {
         item.set_text(label).map_err(|_| "native_language_unavailable")?;
     }
-    if let Some(tray) = app.tray_by_id("resident") {
-        tray.set_tooltip(Some(&copy.native_tooltip))
-            .map_err(|_| "native_language_unavailable")?;
-    }
     if let Some(launcher) = app.get_webview_window("launcher") {
         launcher.set_title(&copy.native_launcher_title)
             .map_err(|_| "native_language_unavailable")?;
     }
-    Ok(())
+    *app.state::<NativeLanguageCopy>().0.lock().map_err(|_| "native_language_unavailable")? = copy;
+    update_native_tooltip(app)
 }

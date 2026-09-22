@@ -29,11 +29,7 @@ fn register_launcher_shortcut(app: &tauri::AppHandle) -> Result<(), String> {
                 })
                 .is_ok()
         })?;
-    if let Some(tray) = app.tray_by_id("resident") {
-        let status = app.state::<launcher_runtime::Launcher>().status()?;
-        let shortcut = status.shortcut.as_deref().unwrap_or("Global shortcut unavailable");
-        let _ = tray.set_tooltip(Some(format!("pr0 — {shortcut}")));
-    }
+    update_native_tooltip(app)?;
     let _ = app.emit("launcher-changed", ());
     Ok(())
 }

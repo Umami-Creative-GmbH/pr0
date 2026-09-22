@@ -33,7 +33,11 @@ export const LiveLibraryStatus = ({
               className="wf-dot"
               data-tone={statusTone(status.label, entries.length > 0)}
             />
-            <span>{entries.length ? attentionLabel : status.label}</span>
+            <span>
+              <LocalizedMessage
+                value={entries.length ? attentionLabel : status.label}
+              />
+            </span>
           </>
         }
       >
