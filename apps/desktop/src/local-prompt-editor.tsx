@@ -6,10 +6,13 @@ import type {
 import type { PromptText } from "@pr0/api-contract/prompts";
 import { parseTemplate } from "@pr0/api-contract/variables";
 import { EditorFooter } from "@pr0/ui/components/editor-footer";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import {
   DialogHead,
   WayfinderDialog,
 } from "@pr0/ui/components/wayfinder-dialog";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { z } from "zod";
@@ -19,27 +22,28 @@ import { useResidentEditor } from "./resident-editor";
 import type { Status } from "./use-auth-session";
 
 const failures = {
-  disk_full:
-    "This device is out of storage space. Free space and retry. Your draft remains here until you close it.",
-  storage_busy: "Another write is using the library. Retry shortly.",
-  storage_unavailable:
-    "The device could not save this draft. Check storage access and free space, then retry.",
-  commit_uncertain:
-    "The save could not be confirmed. Retry to check the same save safely.",
-  local_revision_conflict:
-    "The library changed in another window or download. Your draft is retained. Copy it or save it as a new prompt.",
-  save_superseded:
-    "This save was committed, but a newer saved edit now exists. Your draft is retained. Copy it or save it as a new prompt.",
-  quota_exceeded:
-    "The library has reached its prompt or text capacity. Reduce the text or free capacity, then retry. Archiving does not free capacity.",
-  operation_cancelled:
-    "The account session changed. Your draft is retained. Retry in the same account.",
-  validation_title: "Enter a title of at most 200 Unicode code points.",
-  validation_description:
-    "Description must be at most 2,000 Unicode code points.",
-  validation_content:
-    "Enter nonblank content of at most 256 KiB of UTF-8 text.",
-  validation_unicode: "Use valid Unicode text without NUL characters.",
+  disk_full: translate("thisDeviceIsOutOfStorageSpaceFreeSpaceAnd"),
+  storage_busy: translate("anotherWriteIsUsingTheLibraryRetryShortly"),
+  storage_unavailable: translate(
+    "theDeviceCouldNotSaveThisDraftCheckStorageAccess"
+  ),
+  commit_uncertain: translate("theSaveCouldNotBeConfirmedRetryToCheckThe"),
+  local_revision_conflict: translate(
+    "theLibraryChangedInAnotherWindowOrDownloadYourDraft"
+  ),
+  save_superseded: translate("thisSaveWasCommittedButANewerSavedEditNow"),
+  quota_exceeded: translate(
+    "theLibraryHasReachedItsPromptOrTextCapacityReduce"
+  ),
+  operation_cancelled: translate(
+    "theAccountSessionChangedYourDraftIsRetainedRetryIn"
+  ),
+  validation_title: translate("enterATitleOfAtMost200UnicodeCodePoints"),
+  validation_description: translate(
+    "descriptionMustBeAtMost2000UnicodeCodePoints"
+  ),
+  validation_content: translate("enterNonblankContentOfAtMost256KibOfUtf"),
+  validation_unicode: translate("useValidUnicodeTextWithoutNulCharacters"),
 } satisfies Record<string, string>;
 const failureMessages = new Map(Object.entries(failures));
 
@@ -49,46 +53,49 @@ const PromptFields = ({
 }: {
   draft: PromptText;
   change: (field: keyof PromptText, value: string) => void;
-}) => (
-  <>
-    <div className="wf-field">
-      <label className="wf-label" htmlFor="draft-title">
-        Title
-      </label>
-      <input
-        id="draft-title"
-        placeholder="e.g. Website accessibility audit"
-        value={draft.title}
-        onChange={(event) => change("title", event.target.value)}
-      />
-    </div>
-    <div className="wf-field">
-      <label className="wf-label" htmlFor="draft-description">
-        Description
-      </label>
-      <textarea
-        className="font-sans"
-        id="draft-description"
-        placeholder="One sentence on what this prompt is good for"
-        rows={2}
-        value={draft.description}
-        onChange={(event) => change("description", event.target.value)}
-      />
-    </div>
-    <div className="wf-field">
-      <label className="wf-label" htmlFor="draft-content">
-        Content
-      </label>
-      <textarea
-        data-size="lg"
-        id="draft-content"
-        rows={10}
-        value={draft.content}
-        onChange={(event) => change("content", event.target.value)}
-      />
-    </div>
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      <div className="wf-field">
+        <label className="wf-label" htmlFor="draft-title">
+          {t("title")}
+        </label>
+        <input
+          id="draft-title"
+          placeholder={t("eGWebsiteAccessibilityAudit")}
+          value={draft.title}
+          onChange={(event) => change("title", event.target.value)}
+        />
+      </div>
+      <div className="wf-field">
+        <label className="wf-label" htmlFor="draft-description">
+          {t("description")}
+        </label>
+        <textarea
+          className="font-sans"
+          id="draft-description"
+          placeholder={t("oneSentenceOnWhatThisPromptIsGoodFor")}
+          rows={2}
+          value={draft.description}
+          onChange={(event) => change("description", event.target.value)}
+        />
+      </div>
+      <div className="wf-field">
+        <label className="wf-label" htmlFor="draft-content">
+          {t("content")}
+        </label>
+        <textarea
+          data-size="lg"
+          id="draft-content"
+          rows={10}
+          value={draft.content}
+          onChange={(event) => change("content", event.target.value)}
+        />
+      </div>
+    </>
+  );
+};
 
 const DiscardConfirmation = ({
   saving,
@@ -98,28 +105,31 @@ const DiscardConfirmation = ({
   saving: boolean;
   onCancel: () => void;
   onKeep: () => void;
-}) => (
-  <section
-    aria-label="Discard draft confirmation"
-    className="wf-notice"
-    data-tone="attention"
-  >
-    <p>Discard this unsaved draft? Its text will be lost.</p>
-    <div className="mt-3 flex flex-wrap gap-3">
-      <button
-        className="wf-btn wf-btn-danger"
-        type="button"
-        disabled={saving}
-        onClick={onCancel}
-      >
-        Discard draft
-      </button>
-      <button className="wf-btn" type="button" onClick={onKeep}>
-        Keep editing
-      </button>
-    </div>
-  </section>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <section
+      aria-label={t("discardDraftConfirmation")}
+      className="wf-notice"
+      data-tone="attention"
+    >
+      <p>{t("discardThisUnsavedDraftItsTextWillBeLost")}</p>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <button
+          className="wf-btn wf-btn-danger"
+          type="button"
+          disabled={saving}
+          onClick={onCancel}
+        >
+          {t("discardDraft")}
+        </button>
+        <button className="wf-btn" type="button" onClick={onKeep}>
+          {t("keepEditing")}
+        </button>
+      </div>
+    </section>
+  );
+};
 
 const EditorSaveStatus = ({
   saving,
@@ -127,20 +137,23 @@ const EditorSaveStatus = ({
 }: {
   saving: boolean;
   saveError: string;
-}) => (
-  <>
-    <p aria-live="polite" className="wf-notice">
-      {saving ? "Saving…" : ""}
-      {!saving && saveError ? "Not saved" : ""}
-      {!saving && !saveError ? "Unsaved changes" : ""}
-    </p>
-    {saveError ? (
-      <p className="wf-notice" role="alert">
-        {saveError}
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      <p aria-live="polite" className="wf-notice">
+        {saving ? t("saving") : ""}
+        {!saving && saveError ? t("notSaved2") : ""}
+        {!saving && !saveError ? t("unsavedChanges") : ""}
       </p>
-    ) : null}
-  </>
-);
+      {saveError ? (
+        <p className="wf-notice" role="alert">
+          {saveError}
+        </p>
+      ) : null}
+    </>
+  );
+};
 
 /** Ways out to the library that keep the mounted draft. */
 const EditorContext = ({
@@ -151,25 +164,32 @@ const EditorContext = ({
   redirected: boolean;
   onBrowse: () => void;
   onOpenOriginal?: () => void;
-}) => (
-  <>
-    <div className="flex flex-wrap items-center gap-2">
-      <button className="wf-btn-quiet" type="button" onClick={onBrowse}>
-        Browse library (keep draft)
-      </button>
-      {onOpenOriginal ? (
-        <button className="wf-btn-quiet" type="button" onClick={onOpenOriginal}>
-          Open original
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <button className="wf-btn-quiet" type="button" onClick={onBrowse}>
+          {t("browseLibraryKeepDraft")}
         </button>
+        {onOpenOriginal ? (
+          <button
+            className="wf-btn-quiet"
+            type="button"
+            onClick={onOpenOriginal}
+          >
+            {t("openOriginal")}
+          </button>
+        ) : null}
+      </div>
+      {redirected ? (
+        <p className="wf-notice">
+          {t("youAposReEditingTheConflictCopyYourUnsavedText")}
+        </p>
       ) : null}
-    </div>
-    {redirected ? (
-      <p className="wf-notice">
-        You&apos;re editing the conflict copy. Your unsaved text is retained.
-      </p>
-    ) : null}
-  </>
-);
+    </>
+  );
+};
 
 export const LocalPromptEditor = ({
   initial,
@@ -188,6 +208,8 @@ export const LocalPromptEditor = ({
   onOpenOriginal: (id: string) => void;
   onSaveFailure?: (failed: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const [draft, setDraft] = useState<PromptText>(() => ({
     title: initial?.prompt.title ?? "",
     description: initial?.prompt.description ?? "",
@@ -306,7 +328,7 @@ export const LocalPromptEditor = ({
         const code = parsed.success ? parsed.data : "commit_uncertain";
         setSaveError(
           failureMessages.get(code) ??
-            "The save could not be confirmed. Keep this draft open and retry, or copy the text."
+            t("theSaveCouldNotBeConfirmedKeepThisDraftOpen")
         );
         setConflict(
           code === "local_revision_conflict" || code === "save_superseded"
@@ -345,9 +367,7 @@ export const LocalPromptEditor = ({
     } catch {
       pendingSave.current = null;
       setSaving(false);
-      setSaveError(
-        "The save could not be confirmed. Keep this draft open and retry, or copy the text."
-      );
+      setSaveError(t("theSaveCouldNotBeConfirmedKeepThisDraftOpen"));
       return false;
     }
   };
@@ -366,15 +386,13 @@ export const LocalPromptEditor = ({
   const copy = async () => {
     try {
       await libraryClient.copyDraft(makeRequest());
-      setCopyMessage("Text copied.");
+      setCopyMessage(t("textCopied"));
     } catch {
-      setCopyMessage(
-        "Copy failed. Your text is still available; select it and copy manually, or retry Copy text."
-      );
+      setCopyMessage(t("copyFailedYourTextIsStillAvailableSelectItAnd"));
     }
   };
   const [browsing, setBrowsing] = useState(false);
-  const editorLabel = initial ? "Edit prompt" : "New prompt";
+  const editorLabel = initial ? t("editPrompt") : t("newPrompt");
   const requestClose = () => {
     if (!saving) {
       setDiscard(true);
@@ -388,7 +406,7 @@ export const LocalPromptEditor = ({
         type="button"
         onClick={() => setBrowsing(false)}
       >
-        Resume prompt draft
+        {t("resumePromptDraft")}
       </button>
       <WayfinderDialog
         suspended={browsing}
@@ -398,14 +416,14 @@ export const LocalPromptEditor = ({
         <DialogHead
           eyebrow={editorLabel}
           title={
-            initial ? draft.title || initial.prompt.title : "Create a prompt"
+            initial ? draft.title || initial.prompt.title : t("createAPrompt")
           }
           closeLabel="Close editor"
           closeDisabled={saving}
           onClose={requestClose}
         />
         <form
-          aria-label="Prompt editor"
+          aria-label={t("promptEditor")}
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={submit}
         >
@@ -426,7 +444,7 @@ export const LocalPromptEditor = ({
             <PromptFields draft={draft} change={change} />
             <EditorSaveStatus saving={saving} saveError={saveError} />
             <p aria-live="polite" className="wf-hint empty:hidden">
-              {copyMessage}
+              <LocalizedMessage value={copyMessage} />
             </p>
             {discard ? (
               <DiscardConfirmation

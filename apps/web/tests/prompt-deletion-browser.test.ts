@@ -28,6 +28,7 @@ test("keyboard cancellation and confirmation work in active and archived views; 
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       viewport: { width: 640, height: 900 },
     });
     await context.addCookies(
@@ -128,7 +129,7 @@ test("active-list deletion preserves an unseen edit and leaves an open draft rec
     headless: true,
   });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
         const split = cookie.indexOf("=");
@@ -254,6 +255,7 @@ test("capacity-refused deletion retains the frozen intent for retry after freein
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       viewport: { width: 640, height: 900 },
     });
     await context.addCookies(

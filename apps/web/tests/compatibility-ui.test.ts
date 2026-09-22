@@ -25,6 +25,7 @@ test("desktop incompatible server shows update recovery and retains exact saved 
   });
   try {
     const page = await browser.newPage({
+      locale: "en-US",
       viewport: { width: 1200, height: 1000 },
     });
     await page.exposeFunction(

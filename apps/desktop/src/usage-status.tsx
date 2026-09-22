@@ -1,4 +1,5 @@
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 
 import { upgradeRecoveryMessage } from "./upgrade-recovery";
 
@@ -8,32 +9,37 @@ export const UsageStatus = ({
 }: {
   status?: DesktopUsageStatus;
   onRetry: () => void;
-}) => (
-  <section aria-label="Prompt usage">
-    {status?.memoryOnly ? (
-      <p>
-        Copied, but {status.memoryOnly} use(s) are only held in memory. Retry
-        usage; closing the app may lose them.
-      </p>
-    ) : null}
-    {status?.waiting ? (
-      <p>{status.waiting} use(s) saved on this device, waiting to sync.</p>
-    ) : null}
-    {status?.awaitingDownload && status.error !== "recovery_required" ? (
-      <p>Usage accepted by the server. Updating the downloaded library.</p>
-    ) : null}
-    {status?.error ? (
-      <p>
-        {upgradeRecoveryMessage(status.error) ??
-          (status.error === "recovery_required"
-            ? "The server was restored. Earlier usage is retained for recovery and will not be replayed automatically."
-            : "Usage sync is paused. Check your connection and sign-in; saved uses will retry automatically.")}
-      </p>
-    ) : null}
-    {status?.memoryOnly ? (
-      <button type="button" onClick={onRetry}>
-        Retry usage
-      </button>
-    ) : null}
-  </section>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <section aria-label={t("promptUsage")}>
+      {status?.memoryOnly ? (
+        <p>
+          {t("copiedBut")} {status.memoryOnly}{" "}
+          {t("useSAreOnlyHeldInMemoryRetryUsageClosing")}
+        </p>
+      ) : null}
+      {status?.waiting ? (
+        <p>
+          {status.waiting} {t("useSSavedOnThisDeviceWaitingToSync")}
+        </p>
+      ) : null}
+      {status?.awaitingDownload && status.error !== "recovery_required" ? (
+        <p>{t("usageAcceptedByTheServerUpdatingTheDownloadedLibrary")}</p>
+      ) : null}
+      {status?.error ? (
+        <p>
+          {upgradeRecoveryMessage(status.error) ??
+            (status.error === "recovery_required"
+              ? t("theServerWasRestoredEarlierUsageIsRetainedForRecovery")
+              : t("usageSyncIsPausedCheckYourConnectionAndSignIn"))}
+        </p>
+      ) : null}
+      {status?.memoryOnly ? (
+        <button type="button" onClick={onRetry}>
+          {t("retryUsage")}
+        </button>
+      ) : null}
+    </section>
+  );
+};

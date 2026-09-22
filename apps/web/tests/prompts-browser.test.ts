@@ -23,6 +23,7 @@ test("browser retains a lost-response draft, reports real clipboard results, ret
     headless: true,
   });
   const context = await browser.newContext({
+    locale: "en-US",
     viewport: { width: 1280, height: 900 },
     permissions: ["clipboard-read", "clipboard-write"],
   });
@@ -165,7 +166,7 @@ test("an account change in another tab preserves this draft and never saves it i
     channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
     headless: true,
   });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ locale: "en-US" });
   try {
     await context.addCookies(cookies(original.Cookie));
     const page = await context.newPage();
@@ -235,7 +236,7 @@ test("browser reaches later pages and keeps an unsaved draft when a changed libr
     channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
     headless: true,
   });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ locale: "en-US" });
   try {
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
@@ -308,6 +309,7 @@ test("browser warns before limits, preserves invalid input and an open draft dur
     headless: true,
   });
   const context = await browser.newContext({
+    locale: "en-US",
     viewport: { width: 640, height: 900 },
   });
   try {

@@ -1,8 +1,8 @@
 "use client";
-
 import { organizationSearch } from "@pr0/api-contract/organization";
 import { promptQuerySchema, promptSortSchema } from "@pr0/api-contract/prompts";
 import type { PromptSort } from "@pr0/api-contract/prompts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 const subscribeSort = (changed: () => void) => {
@@ -30,6 +30,8 @@ export const usePromptSearch = (
   scope: string,
   defaultSort: PromptSort = "recently-modified"
 ) => {
+  const t = useTranslations();
+
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const browseSort = useSyncExternalStore(
@@ -44,7 +46,7 @@ export const usePromptSearch = (
     (!validation.success || Boolean(organizationSearch(query)));
   const error = validation.success
     ? ""
-    : (validation.error.issues[0]?.message ?? "Invalid search text.");
+    : (validation.error.issues[0]?.message ?? t("invalidSearchText"));
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(query), 35);
     return () => clearTimeout(timer);

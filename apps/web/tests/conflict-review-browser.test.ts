@@ -14,7 +14,7 @@ test("failed web save keeps the draft and prevents an all-clear status", async (
   const account = await promptBrowser();
   const browser = await chromium.launch({ channel: "msedge", headless: true });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => ({
         name: cookie.slice(0, cookie.indexOf("=")),
@@ -80,7 +80,7 @@ test("conflict review retries a failed acknowledgement and keeps both without lo
   });
   const browser = await chromium.launch({ channel: "msedge", headless: true });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => ({
         name: cookie.slice(0, cookie.indexOf("=")),

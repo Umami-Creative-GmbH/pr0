@@ -1,17 +1,18 @@
 "use client";
-
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { AccountIdentity } from "@pr0/api-contract/accounts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { accountErrorMessage, methodResultMessage } from "./account-errors";
 
 const labels = {
-  credential: "Email and password",
-  google: "Google",
-  github: "GitHub",
+  credential: "emailAndPassword" as const,
+  google: "google" as const,
+  github: "github" as const,
 };
 const buttonClass = "wf-btn";
 const focusConfirmation = (button: HTMLButtonElement | null) => button?.focus();
@@ -26,6 +27,8 @@ export const LoginMethodSettings = ({
   result?: string;
   refreshAccount: () => Promise<void>;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -69,16 +72,14 @@ export const LoginMethodSettings = ({
       className="mt-6 border-t pt-6"
     >
       <h3 className="text-lg font-medium" id="login-methods-title">
-        Login methods
+        {t("loginMethods")}
       </h3>
       <p className="mt-2 text-sm">
-        Link Google or GitHub to this library. The provider may use a different
-        email; your account email stays the same. Keep at least one usable login
-        method.
+        {t("linkGoogleOrGithubToThisLibraryTheProviderMay")}
       </p>
       {fresh ? null : (
         <p className="mt-2 text-sm">
-          Confirm your identity above to link or remove a method.
+          {t("confirmYourIdentityAboveToLinkOrRemoveAMethod")}
         </p>
       )}
       <p
@@ -87,9 +88,9 @@ export const LoginMethodSettings = ({
         ref={statusRef}
         tabIndex={-1}
       >
-        {message}
+        <LocalizedMessage value={message} />
       </p>
-      {methods.isPending ? <output>Loading login methods…</output> : null}
+      {methods.isPending ? <output>{t("loadingLoginMethods")}</output> : null}
       {methods.isError ? (
         <p role="alert">
           {accountErrorMessage(methods.error)}{" "}
@@ -100,27 +101,27 @@ export const LoginMethodSettings = ({
               void methods.refetch();
             }}
           >
-            Retry login methods
+            {t("retryLoginMethods")}
           </button>
         </p>
       ) : null}
       {methods.data && !methods.isError ? (
         <fieldset className="space-y-3" disabled={busy || !fresh}>
-          <legend className="sr-only">Manage login methods</legend>
+          <legend className="sr-only">{t("manageLoginMethods")}</legend>
           <ul className="space-y-3">
             {methods.data.methods.map((method) => (
               <li key={method.id} className="space-y-2">
                 <p>
-                  {labels[method.provider]}
+                  {t(labels[method.provider])}
                   {method.usable
-                    ? " · Available"
-                    : " · Unavailable on this instance"}
+                    ? t("available")
+                    : t("unavailableOnThisInstance")}
                 </p>
                 {removing === method.id ? (
                   <div className="space-y-2">
                     <p>
-                      Remove {labels[method.provider]}? You will need another
-                      method to sign in.
+                      {t("remove")} {t(labels[method.provider])}
+                      {t("youWillNeedAnotherMethodToSignIn")}
                     </p>
                     <button
                       className={buttonClass}
@@ -133,12 +134,14 @@ export const LoginMethodSettings = ({
                             methodId: method.id,
                           });
                           setMessage(
-                            `${labels[method.provider]} removed. Your library is unchanged.`
+                            t("valueRemovedYourLibraryIsUnchanged", [
+                              t(labels[method.provider]),
+                            ])
                           );
                         });
                       }}
                     >
-                      Confirm removal of {labels[method.provider]}
+                      {t("confirmRemovalOf")} {t(labels[method.provider])}
                     </button>{" "}
                     <button
                       className={buttonClass}
@@ -146,12 +149,12 @@ export const LoginMethodSettings = ({
                       onClick={() => {
                         setRemoving(null);
                         setMessage(
-                          "Removal cancelled. Your login methods are unchanged."
+                          t("removalCancelledYourLoginMethodsAreUnchanged")
                         );
                         statusRef.current?.focus();
                       }}
                     >
-                      Cancel removal
+                      {t("cancelRemoval")}
                     </button>
                   </div>
                 ) : (
@@ -160,7 +163,7 @@ export const LoginMethodSettings = ({
                     type="button"
                     onClick={() => setRemoving(method.id)}
                   >
-                    Remove {labels[method.provider]}
+                    {t("remove")} {t(labels[method.provider])}
                   </button>
                 )}
               </li>
@@ -185,12 +188,12 @@ export const LoginMethodSettings = ({
                     });
                   }}
                 >
-                  Link {labels[provider]}
+                  {t("link")} {t(labels[provider])}
                 </button>
               )
             )}
           </div>
-          {busy ? <output>Working…</output> : null}
+          {busy ? <output>{t("working")}</output> : null}
         </fieldset>
       ) : null}
     </section>

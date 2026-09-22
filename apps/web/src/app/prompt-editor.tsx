@@ -9,12 +9,14 @@ import type {
 import { parseTemplate } from "@pr0/api-contract/variables";
 import { CollectionPicker } from "@pr0/ui/components/collection-picker";
 import { EditorFooter } from "@pr0/ui/components/editor-footer";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { PromptFields } from "@pr0/ui/components/prompt-fields";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
 import {
   DialogHead,
   WayfinderDialog,
 } from "@pr0/ui/components/wayfinder-dialog";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
@@ -33,33 +35,34 @@ const EditorNotices = ({
 }: Pick<
   Editor,
   "state" | "statusRef" | "statusText" | "nearingFieldLimit"
->) => (
-  <>
-    {state.status === "draft" && state.message ? (
-      <output className="wf-notice">{state.message}</output>
-    ) : null}
-    <p
-      aria-live="polite"
-      className="wf-notice empty:hidden"
-      ref={statusRef}
-      tabIndex={-1}
-    >
-      {statusText}
-    </p>
-    {state.uncertain ? (
-      <p className="wf-hint">
-        Retry confirms the earlier Save with its original text. Any newer edits
-        still need their own Save. Copy text remains available.
+>) => {
+  const t = useTranslations();
+  return (
+    <>
+      {state.status === "draft" && state.message ? (
+        <output className="wf-notice">
+          <LocalizedMessage value={state.message} />
+        </output>
+      ) : null}
+      <p
+        aria-live="polite"
+        className="wf-notice empty:hidden"
+        ref={statusRef}
+        tabIndex={-1}
+      >
+        <LocalizedMessage value={statusText} />
       </p>
-    ) : null}
-    {nearingFieldLimit ? (
-      <p className="wf-hint">
-        A prompt field is at or above 90% of its limit. Input is never
-        truncated.
-      </p>
-    ) : null}
-  </>
-);
+      {state.uncertain ? (
+        <p className="wf-hint">
+          {t("retryConfirmsTheEarlierSaveWithItsOriginalTextAny")}
+        </p>
+      ) : null}
+      {nearingFieldLimit ? (
+        <p className="wf-hint">{t("aPromptFieldIsAtOrAbove90OfIts")}</p>
+      ) : null}
+    </>
+  );
+};
 
 const OrganizationErrors = ({
   fields,
@@ -67,25 +70,28 @@ const OrganizationErrors = ({
 }: {
   fields: Editor["state"]["fields"];
   tagCount: number;
-}) => (
-  <>
-    {fields.collectionId ? (
-      <p className="wf-error" role="alert">
-        {fields.collectionId}
-      </p>
-    ) : null}
-    {tagCount > 20 ? (
-      <p className="wf-error" role="alert">
-        Choose at most 20 tags.
-      </p>
-    ) : null}
-    {fields.tagIds ? (
-      <p className="wf-error" role="alert">
-        {fields.tagIds}
-      </p>
-    ) : null}
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      {fields.collectionId ? (
+        <p className="wf-error" role="alert">
+          <LocalizedMessage value={fields.collectionId} />
+        </p>
+      ) : null}
+      {tagCount > 20 ? (
+        <p className="wf-error" role="alert">
+          {t("chooseAtMost20Tags")}
+        </p>
+      ) : null}
+      {fields.tagIds ? (
+        <p className="wf-error" role="alert">
+          <LocalizedMessage value={fields.tagIds} />
+        </p>
+      ) : null}
+    </>
+  );
+};
 
 export const PromptEditor = ({
   library,
@@ -110,6 +116,8 @@ export const PromptEditor = ({
   onDirtyChange: (dirty: boolean) => void;
   savedActions: ReactNode;
 }) => {
+  const t = useTranslations();
+
   const {
     tagIds,
     changeTags,
@@ -143,7 +151,7 @@ export const PromptEditor = ({
       keepEditingRef.current?.focus();
     }
   }, [confirmDiscard, browsing]);
-  const editorLabel = prompt ? "Edit prompt" : "Create prompt";
+  const editorLabel = prompt ? t("editPrompt") : t("createPrompt");
   const locked = !prompt && (state.status === "saving" || state.uncertain);
   const requestClose = () => {
     if (state.status === "saving") {
@@ -163,7 +171,7 @@ export const PromptEditor = ({
         type="button"
         onClick={() => setBrowsing(false)}
       >
-        Resume prompt draft
+        {t("resumePromptDraft")}
       </button>
       <WayfinderDialog
         suspended={browsing}
@@ -173,8 +181,8 @@ export const PromptEditor = ({
         {/* Journeys and assistive technology address the editor as a named region. */}
         <section aria-label={editorLabel} className="contents">
           <DialogHead
-            eyebrow={prompt ? "Edit prompt" : "New prompt"}
-            title={prompt ? draft.title || prompt.title : "Create prompt"}
+            eyebrow={prompt ? t("editPrompt") : t("newPrompt")}
+            title={prompt ? draft.title || prompt.title : t("createPrompt")}
             titleId="editor-heading"
             closeLabel="Close editor"
             closeDisabled={state.status === "saving"}
@@ -195,17 +203,16 @@ export const PromptEditor = ({
                   type="button"
                   onClick={() => setBrowsing(true)}
                 >
-                  Browse library (keep draft)
+                  {t("browseLibraryKeepDraft")}
                 </button>
                 {savedActions}
               </div>
               <p className="wf-hint">
-                Only title and content are required. This draft stays in this
-                open tab; closing or reloading the tab may lose it.
+                {t("onlyTitleAndContentAreRequiredThisDraftStaysIn")}
               </p>
               {mappedOriginal ? (
                 <div className="wf-notice">
-                  <p>You&apos;re editing the conflict copy.</p>
+                  <p>{t("youAposReEditingTheConflictCopy")}</p>
                   <PromptOriginal
                     library={library}
                     id={mappedOriginal}
@@ -232,8 +239,8 @@ export const PromptEditor = ({
                 <div className="wf-field-row">
                   <CollectionPicker
                     collections={collections}
-                    label="Collection (optional)"
-                    emptyLabel="No collection"
+                    label={t("collectionOptional")}
+                    emptyLabel={t("noCollection")}
                     value={draft.collectionId}
                     search={collectionMatches}
                     disabled={locked}
@@ -243,7 +250,7 @@ export const PromptEditor = ({
                   />
                   {prompt ? null : (
                     <TagPicker
-                      label="Tags (optional)"
+                      label={t("tagsOptional")}
                       tags={tags}
                       value={tagIds}
                       onChange={changeTags}
@@ -259,14 +266,14 @@ export const PromptEditor = ({
               </PromptFields>
               {confirmDiscard ? (
                 <section
-                  aria-label="Discard unsaved prompt"
+                  aria-label={t("discardUnsavedPrompt")}
                   className="wf-notice"
                   data-tone="attention"
                 >
                   <p id="discard-prompt-warning">
                     {state.uncertain
-                      ? "Discard this open-tab draft? The server may already have saved this prompt. Retry first to confirm its outcome."
-                      : "Discard this unsaved prompt? Your draft will be lost."}
+                      ? t("discardThisOpenTabDraftTheServerMayAlreadyHave")
+                      : t("discardThisUnsavedPromptYourDraftWillBeLost")}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-3">
                     <button
@@ -274,7 +281,7 @@ export const PromptEditor = ({
                       onClick={discard}
                       type="button"
                     >
-                      Discard draft
+                      {t("discardDraft")}
                     </button>
                     <button
                       className={buttonClass}
@@ -286,13 +293,13 @@ export const PromptEditor = ({
                       }}
                       type="button"
                     >
-                      Keep editing
+                      {t("keepEditing")}
                     </button>
                   </div>
                 </section>
               ) : null}
               <p aria-live="polite" className="wf-hint empty:hidden">
-                {copyMessage}
+                <LocalizedMessage value={copyMessage} />
               </p>
             </div>
             <EditorFooter

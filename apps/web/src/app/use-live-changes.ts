@@ -1,6 +1,7 @@
 "use client";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
@@ -8,10 +9,12 @@ import { startLiveChanges } from "./live-change-coordinator";
 import type { LiveStatus } from "./live-change-coordinator";
 
 export const useLiveChanges = (library: PrivateLibrary, enabled: boolean) => {
+  const t = useTranslations();
+
   const { baseUrl } = useApiClient();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<LiveStatus>({
-    label: "Updating library…",
+    label: t("updatingLibrary"),
     lastCheckedAt: null,
   });
   const { id: accountId } = library.account;
@@ -29,5 +32,5 @@ export const useLiveChanges = (library: PrivateLibrary, enabled: boolean) => {
       });
     }
   }, [baseUrl, accountId, instanceId, epoch, queryClient, enabled]);
-  return enabled ? status : { ...status, label: "Sign in to sync" };
+  return enabled ? status : { ...status, label: t("signInToSync") };
 };

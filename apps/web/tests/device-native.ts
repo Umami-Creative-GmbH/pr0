@@ -415,7 +415,10 @@ export const verifyNativeHttps = async (
       native.url(),
       `${selectedOrigin}/device?user_code=${begin.userCode}`
     );
-    const context = await browser.newContext({ ignoreHTTPSErrors: true });
+    const context = await browser.newContext({
+      locale: "en-US",
+      ignoreHTTPSErrors: true,
+    });
     const page = await context.newPage();
     await page.goto(native.url());
     await page.getByLabel("Email", { exact: true }).fill(account.email);

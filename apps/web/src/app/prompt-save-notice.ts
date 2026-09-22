@@ -1,13 +1,14 @@
 import type { MutationReceipt } from "@pr0/api-contract/prompts";
+import { translate } from "@pr0/ui/lib/i18n";
 
 export const promptSaveNotice = (
   receipt: MutationReceipt,
-  savedMessage = "Saved to server."
+  savedMessage = translate("savedToServer")
 ) =>
   [
     savedMessage,
     receipt.conflict
-      ? "Competing text was preserved in an independent conflict copy."
+      ? translate("competingTextWasPreservedInAnIndependentConflictCopy")
       : "",
     receipt.organizationNotice,
   ]

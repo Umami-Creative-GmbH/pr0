@@ -1,12 +1,15 @@
 "use client";
-
 import { useApiClient } from "@pr0/api-client/provider";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { accountErrorMessage } from "./account-errors";
 
 export const RecoveryForm = () => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -18,9 +21,7 @@ export const RecoveryForm = () => {
     setMessage("");
     try {
       await client.requestRecovery(email);
-      setMessage(
-        "If this address belongs to a verified account, a recovery email has been queued. Check your inbox and spam folder. If it does not arrive, try again later. The link expires one hour after you request it."
-      );
+      setMessage(t("ifThisAddressBelongsToAVerifiedAccountARecovery"));
     } catch (error) {
       setMessage(
         accountErrorMessage(
@@ -34,15 +35,14 @@ export const RecoveryForm = () => {
   return (
     <section aria-labelledby="recovery-title" className="rounded-lg border p-6">
       <h2 className="text-xl font-medium" id="recovery-title">
-        Recover your account
+        {t("recoverYourAccount")}
       </h2>
       <p className="mt-2 text-sm">
-        Use your verified account email, including if you usually sign in with a
-        social provider.
+        {t("useYourVerifiedAccountEmailIncludingIfYouUsuallySign")}
       </p>
       <form className="mt-4 space-y-4" onSubmit={submit}>
         <label className="block" htmlFor="recovery-email">
-          Account email
+          {t("accountEmail")}
         </label>
         <input
           autoComplete="email"
@@ -55,7 +55,7 @@ export const RecoveryForm = () => {
           type="email"
         />
         <button className="wf-btn" disabled={busy} type="submit">
-          {busy ? "Please wait…" : "Send recovery email"}
+          {busy ? t("pleaseWait") : t("sendRecoveryEmail")}
         </button>
       </form>
       <p
@@ -64,7 +64,7 @@ export const RecoveryForm = () => {
         ref={statusRef}
         tabIndex={-1}
       >
-        {message}
+        <LocalizedMessage value={message} />
       </p>
     </section>
   );

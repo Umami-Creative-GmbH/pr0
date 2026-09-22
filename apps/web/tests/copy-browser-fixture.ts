@@ -16,12 +16,13 @@ declare global {
   }
 }
 
-export const copyBrowser = async (cookieHeader: string) => {
+export const copyBrowser = async (cookieHeader: string, locale = "en-US") => {
   const browser = await chromium.launch({
     channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
     headless: true,
   });
   const context = await browser.newContext({
+    locale,
     permissions: ["clipboard-read", "clipboard-write"],
   });
   const setAccount = (cookies: string) =>
@@ -35,8 +36,13 @@ export const copyBrowser = async (cookieHeader: string) => {
         };
       })
     );
-  await setAccount(cookieHeader);
+  if (cookieHeader) {
+    await setAccount(cookieHeader);
+  }
   await context.addInitScript(() => {
+    if (!navigator.clipboard) {
+      return;
+    }
     window.clipboardTest = { writes: [], fail: false, delay: false };
     document.addEventListener(
       "click",

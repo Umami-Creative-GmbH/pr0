@@ -29,6 +29,7 @@ fn desktop_search_webview_worker() {
             crate::surface_visible,
             crate::startup_action,
             crate::resident_status,
+            crate::desktop_language,
             crate::resident_action,
             crate::resident_hide,
             crate::resident_finish_quit,

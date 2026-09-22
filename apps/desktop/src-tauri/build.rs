@@ -20,6 +20,7 @@ fn main() {
             "surface_visible",
             "startup_action",
             "resident_status",
+            "desktop_language",
             "resident_action",
             "resident_hide",
             "resident_finish_quit",

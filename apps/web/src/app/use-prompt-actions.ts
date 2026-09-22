@@ -1,5 +1,4 @@
 "use client";
-
 import { PromptApiError } from "@pr0/api-client/prompts";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
@@ -9,6 +8,8 @@ import type {
   Prompt,
   PromptText,
 } from "@pr0/api-contract/prompts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { localizeMessage } from "@pr0/ui/lib/message-localization";
 import { useEffect, useRef, useState } from "react";
 
 import { writeClipboard } from "./clipboard";
@@ -28,6 +29,8 @@ export const usePromptActions = ({
   ) => void | Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const pending = useRef<{
     envelope: MutationEnvelope;
@@ -72,7 +75,7 @@ export const usePromptActions = ({
         onDirtyChange(false);
         await onAccepted(result, request.action, request.message);
       } else if (result?.status === "rejected") {
-        setActionError(result.error.message);
+        setActionError(localizeMessage(result.error.message));
         setKnownRejected(
           [
             "validation_failed",
@@ -87,7 +90,7 @@ export const usePromptActions = ({
       setActionError(
         error instanceof PromptApiError
           ? error.message
-          : "The server did not confirm this action. Retry to confirm its outcome."
+          : t("theServerDidNotConfirmThisActionRetryToConfirm")
       );
     }
   };
@@ -157,10 +160,10 @@ export const usePromptActions = ({
         retained = action === "duplicate" ? text : null;
       }
       const messages = {
-        favorite: "Favorite updated.",
-        archived: value ? "Prompt archived." : "Prompt restored.",
-        duplicate: "Prompt duplicated.",
-        delete: "Prompt permanently deleted.",
+        favorite: t("favoriteUpdated"),
+        archived: value ? t("promptArchived") : t("promptRestored"),
+        duplicate: t("promptDuplicated"),
+        delete: t("promptPermanentlyDeleted"),
       };
       pending.current = {
         envelope: {
@@ -181,7 +184,7 @@ export const usePromptActions = ({
       setActionError(
         error instanceof PromptApiError
           ? error.message
-          : "Could not load the selected prompt. Dismiss and try the action again."
+          : t("couldNotLoadTheSelectedPromptDismissAndTryThe")
       );
       setKnownRejected(true);
     }
@@ -214,11 +217,9 @@ export const usePromptActions = ({
     }
     try {
       await writeClipboard(() => retainedText.content);
-      setCopyMessage("Copied text.");
+      setCopyMessage(t("copiedText"));
     } catch {
-      setCopyMessage(
-        "Could not copy text. Select the retained text and copy it manually, or retry."
-      );
+      setCopyMessage(t("couldNotCopyTextSelectTheRetainedTextAndCopy"));
     }
   };
   return {

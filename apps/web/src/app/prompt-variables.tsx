@@ -1,6 +1,7 @@
 import { parseTemplate, substituteTemplate } from "@pr0/api-contract/variables";
 import { VariablesDialogBody } from "@pr0/ui/components/variables-dialog-body";
 import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -18,17 +19,18 @@ const VariableContainer = ({
   children: ReactNode;
   onClose: () => void;
   opener: Element | null;
-}) =>
-  inline ? (
+}) => {
+  const t = useTranslations();
+  return inline ? (
     <section
-      aria-label="Fill prompt variables"
+      aria-label={t("fillPromptVariables")}
       className="flex min-h-0 flex-1 flex-col"
     >
       {children}
     </section>
   ) : (
     <WayfinderDialog
-      label="Fill prompt variables"
+      label={t("fillPromptVariables")}
       onRequestClose={onClose}
       opener={opener}
       size="sm"
@@ -36,6 +38,7 @@ const VariableContainer = ({
       {children}
     </WayfinderDialog>
   );
+};
 
 const VariableDialog = ({
   copy,
@@ -46,6 +49,8 @@ const VariableDialog = ({
   copy: Copy;
   interaction: NonNullable<Copy["interaction"]>;
 }) => {
+  const t = useTranslations();
+
   const { prompt, changed, opener } = interaction;
   const template = useMemo(
     () => parseTemplate(prompt.content),
@@ -111,7 +116,7 @@ const VariableDialog = ({
           copyMessage={copy.message}
           busy={copy.busy}
           changed={changed}
-          cancelLabel={inline ? "Back to results" : "Cancel"}
+          cancelLabel={inline ? t("backToResults") : t("cancel")}
           onValueChange={(name, value) =>
             setValues(new Map(values).set(name, value))
           }

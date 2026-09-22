@@ -1,6 +1,7 @@
+import { translate } from "@pr0/ui/lib/i18n";
+
 let writing = false;
-const busyError = () =>
-  new Error("Copying is already in progress. Try again after it finishes.");
+const busyError = () => new Error(translate("clipboardBusy"));
 
 export const writeClipboard = async (
   prepare: () => string | Promise<string>
@@ -26,7 +27,7 @@ export const writeClipboard = async (
       rejectPayload(
         error instanceof Error
           ? error
-          : new Error("Could not prepare clipboard content.")
+          : new Error(translate("clipboardPreparationFailed"))
       );
     }
   };
@@ -51,7 +52,7 @@ export const writeClipboard = async (
       rejectPayload(
         error instanceof Error
           ? error
-          : new Error("Could not reserve the clipboard.")
+          : new Error(translate("clipboardReservationFailed"))
       );
     }
   };

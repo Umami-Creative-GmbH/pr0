@@ -28,6 +28,7 @@ test("keyboard lifecycle controls retain archived edits and retry a lost duplica
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       viewport: { width: 640, height: 900 },
     });
     await context.addCookies(
@@ -163,7 +164,7 @@ test("multiple externally archived selections refresh stale rows without cycling
     headless: true,
   });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
         const split = cookie.indexOf("=");
@@ -231,7 +232,7 @@ test("automatic selection follows identity across reordering and checks archive 
     headless: true,
   });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
         const split = cookie.indexOf("=");
@@ -303,6 +304,7 @@ test("quota errors keep the duplicate snapshot available while archive changes p
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       permissions: ["clipboard-read", "clipboard-write"],
     });
     await context.addCookies(

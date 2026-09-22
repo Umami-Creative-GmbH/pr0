@@ -1,4 +1,5 @@
 import type { SignOutRequest } from "@pr0/api-contract/desktop-session";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
@@ -10,6 +11,8 @@ interface PanelProps {
   run: AuthRun;
 }
 export const SignInForm = ({ busy, status, run }: PanelProps) => {
+  const t = useTranslations();
+
   const [origin, setOrigin] = useState(import.meta.env.VITE_API_BASE_URL ?? "");
   const [custom, setCustom] = useState(!import.meta.env.VITE_API_BASE_URL);
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -18,23 +21,22 @@ export const SignInForm = ({ busy, status, run }: PanelProps) => {
   };
   return (
     <form className="flex flex-col gap-4" onSubmit={submit}>
-      <span className="wf-eyebrow-accent">Desktop sign-in</span>
+      <span className="wf-eyebrow-accent">{t("desktopSignIn")}</span>
       <h2>
         {status.state === "authentication_required"
-          ? "Sign in to resume"
-          : "Sign in to pr0"}
+          ? t("signInToResume")
+          : t("signInToPr0")}
       </h2>
       <p className="wf-hint">
-        Choose a server you trust. You will approve a matching code in your
-        system browser.
+        {t("chooseAServerYouTrustYouWillApproveAMatching")}
       </p>
       {custom || status.origin ? (
         <label className="wf-field">
-          <span className="wf-label">HTTPS server</span>
+          <span className="wf-label">{t("httpsServer")}</span>
           <input
             disabled={busy || Boolean(status.origin)}
             onChange={(event) => setOrigin(event.target.value)}
-            placeholder="https://your-server.example"
+            placeholder={t("httpsYourServerExample")}
             required
             type="url"
             value={status.origin ?? origin}
@@ -42,18 +44,20 @@ export const SignInForm = ({ busy, status, run }: PanelProps) => {
         </label>
       ) : (
         <>
-          <p className="wf-hint">Server: {origin}</p>
+          <p className="wf-hint">
+            {t("server")} {origin}
+          </p>
           <button
             className="wf-link self-start"
             onClick={() => setCustom(true)}
             type="button"
           >
-            Use your own server
+            {t("useYourOwnServer")}
           </button>
         </>
       )}
       <button className="wf-btn-accent" disabled={busy} type="submit">
-        Continue in browser
+        {t("continueInBrowser")}
       </button>
     </form>
   );
@@ -68,6 +72,8 @@ export const SignOutControl = ({
   editing: boolean;
   onTransition: (active: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const [confirm, setConfirm] = useState(false);
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [synchronizing, setSynchronizing] = useState(false);
@@ -92,10 +98,9 @@ export const SignOutControl = ({
   };
   if (status.state === "cleanup_required") {
     return (
-      <section className="space-y-3" aria-label="Account cleanup">
+      <section className="space-y-3" aria-label={t("accountCleanup")}>
         <p>
-          Account cleanup is incomplete. Retry before signing into another
-          account or server.
+          {t("accountCleanupIsIncompleteRetryBeforeSigningIntoAnotherAccount")}
         </p>
         <button
           className="wf-btn"
@@ -105,29 +110,21 @@ export const SignOutControl = ({
             void choose("retry_cleanup");
           }}
         >
-          Retry account cleanup
+          {t("retryAccountCleanup")}
         </button>
       </section>
     );
   }
   return (
-    <section className="space-y-3" aria-label="Sign out or change server">
+    <section className="space-y-3" aria-label={t("signOutOrChangeServer")}>
       {confirm ? (
         <>
-          <h2 className="text-xl font-semibold">Before you sign out</h2>
-          <p>
-            This removes this computer&apos;s library and sign-in. Synchronize
-            pending changes first, or explicitly discard them. You can then
-            choose another account or server.
-          </p>
-          <p>
-            If you are offline, server revocation cannot be confirmed. Revoke
-            this desktop session from browser settings when online. Browser
-            sign-in is separate.
-          </p>
+          <h2 className="text-xl font-semibold">{t("beforeYouSignOut")}</h2>
+          <p>{t("thisRemovesThisComputerAposSLibraryAndSignIn")}</p>
+          <p>{t("ifYouAreOfflineServerRevocationCannotBeConfirmedRevoke")}</p>
           {synchronizing ? (
             <output>
-              Synchronizing before sign-out. Waiting for server acknowledgement…
+              {t("synchronizingBeforeSignOutWaitingForServerAcknowledgement")}
             </output>
           ) : null}
           <div className="flex flex-wrap gap-3">
@@ -139,7 +136,7 @@ export const SignOutControl = ({
               }}
               type="button"
             >
-              Synchronize first and sign out
+              {t("synchronizeFirstAndSignOut")}
             </button>
             <button
               className="wf-btn"
@@ -149,7 +146,7 @@ export const SignOutControl = ({
               }}
               type="button"
             >
-              Cancel sign-out
+              {t("cancelSignOut")}
             </button>
           </div>
           <label className="flex items-start gap-2">
@@ -159,7 +156,7 @@ export const SignOutControl = ({
               disabled={busy}
               onChange={(event) => setDiscardConfirmed(event.target.checked)}
             />
-            I understand that pending changes on this device will be lost
+            {t("iUnderstandThatPendingChangesOnThisDeviceWillBe")}
           </label>
           <button
             className="wf-btn"
@@ -169,7 +166,7 @@ export const SignOutControl = ({
             }}
             type="button"
           >
-            Discard local work and sign out
+            {t("discardLocalWorkAndSignOut")}
           </button>
         </>
       ) : (
@@ -183,13 +180,10 @@ export const SignOutControl = ({
             }}
             type="button"
           >
-            Sign out or change server
+            {t("signOutOrChangeServer")}
           </button>
           {editing ? (
-            <p>
-              Save or close the prompt editor before signing out. Your draft
-              remains open.
-            </p>
+            <p>{t("saveOrCloseThePromptEditorBeforeSigningOutYour")}</p>
           ) : null}
         </>
       )}

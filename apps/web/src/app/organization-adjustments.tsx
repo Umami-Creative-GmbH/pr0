@@ -2,6 +2,8 @@
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type { MutationEnvelope } from "@pr0/api-contract/prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
@@ -13,6 +15,8 @@ export const OrganizationAdjustments = ({
 }: {
   library: PrivateLibrary;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,7 +42,7 @@ export const OrganizationAdjustments = ({
   const notices = query.data?.pages.flatMap((page) => page.notices) ?? [];
   useReportAttention(
     query.isError
-      ? "Could not refresh organization notices. Retry notices in details."
+      ? t("couldNotRefreshOrganizationNoticesRetryNoticesInDetails")
       : "",
     "organization-adjustments",
     false
@@ -70,16 +74,14 @@ export const OrganizationAdjustments = ({
       const result = await client.mutatePrompts(envelope);
       if (result.results[0]?.status === "accepted") {
         heading.current?.focus();
-        setMessage("Organization notice reviewed. Your prompts were kept.");
+        setMessage(t("organizationNoticeReviewedYourPromptsWereKept"));
         await query.refetch();
         pending.current.delete(notice.id);
       } else {
-        setMessage("Review could not be saved. Retry; your prompts were kept.");
+        setMessage(t("reviewCouldNotBeSavedRetryYourPromptsWereKept"));
       }
     } catch {
-      setMessage(
-        "Review could not be confirmed. Retry when connected; your prompts were kept."
-      );
+      setMessage(t("reviewCouldNotBeConfirmedRetryWhenConnectedYourPrompts"));
     }
     setBusy(false);
   };
@@ -89,30 +91,34 @@ export const OrganizationAdjustments = ({
   return (
     <section
       id="organization-adjustments"
-      aria-label="Organization adjustments"
+      aria-label={t("organizationAdjustments")}
       className="space-y-3 rounded border p-3"
     >
       <h3 ref={heading} tabIndex={-1}>
-        Organization adjustments to review
+        {t("organizationAdjustmentsToReview")}
       </h3>
-      <output>{message}</output>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
       {query.isError ? (
         <p>
-          Could not refresh organization notices.{" "}
+          {t("couldNotRefreshOrganizationNotices")}{" "}
           <button
             type="button"
             onClick={() => {
               void query.refetch();
             }}
           >
-            Retry notices
+            {t("retryNotices")}
           </button>
         </p>
       ) : null}
       <ul>
         {notices.map((notice) => (
           <li key={notice.id}>
-            <p>{notice.message}</p>
+            <p>
+              <LocalizedMessage value={notice.message} />
+            </p>
             <button
               type="button"
               disabled={busy}
@@ -120,7 +126,7 @@ export const OrganizationAdjustments = ({
                 void review(notice);
               }}
             >
-              Mark adjustment reviewed
+              {t("markAdjustmentReviewed")}
             </button>
           </li>
         ))}
@@ -133,7 +139,7 @@ export const OrganizationAdjustments = ({
             void query.fetchNextPage();
           }}
         >
-          More adjustments
+          {t("moreAdjustments")}
         </button>
       ) : null}
     </section>

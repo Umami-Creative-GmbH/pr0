@@ -1,5 +1,6 @@
 import { parseTemplate, substituteTemplate } from "@pr0/api-contract/variables";
 import { VariablesDialogBody } from "@pr0/ui/components/variables-dialog-body";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { usePromptCopy } from "./use-prompt-copy";
@@ -13,6 +14,8 @@ const VariableDialog = ({
   copy: Copy;
   interaction: NonNullable<Copy["interaction"]>;
 }) => {
+  const t = useTranslations();
+
   const { prompt, changed, opener } = interaction;
   const template = useMemo(
     () => parseTemplate(prompt.content),
@@ -92,7 +95,7 @@ const VariableDialog = ({
         copyMessage={copy.message}
         busy={copy.busy}
         changed={changed}
-        cancelLabel={copy.launcher ? "Back" : "Cancel"}
+        cancelLabel={copy.launcher ? t("back") : t("cancel")}
         onValueChange={(name, value) =>
           setValues(new Map(values).set(name, value))
         }

@@ -30,7 +30,7 @@ test("navigation away from an opened duplicate survives a busy search retry", as
   });
   let busySearch = false;
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     page.setDefaultTimeout(5000);
     await connect(
       page,
@@ -77,7 +77,7 @@ test("recovery retains the selected prompt and open draft through pause and epoc
     headless: true,
   });
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     page.setDefaultTimeout(10_000);
     await connect(page, native, () => "");
     page.on("pageerror", (error) => process.stderr.write(`${error.message}\n`));
@@ -153,7 +153,7 @@ test("desktop editor retains a disk-full draft then commits and reopens pending 
   });
   let fault = "disk_full";
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     page.on("pageerror", (error) => process.stderr.write(`${error.message}\n`));
     page.setDefaultTimeout(10_000);
     await connect(page, native, () => fault);
@@ -211,7 +211,7 @@ test("desktop editor retains a disk-full draft then commits and reopens pending 
     await page.close();
     await native.stop();
     native = await localNativeWorker(directory);
-    const reopened = await browser.newPage();
+    const reopened = await browser.newPage({ locale: "en-US" });
     await connect(reopened, native, () => "");
     await reopened
       .getByRole("button", { name: "Durable offline", exact: true })
@@ -235,7 +235,7 @@ test("settings cancel, failed synchronization and explicit offline discard prese
     headless: true,
   });
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     page.setDefaultTimeout(10_000);
     await connect(page, native, () => "");
     await page.getByRole("button", { name: "New prompt", exact: true }).click();
@@ -282,7 +282,7 @@ test("settings cancel, failed synchronization and explicit offline discard prese
     await page.close();
     await native.stop();
     native = await localNativeWorker(directory);
-    const reopened = await browser.newPage();
+    const reopened = await browser.newPage({ locale: "en-US" });
     await connect(reopened, native, () => "");
     await reopened
       .getByRole("button", { name: "Pending during sign-out", exact: true })
@@ -343,7 +343,7 @@ test("two desktop windows keep competing drafts and an older save acknowledgemen
   const { promise: accepted, resolve: committed } =
     Promise.withResolvers<undefined>();
   try {
-    const first = await browser.newPage();
+    const first = await browser.newPage({ locale: "en-US" });
     await connect(
       first,
       native,
@@ -362,7 +362,7 @@ test("two desktop windows keep competing drafts and an older save acknowledgemen
     await first.getByLabel("Content", { exact: true }).fill("Original");
     await first.getByRole("button", { name: "Save", exact: true }).click();
     await first.getByText("Saved on this device", { exact: true }).waitFor();
-    const second = await browser.newPage();
+    const second = await browser.newPage({ locale: "en-US" });
     await connect(second, native, () => "");
     await second
       .getByRole("button", { name: "Shared prompt", exact: true })
@@ -450,7 +450,7 @@ test("an open draft follows its conflict copy without replacing text and offers 
     headless: true,
   });
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     await connect(page, native, () => "");
     const original = localPromptSchema.parse(
       await native.command("library_editor", {
@@ -527,7 +527,7 @@ test("a remote deletion selects the remaining result while preserving the delete
     headless: true,
   });
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     await connect(page, native, () => "");
     const original = localPromptSchema.parse(
       await native.command("library_editor", {
@@ -576,7 +576,7 @@ test("desktop lifecycle resolves an uncertain commit before another action, pres
   });
   let fault = "";
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     page.setDefaultTimeout(10_000);
     await connect(page, native, () => fault);
     await page.getByRole("button", { name: "New prompt", exact: true }).click();

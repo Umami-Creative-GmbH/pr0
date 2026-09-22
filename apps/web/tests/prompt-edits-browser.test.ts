@@ -33,8 +33,8 @@ test("two browser sessions preserve a successor draft when a lost save response 
   });
   try {
     const contexts = await Promise.all([
-      browser.newContext(),
-      browser.newContext(),
+      browser.newContext({ locale: "en-US" }),
+      browser.newContext({ locale: "en-US" }),
     ]);
     const pages = [];
     // Initialize each session before opening the next so setup cannot exhaust
@@ -183,6 +183,7 @@ test("incoming data never replaces an editor draft and quota refusal retains cor
   });
   try {
     const context = await browser.newContext({
+      locale: "en-US",
       permissions: ["clipboard-read", "clipboard-write"],
       viewport: { width: 640, height: 900 },
     });

@@ -15,7 +15,7 @@ test("retry and suspension status retain a visible open draft and recover withou
     headless: true,
   });
   try {
-    const context = await browser.newContext();
+    const context = await browser.newContext({ locale: "en-US" });
     await context.addCookies(
       account.Cookie.split("; ").map((cookie) => {
         const separator = cookie.indexOf("=");

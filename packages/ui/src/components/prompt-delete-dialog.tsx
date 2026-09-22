@@ -1,6 +1,7 @@
 "use client";
-
 import { useEffect, useRef } from "react";
+
+import { useTranslations } from "../hooks/use-translations";
 
 const buttonClass = "wf-btn";
 export const PromptDeleteDialog = ({
@@ -12,6 +13,8 @@ export const PromptDeleteDialog = ({
   onCancel: () => void;
   onConfirm: () => void;
 }) => {
+  const t = useTranslations();
+
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -38,13 +41,11 @@ export const PromptDeleteDialog = ({
       }}
     >
       <h2 id="delete-prompt-heading" className="text-xl font-semibold">
-        Permanently delete prompt?
+        {t("permanentlyDeletePrompt2")}
       </h2>
       <p className="my-3 break-words">{title}</p>
       <p id="delete-prompt-warning">
-        This permanently removes this prompt. There is no trash or restore.
-        Unseen edits from another device are preserved in an independent
-        conflict copy.
+        {t("thisPermanentlyRemovesThisPromptThereIsNoTrashOr")}
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <button
@@ -53,14 +54,14 @@ export const PromptDeleteDialog = ({
           type="button"
           onClick={onCancel}
         >
-          Cancel
+          {t("cancel")}
         </button>
         <button
           className={`${buttonClass} border-destructive text-destructive`}
           type="button"
           onClick={onConfirm}
         >
-          Permanently delete
+          {t("permanentlyDelete")}
         </button>
       </div>
     </dialog>

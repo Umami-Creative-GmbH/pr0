@@ -5,6 +5,9 @@ import type {
   ConflictNotice,
   MutationEnvelope,
 } from "@pr0/api-contract/prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useDeviceTimeZone } from "@pr0/ui/hooks/use-device-time-zone";
+import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
@@ -19,6 +22,11 @@ export const PromptConflicts = ({
   library: PrivateLibrary;
   onOpen: (id: string) => void;
 }) => {
+  const locale = useLocale();
+  const timeZone = useDeviceTimeZone();
+
+  const t = useTranslations();
+
   const client = useApiClient();
   const queryClient = useQueryClient();
   const summary = useRef<HTMLElement>(null);
@@ -46,7 +54,7 @@ export const PromptConflicts = ({
   const notices = conflicts.data?.pages.flatMap((page) => page.notices) ?? [];
   useReportAttention(
     conflicts.isError
-      ? "Could not refresh conflict reviews. Retry the review list."
+      ? t("couldNotRefreshConflictReviewsRetryTheReviewList")
       : "",
     "conflict-reviews",
     false
@@ -73,21 +81,15 @@ export const PromptConflicts = ({
       pending.current.set(notice.id, envelope);
       const result = await client.mutatePrompts(envelope);
       if (result.results[0]?.status !== "accepted") {
-        setMessage(
-          "Could not confirm review. Your prompts were kept. Retry the review when connected."
-        );
+        setMessage(t("couldNotConfirmReviewYourPromptsWereKeptRetryThe"));
         return;
       }
       summary.current?.focus();
-      setMessage(
-        "Review recorded. Both prompts and retained titles were kept."
-      );
+      setMessage(t("reviewRecordedBothPromptsAndRetainedTitlesWereKept"));
       await queryClient.resetQueries({ queryKey });
       pending.current.delete(notice.id);
     } catch {
-      setMessage(
-        "Could not confirm review. Your prompts were kept. Retry the review when connected."
-      );
+      setMessage(t("couldNotConfirmReviewYourPromptsWereKeptRetryThe"));
     }
   };
   const review = async (notice: ConflictNotice) => {
@@ -100,7 +102,7 @@ export const PromptConflicts = ({
   if (conflicts.isError) {
     return (
       <div id="conflict-reviews">
-        <p>Could not load conflict notices. Your prompts remain available.</p>
+        <p>{t("couldNotLoadConflictNoticesYourPromptsRemainAvailable")}</p>
         <button
           className={buttonClass}
           onClick={() => {
@@ -108,7 +110,7 @@ export const PromptConflicts = ({
           }}
           type="button"
         >
-          Refresh conflicts
+          {t("refreshConflicts")}
         </button>
       </div>
     );
@@ -119,46 +121,50 @@ export const PromptConflicts = ({
   return (
     <details id="conflict-reviews" className="rounded-lg border p-4">
       <summary ref={summary} className="cursor-pointer focus-visible:outline-2">
-        Conflicts to review
+        {t("conflictsToReview")}
       </summary>
-      <output>{message}</output>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
       <p className="my-3">
-        Unseen or competing edits were preserved as independent prompts.
+        {t("unseenOrCompetingEditsWerePreservedAsIndependentPrompts")}
       </p>
       <ul className="space-y-4">
         {notices.map((notice) => (
           <li className="rounded-md border p-3" key={notice.id}>
             <p className="break-words whitespace-pre-wrap">
-              Full source title: {notice.sourceTitle}
+              {t("fullSourceTitle")} {notice.sourceTitle}
             </p>
             <p className="my-2 text-sm">
-              Preserved{" "}
+              {t("preserved")}{" "}
               <time dateTime={notice.createdAt}>
-                {new Date(notice.createdAt).toLocaleString()}
+                {new Date(notice.createdAt).toLocaleString(locale, {
+                  timeZone,
+                })}
               </time>
             </p>
             <div className="flex flex-wrap gap-3">
-              {notice.originalArchived ? <p>Original archived.</p> : null}
+              {notice.originalArchived ? <p>{t("originalArchived")}</p> : null}
               {notice.originalDeleted ? (
-                <p>Original permanently deleted.</p>
+                <p>{t("originalPermanentlyDeleted")}</p>
               ) : (
                 <button
                   className={buttonClass}
                   onClick={() => onOpen(notice.originalId)}
                   type="button"
                 >
-                  Open original
+                  {t("openOriginal")}
                 </button>
               )}
               {notice.copyDeleted ? (
-                <p>Conflict copy permanently deleted.</p>
+                <p>{t("conflictCopyPermanentlyDeleted")}</p>
               ) : (
                 <button
                   className={buttonClass}
                   onClick={() => onOpen(notice.copyId)}
                   type="button"
                 >
-                  Open conflict copy
+                  {t("openConflictCopy")}
                 </button>
               )}
               <button
@@ -170,8 +176,8 @@ export const PromptConflicts = ({
                 }}
               >
                 {notice.originalDeleted || notice.copyDeleted
-                  ? "Mark reviewed"
-                  : "Keep both"}
+                  ? t("markReviewed")
+                  : t("keepBoth")}
               </button>
             </div>
           </li>
@@ -186,7 +192,7 @@ export const PromptConflicts = ({
           }}
           type="button"
         >
-          More conflicts
+          {t("moreConflicts")}
         </button>
       ) : null}
     </details>

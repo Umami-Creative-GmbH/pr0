@@ -9,6 +9,7 @@ import {
 } from "@pr0/ui/components/prompt-actions";
 import { PromptContent } from "@pr0/ui/components/prompt-content";
 import { PromptHeader, PromptMeta } from "@pr0/ui/components/prompt-header";
+import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
 import { accentFor } from "@pr0/ui/lib/present";
 import { Pencil } from "lucide-react";
 
@@ -34,16 +35,20 @@ export const LocalPromptDetail = ({
   collection?: string;
   tags?: string[];
 }) => {
+  const locale = useLocale();
+
+  const t = useTranslations();
+
   const { prompt } = value;
   return (
-    <article aria-label="Prompt detail" className="wf-article">
+    <article aria-label={t("promptDetail")} className="wf-article">
       <PromptHeader
         title={prompt.title}
         headingLevel={3}
         description={prompt.description}
         accent={accentFor(prompt.collectionId)}
-        collection={collection ?? "No collection"}
-        state={value.pending ? "Saved on this device" : "Saved to server"}
+        collection={collection ?? t("noCollection")}
+        state={value.pending ? t("savedOnThisDevice") : t("savedToServer2")}
         tags={tags}
       >
         <button
@@ -52,10 +57,10 @@ export const LocalPromptDetail = ({
           disabled={copying}
           onClick={onCopy}
         >
-          Copy prompt
+          {t("copyPrompt")}
         </button>
-        <kbd className="wf-kbd" title="With a result focused or from search">
-          Ctrl ↵
+        <kbd className="wf-kbd" title={t("withAResultFocusedOrFromSearch")}>
+          {t("ctrl")}
         </kbd>
         <span className="wf-grow" />
         <button
@@ -65,18 +70,18 @@ export const LocalPromptDetail = ({
           onClick={onEdit}
         >
           <Pencil aria-hidden="true" size={14} />
-          Edit prompt
+          {t("editPrompt")}
         </button>
         <PromptIconAction
           kind="favorite"
-          label="Favorite prompt"
+          label={t("favoritePrompt")}
           active={prompt.favorite}
           disabled={editing}
           onClick={() =>
             onAction(value, { kind: "favorite", value: !prompt.favorite })
           }
         />
-        <PromptMoreActions label="More prompt actions">
+        <PromptMoreActions label={t("morePromptActions")}>
           <LifecycleActions
             value={value}
             disabled={editing}
@@ -85,24 +90,24 @@ export const LocalPromptDetail = ({
         </PromptMoreActions>
       </PromptHeader>
       <PromptContent
-        label="Prompt content"
+        label={t("promptContent")}
         content={prompt.content}
         spans={templateSpans(prompt.content)}
       />
       <PromptMeta>
         {prompt.sourceTitle ? (
           <span className="break-words whitespace-pre-wrap">
-            Full source title: {prompt.sourceTitle}
+            {t("fullSourceTitle")} {prompt.sourceTitle}
           </span>
         ) : null}
-        {value.pending ? <span>Changes waiting to sync</span> : null}
+        {value.pending ? <span>{t("changesWaitingToSync")}</span> : null}
         {value.pending ? (
-          <span>Dates are provisional until server acceptance.</span>
+          <span>{t("datesAreProvisionalUntilServerAcceptance")}</span>
         ) : null}
         <span>
-          Modified:{" "}
+          {t("modified2")}{" "}
           <time dateTime={prompt.modifiedAt}>
-            {new Date(prompt.modifiedAt).toLocaleString()}
+            {new Date(prompt.modifiedAt).toLocaleString(locale)}
           </time>
         </span>
       </PromptMeta>

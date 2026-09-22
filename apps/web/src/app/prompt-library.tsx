@@ -1,5 +1,4 @@
 "use client";
-
 import { PromptApiError } from "@pr0/api-client/prompts";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
@@ -25,6 +24,9 @@ import {
   EmptyDetail,
   LibraryWorkspace,
 } from "@pr0/ui/components/wayfinder-shell";
+import { useDeviceTimeZone } from "@pr0/ui/hooks/use-device-time-zone";
+import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { accentFor } from "@pr0/ui/lib/present";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
@@ -64,15 +66,15 @@ const buttonClass = "wf-btn";
 const errorMessage = (error: Error) =>
   error instanceof PromptApiError
     ? error.message
-    : "Could not load prompts. Try again.";
-const copiedMessage = "Copied. Usage recorded.";
+    : translate("couldNotLoadPromptsTryAgain");
+const copiedMessage = translate("copiedUsageRecorded");
 const lastUsedLabel = (prompt: Prompt) =>
   prompt.lastUsedAt ? (
     <>
-      Last used <RelativeTime at={prompt.lastUsedAt} />
+      {translate("lastUsed")} <RelativeTime at={prompt.lastUsedAt} />
     </>
   ) : (
-    "Not used yet"
+    translate("notUsedYet")
   );
 const PromptDetail = ({
   detail,
@@ -97,16 +99,21 @@ const PromptDetail = ({
   actionsBlocked: boolean;
   onDelete: (prompt: Prompt) => void;
 }) => {
+  const locale = useLocale();
+  const timeZone = useDeviceTimeZone();
+
+  const t = useTranslations();
+
   const prompt = detail.data;
   if (!prompt) {
     return (
       <section aria-labelledby="detail-heading" className="wf-article">
         <header className="wf-detail-head">
           <h2 className="wf-title" id="detail-heading">
-            Prompt detail
+            {t("promptDetail")}
           </h2>
           {detail.isPending ? (
-            <output className="wf-hint">Loading prompt…</output>
+            <output className="wf-hint">{t("loadingPrompt")}</output>
           ) : null}
           {detail.isError ? (
             <div className="wf-notice" role="alert">
@@ -118,7 +125,7 @@ const PromptDetail = ({
                 }}
                 type="button"
               >
-                Retry detail
+                {t("retryDetail")}
               </button>
             </div>
           ) : null}
@@ -129,7 +136,7 @@ const PromptDetail = ({
   const collection = collections.find(
     (entry) => entry.id === prompt.collectionId
   );
-  const collectionName = collection?.name ?? "Unavailable";
+  const collectionName = collection?.name ?? t("unavailable");
   const { useCount: copies } = prompt;
   return (
     <section aria-labelledby="detail-heading" className="wf-article">
@@ -141,16 +148,16 @@ const PromptDetail = ({
         collection={
           prompt.collectionId ? (
             <>
-              <span className="sr-only">Collection: </span>
+              <span className="sr-only">{t("collection2")} </span>
               {collectionName}
             </>
           ) : (
-            "No collection"
+            t("noCollection")
           )
         }
         state={lastUsedLabel(prompt)}
         tags={prompt.tagIds.map(
-          (id) => tags.find((tag) => tag.id === id)?.name ?? "Unavailable"
+          (id) => tags.find((tag) => tag.id === id)?.name ?? t("unavailable")
         )}
         tagAction={
           <button
@@ -159,7 +166,7 @@ const PromptDetail = ({
             disabled={editing}
             onClick={() => onTags(prompt)}
           >
-            Edit tags
+            {t("editTags")}
           </button>
         }
       >
@@ -171,10 +178,10 @@ const PromptDetail = ({
             void copy.copy(prompt.id);
           }}
         >
-          Copy prompt
+          {t("copyPrompt")}
         </button>
-        <kbd className="wf-kbd" title="With a result focused or from search">
-          Ctrl ↵
+        <kbd className="wf-kbd" title={t("withAResultFocusedOrFromSearch")}>
+          {t("ctrl")}
         </kbd>
         <span className="wf-grow" />
         <button
@@ -184,23 +191,23 @@ const PromptDetail = ({
           type="button"
         >
           <Pencil aria-hidden="true" size={14} />
-          Edit prompt
+          {t("editPrompt")}
         </button>
         <PromptIconAction
           kind="favorite"
-          label="Favorite prompt"
+          label={t("favoritePrompt")}
           active={prompt.favorite}
           disabled={actionsBlocked}
           onClick={() => onAction(prompt, "favorite", !prompt.favorite)}
         />
-        <PromptMoreActions label="More prompt actions">
+        <PromptMoreActions label={t("morePromptActions")}>
           <button
             className="wf-menu-item"
             type="button"
             disabled={actionsBlocked}
             onClick={() => onAction(prompt, "duplicate")}
           >
-            Duplicate prompt
+            {t("duplicatePrompt")}
           </button>
           <button
             className="wf-menu-item"
@@ -208,7 +215,7 @@ const PromptDetail = ({
             disabled={actionsBlocked}
             onClick={() => onAction(prompt, "archived", !prompt.archived)}
           >
-            {prompt.archived ? "Restore prompt" : "Archive prompt"}
+            {prompt.archived ? t("restorePrompt") : t("archivePrompt")}
           </button>
           <button
             className="wf-menu-item"
@@ -216,7 +223,7 @@ const PromptDetail = ({
             disabled={actionsBlocked}
             onClick={() => onDelete(prompt)}
           >
-            Permanently delete prompt
+            {t("permanentlyDeletePrompt")}
           </button>
         </PromptMoreActions>
       </PromptHeader>
@@ -231,34 +238,38 @@ const PromptDetail = ({
               }}
               type="button"
             >
-              Retry detail
+              {t("retryDetail")}
             </button>
           </div>
         </div>
       ) : null}
       <PromptContent
         content={prompt.content}
-        label="Saved content"
+        label={t("savedContent")}
         spans={templateSpans(prompt.content)}
       />
       <PromptMeta>
         {prompt.sourceTitle &&
         prompt.title !== `${prompt.sourceTitle} (copy)` ? (
-          <span>Original title: {prompt.sourceTitle}</span>
+          <span>
+            {t("originalTitle")} {prompt.sourceTitle}
+          </span>
         ) : null}
         <span>
-          Created{" "}
+          {t("created")}{" "}
           <time dateTime={prompt.createdAt}>
-            {new Date(prompt.createdAt).toLocaleString()}
+            {new Date(prompt.createdAt).toLocaleString(locale, { timeZone })}
           </time>
         </span>
         <span>
-          Modified{" "}
+          {t("modified")}{" "}
           <time dateTime={prompt.modifiedAt}>
-            {new Date(prompt.modifiedAt).toLocaleString()}
+            {new Date(prompt.modifiedAt).toLocaleString(locale, { timeZone })}
           </time>
         </span>
-        <span>Copied {copies.toLocaleString()}×</span>
+        <span>
+          {t("copied")} {copies.toLocaleString(locale)}×
+        </span>
       </PromptMeta>
     </section>
   );
@@ -273,22 +284,30 @@ const LibraryCapacity = ({
   usage,
 }: {
   usage?: { promptCount: number; textBytes: number };
-}) => (
-  <>
-    {usage ? (
-      <p>
-        {usage.promptCount.toLocaleString()} / 10,000 prompts ·{" "}
-        {(usage.textBytes / 1_048_576).toFixed(2)} / 100 MiB of text
-      </p>
-    ) : null}
-    {nearingCapacity(usage) ? (
-      <output className="wf-notice" data-tone="attention">
-        Your library is at or above 90% capacity. Archiving does not free
-        capacity.
-      </output>
-    ) : null}
-  </>
-);
+}) => {
+  const locale = useLocale();
+
+  const t = useTranslations();
+  return (
+    <>
+      {usage ? (
+        <p>
+          {usage.promptCount.toLocaleString(locale)} {t("text10000Prompts")}{" "}
+          {(usage.textBytes / 1_048_576).toLocaleString(locale, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}{" "}
+          {t("text100MibOfText")}
+        </p>
+      ) : null}
+      {nearingCapacity(usage) ? (
+        <output className="wf-notice" data-tone="attention">
+          {t("yourLibraryIsAtOrAbove90CapacityArchivingDoes")}
+        </output>
+      ) : null}
+    </>
+  );
+};
 const copyLibraryRevision = (
   data: { pages: { revision: string }[] } | undefined
 ) => data?.pages[0]?.revision;
@@ -300,23 +319,26 @@ const EditorSavedActions = ({
   copy: ReturnType<typeof usePromptCopy>;
   prompt: Prompt | "create";
   unavailable: boolean;
-}) => (
-  <>
-    {prompt === "create" ? null : (
-      <button
-        type="button"
-        disabled={copy.blocked || unavailable}
-        className="wf-btn-quiet"
-        onClick={() => {
-          void copy.copy(prompt.id);
-        }}
-      >
-        Copy saved prompt
-      </button>
-    )}
-    <PromptCopyStatus copy={copy} />
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      {prompt === "create" ? null : (
+        <button
+          type="button"
+          disabled={copy.blocked || unavailable}
+          className="wf-btn-quiet"
+          onClick={() => {
+            void copy.copy(prompt.id);
+          }}
+        >
+          {t("copySavedPrompt")}
+        </button>
+      )}
+      <PromptCopyStatus copy={copy} />
+    </>
+  );
+};
 const usePromptLibrary = ({
   library,
   onDirtyChange,
@@ -332,6 +354,8 @@ const usePromptLibrary = ({
   library: PrivateLibrary;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const live = useLiveChanges(library, accountAvailable && !accountChanged);
   const markDraft = useLibraryDrafts(onDirtyChange);
@@ -416,7 +440,7 @@ const usePromptLibrary = ({
       await accepted();
       setNotice(
         receipt.conflict
-          ? `${message} Unseen text was preserved in a conflict copy.`
+          ? t("valueUnseenTextWasPreservedInAConflictCopy", [message])
           : message
       );
       if (action === "delete") {
@@ -481,7 +505,7 @@ const usePromptLibrary = ({
       setNotice(
         error instanceof Error
           ? errorMessage(error)
-          : "Could not open this prompt. Try again."
+          : t("couldNotOpenThisPromptTryAgain")
       );
       noticeRef.current?.focus();
     }
@@ -543,6 +567,8 @@ const LibrarySidebar = ({
   model: ReturnType<typeof usePromptLibrary>;
   library: PrivateLibrary;
 }) => {
+  const t = useTranslations();
+
   const {
     noticeRef,
     notice,
@@ -606,7 +632,7 @@ const LibrarySidebar = ({
         </p>
         {restarted ? (
           <output className="wf-notice">
-            Your library changed. Results restarted from the first page.
+            {t("yourLibraryChangedResultsRestartedFromTheFirstPage")}
           </output>
         ) : null}
       </div>
@@ -658,11 +684,57 @@ const LibrarySidebar = ({
             type="button"
           >
             <Plus aria-hidden="true" size={13} />
-            Create prompt
+            {t("createPrompt")}
           </button>
         }
       />
     </>
+  );
+};
+
+const LibraryDetail = ({
+  model,
+}: {
+  model: ReturnType<typeof usePromptLibrary>;
+}) => {
+  const t = useTranslations();
+  const {
+    selectedId,
+    searchBlocked,
+    copy,
+    detail,
+    collections,
+    editing,
+    tagEditing,
+    detailUnavailable,
+    tags,
+    setTagEditing,
+    setEditing,
+    setNotice,
+    actions,
+    setDeleting,
+  } = model;
+  return selectedId && !searchBlocked ? (
+    <PromptDetail
+      copy={copy}
+      detail={detail}
+      collections={collections}
+      key={selectedId}
+      editing={Boolean(editing || tagEditing) || detailUnavailable}
+      tags={tags}
+      onTags={setTagEditing}
+      onEdit={(prompt) => {
+        setEditing(prompt);
+        setNotice("");
+      }}
+      actionsBlocked={actions.blocked || detailUnavailable}
+      onDelete={setDeleting}
+      onAction={(prompt, action, value) => {
+        void actions.act(prompt, action, value);
+      }}
+    />
+  ) : (
+    <EmptyDetail hint={t("chooseAPromptOnTheLeftOrOpenQuickAccess")} />
   );
 };
 
@@ -678,8 +750,6 @@ export const PromptLibrary = (
     setDeleting,
     actions,
     editing,
-    setEditing,
-    setNotice,
     tagEditing,
     tags,
     setTagEditing,
@@ -689,10 +759,8 @@ export const PromptLibrary = (
     cancelEditor,
     saved,
     searchBlocked,
-    detail,
     detailUnavailable,
     copy,
-    selectedId,
     markDraft,
     accepted,
   } = model;
@@ -768,28 +836,7 @@ export const PromptLibrary = (
             />
           ) : null}
         </div>
-        {selectedId && !searchBlocked ? (
-          <PromptDetail
-            copy={copy}
-            detail={detail}
-            collections={collections}
-            key={selectedId}
-            editing={Boolean(editing || tagEditing) || detailUnavailable}
-            tags={tags}
-            onTags={setTagEditing}
-            onEdit={(prompt) => {
-              setEditing(prompt);
-              setNotice("");
-            }}
-            actionsBlocked={actions.blocked || detailUnavailable}
-            onDelete={setDeleting}
-            onAction={(prompt, action, value) => {
-              void actions.act(prompt, action, value);
-            }}
-          />
-        ) : (
-          <EmptyDetail hint="Choose a prompt on the left, or open quick access with Ctrl K, type its name and press Enter." />
-        )}
+        <LibraryDetail model={model} />
         <footer className="wf-meta">
           <LibraryCapacity usage={usage} />
         </footer>

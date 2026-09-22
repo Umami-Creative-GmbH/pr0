@@ -1,5 +1,6 @@
 import { createChangeClient } from "@pr0/api-client/changes";
 import { PromptApiError } from "@pr0/api-client/prompts";
+import { translate } from "@pr0/ui/lib/i18n";
 import type { QueryClient } from "@tanstack/react-query";
 import type { Dispatch, SetStateAction } from "react";
 
@@ -46,18 +47,23 @@ export const startLiveChanges = ({
     const authentication =
       error instanceof PromptApiError && [401, 403].includes(error.status);
     stopped = detail?.code === "snapshot_required";
-    let label = navigator.onLine ? "Couldn't check for updates" : "Offline";
+    let label = navigator.onLine
+      ? translate("couldnTCheckForUpdates")
+      : translate("offline");
     if (authentication) {
-      label = "Sign in to sync";
+      label = translate("signInToSync");
     }
     if (detail?.code === "account_suspended") {
-      label =
-        "Account suspended · Drafts retained · Contact your instance operator";
+      label = translate(
+        "accountSuspendedDraftsRetainedContactYourInstanceOperator"
+      );
     } else if (detail?.retryAfter) {
-      label = `Service busy · Retrying in ${detail.retryAfter} seconds · Drafts retained`;
+      label = translate("serviceBusyRetryingInValueSecondsDraftsRetained", [
+        detail.retryAfter,
+      ]);
     }
     if (stopped) {
-      label = "Library recovery required · Drafts retained";
+      label = translate("libraryRecoveryRequiredDraftsRetained");
     }
     setStatus((prior) => ({ ...prior, label }));
     const delay = Math.max(
@@ -93,7 +99,10 @@ export const startLiveChanges = ({
         throw new Error("invalid_response");
       }
       if (!cursor || page.changes.length) {
-        setStatus((prior) => ({ ...prior, label: "Updating library…" }));
+        setStatus((prior) => ({
+          ...prior,
+          label: translate("updatingLibrary"),
+        }));
         await refreshLibrary(queryClient, scope);
       }
       if (disposed) {
@@ -105,7 +114,7 @@ export const startLiveChanges = ({
       nextAttempt = 0;
       if (!page.hasMore) {
         setStatus({
-          label: "Up to date at last check",
+          label: translate("upToDateAtLastCheck"),
           lastCheckedAt: new Date().toISOString(),
         });
       }

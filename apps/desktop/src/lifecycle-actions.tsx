@@ -3,6 +3,7 @@ import type {
   LocalPrompt,
 } from "@pr0/api-contract/local-prompts";
 import { PromptDeleteDialog } from "@pr0/ui/components/prompt-delete-dialog";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useState } from "react";
 
 export const LifecycleActions = ({
@@ -14,6 +15,8 @@ export const LifecycleActions = ({
   disabled: boolean;
   onAction: (value: LocalPrompt, action: LifecycleAction) => void;
 }) => {
+  const t = useTranslations();
+
   const [deleting, setDeleting] = useState<LocalPrompt>();
   const { prompt } = value;
   return (
@@ -26,7 +29,7 @@ export const LifecycleActions = ({
           onAction(value, { kind: "favorite", value: !prompt.favorite })
         }
       >
-        Favorite
+        {t("favorite")}
       </button>
       <button
         type="button"
@@ -35,7 +38,7 @@ export const LifecycleActions = ({
           onAction(value, { kind: "archive", value: !prompt.archived })
         }
       >
-        {prompt.archived ? "Restore" : "Archive"}
+        {prompt.archived ? t("restore") : t("archive")}
       </button>
       <button
         type="button"
@@ -44,14 +47,14 @@ export const LifecycleActions = ({
           onAction(value, { kind: "duplicate", copyId: crypto.randomUUID() })
         }
       >
-        Duplicate
+        {t("duplicate")}
       </button>
       <button
         type="button"
         disabled={disabled}
         onClick={() => setDeleting(value)}
       >
-        Delete permanently
+        {t("deletePermanently")}
       </button>
       {deleting ? (
         <PromptDeleteDialog

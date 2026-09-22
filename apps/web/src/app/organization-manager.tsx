@@ -1,11 +1,13 @@
 "use client";
-
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { organizationIdentity } from "@pr0/api-contract/organization";
 import type { Collection, Tag } from "@pr0/api-contract/prompts";
 import { promptLimits } from "@pr0/api-contract/prompts";
 import { CollectionList } from "@pr0/ui/components/collection-list";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { localizedLabel, translate } from "@pr0/ui/lib/i18n";
 import { useEffect, useRef, useState } from "react";
 
 import { collectionMatches } from "./collection-query";
@@ -18,34 +20,21 @@ import { useOrganizationNameSave } from "./use-organization-name-save";
 const buttonClass = "wf-btn";
 const cleanupSelected = (request: CleanupRequest | null, ids: string[]) =>
   request !== null && ids.includes(request.sourceId);
-const tabLabels = {
+const tabLabels = () => ({
   collections: {
-    singular: "Collection",
-    plural: "Collections" as const,
+    singular: translate("collection"),
+    plural: translate("collections"),
     limit: promptLimits.collectionCount,
     entity: "collection" as const,
   },
   tags: {
-    singular: "Tag",
-    plural: "Tags" as const,
+    singular: translate("tag"),
+    plural: translate("tags"),
     limit: promptLimits.tagCount,
     entity: "tag" as const,
   },
-};
-export const OrganizationManager = ({
-  library,
-  collections,
-  tags,
-  initialTab = "collections",
-  textBytes,
-  loading,
-  error,
-  onRetry,
-  onAccepted,
-  onClose,
-  onDirtyChange,
-  selectedIds,
-}: {
+});
+interface OrganizationManagerProps {
   library: PrivateLibrary;
   collections: Collection[];
   tags: Tag[];
@@ -58,13 +47,32 @@ export const OrganizationManager = ({
   onClose: () => void;
   onDirtyChange: (value: boolean) => void;
   selectedIds: string[];
-}) => {
+}
+
+const useOrganizationManager = ({
+  library,
+  collections,
+  tags,
+  initialTab = "collections",
+  onAccepted,
+  onClose,
+  onDirtyChange,
+}: Pick<
+  OrganizationManagerProps,
+  | "library"
+  | "collections"
+  | "tags"
+  | "initialTab"
+  | "onAccepted"
+  | "onClose"
+  | "onDirtyChange"
+>) => {
   const [tab, setTab] = useState(initialTab);
   const client = useApiClient();
   const [cleanup, setCleanup] = useState<CleanupRequest | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const entries = { collections, tags }[tab];
-  const { singular, plural, limit, entity } = tabLabels[tab];
+  const { singular, plural, limit, entity } = tabLabels()[tab];
   const dialogRef = useRef<HTMLDialogElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
@@ -140,9 +148,169 @@ export const OrganizationManager = ({
       }
     }
   };
+  return {
+    tab,
+    setTab,
+    cleanup,
+    setCleanup,
+    cleanupBusy,
+    setCleanupBusy,
+    entries,
+    singular,
+    plural,
+    limit,
+    entity,
+    dialogRef,
+    nameRef,
+    name,
+    setName,
+    baseline,
+    setBaseline,
+    editing,
+    setEditing,
+    discard,
+    setDiscard,
+    state,
+    dirty,
+    close,
+    clear,
+    submit,
+  };
+};
+
+const OrganizationNameForm = ({
+  model,
+  loading,
+  onDirtyChange,
+}: {
+  model: ReturnType<typeof useOrganizationManager>;
+  loading: boolean;
+  onDirtyChange: (value: boolean) => void;
+}) => {
+  const t = useTranslations();
+  const {
+    singular,
+    editing,
+    state,
+    nameRef,
+    cleanup,
+    name,
+    setName,
+    baseline,
+    submit,
+    dirty,
+    setDiscard,
+    clear,
+  } = model;
   const actionLabel = editing
-    ? "Save name"
-    : `Create ${singular.toLowerCase()}`;
+    ? t("saveName")
+    : t("createValue", [localizedLabel(singular)]);
+  return (
+    <form
+      className="space-y-2 rounded-md border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <label className="block font-medium" htmlFor="collection-name">
+        {singular} {t("name")}
+      </label>
+      <input
+        id="collection-name"
+        ref={nameRef}
+        aria-invalid={Boolean(state.error)}
+        aria-describedby="collection-name-error"
+        readOnly={loading || state.busy || state.uncertain || Boolean(cleanup)}
+        className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
+        value={name}
+        onChange={(event) => {
+          setName(event.target.value);
+          onDirtyChange(event.target.value !== baseline);
+        }}
+      />
+      <p id="collection-name-error">
+        <LocalizedMessage value={state.error} />
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="submit"
+          className={buttonClass}
+          disabled={state.busy || loading || Boolean(cleanup)}
+        >
+          {state.uncertain ? t("retry") : actionLabel}
+        </button>
+        {editing ? (
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={state.busy || state.uncertain || Boolean(cleanup)}
+            onClick={() => {
+              if (dirty) {
+                setDiscard("create");
+              } else {
+                clear();
+              }
+            }}
+          >
+            {t("cancelRename")}
+          </button>
+        ) : null}
+      </div>
+    </form>
+  );
+};
+
+export const OrganizationManager = ({
+  library,
+  collections,
+  tags,
+  initialTab = "collections",
+  textBytes,
+  loading,
+  error,
+  onRetry,
+  onAccepted,
+  onClose,
+  onDirtyChange,
+  selectedIds,
+}: OrganizationManagerProps) => {
+  const t = useTranslations();
+  const model = useOrganizationManager({
+    library,
+    collections,
+    tags,
+    initialTab,
+    onAccepted,
+    onClose,
+    onDirtyChange,
+  });
+  const {
+    tab,
+    setTab,
+    cleanup,
+    setCleanup,
+    cleanupBusy,
+    setCleanupBusy,
+    entries,
+    singular,
+    plural,
+    limit,
+    entity,
+    dialogRef,
+    nameRef,
+    name,
+    setName,
+    baseline,
+    setBaseline,
+    setEditing,
+    discard,
+    setDiscard,
+    state,
+    dirty,
+    close,
+    clear,
+  } = model;
   return (
     <dialog
       ref={dialogRef}
@@ -154,7 +322,7 @@ export const OrganizationManager = ({
       }}
     >
       <h2 id="manage-organization-title" className="text-xl font-semibold">
-        Manage collections and tags
+        {t("manageCollectionsAndTags")}
       </h2>
       <OrganizationTabs
         value={tab}
@@ -180,59 +348,14 @@ export const OrganizationManager = ({
           error={error}
           onRetry={onRetry}
         />
-        <form
-          className="space-y-2 rounded-md border p-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <label className="block font-medium" htmlFor="collection-name">
-            {singular} name
-          </label>
-          <input
-            id="collection-name"
-            ref={nameRef}
-            aria-invalid={Boolean(state.error)}
-            aria-describedby="collection-name-error"
-            readOnly={
-              loading || state.busy || state.uncertain || Boolean(cleanup)
-            }
-            className="bg-background w-full rounded-md border p-2 focus-visible:outline-2"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value);
-              onDirtyChange(event.target.value !== baseline);
-            }}
-          />
-          <p id="collection-name-error">{state.error}</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="submit"
-              className={buttonClass}
-              disabled={state.busy || loading || Boolean(cleanup)}
-            >
-              {state.uncertain ? "Retry" : actionLabel}
-            </button>
-            {editing ? (
-              <button
-                type="button"
-                className={buttonClass}
-                disabled={state.busy || state.uncertain || Boolean(cleanup)}
-                onClick={() => {
-                  if (dirty) {
-                    setDiscard("create");
-                  } else {
-                    clear();
-                  }
-                }}
-              >
-                Cancel rename
-              </button>
-            ) : null}
-          </div>
-        </form>
-        <output>{state.message}</output>
+        <OrganizationNameForm
+          model={model}
+          loading={loading}
+          onDirtyChange={onDirtyChange}
+        />
+        <output>
+          <LocalizedMessage value={state.message} />
+        </output>
         <CollectionList
           collections={entries}
           label={plural}
@@ -276,17 +399,17 @@ export const OrganizationManager = ({
         disabled={state.busy || cleanupBusy}
         onClick={close}
       >
-        Close
+        {t("close")}
       </button>
       {discard ? (
         <section
-          aria-label={`Discard ${singular.toLowerCase()} draft`}
+          aria-label={t("discardValueDraft", [localizedLabel(singular)])}
           className="mt-3 rounded-md border p-3"
         >
           <p>
             {state.uncertain
-              ? "The server may already have saved this name. Retry first to confirm its outcome, or explicitly discard this open-tab draft."
-              : `Discard this unsaved ${singular.toLowerCase()} name?`}
+              ? t("theServerMayAlreadyHaveSavedThisNameRetryFirst")
+              : t("discardThisUnsavedValueName", [localizedLabel(singular)])}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button
@@ -302,7 +425,7 @@ export const OrganizationManager = ({
                 }
               }}
             >
-              Discard name
+              {t("discardName")}
             </button>
             <button
               className={buttonClass}
@@ -312,7 +435,7 @@ export const OrganizationManager = ({
                 nameRef.current?.focus();
               }}
             >
-              Keep editing
+              {t("keepEditing")}
             </button>
           </div>
         </section>

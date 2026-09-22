@@ -1,5 +1,4 @@
 "use client";
-
 import { PromptApiError } from "@pr0/api-client/prompts";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
@@ -19,6 +18,8 @@ import type {
   CreatePrompt,
   UpdatePrompt,
 } from "@pr0/api-contract/prompts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { localizeMessage } from "@pr0/ui/lib/message-localization";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
@@ -55,6 +56,8 @@ export const usePromptEditor = ({
   onCancel: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<PromptDraft>(
@@ -82,7 +85,7 @@ export const usePromptEditor = ({
   }>({ status: "draft", message: "", fields: {}, uncertain: false });
   useReportAttention(
     state.status === "failed"
-      ? "Prompt not saved. Retry, correct the draft or copy its text in the editor."
+      ? t("promptNotSavedRetryCorrectTheDraftOrCopyIts")
       : "",
     "editor-heading"
   );
@@ -189,7 +192,7 @@ export const usePromptEditor = ({
         status: "draft",
         message: promptSaveNotice(
           result,
-          "The earlier edit was saved to server. Your newer changes still need Save."
+          t("theEarlierEditWasSavedToServerYourNewerChanges")
         ),
         fields: {},
         uncertain: false,
@@ -213,8 +216,7 @@ export const usePromptEditor = ({
     if (!parsed.success) {
       setState({
         status: "failed",
-        message:
-          "Correct the highlighted fields. Your text has not been truncated.",
+        message: t("correctTheHighlightedFieldsYourTextHasNotBeenTruncated"),
         fields: Object.fromEntries(
           parsed.error.issues.map((issue) => [
             String(issue.path[0]),
@@ -290,7 +292,7 @@ export const usePromptEditor = ({
         }
         setState({
           status: "failed",
-          message: result.error.message,
+          message: localizeMessage(result.error.message),
           fields: result.error.fields ?? {},
           uncertain,
         });
@@ -301,7 +303,7 @@ export const usePromptEditor = ({
         message:
           error instanceof PromptApiError
             ? error.message
-            : "The server did not confirm saving. Retry to find out whether your prompt was saved.",
+            : t("theServerDidNotConfirmSavingRetryToFindOut"),
         fields: {},
         uncertain: true,
       });
@@ -312,11 +314,9 @@ export const usePromptEditor = ({
   const copy = async () => {
     try {
       await writeClipboard(() => draft.content);
-      setCopyMessage("Copied text.");
+      setCopyMessage(t("copiedText"));
     } catch {
-      setCopyMessage(
-        "Could not copy text. Select the content and copy it manually, or try Copy text again."
-      );
+      setCopyMessage(t("couldNotCopyTextSelectTheContentAndCopyIt"));
     }
   };
   const discard = () => {
@@ -328,15 +328,15 @@ export const usePromptEditor = ({
     [...trimPromptText(draft.description)].length >=
       promptLimits.description * 0.9 ||
     utf8Bytes(draft.content) >= promptLimits.contentBytes * 0.9;
-  let statusText = "Unsaved changes";
+  let statusText = t("unsavedChanges");
   if (!dirty) {
-    statusText = "No unsaved changes";
+    statusText = t("noUnsavedChanges");
   }
   if (state.status === "saving") {
-    statusText = "Saving…";
+    statusText = t("saving");
   }
   if (state.status === "failed") {
-    statusText = `Not saved. ${state.message}`;
+    statusText = t("notSavedValue", [state.message]);
   }
   return {
     tagIds,

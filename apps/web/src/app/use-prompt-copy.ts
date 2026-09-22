@@ -4,6 +4,9 @@ import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type { MutationEnvelope, Prompt } from "@pr0/api-contract/prompts";
 import { parseTemplate, substituteTemplate } from "@pr0/api-contract/variables";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
+import { localizeMessage } from "@pr0/ui/lib/message-localization";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -38,6 +41,8 @@ export const usePromptCopy = ({
   accountChanged?: boolean;
   onClipboardWritten?: () => void;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const alive = useRef(true);
   const pending = useRef<MutationEnvelope | null>(null);
@@ -123,7 +128,7 @@ export const usePromptCopy = ({
       activeInteraction.current = null;
       setInteraction(null);
       setRetryId(null);
-      setMessage("This prompt was deleted. Variable values were cleared.");
+      setMessage(translate("thisPromptWasDeletedVariableValuesWereCleared"));
     } else if (
       observed.data &&
       observed.data.id === current.prompt.id &&
@@ -143,8 +148,8 @@ export const usePromptCopy = ({
       setUsagePending(Boolean(pending.current));
       setMessage(
         pending.current
-          ? "Copied. Usage was not confirmed. Retry usage before copying another prompt, or discard this usage record. It is retained only in this tab and will be lost if you leave."
-          : "Copied. Usage recorded, but results could not refresh. Refresh the list."
+          ? t("copiedUsageWasNotConfirmedRetryUsageBeforeCopyingAnother")
+          : t("copiedUsageRecordedButResultsCouldNotRefreshRefreshThe")
       );
     }
   };
@@ -184,7 +189,7 @@ export const usePromptCopy = ({
       pending.current = null;
       if (current()) {
         setUsagePending(false);
-        setMessage("Copied. Usage recorded.");
+        setMessage(t("copiedUsageRecorded"));
         await onAccepted();
       }
     } catch {
@@ -208,7 +213,7 @@ export const usePromptCopy = ({
     setMessage(
       error instanceof FillVariablesError
         ? error.message
-        : `Could not copy. ${error.message}`
+        : t("couldNotCopyValue", [localizeMessage(error.message)])
     );
     setBusy(false);
   };
@@ -229,7 +234,7 @@ export const usePromptCopy = ({
     submitted.current = submission ?? null;
     setBusy(true);
     setRetryId(null);
-    setMessage("Copying…");
+    setMessage(t("copying"));
     let source: Prompt | undefined;
     try {
       await writeClipboard(async () => {
@@ -257,7 +262,7 @@ export const usePromptCopy = ({
               });
             }
             throw new FillVariablesError(
-              "Template changed. Restart with the updated template."
+              t("templateChangedRestartWithTheUpdatedTemplate")
             );
           }
           return submission.text;
@@ -271,7 +276,7 @@ export const usePromptCopy = ({
             changed: false,
           });
           throw new FillVariablesError(
-            "Fill the required variables before copying."
+            t("fillTheRequiredVariablesBeforeCopying")
           );
         }
         const result = substituteTemplate(template, new Map());
@@ -318,7 +323,7 @@ export const usePromptCopy = ({
       ],
     };
     if (current()) {
-      setMessage("Copied. Recording usage…");
+      setMessage(t("copiedRecordingUsage"));
     }
     await sendUsage(current);
     if (!current()) {
@@ -361,7 +366,7 @@ export const usePromptCopy = ({
           updated: current.updated,
           changed: false,
         });
-        setMessage("Template updated. Review the values and choose Copy.");
+        setMessage(t("templateUpdatedReviewTheValuesAndChooseCopy"));
       }
     },
     busy,
@@ -374,7 +379,7 @@ export const usePromptCopy = ({
       pending.current = null;
       setUsagePending(false);
       setMessage(
-        "Copied. Unconfirmed usage discarded; Recents may not reflect this copy."
+        t("copiedUnconfirmedUsageDiscardedRecentsMayNotReflectThisCopy")
       );
     },
   };

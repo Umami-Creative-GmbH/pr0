@@ -2,10 +2,13 @@ import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import { organizationSearch } from "@pr0/api-contract/organization";
 import { promptSortSchema } from "@pr0/api-contract/prompts";
 import type { Collection, PromptView } from "@pr0/api-contract/prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { pickerSearchThreshold } from "@pr0/ui/components/picker-search";
 import { PromptIconAction } from "@pr0/ui/components/prompt-actions";
 import { PromptRow } from "@pr0/ui/components/prompt-row";
 import { SearchBox } from "@pr0/ui/components/search-box";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { localizedLabel, translate } from "@pr0/ui/lib/i18n";
 import { accentFor } from "@pr0/ui/lib/present";
 import { Inbox, Star } from "lucide-react";
 import { useState } from "react";
@@ -17,17 +20,33 @@ import { useLocalSearch } from "./use-local-search";
 
 // `short` is the visible label; each is contained in its accessible name.
 const views: { value: PromptView; label: string; short: string }[] = [
-  { value: "all", label: "All downloaded prompts", short: "All" },
-  { value: "favorites", label: "Favorites", short: "Favorites" },
-  { value: "recents", label: "Recents", short: "Recents" },
-  { value: "archive", label: "Archive", short: "Archive" },
+  {
+    value: "all",
+    label: translate("allDownloadedPrompts"),
+    short: translate("all"),
+  },
+  {
+    value: "favorites",
+    label: translate("favorites"),
+    short: translate("favorites"),
+  },
+  {
+    value: "recents",
+    label: translate("recents"),
+    short: translate("recents"),
+  },
+  {
+    value: "archive",
+    label: translate("archive"),
+    short: translate("archive"),
+  },
 ];
 const sorts = [
-  { value: "recently-used", label: "Recently used" },
-  { value: "recently-modified", label: "Recently modified" },
-  { value: "newest", label: "Newest" },
-  { value: "oldest", label: "Oldest" },
-  { value: "title", label: "Title A–Z" },
+  { value: "recently-used", label: translate("recentlyUsed") },
+  { value: "recently-modified", label: translate("recentlyModified") },
+  { value: "newest", label: translate("newest") },
+  { value: "oldest", label: translate("oldest") },
+  { value: "title", label: translate("titleAZ") },
 ];
 const nameMatches = (name: string, query: string) =>
   organizationSearch(name).includes(query);
@@ -44,6 +63,8 @@ const OrganizationPicker = ({
   onChange: (ids: string[]) => void;
   multiple?: boolean;
 }) => {
+  const t = useTranslations();
+
   const [query, setQuery] = useState("");
   const normalized = organizationSearch(query);
   const available = new Set(entries.map((entry) => entry.id));
@@ -65,12 +86,12 @@ const OrganizationPicker = ({
       <div className="wf-section-head">
         <h3 className="wf-eyebrow">
           {label}
-          {selected.length ? ` (${selected.length} selected)` : ""}
+          {selected.length ? t("valueSelected", [selected.length]) : ""}
         </h3>
       </div>
       {searchable ? (
         <label className="wf-hint">
-          Find {label.toLowerCase()}
+          {t("find")} {localizedLabel(label)}
           <input
             className="mt-1 w-full text-sm"
             type="search"
@@ -90,7 +111,7 @@ const OrganizationPicker = ({
               onChange={() => onChange([])}
             />
             <span className="wf-dot" />
-            Any
+            {t("any")}
           </label>
         )}
         {selected.map((id) =>
@@ -103,7 +124,7 @@ const OrganizationPicker = ({
                   onChange(selected.filter((value) => value !== id))
                 }
               />
-              Unavailable {label.toLowerCase()}: {id} (remove)
+              {t("unavailable")} {localizedLabel(label)}: {id} {t("remove2")}
             </label>
           )
         )}
@@ -124,8 +145,8 @@ const OrganizationPicker = ({
               {entry.name}
               <span className="sr-only">
                 {" "}
-                ({entry.totalCount}; {entry.activeCount} active,{" "}
-                {entry.archivedCount} archived)
+                ({entry.totalCount}; {entry.activeCount} {t("active")}{" "}
+                {entry.archivedCount} {t("archived")}
               </span>
               <small aria-hidden="true">{entry.totalCount}</small>
             </label>
@@ -138,18 +159,18 @@ const OrganizationPicker = ({
 
 const emptyMessage = (view: PromptView) => {
   if (view === "recents") {
-    return "Copied active prompts appear in Recents. Uses are ordered by when they happened.";
+    return translate("copiedActivePromptsAppearInRecentsUsesAreOrderedBy");
   }
   if (view === "collection") {
-    return "This collection is empty.";
+    return translate("thisCollectionIsEmpty");
   }
   if (view === "favorites") {
-    return "No favorites yet.";
+    return translate("noFavoritesYet");
   }
   if (view === "archive") {
-    return "No archived prompts.";
+    return translate("noArchivedPrompts");
   }
-  return "Your downloaded library is empty. Choose New prompt to create one.";
+  return translate("yourDownloadedLibraryIsEmptyChooseNewPromptToCreate");
 };
 
 const SearchResults = ({
@@ -169,6 +190,8 @@ const SearchResults = ({
   onCopy: (id: string) => Promise<void>;
   headActions: ReactNode;
 }) => {
+  const t = useTranslations();
+
   const { page } = search;
   const collectionNames = new Map(
     page?.collections.map((entry) => [entry.id, entry.name])
@@ -178,7 +201,7 @@ const SearchResults = ({
     <section aria-labelledby="downloaded-results" className="wf-results">
       <div className="wf-list-head">
         <h3 className="wf-eyebrow" id="downloaded-results">
-          Downloaded prompts
+          {t("downloadedPrompts")}
         </h3>
         {page?.prompts.length ? (
           <span className="wf-eyebrow" aria-hidden="true">
@@ -193,14 +216,14 @@ const SearchResults = ({
         className="wf-list"
         data-search-query={search.busy ? undefined : search.query}
       >
-        <ul aria-label="Search results">
+        <ul aria-label={t("searchResults")}>
           {page?.prompts.map((row) => (
             <PromptRow
               key={row.id}
               label={row.title}
               title={row.title}
               suffix={`${row.archived ? " (Archived)" : ""}${
-                attentionIds?.has(row.id) ? " · Changes need attention" : ""
+                attentionIds?.has(row.id) ? t("changesNeedAttention2") : ""
               }`}
               preview={row.excerpt}
               collection={
@@ -221,7 +244,7 @@ const SearchResults = ({
                 kind="copy"
                 size="sm"
                 disabled={search.busy || copying}
-                label={`Copy ${row.title}`}
+                label={t("copyValue", [row.title])}
                 onClick={() => {
                   void onCopy(row.id);
                 }}
@@ -231,7 +254,7 @@ const SearchResults = ({
                 size="sm"
                 active={row.favorite}
                 disabled={search.busy || changing}
-                label={`${row.favorite ? "Unfavorite" : "Favorite"} ${row.title}`}
+                label={`${row.favorite ? t("unfavorite") : t("favorite")} ${row.title}`}
                 onClick={() => {
                   void onFavorite(row.id);
                 }}
@@ -243,12 +266,12 @@ const SearchResults = ({
           <output className="wf-empty">
             <Inbox aria-hidden="true" size={28} />
             {search.restricted
-              ? "No matching prompts"
+              ? t("noMatchingPrompts")
               : emptyMessage(search.view)}
           </output>
         ) : null}
         <nav
-          aria-label="Downloaded prompt pages"
+          aria-label={t("downloadedPromptPages")}
           className="flex justify-center gap-2 pt-2"
         >
           <button
@@ -257,7 +280,7 @@ const SearchResults = ({
             disabled={search.busy || search.offset === 0}
             onClick={() => search.previous()}
           >
-            Previous
+            {t("previous")}
           </button>
           <button
             className="wf-btn-quiet"
@@ -265,7 +288,7 @@ const SearchResults = ({
             disabled={search.busy || !page?.nextCursor}
             onClick={() => search.next()}
           >
-            Next
+            {t("next")}
           </button>
         </nav>
       </div>
@@ -305,20 +328,22 @@ export const SearchLibrary = ({
   changing: boolean;
   onFavorite: (id: string) => Promise<void>;
 }) => {
+  const t = useTranslations();
+
   const search = useLocalSearch(account, refresh, onSelect);
   const { page } = search;
   return (
-    <section aria-label="Offline search" className="contents">
+    <section aria-label={t("offlineSearch")} className="contents">
       <div className="wf-sidebar-top">
         <SearchBox
-          aria-label="Search downloaded prompts"
+          aria-label={t("searchDownloadedPrompts")}
           data-library-search
           hint="/"
-          placeholder="Search downloaded prompts…"
+          placeholder={t("searchDownloadedPrompts2")}
           value={search.query}
           onChange={(event) => search.changeQuery(event.target.value)}
         />
-        <nav aria-label="Library views" className="wf-segment">
+        <nav aria-label={t("libraryViews")} className="wf-segment">
           {views.map((view) => (
             <button
               key={view.value}
@@ -343,7 +368,7 @@ export const SearchLibrary = ({
               size={12}
               fill={search.favorite ? "currentColor" : "none"}
             />
-            Favorites only
+            {t("favoritesOnly")}
           </label>
           {search.query ? (
             <button
@@ -351,19 +376,19 @@ export const SearchLibrary = ({
               type="button"
               onClick={() => search.changeQuery("")}
             >
-              Clear query
+              {t("clearQuery")}
             </button>
           ) : null}
           <span className="wf-grow" />
           <select
-            aria-label="Sort prompts"
+            aria-label={t("sortPrompts")}
             value={search.sort}
             onChange={(event) =>
               search.changeSort(promptSortSchema.parse(event.target.value))
             }
           >
             {search.searching ? (
-              <option value="relevance">Relevance</option>
+              <option value="relevance">{t("relevance")}</option>
             ) : null}
             {sorts.map((sort) => (
               <option key={sort.value} value={sort.value}>
@@ -378,12 +403,12 @@ export const SearchLibrary = ({
             type="button"
             onClick={() => search.clearFilters()}
           >
-            Clear additional filters
+            {t("clearAdditionalFilters")}
           </button>
         ) : null}
         {search.error ? (
           <div className="wf-notice" role="alert">
-            {search.error}
+            <LocalizedMessage value={search.error} />
             {search.recoveryNeeded ? (
               <button
                 className="wf-btn mt-2"
@@ -393,7 +418,7 @@ export const SearchLibrary = ({
                   void search.recover();
                 }}
               >
-                Rebuild search index
+                {t("rebuildSearchIndex")}
               </button>
             ) : null}
           </div>
@@ -401,7 +426,7 @@ export const SearchLibrary = ({
       </div>
       <div className="wf-section">
         <OrganizationPicker
-          label="Collection view"
+          label={t("collectionView")}
           entries={page?.collections ?? []}
           selected={search.viewCollectionId ? [search.viewCollectionId] : []}
           onChange={(ids) =>

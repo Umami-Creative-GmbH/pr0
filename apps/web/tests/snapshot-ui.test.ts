@@ -11,7 +11,7 @@ test("partial desktop download remains browsable with honest offline progress an
     headless: true,
   });
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     await page.addInitScript(({ manifest, pages }) => {
       Object.defineProperty(window, "__TAURI_EVENT_PLUGIN_INTERNALS__", {
         value: { unregisterListener: () => {} },

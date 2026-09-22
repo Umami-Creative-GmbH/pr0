@@ -1,8 +1,8 @@
 "use client";
-
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type { Collection, Tag } from "@pr0/api-contract/prompts";
 import { WayfinderDialog } from "@pr0/ui/components/wayfinder-dialog";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { accentFor } from "@pr0/ui/lib/present";
 import { Search } from "lucide-react";
 import { useRef, useState } from "react";
@@ -46,6 +46,8 @@ export const QuickAccess = ({
   onClose: () => void;
   onOpen: (id: string) => void;
 }) => {
+  const t = useTranslations();
+
   const selectedTags = new Set(quick.filters.tagIds);
   const rows = useRef(new Map<string, HTMLButtonElement>());
   const move = (event: KeyboardEvent, id?: string) => {
@@ -88,7 +90,7 @@ export const QuickAccess = ({
   const [filtersOpen, setFiltersOpen] = useState(activeFilters > 0);
   return (
     <WayfinderDialog
-      label="Quick access"
+      label={t("quickAccess")}
       size="launcher"
       onRequestClose={() => {
         if (copy.busy) {
@@ -106,15 +108,15 @@ export const QuickAccess = ({
           <div className="wf-launcher-search">
             <Search aria-hidden="true" size={18} />
             <input
-              aria-label="Find and copy a prompt"
+              aria-label={t("findAndCopyAPrompt")}
               type="search"
-              placeholder="Find a prompt and copy it with ↵…"
+              placeholder={t("findAPromptAndCopyItWith")}
               value={quick.search.query}
               onChange={(event) => quick.search.changeQuery(event.target.value)}
               onKeyDown={(event) => move(event)}
             />
             <kbd aria-hidden="true" className="wf-kbd">
-              esc
+              {t("esc")}
             </kbd>
           </div>
           <details
@@ -123,9 +125,10 @@ export const QuickAccess = ({
             onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
           >
             <summary>
-              Filters{activeFilters ? ` (${activeFilters})` : ""}
+              {t("filters")}
+              {activeFilters ? ` (${activeFilters})` : ""}
             </summary>
-            <fieldset className="wf-chips" aria-label="Quick access filters">
+            <fieldset className="wf-chips" aria-label={t("quickAccessFilters")}>
               <button
                 className="wf-chip"
                 type="button"
@@ -137,7 +140,7 @@ export const QuickAccess = ({
                   })
                 }
               >
-                Favorites only
+                {t("favoritesOnly")}
               </button>
               {quick.organization?.collections.map((collection) => (
                 <button
@@ -185,7 +188,7 @@ export const QuickAccess = ({
           </details>
           <div className="wf-launcher-status">
             {quick.search.pending || quick.list.isPending ? (
-              <output className="wf-hint">Finding prompts…</output>
+              <output className="wf-hint">{t("findingPrompts")}</output>
             ) : null}
             {quick.search.error ? (
               <p className="wf-error" role="alert">
@@ -194,7 +197,7 @@ export const QuickAccess = ({
             ) : null}
             {quick.list.isError ? (
               <div className="wf-notice" role="alert">
-                Could not load prompts.{" "}
+                {t("couldNotLoadPrompts")}{" "}
                 <button
                   className="wf-link"
                   type="button"
@@ -202,14 +205,14 @@ export const QuickAccess = ({
                     void quick.list.refetch();
                   }}
                 >
-                  Retry search
+                  {t("retrySearch")}
                 </button>
               </div>
             ) : null}
             <PromptCopyStatus copy={copy} />
           </div>
           <div className="wf-launcher-list">
-            <ul aria-label="Quick access results">
+            <ul aria-label={t("quickAccessResults")}>
               {quick.prompts.map((prompt) => (
                 <li key={prompt.id}>
                   <button
@@ -241,7 +244,7 @@ export const QuickAccess = ({
                         : ""}
                     </span>
                     <kbd>
-                      <span className="sr-only">Copy </span>↵
+                      <span className="sr-only">{t("copy")} </span>↵
                     </kbd>
                   </button>
                 </li>
@@ -250,7 +253,7 @@ export const QuickAccess = ({
             {!quick.list.isPending &&
             !quick.searchBlocked &&
             !quick.prompts.length ? (
-              <p className="wf-launcher-note">No matching prompts</p>
+              <p className="wf-launcher-note">{t("noMatchingPrompts")}</p>
             ) : null}
             {quick.list.hasNextPage ? (
               <button
@@ -261,7 +264,7 @@ export const QuickAccess = ({
                   void quick.list.fetchNextPage();
                 }}
               >
-                Load more prompts
+                {t("loadMorePrompts")}
               </button>
             ) : null}
           </div>
@@ -270,16 +273,16 @@ export const QuickAccess = ({
         <footer className="wf-launcher-foot">
           {copy.interaction ? null : (
             <>
-              <span>↑↓ Navigate</span>
-              <span>↵ Copy</span>
-              <span>Ctrl ↵ Open</span>
+              <span>{t("navigate")}</span>
+              <span>{t("copy2")}</span>
+              <span>{t("ctrlOpen")}</span>
             </>
           )}
           <span className="wf-grow" />
           {copy.interaction || quick.list.isPending ? null : (
             <span>
               {quick.prompts.length}
-              {quick.list.hasNextPage ? "+" : ""} shown
+              {quick.list.hasNextPage ? "+" : ""} {t("shown")}
             </span>
           )}
           <button
@@ -291,7 +294,7 @@ export const QuickAccess = ({
               onClose();
             }}
           >
-            Close quick access
+            {t("closeQuickAccess")}
           </button>
         </footer>
       </div>

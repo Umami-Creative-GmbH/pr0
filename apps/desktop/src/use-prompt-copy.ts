@@ -1,8 +1,16 @@
 import type { DesktopCopy } from "@pr0/api-contract/desktop-copy";
 import type { Prompt } from "@pr0/api-contract/prompts";
 import { parseTemplate } from "@pr0/api-contract/variables";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { launcherClient } from "./launcher-client";
 import { libraryClient } from "./library-client";
@@ -11,27 +19,29 @@ import { listenWhenVisible } from "./surface-visibility";
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- IPC errors are untrusted; display only fixed messages.
 export const copyError = (error: unknown) => {
   if (error === "clipboard_busy") {
-    return "Another copy is in progress. Wait for it to finish, then try again.";
+    return translate("anotherCopyIsInProgressWaitForItToFinish");
   }
   if (error === "operation_cancelled") {
-    return "The account changed. Select the prompt again before copying.";
+    return translate("theAccountChangedSelectThePromptAgainBeforeCopying");
   }
   if (error === "prompt_unavailable" || error === "prompt_not_found") {
-    return "This prompt is no longer available. Refresh the library.";
+    return translate("thisPromptIsNoLongerAvailableRefreshTheLibrary");
   }
   if (error === "template_changed") {
-    return "Template changed. Restart with the updated template before copying.";
+    return translate(
+      "templateChangedRestartWithTheUpdatedTemplateBeforeCopying"
+    );
   }
   if (error === "invalid_variable_values") {
-    return "Check the variable values. Nothing was copied.";
+    return translate("checkTheVariableValuesNothingWasCopied");
   }
   if (error === "variable_output_too_large") {
-    return "Combined output must be at most 256 KiB of UTF-8 text. Nothing was copied.";
+    return translate("combinedOutputMustBeAtMost256KibOfUtf");
   }
   if (error instanceof Error && error.message === "copy_uncertain") {
-    return "Copy could not be confirmed. Check the clipboard before copying again.";
+    return translate("copyCouldNotBeConfirmedCheckTheClipboardBeforeCopying");
   }
-  return "Could not copy. Your prompt is preserved. Try Copy again.";
+  return translate("couldNotCopyYourPromptIsPreservedTryCopyAgain");
 };
 
 interface Interaction {
@@ -50,12 +60,24 @@ export const usePromptCopy = (
   refresh: () => void,
   opening?: number
 ) => {
+  const t = useTranslations();
+
   const alive = useRef(true);
   const operation = useRef(0);
-  const writing = useRef(false);
+  const writing = useRef<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [interaction, setInteraction] = useState<Interaction>();
+  // oxlint-disable react/exhaustive-effect-dependencies, react/set-state-in-effect -- A native session change cancels IPC operations and clears their UI before the next paint.
+  useLayoutEffect(() => {
+    // Invalidate only the copy session; the library's editor keeps its draft.
+    operation.current += 1;
+    writing.current = null;
+    setBusy(false);
+    setMessage("");
+    setInteraction(undefined);
+  }, [account.instanceId, account.accountId, account.generation, opening]);
+  // oxlint-enable react/exhaustive-effect-dependencies, react/set-state-in-effect
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -148,11 +170,11 @@ export const usePromptCopy = (
     };
   }, []);
   const submit = async (prompt: Prompt, values: [string, string][] = []) => {
-    if (writing.current) {
+    if (writing.current !== null) {
       return;
     }
     const attempt = operation.current;
-    writing.current = true;
+    writing.current = attempt;
     setBusy(true);
     setMessage("");
     try {
@@ -169,8 +191,8 @@ export const usePromptCopy = (
         setInteraction(undefined);
         setMessage(
           result.usageSaved
-            ? "Copied."
-            : "Copied. Usage could not be saved. Retry usage without copying again; this retry may be lost if the app closes."
+            ? t("copied2")
+            : t("copiedUsageCouldNotBeSavedRetryUsageWithoutCopying")
         );
         refresh();
       }
@@ -193,13 +215,15 @@ export const usePromptCopy = (
         }
       }
     }
-    writing.current = false;
-    if (alive.current) {
-      setBusy(false);
+    if (writing.current === attempt) {
+      writing.current = null;
+      if (alive.current) {
+        setBusy(false);
+      }
     }
   };
   const handleCopy = async (promptId: string) => {
-    if (writing.current || !account.instanceId || !account.accountId) {
+    if (writing.current !== null || !account.instanceId || !account.accountId) {
       return;
     }
     const opener = document.activeElement;
@@ -226,7 +250,7 @@ export const usePromptCopy = (
     }
   };
   const restartVariables = async () => {
-    if (!interaction || writing.current) {
+    if (!interaction || writing.current !== null) {
       return;
     }
     const attempt = operation.current;
@@ -255,12 +279,12 @@ export const usePromptCopy = (
     submit,
     restartVariables,
     cancelVariables: () => {
-      if (!writing.current) {
+      if (writing.current === null) {
         endInteraction();
       }
     },
     invalidate: endInteraction,
     usageRetried: () =>
-      setMessage("Usage saved. The clipboard was not written again."),
+      setMessage(t("usageSavedTheClipboardWasNotWrittenAgain")),
   };
 };

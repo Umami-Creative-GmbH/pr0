@@ -12,6 +12,7 @@
     "allow-surface-visible",
     "allow-startup-action",
     "allow-resident-status",
+    "allow-desktop-language",
     "allow-resident-action",
     "allow-resident-hide",
     "allow-resident-finish-quit",
