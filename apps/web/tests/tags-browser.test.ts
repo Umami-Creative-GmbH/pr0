@@ -18,6 +18,7 @@ const openLibrary = async (Cookie: string) => {
     headless: true,
   });
   const context = await browser.newContext({
+    locale: "en-US",
     viewport: { width: 640, height: 900 },
   });
   await context.addCookies(

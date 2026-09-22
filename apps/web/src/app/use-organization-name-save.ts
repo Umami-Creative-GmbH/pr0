@@ -1,9 +1,11 @@
 "use client";
-
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import { organizationNameSchema } from "@pr0/api-contract/organization";
 import type { MutationEnvelope } from "@pr0/api-contract/prompts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
+import { localizeMessage } from "@pr0/ui/lib/message-localization";
 import { useRef, useState } from "react";
 
 import { useReportAttention } from "./library-attention";
@@ -46,13 +48,17 @@ const existingTagMessage = async (
   if (!existing) {
     throw new Error("The resolved tag is missing from the library snapshot.");
   }
-  return `Tag “${existing.name}” already exists. No prompts were assigned.`;
+  return translate("tagValueAlreadyExistsNoPromptsWereAssigned", [
+    existing.name,
+  ]);
 };
 export const useOrganizationNameSave = (
   library: PrivateLibrary,
   onAccepted: () => void | Promise<void>,
   entity: "collection" | "tag" = "collection"
 ) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const pending = useRef<MutationEnvelope | null>(null);
   const inFlight = useRef(false);
@@ -72,8 +78,8 @@ export const useOrganizationNameSave = (
       setState({
         busy: false,
         uncertain: false,
-        message: "Not saved.",
-        error: parsed.error.issues[0]?.message ?? "Check the name.",
+        message: t("notSaved"),
+        error: parsed.error.issues[0]?.message ?? t("checkTheName"),
       });
       return false;
     }
@@ -88,7 +94,7 @@ export const useOrganizationNameSave = (
       };
     }
     inFlight.current = true;
-    setState({ busy: true, uncertain: false, message: "Saving…", error: "" });
+    setState({ busy: true, uncertain: false, message: t("saving"), error: "" });
     let accepted = false;
     try {
       const response = await client.mutatePrompts(
@@ -100,7 +106,7 @@ export const useOrganizationNameSave = (
         result?.status === "accepted" &&
         ("collectionId" in result || "tagId" in result)
       ) {
-        let message = "Saved to server.";
+        let message = t("savedToServer");
         if ("tagId" in result && result.outcome === "existing") {
           message = await existingTagMessage(
             client,
@@ -133,7 +139,7 @@ export const useOrganizationNameSave = (
         setState({
           busy: false,
           uncertain,
-          message: `Not saved. ${result.error.message}`,
+          message: t("notSavedValue", [localizeMessage(result.error.message)]),
           error: result.error.fields?.name ?? "",
         });
       }
@@ -141,8 +147,7 @@ export const useOrganizationNameSave = (
       setState({
         busy: false,
         uncertain: true,
-        message:
-          "The server did not confirm saving. Keep this dialog open and Retry to confirm the original request.",
+        message: t("theServerDidNotConfirmSavingKeepThisDialogOpen"),
         error: "",
       });
     }

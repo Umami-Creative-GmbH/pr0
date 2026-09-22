@@ -1,5 +1,5 @@
 "use client";
-
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useState } from "react";
 
 export const SignOutControl = ({
@@ -11,6 +11,8 @@ export const SignOutControl = ({
   busy: boolean;
   onSignOut: () => void;
 }) => {
+  const t = useTranslations();
+
   const [confirm, setConfirm] = useState(false);
   const buttonClass = "wf-btn";
   return (
@@ -27,18 +29,15 @@ export const SignOutControl = ({
         }}
         type="button"
       >
-        Sign out
+        {t("signOut")}
       </button>
       {confirm ? (
         <section
-          aria-label="Confirm sign out"
+          aria-label={t("confirmSignOut")}
           className="wf-notice mt-2"
           data-tone="attention"
         >
-          <p>
-            Sign out and discard this unsaved open-tab draft? If saving is
-            uncertain, retry first to confirm whether the server saved it.
-          </p>
+          <p>{t("signOutAndDiscardThisUnsavedOpenTabDraftIf")}</p>
           <div className="mt-3 flex flex-wrap gap-3">
             <button
               className={buttonClass}
@@ -46,14 +45,14 @@ export const SignOutControl = ({
               onClick={onSignOut}
               type="button"
             >
-              Discard draft and sign out
+              {t("discardDraftAndSignOut")}
             </button>
             <button
               className={buttonClass}
               onClick={() => setConfirm(false)}
               type="button"
             >
-              Keep editing
+              {t("keepEditing")}
             </button>
           </div>
         </section>

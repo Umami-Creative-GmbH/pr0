@@ -2,6 +2,9 @@ import type {
   StartupAction,
   StartupStatus,
 } from "@pr0/api-contract/desktop-resident";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 
@@ -9,24 +12,27 @@ import { residentClient } from "./resident-client";
 import { listenWhenVisible } from "./surface-visibility";
 
 const stateText = {
-  enabled: "On",
-  disabled: "Off",
-  disabled_by_windows:
-    "Disabled by Windows. Enable pr0 in Windows Settings → Apps → Startup.",
-  unavailable: "Windows startup state could not be verified.",
+  enabled: translate("on"),
+  disabled: translate("off"),
+  disabled_by_windows: translate(
+    "disabledByWindowsEnablePr0InWindowsSettingsAppsStartup"
+  ),
+  unavailable: translate("windowsStartupStateCouldNotBeVerified"),
 };
 
 const startupError = (error: string | undefined) => {
   if (error === "startup_disabled_by_windows") {
-    return "Windows has disabled this startup entry. Enable pr0 in Windows Settings → Apps → Startup, then check again.";
+    return translate("windowsHasDisabledThisStartupEntryEnablePr0InWindows");
   }
   if (error === "startup_path_too_long") {
-    return "The application path is too long for Windows startup. Install pr0 in a shorter path and retry.";
+    return translate("theApplicationPathIsTooLongForWindowsStartupInstall");
   }
   if (error === "storage_unavailable") {
-    return "Could not save your first-run choice. Check disk access and retry.";
+    return translate("couldNotSaveYourFirstRunChoiceCheckDiskAccess");
   }
-  return "Could not confirm the startup change. Check Windows startup settings and retry.";
+  return translate(
+    "couldNotConfirmTheStartupChangeCheckWindowsStartupSettings"
+  );
 };
 
 export const StartupControls = ({
@@ -34,6 +40,8 @@ export const StartupControls = ({
 }: {
   offerOnly?: boolean;
 }) => {
+  const t = useTranslations();
+
   const [status, setStatus] = useState<StartupStatus>();
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -42,7 +50,7 @@ export const StartupControls = ({
       setStatus(await residentClient.startupStatus());
     } catch {
       setErrorText(
-        "Could not read Windows startup state. Check again to retry."
+        translate("couldNotReadWindowsStartupStateCheckAgainToRetry")
       );
     }
   }, []);
@@ -92,22 +100,20 @@ export const StartupControls = ({
     return null;
   }
   return (
-    <section aria-label="Start at login" className="wf-card">
-      <h2>Start at login</h2>
-      <p>
-        Open pr0 quietly in the notification area when you sign into Windows.
-        Your library opens when you ask for it.
-      </p>
+    <section aria-label={t("startAtLogin")} className="wf-card">
+      <h2>{t("startAtLogin")}</h2>
+      <p>{t("openPr0QuietlyInTheNotificationAreaWhenYouSign")}</p>
       {offerOnly ? (
-        <p>
-          This is optional and off by default. You can change it later in
-          Settings.
-        </p>
+        <p>{t("thisIsOptionalAndOffByDefaultYouCanChange")}</p>
       ) : null}
       <output aria-live="polite">
-        {status ? stateText[status.state] : "Checking Windows startup…"}
+        {status ? stateText[status.state] : t("checkingWindowsStartup")}
       </output>
-      {errorText ? <p role="alert">{errorText}</p> : null}
+      {errorText ? (
+        <p role="alert">
+          <LocalizedMessage value={errorText} />
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
@@ -118,8 +124,8 @@ export const StartupControls = ({
           }}
         >
           {status?.state === "enabled"
-            ? "Disable Start at login"
-            : "Enable Start at login"}
+            ? t("disableStartAtLogin")
+            : t("enableStartAtLogin")}
         </button>
         <button
           type="button"
@@ -129,7 +135,7 @@ export const StartupControls = ({
             void refresh();
           }}
         >
-          Check again
+          {t("checkAgain")}
         </button>
         {offerOnly ? (
           <button
@@ -140,7 +146,7 @@ export const StartupControls = ({
               void act("dismiss_offer");
             }}
           >
-            {status?.state === "enabled" ? "Done" : "Not now"}
+            {status?.state === "enabled" ? t("done") : t("notNow")}
           </button>
         ) : null}
       </div>

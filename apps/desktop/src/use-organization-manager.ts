@@ -6,6 +6,7 @@ import type {
 } from "@pr0/api-contract/local-organization";
 import { organizeRequestSchema } from "@pr0/api-contract/local-organization";
 import { organizationIdentity } from "@pr0/api-contract/organization";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
@@ -35,6 +36,8 @@ export const useOrganizationManager = ({
   onSaved,
   onClose,
 }: ManagerProps) => {
+  const t = useTranslations();
+
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const flight = useRef(false);
@@ -150,15 +153,11 @@ export const useOrganizationManager = ({
             });
           }
         } catch {
-          setErrorText(
-            "Could not refresh the merge decision. The name is retained; retry when ready."
-          );
+          setErrorText(t("couldNotRefreshTheMergeDecisionTheNameIsRetained"));
         }
       }
     } catch {
-      setErrorText(
-        "Could not refresh the current state. Your name is retained."
-      );
+      setErrorText(t("couldNotRefreshTheCurrentStateYourNameIsRetained"));
     }
   };
   const save = async (
@@ -184,7 +183,7 @@ export const useOrganizationManager = ({
     };
     const parsed = organizeRequestSchema.safeParse(request);
     if (!parsed.success) {
-      setErrorText(parsed.error.issues[0]?.message ?? "Correct the name.");
+      setErrorText(parsed.error.issues[0]?.message ?? t("correctTheName"));
       flight.current = false;
       setBusy(false);
       return;
@@ -195,8 +194,8 @@ export const useOrganizationManager = ({
       unresolved.current = null;
       setMessage(
         saved.existing
-          ? "This tag already exists. No prompts were assigned."
-          : "Saved on this device · Changes waiting to sync"
+          ? t("thisTagAlreadyExistsNoPromptsWereAssigned")
+          : t("savedOnThisDeviceChangesWaitingToSync")
       );
       if (saved.effect) {
         setResult({ id: request.operationId, effect: saved.effect });
@@ -206,9 +205,7 @@ export const useOrganizationManager = ({
       try {
         await onSaved();
       } catch {
-        setErrorText(
-          "Saved on this device. Refresh the library to update the displayed counts."
-        );
+        setErrorText(t("savedOnThisDeviceRefreshTheLibraryToUpdateThe2"));
       }
     } catch (error) {
       // A native validation rejection has a known outcome; response decoding failures remain retryable with the same UUID.
@@ -240,12 +237,14 @@ export const useOrganizationManager = ({
     });
   };
   const limit = entity === "collection" ? 200 : 1000;
-  let saveLabel = creating ? `Create ${entity}` : "Save name";
+  let saveLabel = creating
+    ? t("createValue", [t(entity === "collection" ? "collection" : "tag")])
+    : t("saveName");
   if (busy) {
-    saveLabel = "Saving…";
+    saveLabel = t("saving");
   }
   if (uncertain) {
-    saveLabel = "Retry save";
+    saveLabel = t("retrySave");
   }
   const edit = (entry: OrganizationEdit) => {
     editRevision.current = snapshot.localRevision;

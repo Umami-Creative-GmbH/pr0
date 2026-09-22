@@ -1,9 +1,9 @@
 "use client";
-
 import { ApiError } from "@pr0/api-client/client";
 import { verifyDeletionReceipt } from "@pr0/api-client/deletions";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { DeletionTrust } from "@pr0/api-contract/deletions";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useRef, useState } from "react";
 
 import { accountErrorMessage } from "./account-errors";
@@ -17,6 +17,8 @@ export const AccountDeletionSettings = ({
   accountId?: string;
   onDeleted: (identity: DeletionTrust) => Promise<void>;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const [prepared, setPrepared] = useState<DeletionTrust | null>(null);
   const recovery = useDeletionRecovery(client.baseUrl);
@@ -36,7 +38,7 @@ export const AccountDeletionSettings = ({
     } catch (error) {
       setMessage(
         pending
-          ? "Deletion is still pending. Completion could not be verified. Retry checking its status."
+          ? t("deletionIsStillPendingCompletionCouldNotBeVerifiedRetry")
           : accountErrorMessage(
               error instanceof Error ? error : new Error("Deletion unavailable")
             )
@@ -55,9 +57,7 @@ export const AccountDeletionSettings = ({
         !settings.freshUntil ||
         Date.parse(settings.freshUntil) <= Date.now()
       ) {
-        setMessage(
-          "Confirm your identity in Account security below, then return to delete your account."
-        );
+        setMessage(t("confirmYourIdentityInAccountSecurityBelowThenReturnTo"));
         return;
       }
       const setup = await client.getDeletionTrust();
@@ -78,9 +78,7 @@ export const AccountDeletionSettings = ({
     await verifyDeletionReceipt(value, continued);
     setPrepared(continued);
     setReceipt(value);
-    setMessage(
-      "Your account and library have been deleted. The signed receipt has been verified."
-    );
+    setMessage(t("yourAccountAndLibraryHaveBeenDeletedTheSignedReceipt"));
     await onDeleted(pinned);
   };
   const remove = () =>
@@ -90,9 +88,7 @@ export const AccountDeletionSettings = ({
       }
       // Pin the key before confirmation; a replacement server key is never accepted.
       recovery.persist(trust);
-      setMessage(
-        "Deletion is pending. Completion has not yet been confirmed. Check again shortly."
-      );
+      setMessage(t("deletionIsPendingCompletionHasNotYetBeenConfirmedCheck"));
       try {
         const result = await client.deleteAccount({
           accountId: trust.accountId,
@@ -124,7 +120,7 @@ export const AccountDeletionSettings = ({
         await complete(result.receipt, trust);
       } else {
         setMessage(
-          "Deletion is still pending. No verified completion receipt is available. Check again shortly."
+          t("deletionIsStillPendingNoVerifiedCompletionReceiptIsAvailable")
         );
       }
     });
@@ -149,18 +145,18 @@ export const AccountDeletionSettings = ({
       className="space-y-3 rounded-lg border p-6"
     >
       <h2 id="delete-account-title" className="font-semibold">
-        Delete account
+        {t("deleteAccount")}
       </h2>
       <p ref={status} aria-live="polite" tabIndex={-1}>
         {message ||
           (pending
-            ? "Deletion is pending. Check its status to verify completion."
+            ? t("deletionIsPendingCheckItsStatusToVerifyCompletion")
             : "")}
       </p>
       {receipt ? (
         <div className="flex gap-3">
           <button type="button" className={buttonClass} onClick={download}>
-            Download deletion receipt
+            {t("downloadDeletionReceipt")}
           </button>
           <button
             type="button"
@@ -172,7 +168,7 @@ export const AccountDeletionSettings = ({
               setMessage("");
             }}
           >
-            Finish
+            {t("finish")}
           </button>
         </div>
       ) : null}
@@ -185,7 +181,7 @@ export const AccountDeletionSettings = ({
             void check();
           }}
         >
-          Check deletion status
+          {t("checkDeletionStatus")}
         </button>
       ) : null}
       {!pending && !trust ? (
@@ -198,19 +194,18 @@ export const AccountDeletionSettings = ({
             void prepare();
           }}
         >
-          Delete account
+          {t("deleteAccount")}
         </button>
       ) : null}
       {!pending && trust ? (
         <section aria-labelledby="confirm-deletion-title" className="space-y-3">
           <h3 id="confirm-deletion-title" className="font-semibold">
-            Confirm account deletion
+            {t("confirmAccountDeletion")}
           </h3>
           <p>
-            This permanently removes your account, prompts, organization,
-            sessions and unsaved edits. It cannot be undone. Disconnected
-            desktops clear their copies when they reconnect and verify deletion.
-            Ordinary backups expire within 30 days.
+            {t(
+              "thisPermanentlyRemovesYourAccountPromptsOrganizationSessionsAndUnsaved"
+            )}
           </p>
           <label className="flex gap-2">
             <input
@@ -218,8 +213,7 @@ export const AccountDeletionSettings = ({
               checked={confirmed}
               onChange={(event) => setConfirmed(event.target.checked)}
             />
-            I understand that my account and entire library will be permanently
-            deleted
+            {t("iUnderstandThatMyAccountAndEntireLibraryWillBe")}
           </label>
           <div className="flex flex-wrap gap-3">
             <button
@@ -230,7 +224,7 @@ export const AccountDeletionSettings = ({
                 void remove();
               }}
             >
-              Permanently delete account and library
+              {t("permanentlyDeleteAccountAndLibrary")}
             </button>
             <button
               type="button"
@@ -242,7 +236,7 @@ export const AccountDeletionSettings = ({
                 requestAnimationFrame(() => opener.current?.focus());
               }}
             >
-              Cancel
+              {t("cancel")}
             </button>
           </div>
         </section>

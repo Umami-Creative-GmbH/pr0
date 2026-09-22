@@ -1,8 +1,9 @@
 "use client";
-
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
+
+import { useTranslations } from "../hooks/use-translations";
 
 export const WayfinderDialog = ({
   children,
@@ -64,23 +65,26 @@ export const DialogHead = ({
   onClose?: () => void;
   closeLabel?: string;
   closeDisabled?: boolean;
-}) => (
-  <header className="wf-dialog-head">
-    <div>
-      <span className="wf-eyebrow-accent">{eyebrow}</span>
-      <h2 id={titleId}>{title}</h2>
-    </div>
-    {onClose ? (
-      <button
-        type="button"
-        className="wf-icon-btn"
-        data-size="md"
-        aria-label={closeLabel ?? "Close"}
-        disabled={closeDisabled}
-        onClick={onClose}
-      >
-        <X aria-hidden="true" size={15} />
-      </button>
-    ) : null}
-  </header>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <header className="wf-dialog-head">
+      <div>
+        <span className="wf-eyebrow-accent">{eyebrow}</span>
+        <h2 id={titleId}>{title}</h2>
+      </div>
+      {onClose ? (
+        <button
+          type="button"
+          className="wf-icon-btn"
+          data-size="md"
+          aria-label={closeLabel ?? t("close")}
+          disabled={closeDisabled}
+          onClick={onClose}
+        >
+          <X aria-hidden="true" size={15} />
+        </button>
+      ) : null}
+    </header>
+  );
+};

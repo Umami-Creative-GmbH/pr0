@@ -29,6 +29,7 @@ import {
   downloadStatusSchema,
   recoverySummariesSchema,
 } from "@pr0/api-contract/snapshots";
+import { translate } from "@pr0/ui/lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
@@ -208,44 +209,56 @@ export const downloadError = (
   }
   if (error === "operation_cancelled") {
     return context === "search"
-      ? "The account changed. Refresh the connection before searching again."
-      : "Download paused or already running. Saved prompts and pending work are retained.";
+      ? translate("theAccountChangedRefreshTheConnectionBeforeSearchingAgain")
+      : translate("downloadPausedOrAlreadyRunningSavedPromptsAndPendingWork");
   }
   if (error === "disk_full") {
-    return "There is not enough free disk space. Free some space and retry; saved prompts and pending changes are preserved.";
+    return translate("thereIsNotEnoughFreeDiskSpaceFreeSomeSpace");
   }
   if (error === "search_recovery_required") {
-    return "Search needs recovery. Rebuild the search index; saved prompts and pending changes are preserved.";
+    return translate("searchNeedsRecoveryRebuildTheSearchIndexSavedPromptsAnd");
   }
   if (error === "search_busy" || error === "search_preparing") {
-    return "Preparing search. Please retry shortly.";
+    return translate("preparingSearchPleaseRetryShortly");
   }
   if (error === "download_in_progress") {
-    return "Download paused or already running. Saved prompts and pending work are retained.";
+    return translate(
+      "downloadPausedOrAlreadyRunningSavedPromptsAndPendingWork"
+    );
   }
   if (error === "insufficient_scratch_space") {
-    return "Not enough free disk space to stage the library. Free disk space and retry; saved prompts and pending work are retained.";
+    return translate("notEnoughFreeDiskSpaceToStageTheLibraryFree");
   }
   if (error === "download_backoff") {
-    return "Download paused after a connection or server error. Saved prompts remain available; retry shortly.";
+    return translate("downloadPausedAfterAConnectionOrServerErrorSavedPrompts");
   }
   if (error === "request_failed") {
-    return "The server could not complete the download. Retry later; downloaded prompts are preserved.";
+    return translate(
+      "theServerCouldNotCompleteTheDownloadRetryLaterDownloaded"
+    );
   }
   if (error === "redirect_rejected") {
-    return "The server redirected the download. Check its canonical address; downloaded prompts are preserved.";
+    return translate(
+      "theServerRedirectedTheDownloadCheckItsCanonicalAddressDownloaded"
+    );
   }
   if (error === "authentication_required") {
-    return "Sign in to resume downloading. Your downloaded prompts remain available.";
+    return translate(
+      "signInToResumeDownloadingYourDownloadedPromptsRemainAvailable"
+    );
   }
   if (error === "network_unavailable") {
-    return "Offline. Download paused; only downloaded prompts are available. Retry when connected.";
+    return translate(
+      "offlineDownloadPausedOnlyDownloadedPromptsAreAvailableRetryWhen"
+    );
   }
   if (error === "snapshot_expired") {
-    return "The download expired. Retry to start a fresh download; existing prompts are preserved.";
+    return translate("theDownloadExpiredRetryToStartAFreshDownloadExisting");
   }
   if (error === "snapshot_digest_mismatch" || error === "invalid_response") {
-    return "The server returned invalid download data. Existing prompts are preserved. Retry or contact your server operator.";
+    return translate(
+      "theServerReturnedInvalidDownloadDataExistingPromptsArePreserved"
+    );
   }
-  return "The download could not be saved. Existing prompts are preserved. Check free disk space and retry.";
+  return translate("theDownloadCouldNotBeSavedExistingPromptsArePreserved");
 };

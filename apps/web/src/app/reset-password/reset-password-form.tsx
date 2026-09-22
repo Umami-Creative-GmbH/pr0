@@ -1,6 +1,8 @@
 "use client";
-
 import { useApiClient } from "@pr0/api-client/provider";
+import { LanguageSetting } from "@pr0/ui/components/language-setting";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -10,6 +12,8 @@ import { accountErrorMessage } from "../account-errors";
 import { RecoveryForm } from "../recovery-form";
 
 export const ResetPasswordForm = () => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const queryClient = useQueryClient();
   const token = useRef("");
@@ -39,14 +43,12 @@ export const ResetPasswordForm = () => {
     const data = new FormData(form);
     const newPassword = String(data.get("password") ?? "");
     if (newPassword !== data.get("confirm-password")) {
-      setMessage("The passwords do not match.");
+      setMessage(t("thePasswordsDoNotMatch"));
       statusRef.current?.focus();
       return;
     }
     if (!token.current) {
-      setMessage(
-        "Open the link in your recovery email. If it is unavailable, request another email below."
-      );
+      setMessage(t("openTheLinkInYourRecoveryEmailIfItIs"));
       statusRef.current?.focus();
       return;
     }
@@ -58,9 +60,7 @@ export const ResetPasswordForm = () => {
       token.current = "";
       form.reset();
       setComplete(true);
-      setMessage(
-        "Password changed. All previous sessions have ended. Sign in with your new password."
-      );
+      setMessage(t("passwordChangedAllPreviousSessionsHaveEndedSignInWith"));
     } catch (error) {
       setMessage(
         accountErrorMessage(
@@ -73,19 +73,17 @@ export const ResetPasswordForm = () => {
   };
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-12">
-      <h1 className="text-3xl font-semibold">Reset your password</h1>
+      <LanguageSetting />
+      <h1 className="text-3xl font-semibold">{t("resetYourPassword")}</h1>
       <p aria-live="polite" ref={statusRef} tabIndex={-1}>
-        {message}
+        <LocalizedMessage value={message} />
       </p>
       {complete ? null : (
         <>
-          <p>
-            Choose a password with 12–128 characters. This ends every previous
-            browser and desktop session. Desktop work remains on its device.
-          </p>
+          <p>{t("chooseAPasswordWith12128CharactersThisEndsEvery")}</p>
           <form className="space-y-4" onSubmit={submit}>
             <label className="block" htmlFor="password">
-              New password
+              {t("newPassword")}
             </label>
             <input
               autoComplete="new-password"
@@ -99,7 +97,7 @@ export const ResetPasswordForm = () => {
               type="password"
             />
             <label className="block" htmlFor="confirm-password">
-              Confirm new password
+              {t("confirmNewPassword")}
             </label>
             <input
               autoComplete="new-password"
@@ -117,14 +115,14 @@ export const ResetPasswordForm = () => {
               disabled={busy}
               type="submit"
             >
-              {busy ? "Please wait…" : "Reset password"}
+              {busy ? t("pleaseWait") : t("resetPassword")}
             </button>
           </form>
           <RecoveryForm />
         </>
       )}
       <Link className="underline" href="/">
-        Return to sign in
+        {t("returnToSignIn")}
       </Link>
     </main>
   );

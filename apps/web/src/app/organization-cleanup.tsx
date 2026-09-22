@@ -1,11 +1,13 @@
 "use client";
-
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type {
   MutationEnvelope,
   OrganizationCleanup,
 } from "@pr0/api-contract/prompts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
+import { localizeMessage } from "@pr0/ui/lib/message-localization";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -47,9 +49,11 @@ const actionLabel = (
   targetName: string | null
 ) => {
   if (kind === "tag.merge") {
-    return `Merge into ${targetName}`;
+    return translate("mergeIntoValue", [targetName]);
   }
-  return kind === "collection.delete" ? "Delete collection" : "Delete tag";
+  return kind === "collection.delete"
+    ? translate("deleteCollection")
+    : translate("deleteTag");
 };
 export const OrganizationCleanupPanel = ({
   library,
@@ -66,6 +70,8 @@ export const OrganizationCleanupPanel = ({
   onBusyChange: (busy: boolean) => void;
   selected: boolean;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const scope = {
     instanceId: library.instance.id,
@@ -116,7 +122,7 @@ export const OrganizationCleanupPanel = ({
         ) {
           await impact.refetch();
           setMessage(
-            "The affected counts or names changed. Review the refreshed confirmation and confirm again."
+            t("theAffectedCountsOrNamesChangedReviewTheRefreshedConfirmation")
           );
           setBusy(false);
           inFlight.current = false;
@@ -158,7 +164,9 @@ export const OrganizationCleanupPanel = ({
         }
         setUncertain(remainsUncertain);
         setMessage(
-          `${remainsUncertain ? "Saving is unconfirmed. Retry the original request." : "Not saved."} ${receipt.error.message}`
+          t(remainsUncertain ? "unconfirmedSaveDetail" : "notSavedValue", [
+            localizeMessage(receipt.error.message),
+          ])
         );
         await impact.refetch();
       }
@@ -167,8 +175,8 @@ export const OrganizationCleanupPanel = ({
       setUncertain(remainsUncertain);
       setMessage(
         remainsUncertain
-          ? "Saving is unconfirmed. Retry the original request before closing."
-          : "Could not refresh the confirmation. Retry when connected."
+          ? t("savingIsUnconfirmedRetryTheOriginalRequestBeforeClosing")
+          : t("couldNotRefreshTheConfirmationRetryWhenConnected")
       );
     }
     setBusy(false);
@@ -180,49 +188,55 @@ export const OrganizationCleanupPanel = ({
     <div className="space-y-3">
       {request ? (
         <section
-          aria-label="Confirm organization change"
+          aria-label={t("confirmOrganizationChange")}
           className="space-y-2 rounded-md border p-3"
         >
           {effect ? (
             <>
               <h3 className="font-semibold">
                 {request.kind === "tag.merge"
-                  ? `Merge “${effect.sourceName}” into “${effect.targetName}”?`
-                  : `Delete “${effect.sourceName}”?`}
+                  ? t("mergeValueIntoValue", [
+                      effect.sourceName,
+                      effect.targetName,
+                    ])
+                  : t("deleteValue", [effect.sourceName])}
               </h3>
               <p>
-                {effect.activeCount} active prompts and {effect.archivedCount}{" "}
-                archived prompts.
+                {effect.activeCount} {t("activePromptsAnd")}{" "}
+                {effect.archivedCount} {t("archivedPrompts")}
               </p>
               {request.kind === "tag.merge" ? (
                 <p>
-                  {effect.targetName} will remain. Prompts using{" "}
-                  {effect.sourceName} will use {effect.targetName}. Prompts
-                  using both will have {effect.targetName} once. Result:{" "}
-                  {effect.targetActiveCount} active and{" "}
-                  {effect.targetArchivedCount} archived prompts. Your prompts
-                  will be kept.
+                  {effect.targetName} {t("willRemainPromptsUsing")}{" "}
+                  {effect.sourceName} {t("willUse")} {effect.targetName}
+                  {t("promptsUsingBothWillHave")}
+                  {effect.targetName} {t("onceResult")}{" "}
+                  {effect.targetActiveCount} {t("activeAnd")}{" "}
+                  {effect.targetArchivedCount}{" "}
+                  {t("archivedPromptsYourPromptsWillBeKept")}
                 </p>
               ) : (
                 <p>
                   {request.kind === "collection.delete"
-                    ? "These prompts will become unassigned."
-                    : "This tag will be removed from these prompts."}{" "}
-                  Your prompts will be kept.
+                    ? t("thesePromptsWillBecomeUnassigned")
+                    : t("thisTagWillBeRemovedFromThesePrompts")}{" "}
+                  {t("yourPromptsWillBeKept")}
                 </p>
               )}
               {selected ? (
                 <p>
-                  This selected condition will become unavailable and return no
-                  matches until you explicitly remove or replace it.
+                  {t(
+                    "thisSelectedConditionWillBecomeUnavailableAndReturnNoMatches"
+                  )}
                   {effect.targetName
-                    ? ` You can choose Use ${effect.targetName} instead.`
+                    ? t("youCanChooseUseValueInstead", [effect.targetName])
                     : ""}
                 </p>
               ) : null}
               <p className="text-sm">
-                Counts describe the available server snapshot. The result will
-                report the assignments actually changed.
+                {t(
+                  "countsDescribeTheAvailableServerSnapshotTheResultWillReport"
+                )}
               </p>
               <button
                 ref={focusRef}
@@ -234,16 +248,16 @@ export const OrganizationCleanupPanel = ({
                 }}
               >
                 {uncertain
-                  ? "Retry original action"
+                  ? t("retryOriginalAction")
                   : actionLabel(request.kind, effect.targetName)}
               </button>
             </>
           ) : (
-            <output>Loading affected counts…</output>
+            <output>{t("loadingAffectedCounts")}</output>
           )}
           {impact.isError ? (
             <p role="alert">
-              Could not refresh affected counts.{" "}
+              {t("couldNotRefreshAffectedCounts")}{" "}
               <button
                 type="button"
                 className={buttonClass}
@@ -251,7 +265,7 @@ export const OrganizationCleanupPanel = ({
                   void impact.refetch();
                 }}
               >
-                Retry confirmation
+                {t("retryConfirmation")}
               </button>
             </p>
           ) : null}
@@ -261,11 +275,11 @@ export const OrganizationCleanupPanel = ({
             disabled={busy || uncertain}
             onClick={onCancel}
           >
-            Cancel
+            {t("cancel")}
           </button>
         </section>
       ) : null}
-      <output>{busy ? "Saving…" : message}</output>
+      <output>{busy ? t("saving") : message}</output>
       {result?.status === "accepted" && "effect" in result ? (
         <OrganizationReview
           library={library}

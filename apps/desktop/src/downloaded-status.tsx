@@ -2,7 +2,10 @@ import type { ChangeStatus } from "@pr0/api-contract/changes";
 import type { DesktopUsageStatus } from "@pr0/api-contract/desktop-copy";
 import type { LocalOrganization } from "@pr0/api-contract/local-organization";
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { Toast } from "@pr0/ui/components/toast";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import type { ReactNode } from "react";
 
 import type { DownloadStatus } from "./library-client";
@@ -22,7 +25,7 @@ const plainSuccess = (
   lifecycle: ReturnType<typeof useLifecycle>,
   usage?: DesktopUsageStatus
 ) =>
-  copyMessage === "Copied." &&
+  copyMessage === translate("copied2") &&
   !lifecycle.message &&
   !lifecycle.failed &&
   !usage?.memoryOnly &&
@@ -70,73 +73,78 @@ export const DownloadedStatus = ({
   onEditing: (value: boolean) => void;
   children?: ReactNode;
   saveFailure?: boolean;
-}) => (
-  <>
-    <Toast
-      signal={`${copyMessage}:${lifecycle.message}`}
-      transient={plainSuccess(copyMessage, lifecycle, usage)}
-    >
-      <output>{copyMessage}</output>
-      <output>{lifecycle.message}</output>
-      {/* Usage feedback accompanies the copy result. Uses held only in memory
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      <Toast
+        signal={`${copyMessage}:${lifecycle.message}`}
+        transient={plainSuccess(copyMessage, lifecycle, usage)}
+      >
+        <output>
+          <LocalizedMessage value={copyMessage} />
+        </output>
+        <output>{lifecycle.message}</output>
+        {/* Usage feedback accompanies the copy result. Uses held only in memory
           can be lost on exit, so their retry always stays in view. */}
-      {usageInToast(copyMessage, usage) ? (
-        <UsageStatus status={usage} onRetry={onRetryUsage} />
-      ) : null}
-      {lifecycle.failed ? (
-        <div role="alert" className="flex gap-3">
-          <button
-            type="button"
-            disabled={lifecycle.busy}
-            onClick={() => {
-              void lifecycle.retry();
-            }}
-          >
-            Retry action
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void lifecycle.copy();
-            }}
-          >
-            Copy text
-          </button>
-        </div>
-      ) : null}
-    </Toast>
-    <LocalLibraryStatus
-      saveFailure={saveFailure}
-      status={status}
-      signedIn={signedIn}
-      offline={offline}
-      upload={upload}
-      changes={changes}
-      onOpen={onOpen}
-      onRetry={onRetryUpload}
-      organizationAttention={organization?.pending.some((entry) =>
-        Boolean(entry.error)
-      )}
-    >
-      {usageInToast(copyMessage, usage) ? null : (
-        <UsageStatus status={usage} onRetry={onRetryUsage} />
-      )}
-      <PendingRecovery
-        account={account}
+        {usageInToast(copyMessage, usage) ? (
+          <UsageStatus status={usage} onRetry={onRetryUsage} />
+        ) : null}
+        {lifecycle.failed ? (
+          <div role="alert" className="flex gap-3">
+            <button
+              type="button"
+              disabled={lifecycle.busy}
+              onClick={() => {
+                void lifecycle.retry();
+              }}
+            >
+              {t("retryAction")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void lifecycle.copy();
+              }}
+            >
+              {t("copyText")}
+            </button>
+          </div>
+        ) : null}
+      </Toast>
+      <LocalLibraryStatus
+        saveFailure={saveFailure}
+        status={status}
+        signedIn={signedIn}
+        offline={offline}
         upload={upload}
-        onChanged={onRetry}
-        disabled={editing || lifecycle.busy}
-      />
-      {organization ? (
-        <OrganizationAttention
+        changes={changes}
+        onOpen={onOpen}
+        onRetry={onRetryUpload}
+        organizationAttention={organization?.pending.some((entry) =>
+          Boolean(entry.error)
+        )}
+      >
+        {usageInToast(copyMessage, usage) ? null : (
+          <UsageStatus status={usage} onRetry={onRetryUsage} />
+        )}
+        <PendingRecovery
           account={account}
-          snapshot={organization}
-          onSaved={onOrganizationSaved}
+          upload={upload}
+          onChanged={onRetry}
           disabled={editing || lifecycle.busy}
-          onEditing={onEditing}
         />
-      ) : null}
-      {children}
-    </LocalLibraryStatus>
-  </>
-);
+        {organization ? (
+          <OrganizationAttention
+            account={account}
+            snapshot={organization}
+            onSaved={onOrganizationSaved}
+            disabled={editing || lifecycle.busy}
+            onEditing={onEditing}
+          />
+        ) : null}
+        {children}
+      </LocalLibraryStatus>
+    </>
+  );
+};

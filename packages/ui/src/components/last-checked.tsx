@@ -1,36 +1,42 @@
 "use client";
 import { usePresentationTime } from "../hooks/use-presentation-time";
+import { useLocale, useTranslations } from "../hooks/use-translations";
+import { translate } from "../lib/i18n";
+import type { Locale } from "../lib/locale";
 
-const age = (at: string, now: number) => {
+const age = (at: string, now: number, locale: Locale) => {
   const minutes = Math.max(0, Math.floor((now - Date.parse(at)) / 60_000));
   if (minutes < 1) {
-    return "just now";
+    return translate("justNow", [], locale);
   }
   if (minutes < 60) {
-    return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+    return new Intl.RelativeTimeFormat(locale).format(-minutes, "minute");
   }
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
-    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+    return new Intl.RelativeTimeFormat(locale).format(-hours, "hour");
   }
   const days = Math.floor(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Intl.RelativeTimeFormat(locale).format(-days, "day");
 };
 export const LastChecked = ({ at }: { at?: string | null }) => {
+  const t = useTranslations();
+  const locale = useLocale();
+
   const now = usePresentationTime();
   return at ? (
     <p>
-      Last checked for updates{" "}
-      <time dateTime={at} title={new Date(at).toLocaleString()}>
-        {age(at, now)}
+      {t("lastCheckedForUpdates")}{" "}
+      <time dateTime={at} title={new Date(at).toLocaleString(locale)}>
+        {age(at, now, locale)}
       </time>
       .
       <span className="block text-sm">
-        Exact check time: {new Date(at).toLocaleString()}. Other devices may
-        still have changes to upload.
+        {t("exactCheckTime")} {new Date(at).toLocaleString(locale)}
+        {t("otherDevicesMayStillHaveChangesToUpload")}
       </span>
     </p>
   ) : (
-    <p>Not yet checked for updates.</p>
+    <p>{t("notYetCheckedForUpdates")}</p>
   );
 };

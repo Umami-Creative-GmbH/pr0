@@ -3,6 +3,8 @@ import type { UploadStatus } from "@pr0/api-contract/local-prompts";
 import { LastChecked } from "@pr0/ui/components/last-checked";
 import { AppBarStatus } from "@pr0/ui/components/wayfinder-shell";
 import { useDismissable } from "@pr0/ui/hooks/use-dismissable";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { statusTone } from "@pr0/ui/lib/present";
 import type { ReactNode } from "react";
 
@@ -15,12 +17,17 @@ import { useSyncDetails } from "./use-sync-details";
 
 const downloadLabel = (status?: DownloadStatus) => {
   if (status?.replacement) {
-    return "Updating this device's library… Your existing library and saved local work remain available.";
+    return translate("updatingThisDeviceSLibraryYourExistingLibraryAndSaved");
   }
   if (status?.complete) {
-    return `Library downloaded at revision ${status.revision}. Available offline.`;
+    return translate("libraryDownloadedAtRevisionValueAvailableOffline", [
+      status.revision,
+    ]);
   }
-  return `Downloading library: ${status?.downloaded ?? 0} prompts available. The offline library is incomplete.`;
+  return translate(
+    "downloadingLibraryValuePromptsAvailableTheOfflineLibraryIsIncomplete",
+    [status?.downloaded ?? 0]
+  );
 };
 
 export const DownloadProgress = ({
@@ -29,35 +36,40 @@ export const DownloadProgress = ({
 }: {
   status?: DownloadStatus;
   signedIn: boolean;
-}) => (
-  <>
-    <p className="block">{downloadLabel(status)}</p>
-    {status?.paused ? (
-      <p>Download paused. Resume when you are ready; local work is retained.</p>
-    ) : null}
-    {status?.catchingUp ? (
-      <p>
-        Snapshot pages downloaded. Applying intervening changes before switching
-        libraries. Pending uploads may still need attention.
-      </p>
-    ) : null}
-    {status && status.totalPages > 0 ? (
-      <progress
-        aria-label="Library download progress"
-        max={status.totalPages}
-        value={status.appliedPages}
-      />
-    ) : null}
-    {status && status.totalPages > 0 ? (
-      <p>
-        {status.appliedPages} of {status.totalPages} snapshot pages saved.
-      </p>
-    ) : null}
-    {signedIn ? null : (
-      <p>Sign in to resume downloading. Downloaded prompts remain available.</p>
-    )}
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      <p className="block">{downloadLabel(status)}</p>
+      {status?.paused ? (
+        <p>{t("downloadPausedResumeWhenYouAreReadyLocalWorkIs")}</p>
+      ) : null}
+      {status?.catchingUp ? (
+        <p>
+          {t(
+            "snapshotPagesDownloadedApplyingInterveningChangesBeforeSwitchingLibrariesPending"
+          )}
+        </p>
+      ) : null}
+      {status && status.totalPages > 0 ? (
+        <progress
+          aria-label={t("libraryDownloadProgress")}
+          max={status.totalPages}
+          value={status.appliedPages}
+        />
+      ) : null}
+      {status && status.totalPages > 0 ? (
+        <p>
+          {status.appliedPages} {t("of")} {status.totalPages}{" "}
+          {t("snapshotPagesSaved")}
+        </p>
+      ) : null}
+      {signedIn ? null : (
+        <p>{t("signInToResumeDownloadingDownloadedPromptsRemainAvailable")}</p>
+      )}
+    </>
+  );
+};
 
 export const DownloadControls = ({
   status,
@@ -73,29 +85,32 @@ export const DownloadControls = ({
   errorText: string;
   onPause: () => void;
   onRetry: () => void;
-}) => (
-  <>
-    <DownloadProgress status={status} signedIn={signedIn} />
-    {errorText || status?.error ? (
-      <p>{errorText || downloadError(status?.error)}</p>
-    ) : null}
-    {status?.complete ? null : (
-      <button type="button" onClick={onPause}>
-        {status?.paused ? "Resume download" : "Pause download"}
-      </button>
-    )}
-    {!status?.complete && signedIn ? (
-      <button
-        type="button"
-        disabled={busy}
-        onClick={onRetry}
-        className="wf-btn"
-      >
-        Retry download
-      </button>
-    ) : null}
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      <DownloadProgress status={status} signedIn={signedIn} />
+      {errorText || status?.error ? (
+        <p>{errorText || downloadError(status?.error)}</p>
+      ) : null}
+      {status?.complete ? null : (
+        <button type="button" onClick={onPause}>
+          {status?.paused ? t("resumeDownload") : t("pauseDownload")}
+        </button>
+      )}
+      {!status?.complete && signedIn ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onRetry}
+          className="wf-btn"
+        >
+          {t("retryDownload")}
+        </button>
+      ) : null}
+    </>
+  );
+};
 
 const admissionLabel = (
   changes: ChangeStatus | undefined,
@@ -106,10 +121,13 @@ const admissionLabel = (
     changes?.error === "account_suspended" ||
     upload?.error === "account_suspended"
   ) {
-    return "Account suspended · Local work retained";
+    return translate("accountSuspendedLocalWorkRetained");
   }
   if (changes?.error?.startsWith("retry_after:") && changes.retryAfterMs > 0) {
-    return `Service busy · Retrying in ${Math.ceil(changes.retryAfterMs / 1000)} seconds${pending ? " · Changes waiting" : ""}`;
+    return translate("serviceBusyRetryingInValueSecondsValue", [
+      Math.ceil(changes.retryAfterMs / 1000),
+      pending ? translate("changesWaiting") : "",
+    ]);
   }
   return null;
 };
@@ -121,13 +139,17 @@ const incomingFailureLabel = (
 ) => {
   const pending = Boolean(status?.pendingChanges);
   if (changes?.error === "authentication_required") {
-    return pending ? "Sign in to sync · Changes waiting" : "Sign in to sync";
+    return pending
+      ? translate("signInToSyncChangesWaiting")
+      : translate("signInToSync");
   }
   if (changes?.error === "network_unavailable") {
-    return pending ? "Offline · Changes waiting to sync" : "Offline";
+    return pending
+      ? translate("offlineChangesWaitingToSync")
+      : translate("offline");
   }
   if (changes?.error === "snapshot_required") {
-    return "Library recovery required";
+    return translate("libraryRecoveryRequired");
   }
   if (
     changes?.error ||
@@ -136,8 +158,8 @@ const incomingFailureLabel = (
     attentionError
   ) {
     return pending
-      ? "Couldn't sync · Changes waiting"
-      : "Couldn't check for updates";
+      ? translate("couldnTSyncChangesWaiting")
+      : translate("couldnTCheckForUpdates");
   }
   return null;
 };
@@ -148,12 +170,17 @@ const incomingLabel = (
   changes: ChangeStatus | undefined,
   label: string
 ) => {
-  if (label !== "Library status" && label !== "Changes waiting to sync") {
+  if (
+    label !== translate("libraryStatus") &&
+    label !== translate("changesWaitingToSync")
+  ) {
     return label;
   }
   const pending = Boolean(status?.pendingChanges);
   if (!signedIn) {
-    return pending ? "Sign in to sync · Changes waiting" : "Sign in to sync";
+    return pending
+      ? translate("signInToSyncChangesWaiting")
+      : translate("signInToSync");
   }
   const errorLabel = incomingFailureLabel(
     status,
@@ -165,11 +192,11 @@ const incomingLabel = (
   }
   if (changes?.updating || !status?.complete || status.replacement) {
     return pending
-      ? "Updating this device's library… · Changes waiting"
-      : "Updating this device's library…";
+      ? translate("updatingThisDeviceSLibraryChangesWaiting")
+      : translate("updatingThisDeviceSLibrary");
   }
   return !pending && changes?.lastCheckedAt
-    ? "Up to date at last check"
+    ? translate("upToDateAtLastCheck")
     : label;
 };
 const ConnectionDetails = ({
@@ -182,91 +209,109 @@ const ConnectionDetails = ({
   offline: boolean;
   upload?: UploadStatus;
   changes?: ChangeStatus;
-}) => (
-  <>
-    {offline ||
-    changes?.error === "network_unavailable" ||
-    upload?.error === "network_unavailable" ? (
-      <p>
-        Offline. Durably saved work remains on this device and will retry when
-        connectivity returns.
-      </p>
-    ) : null}
-    {!signedIn ||
-    changes?.error === "authentication_required" ||
-    upload?.error === "authentication_required" ? (
-      <p>
-        Sign in to the same account on the same instance to sync. Local access
-        and pending work are preserved.
-      </p>
-    ) : null}
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      {offline ||
+      changes?.error === "network_unavailable" ||
+      upload?.error === "network_unavailable" ? (
+        <p>{t("offlineDurablySavedWorkRemainsOnThisDeviceAndWill")}</p>
+      ) : null}
+      {!signedIn ||
+      changes?.error === "authentication_required" ||
+      upload?.error === "authentication_required" ? (
+        <p>{t("signInToTheSameAccountOnTheSameInstance")}</p>
+      ) : null}
+    </>
+  );
+};
 const RejectedChanges = ({
   upload,
   onOpen,
 }: {
   upload?: UploadStatus;
   onOpen: (id: string) => void;
-}) => (
-  <ul>
-    {upload?.errors.map((entry) => {
-      const deleting = upload.pending.some(
-        (pending) => pending.promptId === entry.promptId && pending.deleting
-      );
-      return (
-        <li key={`${entry.promptId}:${entry.code}`}>
-          {deleting ? (
-            <p>Deletion pending</p>
-          ) : (
-            <button type="button" onClick={() => onOpen(entry.promptId)}>
-              Open retained prompt
-            </button>
-          )}
-          <RejectedChange entry={entry} deleting={deleting} />
-        </li>
-      );
-    })}
-  </ul>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <ul>
+      {upload?.errors.map((entry) => {
+        const deleting = upload.pending.some(
+          (pending) => pending.promptId === entry.promptId && pending.deleting
+        );
+        return (
+          <li key={`${entry.promptId}:${entry.code}`}>
+            {deleting ? (
+              <p>{t("deletionPending")}</p>
+            ) : (
+              <button type="button" onClick={() => onOpen(entry.promptId)}>
+                {t("openRetainedPrompt")}
+              </button>
+            )}
+            <RejectedChange entry={entry} deleting={deleting} />
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
 const incomingExplanation = (error: string) => {
   if (error === "account_suspended") {
-    return "Contact your instance operator. Suspension does not delete your local library.";
+    return translate(
+      "contactYourInstanceOperatorSuspensionDoesNotDeleteYourLocal"
+    );
   }
   if (error === "snapshot_required") {
-    return "This library needs a recovery download.";
+    return translate("thisLibraryNeedsARecoveryDownload");
   }
-  return "Synchronization retries when the connection and account are available.";
+  return translate(
+    "synchronizationRetriesWhenTheConnectionAndAccountAreAvailable"
+  );
 };
-const IncomingError = ({ changes }: { changes?: ChangeStatus }) =>
-  changes?.error ? (
+const IncomingError = ({ changes }: { changes?: ChangeStatus }) => {
+  const t = useTranslations();
+  return changes?.error ? (
     <p>
-      Incoming updates are paused. Saved local work and drafts are retained.{" "}
+      {t("incomingUpdatesArePausedSavedLocalWorkAndDraftsAre")}{" "}
       {incomingExplanation(changes.error)}
     </p>
   ) : null;
-const RecoveryError = ({ code }: { code?: string | null }) =>
-  code ? (
+};
+const RecoveryError = ({ code }: { code?: string | null }) => {
+  const t = useTranslations();
+  return code ? (
     <p>
-      Search preparation could not finish.{" "}
+      {t("searchPreparationCouldNotFinish")}{" "}
       {upgradeRecoveryMessage(code) ??
-        "Check storage access and restart pr0 to retry. Browsing and copying remain available; primary prompts and pending changes are preserved."}
+        t("checkStorageAccessAndRestartPr0ToRetryBrowsingAnd")}
     </p>
   ) : null;
-const UploadError = ({ code }: { code?: string | null }) =>
-  code ? (
+};
+const UploadError = ({ code }: { code?: string | null }) => {
+  const t = useTranslations();
+  return code ? (
     <p>
       {upgradeRecoveryMessage(code) ??
         (code === "incompatible_instance"
-          ? "Update pr0 or check your instance address before syncing. Local work is preserved."
-          : "Local work is preserved. Synchronization will retry automatically when the connection and account are available.")}
+          ? t("updatePr0OrCheckYourInstanceAddressBeforeSyncingLocal")
+          : t(
+              "localWorkIsPreservedSynchronizationWillRetryAutomaticallyWhenThe"
+            ))}
     </p>
   ) : null;
+};
 const acceptedDownloadLabel = (upload: UploadStatus) => {
   if (upload.errors.some((entry) => entry.code === "recovery_required")) {
-    return `${upload.awaitingDownload} previously accepted variants are retained locally. The server was restored; review them because their earlier acknowledgement does not prove they survived the restore.`;
+    return translate(
+      "valuePreviouslyAcceptedVariantsAreRetainedLocallyTheServerWas",
+      [upload.awaitingDownload]
+    );
   }
-  return `${upload.awaitingDownload} accepted operations are saved to server. Downloading current records.`;
+  return translate(
+    "valueAcceptedOperationsAreSavedToServerDownloadingCurrentRecords",
+    [upload.awaitingDownload]
+  );
 };
 const TransferDetails = ({
   status,
@@ -276,32 +321,36 @@ const TransferDetails = ({
   status?: DownloadStatus;
   upload?: UploadStatus;
   changes?: ChangeStatus;
-}) => (
-  <>
-    {changes?.updating ||
-    !status?.complete ||
-    status?.replacement ||
-    upload?.awaitingDownload ? (
-      <p>
-        Updating this device&apos;s library… Saved local work and open drafts
-        are retained.
-      </p>
-    ) : null}
-    <RecoveryError code={status?.recoveryError} />
-    <IncomingError changes={changes} />
-    {upload?.attentionError ? (
-      <p>
-        Could not refresh review notices. Previously downloaded reviews remain
-        available. Synchronization will retry.
-      </p>
-    ) : null}
-    {upload?.awaitingDownload ? <p>{acceptedDownloadLabel(upload)}</p> : null}
-    <UploadError code={upload?.error} />
-    {upload?.retryAfterMs ? (
-      <p>Retry available in {Math.ceil(upload.retryAfterMs / 1000)} seconds.</p>
-    ) : null}
-  </>
-);
+}) => {
+  const t = useTranslations();
+  return (
+    <>
+      {changes?.updating ||
+      !status?.complete ||
+      status?.replacement ||
+      upload?.awaitingDownload ? (
+        <p>{t("updatingThisDeviceAposSLibrarySavedLocalWorkAnd")}</p>
+      ) : null}
+      <RecoveryError code={status?.recoveryError} />
+      <IncomingError changes={changes} />
+      {upload?.attentionError ? (
+        <p>
+          {t(
+            "couldNotRefreshReviewNoticesPreviouslyDownloadedReviewsRemainAvailable"
+          )}
+        </p>
+      ) : null}
+      {upload?.awaitingDownload ? <p>{acceptedDownloadLabel(upload)}</p> : null}
+      <UploadError code={upload?.error} />
+      {upload?.retryAfterMs ? (
+        <p>
+          {t("retryAvailableIn")} {Math.ceil(upload.retryAfterMs / 1000)}{" "}
+          {t("seconds")}
+        </p>
+      ) : null}
+    </>
+  );
+};
 export const LocalLibraryStatus = ({
   status,
   signedIn,
@@ -325,11 +374,13 @@ export const LocalLibraryStatus = ({
   organizationAttention?: boolean;
   saveFailure?: boolean;
 }) => {
+  const t = useTranslations();
+
   const details = useSyncDetails();
   useDismissable(details);
   const pendingChanges = status?.pendingChanges ?? 0;
   const label = organizationAttention
-    ? "Changes need attention · Changes waiting"
+    ? t("changesNeedAttentionChangesWaiting")
     : (admissionLabel(changes, upload, pendingChanges) ??
       incomingLabel(
         status,
@@ -346,18 +397,18 @@ export const LocalLibraryStatus = ({
             className="wf-dot"
             data-tone={statusTone(label, saveFailure || organizationAttention)}
           />
-          <span>{saveFailure ? "Not saved · Unsaved draft" : label}</span>
+          <span>{saveFailure ? t("notSavedUnsavedDraft") : label}</span>
         </summary>
         <div className="wf-popover">
           {saveFailure ? (
             <p>
-              {label}. The draft could not be saved. Keep the editor open to
-              retry or copy its text; it may be lost after closing.
+              {label}
+              {t("theDraftCouldNotBeSavedKeepTheEditorOpen")}
             </p>
           ) : null}
           <p>
-            {pendingChanges} pending changes. Saved local changes await
-            synchronization.
+            {pendingChanges}{" "}
+            {t("pendingChangesSavedLocalChangesAwaitSynchronization")}
           </p>
           <LastChecked at={changes?.lastCheckedAt} />
           <ConnectionDetails
@@ -373,14 +424,11 @@ export const LocalLibraryStatus = ({
             disabled={!signedIn || Boolean(upload?.retryAfterMs)}
             onClick={onRetry}
           >
-            Retry sync
+            {t("retrySync")}
           </button>
           {status &&
           (status.downloaded >= 9000 || status.textBytes >= 94_371_840) ? (
-            <p>
-              Your library is near its capacity. Archiving does not free
-              capacity.
-            </p>
+            <p>{t("yourLibraryIsNearItsCapacityArchivingDoesNotFree")}</p>
           ) : null}
           {children}
         </div>

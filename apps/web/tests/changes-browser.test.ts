@@ -37,8 +37,8 @@ test("two web clients receive live changes without replacing an open draft or mo
   const heldRead = Promise.withResolvers<undefined>();
   try {
     const contexts = await Promise.all([
-      browser.newContext(),
-      browser.newContext(),
+      browser.newContext({ locale: "en-US" }),
+      browser.newContext({ locale: "en-US" }),
     ]);
     await Promise.all(
       contexts.map((context, index) =>

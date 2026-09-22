@@ -1,8 +1,11 @@
-/* oxlint-disable react/exhaustive-effect-dependencies -- Native event counters and explicit retries invalidate the persisted notice query. */
 import {
   localConflictReviewSchema,
   localConflictPageSchema as pageSchema,
 } from "@pr0/api-contract/local-prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
+/* oxlint-disable react/exhaustive-effect-dependencies -- Native event counters and explicit retries invalidate the persisted notice query. */
+import { translate } from "@pr0/ui/lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import type { z } from "zod";
@@ -20,6 +23,10 @@ export const LocalConflicts = ({
   onOpen: (id: string) => void;
   onChanged: () => void;
 }) => {
+  const locale = useLocale();
+
+  const t = useTranslations();
+
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<z.infer<typeof pageSchema>>();
   const [error, setError] = useState("");
@@ -44,14 +51,16 @@ export const LocalConflicts = ({
           setPage(result);
           setError(
             result.error
-              ? "Could not refresh conflict notices. Previously downloaded reviews remain available. Synchronization will retry."
+              ? translate(
+                  "couldNotRefreshConflictNoticesPreviouslyDownloadedReviewsRemainAvailable"
+                )
               : ""
           );
         }
       } catch {
         if (!cancelled) {
           setError(
-            "Could not load conflict review. Saved prompts remain available."
+            translate("couldNotLoadConflictReviewSavedPromptsRemainAvailable")
           );
         }
       }
@@ -83,15 +92,11 @@ export const LocalConflicts = ({
         }),
       });
       summary.current?.focus();
-      setMessage(
-        "Review saved on this device. Prompts and retained titles were kept."
-      );
+      setMessage(t("reviewSavedOnThisDevicePromptsAndRetainedTitlesWere"));
       setVersion((value) => value + 1);
       onChanged();
     } catch {
-      setMessage(
-        "Review was not saved. Prompts remain available; retry the review."
-      );
+      setMessage(t("reviewWasNotSavedPromptsRemainAvailableRetryTheReview"));
     }
     setBusy(false);
   };
@@ -100,20 +105,21 @@ export const LocalConflicts = ({
   }
   return (
     <details className="wf-notice" data-tone="attention">
-      <summary ref={summary}>Conflicts to review</summary>
+      <summary ref={summary}>{t("conflictsToReview")}</summary>
       <p>
-        Competing edits were preserved independently. Reviewing keeps the text;
-        it does not dismiss blocked uploads.
+        {t("competingEditsWerePreservedIndependentlyReviewingKeepsTheTextIt")}
       </p>
-      <output>{message}</output>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
       {error ? (
         <p>
-          {error}{" "}
+          <LocalizedMessage value={error} />{" "}
           <button
             type="button"
             onClick={() => setVersion((value) => value + 1)}
           >
-            Retry conflict review
+            {t("retryConflictReview")}
           </button>
         </p>
       ) : null}
@@ -121,40 +127,39 @@ export const LocalConflicts = ({
         {page?.notices.map((notice) => (
           <li key={notice.id} className="rounded border p-3">
             <p className="break-words whitespace-pre-wrap">
-              Full source title: {notice.sourceTitle}
+              {t("fullSourceTitle")} {notice.sourceTitle}
             </p>
             <p>
-              Preserved{" "}
+              {t("preserved")}{" "}
               <time dateTime={notice.createdAt}>
-                {new Date(notice.createdAt).toLocaleString()}
+                {new Date(notice.createdAt).toLocaleString(locale)}
               </time>
             </p>
             {notice.originalDeleted ? (
-              <p>Original permanently deleted.</p>
+              <p>{t("originalPermanentlyDeleted")}</p>
             ) : (
               <>
-                {notice.originalArchived ? <p>Original archived.</p> : null}
+                {notice.originalArchived ? (
+                  <p>{t("originalArchived")}</p>
+                ) : null}
                 {notice.originalAvailable ? (
                   <button
                     type="button"
                     onClick={() => onOpen(notice.originalId)}
                   >
-                    Open original
+                    {t("openOriginal")}
                   </button>
                 ) : (
-                  <p>Original is not available on this device yet.</p>
+                  <p>{t("originalIsNotAvailableOnThisDeviceYet")}</p>
                 )}
               </>
             )}
             {notice.copyAvailable ? (
               <button type="button" onClick={() => onOpen(notice.copyId)}>
-                Open conflict copy
+                {t("openConflictCopy")}
               </button>
             ) : (
-              <p>
-                Conflict copy is not available on this device yet. Finish
-                downloading to open it.
-              </p>
+              <p>{t("conflictCopyIsNotAvailableOnThisDeviceYetFinish")}</p>
             )}
             <button
               type="button"
@@ -163,7 +168,7 @@ export const LocalConflicts = ({
                 void review(notice.id);
               }}
             >
-              {notice.originalDeleted ? "Mark reviewed" : "Keep both"}
+              {notice.originalDeleted ? t("markReviewed") : t("keepBoth")}
             </button>
           </li>
         ))}
@@ -173,7 +178,7 @@ export const LocalConflicts = ({
           type="button"
           onClick={() => setOffset(Math.max(0, offset - 100))}
         >
-          Previous conflicts
+          {t("previousConflicts")}
         </button>
       ) : null}
       {page?.nextOffset !== null && page?.nextOffset !== undefined ? (
@@ -181,7 +186,7 @@ export const LocalConflicts = ({
           type="button"
           onClick={() => setOffset(page.nextOffset ?? offset)}
         >
-          More conflicts
+          {t("moreConflicts")}
         </button>
       ) : null}
     </details>

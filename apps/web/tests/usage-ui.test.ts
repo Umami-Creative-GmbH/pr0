@@ -26,6 +26,7 @@ test("desktop list/detail Copy preserves failure, retries usage only and shows d
   const started = Promise.withResolvers<undefined>();
   try {
     const page = await browser.newPage({
+      locale: "en-US",
       viewport: { width: 1100, height: 900 },
     });
     await page.exposeFunction(

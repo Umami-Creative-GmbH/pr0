@@ -4,14 +4,16 @@ import type { ReactNode } from "react";
 import { useId } from "react";
 
 import { usePresentationTime } from "../hooks/use-presentation-time";
+import { useLocale } from "../hooks/use-translations";
 import type { Accent } from "../lib/present";
 import { relativeTime } from "../lib/present";
 
 export const RelativeTime = ({ at }: { at: string }) => {
+  const locale = useLocale();
   const now = usePresentationTime();
   return (
-    <time dateTime={at} title={new Date(at).toLocaleString()}>
-      {relativeTime(at, now)}
+    <time dateTime={at} title={new Date(at).toLocaleString(locale)}>
+      {relativeTime(at, now, locale)}
     </time>
   );
 };

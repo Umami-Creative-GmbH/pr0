@@ -1,5 +1,7 @@
 import { LastChecked } from "@pr0/ui/components/last-checked";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { AppBarStatus, AppMenu } from "@pr0/ui/components/wayfinder-shell";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { statusTone } from "@pr0/ui/lib/present";
 import type { ReactNode } from "react";
 
@@ -14,11 +16,13 @@ export const LiveLibraryStatus = ({
   status: LiveStatus;
   children?: ReactNode;
 }) => {
+  const t = useTranslations();
+
   const entries = Object.entries(useLibraryAttention());
   const unsaved = entries.some(([, entry]) => entry.unsaved);
   const attentionLabel = unsaved
-    ? "Changes need attention · Unsaved work in this tab"
-    : "Changes need attention";
+    ? t("changesNeedAttentionUnsavedWorkInThisTab")
+    : t("changesNeedAttention");
   return (
     <AppBarStatus>
       <AppMenu
@@ -35,27 +39,25 @@ export const LiveLibraryStatus = ({
       >
         {entries.length ? (
           <>
-            <p>{status.label}</p>
+            <p>
+              <LocalizedMessage value={status.label} />
+            </p>
             {unsaved ? (
-              <p>
-                This work is retained only in the open tab. Closing or reloading
-                may lose it.
-              </p>
+              <p>{t("thisWorkIsRetainedOnlyInTheOpenTabClosing")}</p>
             ) : null}
             <ul>
               {entries.map(([id, entry]) => (
                 <li key={id}>
-                  <a href={`#${entry.target}`}>{entry.message}</a>
+                  <a href={`#${entry.target}`}>
+                    <LocalizedMessage value={entry.message} />
+                  </a>
                 </li>
               ))}
             </ul>
           </>
         ) : null}
         <LastChecked at={status.lastCheckedAt} />
-        <p>
-          Open drafts stay in this tab while incoming changes update your
-          library.
-        </p>
+        <p>{t("openDraftsStayInThisTabWhileIncomingChangesUpdate")}</p>
         {children}
       </AppMenu>
     </AppBarStatus>

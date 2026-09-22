@@ -1,9 +1,11 @@
 "use client";
-
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
 import type { MutationEnvelope, Prompt, Tag } from "@pr0/api-contract/prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { TagPicker } from "@pr0/ui/components/tag-picker";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { localizeMessage } from "@pr0/ui/lib/message-localization";
 import { useEffect, useRef, useState } from "react";
 
 import { collectionMatches } from "./collection-query";
@@ -24,6 +26,8 @@ export const PromptTags = ({
   onDirtyChange: (dirty: boolean) => void;
   onClose: () => void;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const [baseline, setBaseline] = useState(prompt);
   const [selected, setSelected] = useState(prompt.tagIds);
@@ -72,7 +76,7 @@ export const PromptTags = ({
     }
     inFlight.current = true;
     setBusy(true);
-    setMessage("Saving tags…");
+    setMessage(t("savingTags"));
     onDirtyChange(true);
     try {
       const response = await client.mutatePrompts(
@@ -81,7 +85,7 @@ export const PromptTags = ({
       );
       const [result] = response.results;
       if (result?.status === "accepted" && "promptId" in result) {
-        setMessage("Tags saved to server. Refreshing assignments…");
+        setMessage(t("tagsSavedToServerRefreshingAssignments"));
         const current = await client.getPrompt(
           baseline.id,
           AbortSignal.timeout(30_000),
@@ -92,7 +96,7 @@ export const PromptTags = ({
         setBaseline(current);
         setSelected(current.tagIds);
         setUncertain(false);
-        setMessage(result.organizationNotice ?? "Tags saved to server.");
+        setMessage(result.organizationNotice ?? t("tagsSavedToServer"));
         onDirtyChange(false);
       } else if (result?.status === "rejected") {
         const unknown = ![
@@ -105,13 +109,11 @@ export const PromptTags = ({
           pending.current = null;
         }
         setUncertain(unknown);
-        setMessage(`Not saved. ${result.error.message}`);
+        setMessage(t("notSavedValue", [localizeMessage(result.error.message)]));
       }
     } catch {
       setUncertain(true);
-      setMessage(
-        "Could not confirm current assignments. Keep this editor open and Retry to confirm the original request."
-      );
+      setMessage(t("couldNotConfirmCurrentAssignmentsKeepThisEditorOpenAnd"));
     }
     inFlight.current = false;
     setBusy(false);
@@ -122,14 +124,14 @@ export const PromptTags = ({
   };
   return (
     <section
-      aria-label={`Edit tags for ${baseline.title}`}
+      aria-label={t("editTagsForValue", [baseline.title])}
       className="space-y-3 rounded-md border p-4"
     >
       <h2 className="text-xl font-semibold break-words">
-        Tags for {baseline.title}
+        {t("tagsFor")} {baseline.title}
       </h2>
       <TagPicker
-        label="Prompt tags"
+        label={t("promptTags")}
         tags={tags}
         value={selected}
         search={collectionMatches}
@@ -140,8 +142,12 @@ export const PromptTags = ({
           onDirtyChange(true);
         }}
       />
-      <p>{selected.length} / 20 tags</p>
-      <output>{message}</output>
+      <p>
+        {selected.length} {t("text20Tags")}
+      </p>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
       <div className="flex gap-2">
         <button
           type="button"
@@ -151,7 +157,7 @@ export const PromptTags = ({
             void save();
           }}
         >
-          {uncertain ? "Retry tags" : "Save tags"}
+          {uncertain ? t("retryTags") : t("saveTags")}
         </button>
         <button
           type="button"
@@ -165,24 +171,23 @@ export const PromptTags = ({
             }
           }}
         >
-          Close tags
+          {t("closeTags")}
         </button>
       </div>
       {discard ? (
         <div>
           <p>
-            Discard these unsaved tag choices? An unconfirmed request may
-            already have been saved.
+            {t("discardTheseUnsavedTagChoicesAnUnconfirmedRequestMayAlready")}
           </p>
           <button type="button" className={buttonClass} onClick={close}>
-            Discard tag choices
+            {t("discardTagChoices")}
           </button>
           <button
             type="button"
             className={buttonClass}
             onClick={() => setDiscard(false)}
           >
-            Keep editing tags
+            {t("keepEditingTags")}
           </button>
         </div>
       ) : null}

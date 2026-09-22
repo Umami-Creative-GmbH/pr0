@@ -1,5 +1,4 @@
 "use client";
-
 import { Command, Moon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import {
@@ -13,7 +12,9 @@ import { createPortal } from "react-dom";
 
 import { useDismissable } from "../hooks/use-dismissable";
 import { useLibraryKeyboard } from "../hooks/use-library-keyboard";
+import { useTranslations } from "../hooks/use-translations";
 import { initials } from "../lib/present";
+import { LanguageSetting } from "./language-setting";
 
 const themeKey = "pr0.theme";
 let temporaryTheme: "light" | "dark" | undefined;
@@ -68,6 +69,8 @@ const useTheme = () => useSyncExternalStore(subscribe, readTheme, serverTheme);
 
 /** Switches the theme shared by every pr0 window of this origin. */
 export const ThemeToggle = ({ size = "md" }: { size?: "sm" | "md" }) => {
+  const t = useTranslations();
+
   const theme = useTheme();
   const toggleTheme = () => {
     temporaryTheme = theme === "dark" ? "light" : "dark";
@@ -85,7 +88,7 @@ export const ThemeToggle = ({ size = "md" }: { size?: "sm" | "md" }) => {
       data-size={size}
       type="button"
       onClick={toggleTheme}
-      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+      aria-label={t(theme === "dark" ? "lightTheme" : "darkTheme")}
     >
       {theme === "dark" ? (
         <Sun aria-hidden="true" size={15} />
@@ -147,6 +150,8 @@ export const WayfinderShell = ({
   /** Account menu content shown beneath the identity. */
   menu?: ReactNode;
 }) => {
+  const t = useTranslations();
+
   const theme = useTheme();
   const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
   const [controlsSlot, setControlsSlot] = useState<HTMLElement | null>(null);
@@ -168,9 +173,10 @@ export const WayfinderShell = ({
         {desktop ? actions : null}
         <div className="contents" ref={setControlsSlot} />
         <ThemeToggle />
+        <LanguageSetting />
         {identity || menu || desktop ? (
           <AppMenu
-            label="Account menu"
+            label={t("accountMenu")}
             summary={
               <span className="wf-avatar" aria-hidden="true">
                 {initials(identity)}
@@ -179,7 +185,7 @@ export const WayfinderShell = ({
           >
             {identity ? (
               <p className="wf-identity">
-                <span className="wf-eyebrow">Signed in as</span>
+                <span className="wf-eyebrow">{t("signedInAs")}</span>
                 <strong title={identity}>{identity}</strong>
               </p>
             ) : null}
@@ -200,12 +206,14 @@ export const LibraryWorkspace = ({
   sidebar: ReactNode;
   children: ReactNode;
 }) => {
+  const t = useTranslations();
+
   const sidebarRef = useLibraryKeyboard();
   return (
     <div className="wf-workspace">
       <aside
         className="wf-sidebar"
-        aria-label="Library navigation"
+        aria-label={t("libraryNavigation")}
         ref={sidebarRef}
       >
         {sidebar}
@@ -215,10 +223,13 @@ export const LibraryWorkspace = ({
   );
 };
 
-export const EmptyDetail = ({ hint }: { hint: string }) => (
-  <div className="wf-empty">
-    <Command aria-hidden="true" size={30} />
-    <h2>No prompt selected</h2>
-    <p>{hint}</p>
-  </div>
-);
+export const EmptyDetail = ({ hint }: { hint: string }) => {
+  const t = useTranslations();
+  return (
+    <div className="wf-empty">
+      <Command aria-hidden="true" size={30} />
+      <h2>{t("noPromptSelected")}</h2>
+      <p>{hint}</p>
+    </div>
+  );
+};

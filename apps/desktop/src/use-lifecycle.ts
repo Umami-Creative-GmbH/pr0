@@ -3,6 +3,8 @@ import type {
   LocalLifecycle,
   LocalPrompt,
 } from "@pr0/api-contract/local-prompts";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { useRef, useState } from "react";
 import { z } from "zod";
 
@@ -12,23 +14,25 @@ import type { Status } from "./use-auth-session";
 const errors = new Map([
   [
     "quota_exceeded",
-    "Capacity reached. Free capacity and retry. Archiving does not free capacity.",
+    translate("capacityReachedFreeCapacityAndRetryArchivingDoesNotFree"),
   ],
   [
     "local_revision_conflict",
-    "The saved prompt changed. Your chosen action was not saved. Copy its text or review the current prompt before choosing the action again.",
+    translate("theSavedPromptChangedYourChosenActionWasNotSaved"),
   ],
-  ["disk_full", "This device is out of storage space. Free space and retry."],
-  ["storage_busy", "Another write is using the library. Retry shortly."],
+  ["disk_full", translate("thisDeviceIsOutOfStorageSpaceFreeSpaceAnd2")],
+  ["storage_busy", translate("anotherWriteIsUsingTheLibraryRetryShortly")],
   [
     "commit_uncertain",
-    "The result could not be confirmed. Retry to check this same action safely.",
+    translate("theResultCouldNotBeConfirmedRetryToCheckThis"),
   ],
 ]);
 export const useLifecycle = (
   account: Status,
   onSaved: (id: string | null, action: LifecycleAction) => void
 ) => {
+  const t = useTranslations();
+
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
@@ -55,8 +59,8 @@ export const useLifecycle = (
       setFailed(false);
       setMessage(
         request.action.kind === "delete"
-          ? "Saved on this device. Deletion is waiting to sync."
-          : "Saved on this device. Changes waiting to sync."
+          ? t("savedOnThisDeviceDeletionIsWaitingToSync")
+          : t("savedOnThisDeviceChangesWaitingToSync2")
       );
       onSaved(
         request.action.kind === "delete" ? null : result.promptId,
@@ -78,8 +82,11 @@ export const useLifecycle = (
       ].includes(code);
       setMessage(
         uncertain.current
-          ? "The result could not be confirmed. Retry to check this same action safely."
-          : `Not saved. ${errors.get(code) ?? "Check storage access and retry. The chosen action and source text remain available here."}`
+          ? t("theResultCouldNotBeConfirmedRetryToCheckThis")
+          : t("notSavedValue", [
+              errors.get(code) ??
+                t("checkStorageAccessAndRetryTheChosenActionAndSource"),
+            ])
       );
     }
     active.current = false;
@@ -88,7 +95,7 @@ export const useLifecycle = (
   const handleAction = (source: LocalPrompt, action: LifecycleAction) => {
     if (uncertain.current) {
       setMessage(
-        "Resolve the unconfirmed action with Retry action before choosing another action. Your source text is retained."
+        t("resolveTheUnconfirmedActionWithRetryActionBeforeChoosingAnother")
       );
       return;
     }
@@ -118,11 +125,9 @@ export const useLifecycle = (
         ...attempt.current.request,
         desired: attempt.current.source.prompt,
       });
-      setMessage("Text copied. The action still needs attention.");
+      setMessage(t("textCopiedTheActionStillNeedsAttention"));
     } catch {
-      setMessage(
-        "Copy failed. Retry copying; your chosen source text is retained."
-      );
+      setMessage(t("copyFailedRetryCopyingYourChosenSourceTextIsRetained"));
     }
   };
   const handleFavorite = async (id: string) => {
@@ -133,7 +138,7 @@ export const useLifecycle = (
         value: !source.prompt.favorite,
       });
     } catch {
-      setMessage("This prompt changed. Open it and retry the action.");
+      setMessage(t("thisPromptChangedOpenItAndRetryTheAction"));
     }
   };
   return {

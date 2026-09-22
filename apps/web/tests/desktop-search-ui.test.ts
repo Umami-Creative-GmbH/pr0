@@ -13,7 +13,7 @@ test("desktop search preserves scope, selection, sort memory and explicit no-mat
   const native = await localNativeWorker(directory, true);
   const browser = await chromium.launch({ channel: "msedge", headless: true });
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ locale: "en-US" });
     await page.exposeFunction(
       "nativeCommand",
       async (command: string, args: NativeArgs) => {

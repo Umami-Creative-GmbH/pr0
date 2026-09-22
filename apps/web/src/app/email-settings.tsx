@@ -1,7 +1,9 @@
 "use client";
-
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
+import { translate } from "@pr0/ui/lib/i18n";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -13,11 +15,9 @@ const inputClass =
   "bg-background w-full rounded-md border px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2";
 const buttonClass = "wf-btn";
 const notificationMessages = {
-  pending:
-    "Your email changed. The notification to your old address is queued; delivery is not confirmed.",
-  sent: "Your email changed. The mail server accepted the notification to your old address; inbox delivery is not confirmed.",
-  failed:
-    "Your email changed, but the notification to your old address could not be delivered. Automatic retries have ended. Your new address remains active. Contact your instance operator if you need help.",
+  pending: translate("yourEmailChangedTheNotificationToYourOldAddressIs"),
+  sent: translate("yourEmailChangedTheMailServerAcceptedTheNotificationTo"),
+  failed: translate("yourEmailChangedButTheNotificationToYourOldAddress"),
 };
 
 export const EmailSettings = ({
@@ -27,6 +27,8 @@ export const EmailSettings = ({
   accountId: string;
   methodResult?: string;
 }) => {
+  const t = useTranslations();
+
   const client = useApiClient();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -87,9 +89,7 @@ export const EmailSettings = ({
         emailVersion,
       });
       setChallenge({ id: result.challengeId, purpose: "reauth", emailVersion });
-      setMessage(
-        "A code has been queued for your current verified email. It expires in five minutes and allows three wrong attempts. Resending replaces the previous code."
-      );
+      setMessage(t("aCodeHasBeenQueuedForYourCurrentVerifiedEmail"));
     });
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -111,22 +111,18 @@ export const EmailSettings = ({
         const input = { ...identity, challengeId: challenge.id, code };
         if (challenge.purpose === "email") {
           await client.verifyEmailChange(input);
-          setMessage("Email updated. Notification status is shown below.");
+          setMessage(t("emailUpdatedNotificationStatusIsShownBelow"));
           await queryClient.invalidateQueries({
             queryKey: ["account-library", client.baseUrl],
           });
         } else {
           await client.reauthenticate(input);
-          setMessage(
-            "Identity confirmed for ten minutes. You can change your email or manage login methods."
-          );
+          setMessage(t("identityConfirmedForTenMinutesYouCanChangeYourEmail"));
         }
         setChallenge(null);
       } else if (password) {
         await client.reauthenticate({ ...identity, password });
-        setMessage(
-          "Identity confirmed for ten minutes. You can change your email or manage login methods."
-        );
+        setMessage(t("identityConfirmedForTenMinutesYouCanChangeYourEmail"));
       } else {
         const result = await client.requestEmailChange({ ...identity, email });
         setChallenge({
@@ -134,9 +130,7 @@ export const EmailSettings = ({
           purpose: "email",
           emailVersion: identity.emailVersion,
         });
-        setMessage(
-          "A code has been queued for the replacement address. Your current email remains active until you verify it. The code expires in five minutes and allows three wrong attempts."
-        );
+        setMessage(t("aCodeHasBeenQueuedForTheReplacementAddressYour"));
       }
       form.reset();
     });
@@ -148,12 +142,10 @@ export const EmailSettings = ({
       className="rounded-lg border p-6"
     >
       <h2 className="text-xl font-medium" id="email-settings-title">
-        Account security
+        {t("accountSecurity")}
       </h2>
       <p className="mt-2 text-sm">
-        Confirm your identity to manage login methods or change your account
-        email. A replacement email must be verified before your current address
-        changes.
+        {t("confirmYourIdentityToManageLoginMethodsOrChangeYour")}
       </p>
       <p
         aria-live="polite"
@@ -161,14 +153,14 @@ export const EmailSettings = ({
         ref={statusRef}
         tabIndex={-1}
       >
-        {message}
+        <LocalizedMessage value={message} />
       </p>
       {settings.data?.notification ? (
         <output className="my-3 block text-sm">
           {notificationMessages[settings.data.notification]}
         </output>
       ) : null}
-      {settings.isPending ? <output>Loading email settings…</output> : null}
+      {settings.isPending ? <output>{t("loadingEmailSettings")}</output> : null}
       {settings.isError ? (
         <p role="alert">
           {accountErrorMessage(settings.error)}{" "}
@@ -179,7 +171,7 @@ export const EmailSettings = ({
               void settings.refetch();
             }}
           >
-            Retry email settings
+            {t("retryEmailSettings")}
           </button>
         </p>
       ) : null}
@@ -187,14 +179,14 @@ export const EmailSettings = ({
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <fieldset disabled={busy} className="space-y-3">
             <legend className="sr-only">
-              Verify identity and replacement email
+              {t("verifyIdentityAndReplacementEmail")}
             </legend>
             {challenge ? (
               <>
                 <label className="block font-medium" htmlFor="account-code">
                   {challenge.purpose === "reauth"
-                    ? "Current email code"
-                    : "Replacement email code"}
+                    ? t("currentEmailCode")
+                    : t("replacementEmailCode")}
                 </label>
                 <input
                   className={inputClass}
@@ -209,13 +201,12 @@ export const EmailSettings = ({
                   aria-describedby="account-code-help"
                 />
                 <p id="account-code-help" className="text-sm">
-                  Enter all eight digits in this browser. Three wrong attempts
-                  invalidate the code.
+                  {t("enterAllEightDigitsInThisBrowserThreeWrongAttempts")}
                 </p>
                 <button className={buttonClass} type="submit">
                   {challenge.purpose === "reauth"
-                    ? "Confirm identity"
-                    : "Verify and change email"}
+                    ? t("confirmIdentity")
+                    : t("verifyAndChangeEmail")}
                 </button>
                 <button
                   className={buttonClass}
@@ -223,11 +214,11 @@ export const EmailSettings = ({
                   onClick={() => {
                     setChallenge(null);
                     setMessage(
-                      "Enter your details to request a replacement code. Your account email has not changed."
+                      t("enterYourDetailsToRequestAReplacementCodeYourAccount")
                     );
                   }}
                 >
-                  Start again or request another code
+                  {t("startAgainOrRequestAnotherCode")}
                 </button>
               </>
             ) : null}
@@ -237,7 +228,7 @@ export const EmailSettings = ({
                   className="block font-medium"
                   htmlFor="replacement-email"
                 >
-                  Replacement email
+                  {t("replacementEmail")}
                 </label>
                 <input
                   className={inputClass}
@@ -249,7 +240,7 @@ export const EmailSettings = ({
                   required
                 />
                 <button className={buttonClass} type="submit">
-                  Send replacement verification code
+                  {t("sendReplacementVerificationCode")}
                 </button>
               </>
             ) : null}
@@ -258,7 +249,7 @@ export const EmailSettings = ({
             settings.data.reauthentication === "password" ? (
               <>
                 <label className="block font-medium" htmlFor="reauth-password">
-                  Confirm current password
+                  {t("confirmCurrentPassword")}
                 </label>
                 <input
                   className={inputClass}
@@ -271,7 +262,7 @@ export const EmailSettings = ({
                   required
                 />
                 <button className={buttonClass} type="submit">
-                  Confirm identity
+                  {t("confirmIdentity")}
                 </button>
               </>
             ) : null}
@@ -283,10 +274,10 @@ export const EmailSettings = ({
                 type="button"
                 onClick={requestCode}
               >
-                Send identity code to current email
+                {t("sendIdentityCodeToCurrentEmail")}
               </button>
             ) : null}
-            {busy ? <output>Working…</output> : null}
+            {busy ? <output>{t("working")}</output> : null}
           </fieldset>
           <LoginMethodSettings
             identity={{ accountId, emailVersion: settings.data.emailVersion }}

@@ -1,13 +1,18 @@
 "use client";
-
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { accountErrorMessage } from "./account-errors";
 
 export const SessionSettings = ({ accountId }: { accountId: string }) => {
+  const locale = useLocale();
+
+  const t = useTranslations();
+
   const client = useApiClient();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -34,8 +39,8 @@ export const SessionSettings = ({ accountId }: { accountId: string }) => {
       } else {
         setMessage(
           id
-            ? "Session revoked."
-            : "All other sessions revoked. This session is still signed in."
+            ? t("sessionRevoked")
+            : t("allOtherSessionsRevokedThisSessionIsStillSignedIn")
         );
       }
     } catch (error) {
@@ -56,12 +61,10 @@ export const SessionSettings = ({ accountId }: { accountId: string }) => {
   return (
     <section aria-labelledby="sessions-title" className="rounded-lg border p-6">
       <h2 className="text-xl font-medium" id="sessions-title">
-        Active sessions
+        {t("activeSessions")}
       </h2>
       <p className="mt-2 text-sm">
-        Sessions expire after 30 days without authenticated activity. Revoking a
-        desktop session stops online access; saved local work stays on that
-        device.
+        {t("sessionsExpireAfter30DaysWithoutAuthenticatedActivityRevokingA")}
       </p>
       <p
         aria-live="polite"
@@ -69,9 +72,9 @@ export const SessionSettings = ({ accountId }: { accountId: string }) => {
         ref={statusRef}
         tabIndex={-1}
       >
-        {message}
+        <LocalizedMessage value={message} />
       </p>
-      {sessions.isPending ? <output>Loading sessions…</output> : null}
+      {sessions.isPending ? <output>{t("loadingSessions")}</output> : null}
       {sessions.isError ? (
         <p role="alert">
           {accountErrorMessage(sessions.error)}{" "}
@@ -82,7 +85,7 @@ export const SessionSettings = ({ accountId }: { accountId: string }) => {
             }}
             type="button"
           >
-            Retry sessions
+            {t("retrySessions")}
           </button>
         </p>
       ) : null}
@@ -92,24 +95,32 @@ export const SessionSettings = ({ accountId }: { accountId: string }) => {
             {sessions.data.sessions.map((session) => (
               <li className="rounded border p-3" key={session.id}>
                 <h3 className="font-medium">
-                  {session.provenance === "device" ? "Desktop" : "Browser"}
-                  {session.current ? " · This session" : ""}
+                  {session.provenance === "device"
+                    ? t("desktop")
+                    : t("browser")}
+                  {session.current ? t("thisSession") : ""}
                 </h3>
                 <p className="text-sm break-all">
-                  {session.userAgent ?? "Client details unavailable"}
+                  {session.userAgent ?? t("clientDetailsUnavailable")}
                 </p>
                 <dl className="mt-2 text-sm break-all">
-                  <dt>Session identity</dt>
+                  <dt>{t("sessionIdentity")}</dt>
                   <dd>{session.id}</dd>
-                  <dt>Signed in</dt>
-                  <dd>{new Date(session.createdAt).toLocaleString()}</dd>
-                  <dt>Last active</dt>
-                  <dd>{new Date(session.lastActiveAt).toLocaleString()}</dd>
-                  <dt>Expires</dt>
-                  <dd>{new Date(session.expiresAt).toLocaleString()}</dd>
+                  <dt>{t("signedIn")}</dt>
+                  <dd>{new Date(session.createdAt).toLocaleString(locale)}</dd>
+                  <dt>{t("lastActive")}</dt>
+                  <dd>
+                    {new Date(session.lastActiveAt).toLocaleString(locale)}
+                  </dd>
+                  <dt>{t("expires")}</dt>
+                  <dd>{new Date(session.expiresAt).toLocaleString(locale)}</dd>
                 </dl>
                 <button
-                  aria-label={`Revoke ${session.current ? "this session" : `session ${session.id}`}`}
+                  aria-label={t("revokeValue", [
+                    session.current
+                      ? t("thisSession2")
+                      : t("sessionValue", [session.id]),
+                  ])}
                   className="mt-3 rounded-md border px-4 py-2"
                   disabled={busy}
                   onClick={() => {
@@ -117,7 +128,9 @@ export const SessionSettings = ({ accountId }: { accountId: string }) => {
                   }}
                   type="button"
                 >
-                  {session.current ? "Revoke this session" : "Revoke session"}
+                  {session.current
+                    ? t("revokeThisSession")
+                    : t("revokeSession")}
                 </button>
               </li>
             ))}
@@ -130,7 +143,7 @@ export const SessionSettings = ({ accountId }: { accountId: string }) => {
             }}
             type="button"
           >
-            Revoke all other sessions
+            {t("revokeAllOtherSessions")}
           </button>
         </>
       ) : null}

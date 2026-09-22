@@ -1,4 +1,6 @@
 import type { UploadStatus } from "@pr0/api-contract/local-prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useEffect, useRef, useState } from "react";
 
 import { libraryClient } from "./library-client";
@@ -13,6 +15,8 @@ const DiscardDialog = ({
   onCancel: () => void;
   onConfirm: () => void;
 }) => {
+  const t = useTranslations();
+
   const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -37,17 +41,15 @@ const DiscardDialog = ({
         onCancel();
       }}
     >
-      <h2 id="discard-heading">Discard pending changes to {title}?</h2>
-      <p>
-        All pending changes to this prompt will be discarded. Copy retained text
-        first if you need it. This cannot undo effects already accepted by the
-        server. Uncertain delivery must be resolved before discard can finish.
-      </p>
+      <h2 id="discard-heading">
+        {t("discardPendingChangesTo")} {title}?
+      </h2>
+      <p>{t("allPendingChangesToThisPromptWillBeDiscardedCopy")}</p>
       <button ref={cancel} type="button" onClick={onCancel}>
-        Cancel
+        {t("cancel")}
       </button>
       <button type="button" onClick={onConfirm}>
-        Confirm discard
+        {t("confirmDiscard")}
       </button>
     </dialog>
   );
@@ -63,6 +65,8 @@ export const PendingRecovery = ({
   onChanged: () => void;
   disabled: boolean;
 }) => {
+  const t = useTranslations();
+
   const [selected, setSelected] = useState<UploadStatus["pending"][number]>();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -86,31 +90,29 @@ export const PendingRecovery = ({
       });
       setMessage(
         action === "retry"
-          ? "Retry scheduled. Changes remain saved on this device."
-          : "Pending changes discarded. Accepted server effects remain in place."
+          ? t("retryScheduledChangesRemainSavedOnThisDevice")
+          : t("pendingChangesDiscardedAcceptedServerEffectsRemainInPlace")
       );
       onChanged();
       await libraryClient.sync();
     } catch (error) {
       if (error === "delivery_uncertain") {
         setMessage(
-          "Delivery is uncertain. Nothing was discarded. Retry this change online to resolve its receipt, then review the outcome."
+          t("deliveryIsUncertainNothingWasDiscardedRetryThisChangeOnline")
         );
       } else if (error === "accepted_effect_pending_download") {
         setMessage(
-          "An effect was already accepted. Nothing was discarded. Finish synchronization before reviewing the remaining changes."
+          t(
+            "anEffectWasAlreadyAcceptedNothingWasDiscardedFinishSynchronization"
+          )
         );
       } else if (error === "recovery_required") {
-        setMessage(
-          "The server library was restored. Review the pre-recovery library and copy any text you want to preserve into a new prompt. These retained changes cannot be retried automatically."
-        );
+        setMessage(t("theServerLibraryWasRestoredReviewThePreRecoveryLibrary"));
       } else if (error === "dependent_changes_pending") {
-        setMessage(
-          "Nothing was discarded. A pending copy depends on this prompt. Sync both changes, or copy and discard the dependent copy first."
-        );
+        setMessage(t("nothingWasDiscardedAPendingCopyDependsOnThisPrompt"));
       } else {
         setMessage(
-          "Nothing was discarded. Check storage and wait for synchronization to finish, then retry."
+          t("nothingWasDiscardedCheckStorageAndWaitForSynchronizationTo")
         );
       }
     }
@@ -131,17 +133,20 @@ export const PendingRecovery = ({
         expectedLocalRevision: null,
         desired: prompt,
       });
-      setMessage("Retained text copied.");
+      setMessage(t("retainedTextCopied"));
     } catch {
-      setMessage(
-        "Copy failed. The retained text is still available; retry copying."
-      );
+      setMessage(t("copyFailedTheRetainedTextIsStillAvailableRetryCopying"));
     }
   };
   return (
     <details className="space-y-3 rounded border p-3 [&_button]:rounded [&_button]:border [&_button]:px-3 [&_button]:py-2 [&_button:disabled]:opacity-50">
-      <summary>Review pending changes ({upload?.waiting ?? 0})</summary>
-      <output>{message}</output>
+      <summary>
+        {t("reviewPendingChanges")}
+        {upload?.waiting ?? 0})
+      </summary>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
       <ul className="space-y-3">
         {entries
           .slice(currentPage * 50, (currentPage + 1) * 50)
@@ -152,7 +157,7 @@ export const PendingRecovery = ({
             >
               <p className="w-full break-words">
                 {entry.title}
-                {entry.deleting ? " — deletion pending" : " — changes pending"}
+                {entry.deleting ? t("deletionPending2") : t("changesPending")}
               </p>
               <button
                 type="button"
@@ -161,7 +166,7 @@ export const PendingRecovery = ({
                   void copy(entry.promptId);
                 }}
               >
-                Copy retained text
+                {t("copyRetainedText")}
               </button>
               <button
                 type="button"
@@ -170,21 +175,21 @@ export const PendingRecovery = ({
                   void recover(entry.promptId, "retry");
                 }}
               >
-                Retry change
+                {t("retryChange")}
               </button>
               <button
                 type="button"
                 disabled={busy || disabled}
                 onClick={() => setSelected(entry)}
               >
-                Discard pending changes
+                {t("discardPendingChanges")}
               </button>
             </li>
           ))}
       </ul>
       {lastPage > 0 ? (
         <nav
-          aria-label="Pending change pages"
+          aria-label={t("pendingChangePages")}
           className="flex flex-wrap items-center gap-3"
         >
           <button
@@ -192,17 +197,17 @@ export const PendingRecovery = ({
             disabled={currentPage === 0}
             onClick={() => setPage(currentPage - 1)}
           >
-            Previous pending changes
+            {t("previousPendingChanges")}
           </button>
           <span>
-            Page {currentPage + 1} of {lastPage + 1}
+            {t("page")} {currentPage + 1} {t("of")} {lastPage + 1}
           </span>
           <button
             type="button"
             disabled={currentPage === lastPage}
             onClick={() => setPage(currentPage + 1)}
           >
-            Next pending changes
+            {t("nextPendingChanges")}
           </button>
         </nav>
       ) : null}

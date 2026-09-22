@@ -1,4 +1,6 @@
 import type { Prompt } from "@pr0/api-contract/prompts";
+import { LocalizedMessage } from "@pr0/ui/components/localized-message";
+import { useLocale, useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useState } from "react";
 
 import { downloadError, libraryClient } from "./library-client";
@@ -11,6 +13,10 @@ export const RecoveryLibrary = ({
   count: number;
   account: Status;
 }) => {
+  const locale = useLocale();
+
+  const t = useTranslations();
+
   const [rows, setRows] = useState<
     Awaited<ReturnType<typeof libraryClient.recoveryBrowse>>
   >([]);
@@ -50,25 +56,18 @@ export const RecoveryLibrary = ({
           content: prompt.content,
         },
       });
-      setMessage(
-        "Recovery text copied. Paste into a new prompt to save a separate copy."
-      );
+      setMessage(t("recoveryTextCopiedPasteIntoANewPromptToSave"));
     } catch {
-      setMessage(
-        "Could not copy recovery text. Select the text below to copy it, or retry."
-      );
+      setMessage(t("couldNotCopyRecoveryTextSelectTheTextBelowTo"));
     }
   };
   return (
     <details className="space-y-3 rounded border p-4">
       <summary className="cursor-pointer font-semibold">
-        Review pre-recovery library ({count} retained prompts)
+        {t("reviewPreRecoveryLibrary")}
+        {count} {t("retainedPrompts")}
       </summary>
-      <p>
-        The server was restored. This local snapshot preserves your earlier
-        library and saved variants. Previously acknowledged prompts are not
-        uploaded automatically. Review and copy any text you need to preserve.
-      </p>
+      <p>{t("theServerWasRestoredThisLocalSnapshotPreservesYourEarlier")}</p>
       <button
         className="mr-2 rounded border px-3 py-2 disabled:opacity-50"
         type="button"
@@ -76,7 +75,7 @@ export const RecoveryLibrary = ({
           void browse(0);
         }}
       >
-        Show retained prompts
+        {t("showRetainedPrompts")}
       </button>
       <ul className="space-y-2">
         {rows.map((entry) => (
@@ -94,7 +93,7 @@ export const RecoveryLibrary = ({
               {entry.title}
             </button>{" "}
             <time dateTime={entry.capturedAt}>
-              {new Date(entry.capturedAt).toLocaleString()}
+              {new Date(entry.capturedAt).toLocaleString(locale)}
             </time>
           </li>
         ))}
@@ -107,7 +106,7 @@ export const RecoveryLibrary = ({
           void browse(Math.max(0, offset - 50));
         }}
       >
-        Previous retained prompts
+        {t("previousRetainedPrompts")}
       </button>
       <button
         className="mr-2 rounded border px-3 py-2 disabled:opacity-50"
@@ -117,10 +116,10 @@ export const RecoveryLibrary = ({
           void browse(offset + 50);
         }}
       >
-        Next retained prompts
+        {t("nextRetainedPrompts")}
       </button>
       {prompt ? (
-        <section aria-label="Retained prompt" className="space-y-2">
+        <section aria-label={t("retainedPrompt")} className="space-y-2">
           <h3>{prompt.title}</h3>
           <p>{prompt.description}</p>
           <pre className="whitespace-pre-wrap">{prompt.content}</pre>
@@ -131,11 +130,13 @@ export const RecoveryLibrary = ({
               void copy();
             }}
           >
-            Copy recovery text
+            {t("copyRecoveryText")}
           </button>
         </section>
       ) : null}
-      <output>{message}</output>
+      <output>
+        <LocalizedMessage value={message} />
+      </output>
     </details>
   );
 };
