@@ -6,6 +6,18 @@ Status: production design port implemented locally; automated checks and visual 
 
 Issue #75 was reopened after PR #87. That port kept the earlier form-like markup and styled it through structural selectors (`.wf-sidebar section[aria-label=…]`), so colors and fonts matched while the composition did not. Revision 2 rebuilds the presentation from the design sources themselves: the Claude Design project's `pr0 Web-App`, `pr0 Desktop` and `pr0 Anmelden` documents and the Umami Creative design-system tokens they import. Values (surfaces, lines, ink levels, radii, type sizes, tracking, motion) are taken from those documents.
 
+### Revision 2 reference exports (issue #93)
+
+These static PNG exports of the Claude Design documents are the **Revision 2 reference**. The owner supplied them on September 22, 2026; they are preserved without image edits. The supplied `pr0_login_*` files correspond to the `pr0 Anmelden` document.
+
+| Claude Design document | Dark | Light |
+| --- | --- | --- |
+| `pr0 Web-App` | [Web dark](../evidence/design-75/claude-design-web-dark.png) | [Web light](../evidence/design-75/claude-design-web-light.png) |
+| `pr0 Desktop` | [Desktop dark](../evidence/design-75/claude-design-desktop-dark.png) | [Desktop light](../evidence/design-75/claude-design-desktop-light.png) |
+| `pr0 Anmelden` | [Sign-in dark](../evidence/design-75/claude-design-anmelden-dark.png) | [Sign-in light](../evidence/design-75/claude-design-anmelden-light.png) |
+
+The earlier `reference-*` captures below document the repository prototype used before Revision 2; they are retained as historical evidence. The `production-*` captures show the implementation. Neither set replaces these Claude Design references. Design-only controls and decoration visible in the exports remain subject to the deliberate differences recorded below.
+
 ### Surface map for revision 2
 
 | Design document | Production destination | Surface-specific parts |
@@ -66,7 +78,7 @@ Two product fixes came out of this work, both in this branch: a menu beneath a m
 
 Not performed: installer, tray, OS title bar, screen reader and multi-monitor checks; `device`, `changes`, `operations`, `account-deletion` and `backup-restore` runners.
 
-## Reference and destination map (recorded before UI changes)
+## Historical prototype reference and destination map (before Revision 2)
 
 Reference commit: `ae390cd8d2dd67b3ec6f9eb999a0f8e170cb9a57`, `packages/prototype-library`. Its source is unchanged. Captures use English controls and the original German fixture content.
 
