@@ -17,10 +17,27 @@ import { residentClient } from "./resident-client";
 import { ResidentEditorContext } from "./resident-editor";
 import type { ResidentEditor } from "./resident-editor";
 import { StartupControls } from "./startup-controls";
+import { UpdateControls } from "./update-controls";
 
 const residencyExplanation = translate(
   "pr0IsStillRunningInTheNotificationAreaUseQuit"
 );
+
+const quitLabels = (
+  updating: boolean,
+  t: ReturnType<typeof useTranslations>
+) =>
+  updating
+    ? {
+        title: t("installUpdateAndRestart"),
+        save: t("saveAndUpdate"),
+        discard: t("discardDraftAndUpdate"),
+      }
+    : {
+        title: t("quitPr0"),
+        save: t("saveAndQuit"),
+        discard: t("discardAndQuit"),
+      };
 
 const ResidentDialog = ({
   title,
@@ -202,6 +219,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
         <StartupControls offerOnly />
       </div>
       {children}
+      <UpdateControls />
       {error &&
       !status?.quitRequested &&
       !status?.closeNotice &&
@@ -221,7 +239,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
       ) : null}
       {status?.quitRequested ? (
         <ResidentDialog
-          title={t("quitPr0")}
+          title={quitLabels(status.updateRequested, t).title}
           onCancel={() => {
             if (!waiting) {
               action("cancel_quit");
@@ -246,7 +264,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
                 void saveAndQuit();
               }}
             >
-              {t("saveAndQuit")}
+              {quitLabels(status.updateRequested, t).save}
             </button>
             <button
               className="wf-btn wf-btn-danger"
@@ -256,7 +274,7 @@ export const ResidentControls = ({ children }: { children: ReactNode }) => {
                 void perform(residentClient.finishQuit);
               }}
             >
-              {t("discardAndQuit")}
+              {quitLabels(status.updateRequested, t).discard}
             </button>
             <button
               type="button"

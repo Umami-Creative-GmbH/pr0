@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun --bun vite --port 1420",
     "build": "bun --bun vite build",
+    "release": "bun --bun scripts/release.ts",
     "preview": "bun --bun vite preview",
     "typecheck": "bun --bun tsc --noEmit",
     "tauri": "bun x --bun --no-install tauri"
@@ -23,7 +24,7 @@
   "devDependencies": {
     "@pr0/typescript-config": "workspace:*",
     "@tailwindcss/vite": "^4",
-    "@tauri-apps/cli": "^2.11.4",
+    "@tauri-apps/cli": "2.11.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
