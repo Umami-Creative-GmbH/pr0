@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun --bun vite --port 1420",
     "build": "bun --bun vite build",
+    "release": "bun --bun scripts/release.ts",
     "preview": "bun --bun vite preview",
     "typecheck": "bun --bun tsc --noEmit",
     "tauri": "bun x --bun --no-install tauri"

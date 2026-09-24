@@ -2,6 +2,20 @@
 
 Status: automated implementation checks passed; **updater-signed installed release evidence pending**.
 
+## Operator setup update — 2026-09-24
+
+Issues #106 and #107 are closed with the signing-key backup and distribution decisions confirmed. The existing key pair is configured in the operator's ignored desktop environment file; the agent confirmed variable presence without printing secrets. The release entry point now loads that environment through Bun before invoking PowerShell. A checkout without configuration still fails before building. Desktop typechecking, repository checks and both review axes passed for this entry point.
+
+The agreed default library URL is `https://pr0.umami-creative.app/`; the independent updater manifest is `https://pr0.umami-creative.app/update/`. Kai Hentschel controls manual SSH publication to `/update/releases/<version>/<filename>`. No automatic upload or new key generation is introduced.
+
+Anonymous HTTPS verification remains unconfirmed: Bun reported `UNKNOWN_CERTIFICATE_VERIFICATION_ERROR`, Windows curl reported a Schannel/LSA error, and the external browser fetch could not access the URL. These probe failures do not establish a server-side cause and are not successful feed validation. No live artifact or manifest has been published by the agent.
+
+The real release command subsequently built `pr0_0.1.0_x64-setup.exe` and its `.sig` with the operator's key. Independent Rust/minisign verification passed for both the signature and signed version `0.1.0`; executable and installer Authenticode status were `NotSigned`, as intended. Artifacts and `signing-evidence.json` are under `apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/`. No installer was executed. Human follow-ups [#111](https://github.com/Umami-Creative-GmbH/pr0/issues/111) (HTTPS delivery) and [#112](https://github.com/Umami-Creative-GmbH/pr0/issues/112) (installed update journeys) are labeled `ready-for-human` and block #59.
+
+This build exposed and fixed two integration omissions: the generated Tauri configuration now receives the same updater public key as the executable; the Bun wrapper removes the inherited PowerShell module path so Windows PowerShell can load its own signature-verification module. Before those fixes packaging rejected the empty public key, then Windows PowerShell could not load `Microsoft.PowerShell.Security`. After both fixes the complete release command exited successfully. The six isolated release-policy checks also pass with an explicit assertion that packaging receives the configured public key.
+
+Candidate SHA-256: `B4BF0BC3A3F2E46928F25F0F60A51E29A20B3503F6B00E56D6A59244BF969EF8`. Built from `2f5a708` plus the release configuration/entry-point fixes described above, using the operator-confirmed environment. Verification timestamp: `2026-09-24T13:03:17.7700461Z`.
+
 On 2026-09-22 the operator confirmed that no Authenticode or updater signing setup exists, then approved free Tauri updater signing with optional Windows Authenticode signing. This supersedes the original mandatory Authenticode requirement. No signing credentials were created as substitutes and no signed release or installed update is claimed. Issue #59 remains open until updater-signed installed acceptance journeys pass.
 
 Implementation uses the existing native update/resident boundaries, Rust Tauri updater 2.12.0, version-bound independent signatures, native-only compiled distribution configuration, per-user NSIS and existing migration/storage ownership. No REST or OpenAPI update endpoint is added.

@@ -37,6 +37,11 @@ if ($useAuthenticode) {
     $windowsSigning.tsp = $true
 }
 @{
+    plugins = @{
+        updater = @{
+            pubkey = $env:PR0_UPDATE_PUBLIC_KEY
+        }
+    }
     bundle = @{
         createUpdaterArtifacts = $true
         windows = $windowsSigning

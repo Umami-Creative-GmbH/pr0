@@ -26,10 +26,16 @@ Choose the endpoint before shipping the first release and preserve access to it 
 
 ## Build and verification
 
+The operator decisions in [#106](https://github.com/Umami-Creative-GmbH/pr0/issues/106) and [#107](https://github.com/Umami-Creative-GmbH/pr0/issues/107) are complete. Use the existing backed-up signing pair. The official manifest endpoint is `https://pr0.umami-creative.app/update/`; immutable artifacts belong at `https://pr0.umami-creative.app/update/releases/<version>/<filename>`. Kai Hentschel approves each release and uploads it manually over SSH using protected operator access. No CI upload credential or automated publication job is required.
+
+The Bun release entry point loads `apps/desktop/.env` before starting PowerShell and passes configuration through the environment without printing secrets. Keep that file ignored. The PowerShell script can also run directly when the process environment is already configured. A file in another checkout is not loaded automatically; explicitly supply its path with Bun's `--env-file` option when invoking the entry point.
+
+The confirmed default library URL is `VITE_API_BASE_URL=https://pr0.umami-creative.app/`. Set it in the release environment alongside the separate `PR0_UPDATE_ENDPOINT=https://pr0.umami-creative.app/update/`.
+
 Update application versions consistently in the desktop package, Cargo manifest/lockfile and Tauri configuration. Run repository checks, typechecking, Bun tests and native tests. From the repository root run:
 
 ```powershell
-./apps/desktop/release.ps1
+bun run --cwd apps/desktop release
 ```
 
 This builds only `x86_64-pc-windows-msvc` NSIS artifacts, requires updater signing configuration and independently verifies the updater signature and signed version. With optional Windows signing configured, it also verifies the executable and installer Authenticode certificate and timestamp; without it, both must report `NotSigned`. It writes `signing-evidence.json` beside the installer. A failed gate prevents any release claim. The script never publishes. Tauri CLI 2.11.5 or later supplies the signed version required by updater 2.12.0.
