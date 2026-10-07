@@ -98,7 +98,7 @@ The public service retains the 99.5% monthly availability target, including main
 
 ## Desktop distribution and self-hoster onboarding
 
-Umami owns official Windows installer signing, direct downloads, and signed, user-approved updates. The hosting specification does not mandate a signing vendor or download host. Authenticode and updater signatures remain separate release requirements. An instance cannot redirect the official client's executable-update trust to its own binaries. Custom desktop forks own their signing and distribution.
+Umami owns official Windows installer signing, direct downloads, and signed, user-approved updates. The hosting specification does not mandate a signing vendor or download host. Updater signatures are required. Windows Authenticode publisher signing is optional for the initial zero-cost release path; installers without it may show Windows publisher/reputation warnings. An instance cannot redirect the official client's executable-update trust to its own binaries. Custom desktop forks own their signing and distribution.
 
 The planned official client lets users select a compatible HTTPS instance before login, then performs browser-based device approval. Accounts/libraries remain independent between instances. Switching follows sign-out/pending-work safeguards and never merges libraries. The current desktop scaffold still embeds an HTTPS API origin at build time; runtime instance selection remains part of implementing the agreed account-access design.
 

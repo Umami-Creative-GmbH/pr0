@@ -4,6 +4,10 @@
   "description": "Local main-window account commands only. Remote content has no native permissions.",
   "windows": ["main"],
   "permissions": [
+    "allow-update-status",
+    "allow-update-check",
+    "allow-update-download",
+    "allow-update-request-install",
     "allow-startup-status",
     "allow-surface-visible",
     "allow-startup-action",

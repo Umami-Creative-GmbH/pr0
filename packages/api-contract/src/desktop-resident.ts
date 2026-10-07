@@ -3,6 +3,7 @@ import { z } from "zod";
 // Native process lifetime only; no REST endpoint is added.
 export const residentStatusSchema = z.strictObject({
   quitRequested: z.boolean(),
+  updateRequested: z.boolean(),
   closeNotice: z.boolean(),
   settings: z.boolean(),
   saving: z.number().int().nonnegative(),
