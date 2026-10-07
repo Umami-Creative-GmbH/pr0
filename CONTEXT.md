@@ -37,3 +37,25 @@ The language of a personal library of reusable prompts, shared across a user's d
 **Prompt use**: A successful copy of a prompt's content to the clipboard, including content filled with variable values. Opening or editing a prompt is not a use. _Avoid_: View (viewing a prompt does not indicate that it was used).
 
 **Recents**: The view of distinct active prompts that have been used, ordered by default by their most recent use across the account's devices. A prompt appears once regardless of how many times it has been used.
+
+### Distribution and release
+
+**Hosted service**: The instance Umami operates for the public, preselected as the server in the official desktop app. It is one instance among others, not a privileged one. _Avoid_: Cloud, SaaS, production (which also describe self-hosted instances).
+
+**Official update channel**: The Umami-operated source of signed desktop updates fixed into every official build, independent of the instance a user selects. _Avoid_: Update server (which suggests an instance can provide updates).
+
+**Live manifest**: The update metadata the official update channel offers every installation, naming only released versions.
+
+**Rehearsal manifest**: Update metadata the official update channel offers only to designated test installations, used to prove that installed predecessors accept a release candidate before the live manifest offers it. _Avoid_: Beta channel, staging feed.
+
+**Release candidate**: One specific signed desktop build, identified by version and installer hash, together with the server build it is validated against, proposed for release and subject to every release gate. A rebuild is a new release candidate.
+
+**Candidate freeze**: The period after a release candidate's commit is chosen, during which only fixes for failed release gates may change it. Each such fix produces a new release candidate. _Avoid_: Code freeze (unrelated work may continue outside the candidate).
+
+**Rehearsal target**: A signed build that exists only to be offered by a rehearsal manifest and is never released. Its version is consumed permanently.
+
+**Hosted launch**: Making the hosted service fit for the public: reachable over trusted HTTPS, running a verified release candidate's server, with working email and social sign-in, recoverable backups and external availability monitoring. _Avoid_: Go-live, deployment (which also describe any instance update).
+
+**Release act**: The irreversible human step that makes a verified release candidate public: the live manifest names its version and its public download exists. _Avoid_: Deploy, ship.
+
+**Released version**: A desktop version the live manifest has named. Only released versions count as supported predecessors. _Avoid_: Published (artifacts can be uploaded without being released).
