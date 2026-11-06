@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "infrastructure/*"
   ],
   "type": "module",
   "scripts": {
@@ -16,6 +17,7 @@
     "start": "bun run --cwd apps/web start",
     "typecheck": "bun --bun turbo run typecheck",
     "test": "bun --bun turbo run test",
+    "test:update-channel": "bun test infrastructure/update-channel",
     "lint": "bun --bun ultracite check",
     "check": "bun --bun ultracite check && bun run check:rust",
     "check:rust": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check",

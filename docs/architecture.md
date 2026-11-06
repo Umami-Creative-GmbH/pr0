@@ -9,6 +9,7 @@
 - Bun is the only supported JavaScript/TypeScript runtime for development and production servers, tooling and tests. Use explicit `bun --bun` CLI entry points and the root `bunfig.toml` default; do not introduce Node.js fallback paths or Node-only/Edge deployment targets. Tauri still uses Rust and the system WebView at runtime.
 - Prefer Bun-native APIs where appropriate. Future PostgreSQL clients use `SQL`/`sql` from `bun`, parameterized tagged templates, connection pooling and transactions. Use `RedisClient`/`redis` from `bun` if Redis becomes necessary. Keep both behind server-only modules; never expose connections or credentials to the shared UI or desktop frontend. No database/cache infrastructure is introduced before a feature needs it.
 - Root tooling uses Bun and Turborepo. Install workspace dependencies in the workspace that uses them. Keep reusable code in packages and application entry points in apps. Node-compatible imports/types may be used under Bun; they do not require a Node.js runtime.
+- `infrastructure/update-channel` owns release-image packaging under Bun and the independent static Nginx update host. Release files live in the image; the channel does not consume instance credentials or data services.
 - Test HTTP failures, invalid payloads and cancellation when adding API client methods. Document and validate request inputs at the server boundary. CORS is not authentication.
 
 See the root README for commands, environment variables and build prerequisites.

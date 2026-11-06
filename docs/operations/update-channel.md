@@ -1,79 +1,65 @@
-# Update channel on Coolify
+# Automated update channel on Coolify
 
-The update channel runs as a separate Nginx container built from this repository. It serves static files without the web application, database, account cookies or signing credentials. Coolify terminates HTTPS. An empty storage directory makes `/update/` return HTTP 204, as required before the first public release.
+GitHub Actions builds signed Windows candidates into draft GitHub Releases. After installed validation and the release gates pass, Kai publishes the draft. A second workflow verifies those exact release assets, packages them into an Nginx image on GHCR, and triggers Coolify to pull and deploy it. Releases require no SSH uploads, host directory preparation, persistent release volume or manual manifest edits.
 
-## Deploy
+The image contains the live manifest and every previously packaged public installer, signature and signing evidence. Each build copies the preceding channel image's files before adding releases; changed bytes for an existing version fail the build. History is retained even if an older GitHub Release is removed. This exceeds the required 90-day predecessor retention window. Preserve the registry package and its image history; losing both the preceding image and GitHub assets loses the distribution archive.
 
-1. On the Linux deployment host, create the persistent upload directory:
+## One time GitHub setup
 
-   ```sh
-   sudo mkdir -p /data/pr0-updates/releases
-   sudo chmod 755 /data/pr0-updates /data/pr0-updates/releases
-   ```
+Merge this change into the default branch before using its workflows. The **Build desktop candidate** workflow also requires the signed release tooling from [PR #104](https://github.com/Umami-Creative-GmbH/pr0/pull/104) in the version tag being built; that tooling is not part of this change. Use the existing signing pair from #106/#107. No paid Windows signing certificate is needed.
 
-2. In Coolify, create a separate application from this Git repository using **Docker Compose**. Select the branch containing this change. Set **Base Directory** to `/infrastructure/update-channel` and **Docker Compose Location** to `/compose.yaml`. Keep it separate from the hosted web application's deployment.
-3. Add a domain for the `updates` service: HTTPS, hostname `pr0.umami-creative.app`, internal port `8080`, path `/update`. In interfaces with a single URL field, enter `https://pr0.umami-creative.app:8080/update`.
-4. Under **Advanced > Proxy**, select **Keep paths as-is** for path prefixes. Nginx expects `/update/` and `/update/releases/...`, including that prefix. Review the generated proxy configuration to confirm there is no prefix-stripping middleware on this route.
-5. Deploy. DNS must point to the Coolify host, with ports 80 and 443 reaching its proxy for automatic certificate issuance. Do not enable authentication middleware on the update route. If a domain-conflict warning appears because the main app uses the same hostname, retain its root route and give this service only the more specific `/update` route.
+Create two GitHub Actions environments:
 
-The container listens on port 8080 internally; it needs no public host-port mapping. Coolify's proxy selects this path over the main application's root route. Configure any Coolify health-check override to use container port 8080 and `/healthz`, without the public prefix. The Compose health check already uses that endpoint. See [Coolify domain routing](https://coolify.io/docs/core/networking/domains) and [Docker Compose builds](https://coolify.io/docs/applications/builds/docker-compose).
+| Environment | Secrets |
+| --- | --- |
+| `desktop-signing` | `PR0_UPDATE_PUBLIC_KEY`, `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when applicable |
+| `update-channel` | `PR0_UPDATE_PUBLIC_KEY`, and later `COOLIFY_DEPLOY_WEBHOOK` and `COOLIFY_TOKEN` |
 
-The bind mount is read-only inside the container and survives image rebuilds. Upload files to `/data/pr0-updates` on the deployment host over your existing SSH access; do not upload into the container or Git checkout. Make uploaded directories traversable and files readable by the container's `nginx` user (for example, directory mode 755 and file mode 644). Back up this directory independently. See [Coolify persistent storage](https://coolify.io/docs/core/persistent-storage/storage-mounts/overview).
+Use the full base64 Tauri public-key file contents for `PR0_UPDATE_PUBLIC_KEY`. On a GitHub-hosted runner, the private-key secret must contain the key contents, not a path on your PC. Keep the signing environment restricted to trusted operators and refs. The workflow fixes the official update endpoint and default instance URL. The update-image workflow receives only the public key, never the signing key.
 
-## Verify the empty channel
+The image workflow uses `GITHUB_TOKEN` with package-write permission to publish `ghcr.io/umami-creative-gmbh/pr0-updates`. It creates a unique `run-<id>-<attempt>` tag and updates `latest`. See [GitHub container publishing](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images).
 
-From a supported Windows client, run:
+Before publishing any desktop release, run **Publish update channel** from Actions with **bootstrap** enabled. With no releases, it creates an image whose `/update/` endpoint returns HTTP 204. Leave the Coolify secrets unset for this first run; the workflow reports that it published without deployment. Bootstrap is only for the initial empty channel. Later builds must retrieve `latest` successfully, otherwise they stop rather than drop old artifacts.
+
+## One time Coolify setup
+
+1. Create a separate **Docker Image** application, replacing the earlier Compose-based resource. Set image to `ghcr.io/umami-creative-gmbh/pr0-updates`, tag to `latest`, and exposed port to `8080`. If the GHCR package is private, configure registry pull credentials in Coolify first; alternatively make this release-assets-only package public.
+2. Add HTTPS hostname `pr0.umami-creative.app`, internal port `8080`, and path `/update`. In interfaces with one URL field, use `https://pr0.umami-creative.app:8080/update`. Under **Advanced > Proxy**, choose **Keep paths as-is**. The main application retains its root route; the more specific update route goes to this container.
+3. Remove the old `/data/pr0-updates` bind mount. Do not mount storage at `/srv/update` or its parents: a volume would hide newer files packaged in the image. This resource has no mutable application data and needs no persistent storage. A Docker Image resource exposes Coolify's ordinary storage editor if future features need another mount; Compose resources instead take mounts from their Compose definition.
+4. Configure health checks for container port `8080`, path `/healthz` (without `/update`). The image already declares a health check. Deploy once and confirm `/update/` returns HTTP 204 over trusted HTTPS without authentication.
+5. Enable Coolify API access, create a deploy-only API token, and copy this application's authenticated **Deploy Webhook** from **Webhooks**. Store the token as `COOLIFY_TOKEN` and the HTTPS webhook URL as `COOLIFY_DEPLOY_WEBHOOK` in the GitHub `update-channel` environment. Subsequent image publications call that webhook automatically. No Git push auto-deployment is needed for this image resource.
+
+Coolify pulls the current `latest` image on redeploy; it does not itself watch GHCR for new images. The authenticated webhook is the trigger. A queued webhook response proves only that Coolify accepted the request; check its deployment result. See [Docker Image deployment](https://coolify.io/docs/applications/deployments/docker-image), [deploy webhooks](https://coolify.io/docs/core/automation/deploy-webhooks), [domain routing](https://coolify.io/docs/core/networking/domains), and [storage ownership](https://coolify.io/docs/applications/configuration/persistent-storage).
+
+## Publish a version
+
+1. Update the desktop package, Tauri and Cargo versions consistently and create the matching version tag, for example `v0.1.0`. The tag must contain both workflows' required release tooling. Run **Build desktop candidate** with that tag. It runs repository checks and native tests, signs the Windows x64 NSIS installer, verifies its updater signature, and creates a draft release containing the installer, its `.sig` and `signing-evidence.json`. It refuses a tag that already has a release. Never rebuild a consumed version with different bytes.
+2. Download and validate that exact draft candidate on supported Windows, retaining evidence for #112 and the release gates in [ADR-0002](../adr/0002-mvp-release-requires-verified-candidate-and-hosted-launch.md). A successful runner build does not satisfy installed validation. Finish the release notes on the draft.
+3. **Publish the draft release.** This is the human release action. The update workflow excludes drafts and prereleases, downloads published assets, checks evidence hashes, independently verifies updater signatures and signed versions using Minisign, and makes the highest public version live. It retains earlier files and refuses an accidental manifest downgrade. GitHub's public download and Coolify activation are asynchronous; inspect both workflow and deployment results.
+
+The generated public layout is unchanged:
+
+```text
+https://pr0.umami-creative.app/update/
+https://pr0.umami-creative.app/update/releases/0.1.0/pr0_0.1.0_x64-setup.exe
+https://pr0.umami-creative.app/update/releases/0.1.0/pr0_0.1.0_x64-setup.exe.sig
+https://pr0.umami-creative.app/update/releases/0.1.0/signing-evidence.json
+```
+
+The manifest responds with `application/json` and `Cache-Control: no-store`. It embeds the actual signature file contents. No signing secrets, source checkout, draft assets or dependency toolchains are copied into the final image. Only the Nginx config and prepared channel files are included. The service remains independent of the hosted web app and its database.
+
+Rehearsal targets must remain private. Version 0.1.1 is permanently reserved for the MVP rehearsal and is rejected by both workflows. This change does not implement ADR-0001's tester address allowlist or protected rehearsal artifact route; add that before installed update rehearsals. Never publish a rehearsal draft to work around this requirement.
+
+If image publication succeeds but Coolify deployment fails, fix the deployment issue and redeploy `latest` in Coolify; do not rebuild the Windows candidate. To iterate on the channel image/configuration, merge the change and rerun **Publish update channel** with bootstrap disabled. Existing release assets are reused and reverified. Withdrawal of a live release needs a separate reviewed manifest operation; this workflow will not silently downgrade or erase a feed when a GitHub release disappears.
+
+## Verification
+
+From a supported Windows client:
 
 ```powershell
 curl.exe --silent --show-error --dump-header - --output NUL https://pr0.umami-creative.app/update/
 ```
 
-Expect HTTP 204 with `Cache-Control: no-store`, no login redirect and no cookies. Do not use `-k` or follow redirects to satisfy this check. Record the successful certificate validation and response headers on [issue #111](https://github.com/Umami-Creative-GmbH/pr0/issues/111). A running container alone does not verify public HTTPS.
+Expect HTTP 204 before the first release, or HTTP 200 JSON afterwards, with no login redirect or cookies. Do not bypass certificate verification. Record public HTTPS results and downloaded installer verification on [issue #111](https://github.com/Umami-Creative-GmbH/pr0/issues/111); automated packaging alone does not close it.
 
-## Upload a validated release
-
-Only put validated public releases in `releases/`: every file below that directory is anonymously downloadable. Do not upload rehearsal targets or unvalidated candidates there. This initial image does not implement the source-address allowlist for rehearsals from [ADR-0001](../adr/0001-rehearse-updates-on-the-live-update-endpoint.md); add that routing and protected artifact storage before attempting an installed update rehearsal.
-
-For a validated 0.1.0 release, the host directory will contain:
-
-```text
-/data/pr0-updates/
-  live.json
-  releases/
-    0.1.0/
-      pr0_0.1.0_x64-setup.exe
-      pr0_0.1.0_x64-setup.exe.sig
-      signing-evidence.json
-```
-
-Use the actual generated installer filename. Its public URL is `https://pr0.umami-creative.app/update/releases/0.1.0/pr0_0.1.0_x64-setup.exe`. Upload artifacts first, verify the downloaded installer against `signing-evidence.json`, and independently verify its signature with the official public key. Never upload private signing keys, passwords or `.env` files.
-
-After all installed-validation and release gates pass, prepare the live manifest outside the public `releases/` directory:
-
-```json
-{
-  "version": "0.1.0",
-  "notes": "Initial release.",
-  "platforms": {
-    "windows-x86_64": {
-      "url": "https://pr0.umami-creative.app/update/releases/0.1.0/pr0_0.1.0_x64-setup.exe",
-      "signature": "REPLACE_WITH_THE_VERIFIED_SIG_FILE_CONTENTS"
-    }
-  }
-}
-```
-
-Upload this as `/data/pr0-updates/live.json.next`, validate its JSON and exact version, URL and signature contents, and then atomically rename it to `live.json` on the same filesystem. This activates the live manifest immediately, without a redeploy. `/update/` returns HTTP 200 with `Content-Type: application/json` and `Cache-Control: no-store`; `live.json` is not available at a separate public URL. Nginx serves manifest bytes as supplied; it does not validate release eligibility, JSON or signatures.
-
-Before the first release, leave `live.json` absent. During later releases retain the previous live manifest until the next release gate passes. Preserve immutable artifacts and evidence for supported predecessors under the 90-day retention policy. Do not overwrite a version with different bytes. Kai owns publication and the release act; this container does not automate either.
-
-## Local container check
-
-From the repository root:
-
-```sh
-docker build -t pr0-update-channel infrastructure/update-channel
-docker run --rm -p 127.0.0.1:8080:8080 pr0-update-channel
-```
-
-`http://127.0.0.1:8080/healthz` returns 200 and `/update/` returns 204. Mount a disposable directory at `/srv/update:ro` to check manifests and release downloads. This local HTTP check does not replace the Windows HTTPS check against Coolify.
+For development, install Minisign (or set `MINISIGN_PATH` to its executable) and run `bun run test:update-channel`. The tests generate disposable signing keys and exercise the packaging boundary, including bad hashes/signatures, signed-version mismatch, retained predecessors and immutable files. CI runs this on Linux. `bun run typecheck` includes the packaging workspace. Build an empty local image with `docker build -t pr0-update-channel infrastructure/update-channel`; run it with `docker run --rm -p 127.0.0.1:8080:8080 pr0-update-channel`.

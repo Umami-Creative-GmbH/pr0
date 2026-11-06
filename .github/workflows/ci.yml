@@ -13,6 +13,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  update-channel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y minisign
+      - run: bun run test:update-channel
+      - run: docker build -t pr0-update-channel infrastructure/update-channel
+      - run: docker run --rm pr0-update-channel -t
   check:
     runs-on: windows-latest
     env:

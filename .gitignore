@@ -27,4 +27,8 @@ next-env.d.ts
 **/.operations/
 **/.data/search/
 **/.data/rehearsal-61*/
+
+# Generated update-channel image contents (prepared by the release workflow).
+/infrastructure/update-channel/channel/*
+!/infrastructure/update-channel/channel/.gitkeep
 .tauri-keys/
