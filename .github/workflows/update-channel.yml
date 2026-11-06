@@ -58,6 +58,18 @@ jobs:
           fi
       - name: Verify releases and prepare image contents
         run: bun run infrastructure/update-channel/prepare.ts
+      - name: Validate Coolify deployment configuration
+        run: |
+          bun -e '
+            const url = process.env.COOLIFY_DEPLOY_WEBHOOK;
+            const token = process.env.COOLIFY_TOKEN;
+            const bootstrap = process.env.BOOTSTRAP === "true" && !process.env.PREVIOUS_CHANNEL_DIRECTORY;
+            const enabled = Boolean(url || token);
+            if (!enabled && !bootstrap) throw new Error("Configure both Coolify secrets before publishing channel updates");
+            if (enabled && (!url || !token || new URL(url).protocol !== "https:")) throw new Error("Configure both Coolify secrets with an HTTPS deploy webhook");
+            const file = process.env.GITHUB_ENV;
+            await Bun.write(file, (await Bun.file(file).text()) + `\nDEPLOY_ENABLED=${enabled}\n`);
+          '
       - name: Build and check the complete image
         run: |
           docker build --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -t "$IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" -t "$IMAGE:latest" infrastructure/update-channel
@@ -71,16 +83,11 @@ jobs:
           docker push "$IMAGE:latest"
           echo "Image: $IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
       - name: Deploy through Coolify
+        if: env.DEPLOY_ENABLED == 'true'
         run: |
           bun -e '
             const url = process.env.COOLIFY_DEPLOY_WEBHOOK;
             const token = process.env.COOLIFY_TOKEN;
-            if (!url && !token) {
-              const summary = await Bun.file(process.env.GITHUB_STEP_SUMMARY).text();
-              await Bun.write(process.env.GITHUB_STEP_SUMMARY, summary + "\nCoolify is not configured; image published without deployment.\n");
-              process.exit(0);
-            }
-            if (!url || !token || new URL(url).protocol !== "https:") throw new Error("Configure both Coolify secrets with an HTTPS deploy webhook");
             const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(30000) });
             if (!response.ok) throw new Error(`Coolify rejected deployment: HTTP ${response.status}`);
           '
