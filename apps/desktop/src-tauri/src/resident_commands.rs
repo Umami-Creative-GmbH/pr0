@@ -57,6 +57,13 @@ fn resident_finish_quit(window: tauri::WebviewWindow) -> Result<(), String> {
     authorize(&window)?;
     let app = window.app_handle();
     app.state::<Resident>().finish_quit()?;
+    if app.state::<Resident>().status()?.update_requested {
+        let result = app.state::<updates::Updates>().install();
+        app.state::<Resident>().cancel_failed_update()?;
+        let _ = app.emit("resident-changed", ());
+        let _ = app.emit("update-changed", ());
+        return result;
+    }
     // Local saves are resolved; pending uploads remain durable. Do not join a
     // network worker here. Process exit terminates it without waiting online.
     let _ = app.global_shortcut().unregister_all();
