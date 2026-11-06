@@ -1,0 +1,86 @@
+name: Publish update channel
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      bootstrap:
+        description: First publication of the empty channel (no published desktop releases)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: official-update-channel
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name != 'release' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    environment: update-channel
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR0_UPDATE_PUBLIC_KEY: ${{ secrets.PR0_UPDATE_PUBLIC_KEY }}
+      COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      BOOTSTRAP: ${{ inputs.bootstrap || false }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y minisign
+      - run: bun run test:update-channel
+      - name: Select image and log in
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-updates" >> "$GITHUB_ENV"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Retain the previous channel snapshot
+        run: |
+          if docker pull "$IMAGE:latest"; then
+            snapshot=$(docker create "$IMAGE:latest")
+            mkdir -p "$RUNNER_TEMP/previous-channel"
+            docker cp "$snapshot:/srv/update/." "$RUNNER_TEMP/previous-channel/"
+            docker rm "$snapshot"
+            echo "PREVIOUS_CHANNEL_DIRECTORY=$RUNNER_TEMP/previous-channel" >> "$GITHUB_ENV"
+          elif [ "$BOOTSTRAP" != "true" ]; then
+            echo 'Cannot retrieve the previous channel; refusing to drop release history.' >&2
+            exit 1
+          fi
+      - name: Verify releases and prepare image contents
+        run: bun run infrastructure/update-channel/prepare.ts
+      - name: Build and check the complete image
+        run: |
+          docker build --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -t "$IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" -t "$IMAGE:latest" infrastructure/update-channel
+          docker run --rm "$IMAGE:latest" -t
+          docker run -d --name update-channel-check "$IMAGE:latest"
+          docker exec update-channel-check wget -q -O /dev/null http://127.0.0.1:8080/healthz
+          docker rm -f update-channel-check
+      - name: Publish image
+        run: |
+          docker push "$IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker push "$IMAGE:latest"
+          echo "Image: $IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
+      - name: Deploy through Coolify
+        run: |
+          bun -e '
+            const url = process.env.COOLIFY_DEPLOY_WEBHOOK;
+            const token = process.env.COOLIFY_TOKEN;
+            if (!url && !token) {
+              const summary = await Bun.file(process.env.GITHUB_STEP_SUMMARY).text();
+              await Bun.write(process.env.GITHUB_STEP_SUMMARY, summary + "\nCoolify is not configured; image published without deployment.\n");
+              process.exit(0);
+            }
+            if (!url || !token || new URL(url).protocol !== "https:") throw new Error("Configure both Coolify secrets with an HTTPS deploy webhook");
+            const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(30000) });
+            if (!response.ok) throw new Error(`Coolify rejected deployment: HTTP ${response.status}`);
+          '

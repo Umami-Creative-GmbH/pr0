@@ -1,0 +1,98 @@
+name: Build desktop candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to build, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-candidate
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    environment: desktop-signing
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      PR0_UPDATE_ENDPOINT: https://pr0.umami-creative.app/update/
+      VITE_API_BASE_URL: https://pr0.umami-creative.app/
+    steps:
+      - name: Validate version tag
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$' -or $env:RELEASE_TAG -eq 'v0.1.1') {
+            throw 'Choose a public release version tag; v0.1.1 is reserved for rehearsal.'
+          }
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: dtolnay/rust-toolchain@1.94.0
+        with:
+          components: rustfmt
+      - name: Check release tooling and versions
+        shell: pwsh
+        run: |
+          if (!(Test-Path apps/desktop/release.ps1)) {
+            throw 'The version tag must include the signed release tooling from PR #104.'
+          }
+          $version = $env:RELEASE_TAG.Substring(1)
+          $config = Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $package = Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json
+          if ($config.version -ne $version -or $package.version -ne $version) { throw 'Tag and desktop versions must match.' }
+          bun -e 'const c = Bun.TOML.parse(await Bun.file("apps/desktop/src-tauri/Cargo.toml").text()); if (c.package.version !== process.env.RELEASE_TAG.slice(1)) throw new Error("Tag and Cargo version must match");'
+          if ($LASTEXITCODE -ne 0) { throw 'Cargo version check failed.' }
+          $releases = gh api --paginate --slurp "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot establish whether this version was already built.' }
+          foreach ($page in $releases) {
+            foreach ($release in $page) {
+              if ($release.tag_name -eq $env:RELEASE_TAG) { throw 'This version already has a release; never rebuild an uploaded candidate.' }
+            }
+          }
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run typecheck
+      - run: bun run test
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --lib
+      - name: Build and independently verify signed installer
+        env:
+          PR0_UPDATE_PUBLIC_KEY: ${{ secrets.PR0_UPDATE_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bun run --cwd apps/desktop release
+      - name: Create draft with exact verified artifacts
+        shell: pwsh
+        run: |
+          $bundle = 'apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis'
+          $installer = Join-Path $bundle "pr0_$($env:RELEASE_TAG.Substring(1))_x64-setup.exe"
+          $notes = Join-Path $env:RUNNER_TEMP 'candidate-notes.md'
+          $candidateCommit = git rev-parse HEAD
+          @"
+          Signed candidate built from $candidateCommit for $env:RELEASE_TAG.
+
+          Complete installed Windows validation (#112), the candidate gate (#66), and the hosted launch gate before publishing. Retain evidence against this exact installer hash. Publishing this draft activates the automated public update-channel workflow. Do not publish rehearsal targets.
+          "@ | Set-Content -LiteralPath $notes -Encoding utf8
+          gh release create $env:RELEASE_TAG $installer "$installer.sig" (Join-Path $bundle 'signing-evidence.json') --verify-tag --draft --title "pr0 $env:RELEASE_TAG" --notes-file $notes
+          if ($LASTEXITCODE -ne 0) { throw 'Draft publication failed. Preserve the candidate artifacts and do not reuse its version for different bytes.' }
+      - name: Preserve candidate files even if draft creation fails
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-candidate-${{ inputs.tag }}
+          path: |
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.sig
+            apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/signing-evidence.json
+          if-no-files-found: ignore
+          retention-days: 90

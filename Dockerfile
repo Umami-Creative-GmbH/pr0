@@ -13,6 +13,7 @@ COPY packages/api-client/package.json packages/api-client/package.json
 COPY packages/api-contract/package.json packages/api-contract/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY packages/typescript-config/package.json packages/typescript-config/package.json
+COPY infrastructure/update-channel/package.json infrastructure/update-channel/package.json
 RUN bun install --frozen-lockfile
 
 COPY apps/web ./apps/web

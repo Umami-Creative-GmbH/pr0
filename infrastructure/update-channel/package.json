@@ -1,0 +1,11 @@
+{
+  "name": "@pr0/update-channel",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}

@@ -77,6 +77,12 @@
         "typescript": "^5",
       },
     },
+    "infrastructure/update-channel": {
+      "name": "@pr0/update-channel",
+      "dependencies": {
+        "zod": "^4.6.5",
+      },
+    },
     "packages/api-client": {
       "name": "@pr0/api-client",
       "version": "0.0.0",
@@ -548,6 +554,8 @@
     "@pr0/typescript-config": ["@pr0/typescript-config@workspace:packages/typescript-config"],
 
     "@pr0/ui": ["@pr0/ui@workspace:packages/ui"],
+
+    "@pr0/update-channel": ["@pr0/update-channel@workspace:infrastructure/update-channel"],
 
     "@pr0/web": ["@pr0/web@workspace:apps/web"],
 

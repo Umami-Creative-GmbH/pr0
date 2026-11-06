@@ -1,2 +1,4 @@
 *
 !nginx.conf
+!channel/
+!channel/**
