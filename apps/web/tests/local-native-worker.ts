@@ -13,7 +13,8 @@ export const localNativeWorker = async (
   "release"
     ? "release"
     : "debug",
-  compatibilityMismatch = false
+  compatibilityMismatch = false,
+  environment: Record<string, string> = {}
 ) => {
   const artifactsDirectory = `apps/desktop/src-tauri/target/${profile}/deps`;
   const artifacts = [
@@ -50,6 +51,7 @@ export const localNativeWorker = async (
       stderr: "inherit",
       env: {
         ...process.env,
+        ...environment,
         PR0_LOCAL_TEST_DIRECTORY: directory,
         PR0_ORGANIZATION_CAPACITY: String(organizationCapacity),
         PR0_UPLOAD_UI_FIXTURE: String(uploadFixture),
@@ -80,6 +82,9 @@ export const localNativeWorker = async (
   }
   let chain = Promise.resolve();
   return {
+    generation: z.coerce.number().int().nonnegative().parse(preamble.slice(6)),
+    processId: child.pid,
+    exited: child.exited,
     executable: `${artifactsDirectory}/${artifact}`,
     async command(command: string, args: NativeArgs = {}) {
       const previous = chain;

@@ -149,13 +149,14 @@ pub fn recover(db: &mut Connection, path: &std::path::Path) -> Result<(), String
         })
         .is_ok_and(|value| value == "ok")
     });
+    // Check that the index tables can be opened. Full index structure and
+    // external-content checks run on the private snapshot; until then every
+    // candidate exclusion is computed by an exact source scan.
     let postings_valid = ["title", "description", "content", "name"]
         .iter()
         .all(|field| {
-            db.execute_batch(&format!(
-                "INSERT INTO local_f_{field}(local_f_{field},rank) VALUES('integrity-check',1);"
-            ))
-            .is_ok()
+            db.prepare(&format!("SELECT rowid FROM local_f_{field} LIMIT 0"))
+                .is_ok()
         });
     if compatible && readable && postings_valid && short_postings_valid(db).unwrap_or(false) {
         return Ok(());

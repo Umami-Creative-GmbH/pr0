@@ -1,0 +1,20 @@
+{
+  "recordedAt": "2026-11-08T23:13:55.760Z",
+  "classification": "Supporting lifecycle check: pause a real maximum-library validation snapshot, release full content checking, then verify native graceful and forced exit interrupt it and remove SQLite temporary files. No production synchronization or installed-build certification.",
+  "releaseCriteriaMet": false,
+  "runs": [
+    {
+      "mode": "graceful",
+      "activeTemporaryFiles": 1,
+      "remainingTemporaryFiles": 0,
+      "shutdownMs": 48.62670000000003
+    },
+    {
+      "mode": "forced",
+      "activeTemporaryFiles": 1,
+      "remainingTemporaryFiles": 0,
+      "shutdownMs": 43.94360000000006
+    }
+  ],
+  "failure": ""
+}

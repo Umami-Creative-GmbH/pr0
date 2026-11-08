@@ -83,7 +83,74 @@ struct Term {
     description: SlotSet,
     content: SlotSet,
     organization: SlotSet,
-    short: bool,
+    exact: bool,
+}
+// Before a compatible snapshot is validated, candidate exclusions must come from
+// exact values, never from possibly incomplete postings. Stream each body once
+// for every term and retain only fixed-domain membership bitsets.
+fn scan_terms(
+    db: &Connection,
+    terms: &mut [Term],
+    cancelled: &impl Fn() -> bool,
+) -> Result<(), String> {
+    if terms.is_empty() {
+        return Ok(());
+    }
+    let mut statement = db.prepare("SELECT slot,title,description,CASE WHEN content_bytes<=4194304 THEN content ELSE NULL END FROM local_search").map_err(recovery)?;
+    let mut rows = statement.query([]).map_err(recovery)?;
+    while let Some(row) = rows.next().map_err(recovery)? {
+        if cancelled() {
+            return Err("operation_cancelled".into());
+        }
+        let slot: u16 = row.get(0).map_err(recovery)?;
+        let title: String = row.get(1).map_err(recovery)?;
+        let description: String = row.get(2).map_err(recovery)?;
+        let content: String = row.get(3).map_err(recovery)?;
+        for term in terms.iter_mut() {
+            if title.contains(&term.value) {
+                term.title.insert(slot).map_err(recovery)?;
+            }
+            if description.contains(&term.value) {
+                term.description.insert(slot).map_err(recovery)?;
+            }
+            if content.contains(&term.value) {
+                term.content.insert(slot).map_err(recovery)?;
+            }
+        }
+    }
+    let mut statement = db
+        .prepare("SELECT kind,id,name FROM search_organization")
+        .map_err(recovery)?;
+    let mut rows = statement.query([]).map_err(recovery)?;
+    let mut membership = db
+        .prepare("SELECT slot FROM search_membership WHERE kind=?1 AND id=?2")
+        .map_err(recovery)?;
+    while let Some(row) = rows.next().map_err(recovery)? {
+        if cancelled() {
+            return Err("operation_cancelled".into());
+        }
+        let kind: String = row.get(0).map_err(recovery)?;
+        let id: String = row.get(1).map_err(recovery)?;
+        let name: String = row.get(2).map_err(recovery)?;
+        let matching: Vec<usize> = terms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, term)| name.contains(&term.value).then_some(index))
+            .collect();
+        if matching.is_empty() {
+            continue;
+        }
+        let slots = membership
+            .query_map([kind, id], |row| row.get::<_, u16>(0))
+            .map_err(recovery)?;
+        for slot in slots {
+            let slot = slot.map_err(recovery)?;
+            for index in &matching {
+                terms[*index].organization.insert(slot).map_err(recovery)?;
+            }
+        }
+    }
+    Ok(())
 }
 struct Candidate {
     slot: u16,
@@ -213,7 +280,7 @@ fn candidates(
                     eligible = false;
                     break;
                 }
-                if !term.short {
+                if !term.exact {
                     outstanding.push(index);
                 }
             }
@@ -316,6 +383,7 @@ pub fn search(
     request: &SearchRequest,
     cancelled: &impl Fn() -> bool,
     organization_cache: &mut Option<OrganizationCache>,
+    trusted: bool,
 ) -> Result<SearchPage, String> {
     let check = || {
         if cancelled() {
@@ -356,14 +424,28 @@ pub fn search(
         .collect::<BTreeSet<_>>()
     {
         check()?;
-        terms.push(Term {
-            value: term.into(),
-            title: hits(db, "title", term).map_err(recovery)?,
-            description: hits(db, "description", term).map_err(recovery)?,
-            content: hits(db, "content", term).map_err(recovery)?,
-            organization: organization_hits(db, term).map_err(recovery)?,
-            short: term.chars().count() < 3,
+        terms.push(if trusted {
+            Term {
+                value: term.into(),
+                title: hits(db, "title", term).map_err(recovery)?,
+                description: hits(db, "description", term).map_err(recovery)?,
+                content: hits(db, "content", term).map_err(recovery)?,
+                organization: organization_hits(db, term).map_err(recovery)?,
+                exact: term.chars().count() < 3,
+            }
+        } else {
+            Term {
+                value: term.into(),
+                title: SlotSet::new(),
+                description: SlotSet::new(),
+                content: SlotSet::new(),
+                organization: SlotSet::new(),
+                exact: true,
+            }
         });
+    }
+    if !trusted {
+        scan_terms(db, &mut terms, cancelled)?;
     }
     let candidates = candidates(db, request, &query, &terms).map_err(recovery)?;
     let mut accepted = 0;

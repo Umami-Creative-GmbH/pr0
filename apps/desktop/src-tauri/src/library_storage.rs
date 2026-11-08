@@ -9,6 +9,15 @@ pub struct LibraryStore {
     account: String,
     recovery_error: Option<String>,
     search_organization: Option<super::search_query::OrganizationCache>,
+    search_validation: Option<super::search_validation::Validation>,
+    search_trusted: bool,
+}
+impl Drop for LibraryStore {
+    fn drop(&mut self) {
+        // Close background readers before the final writer so SQLite can
+        // checkpoint and remove its WAL/shared-memory sidecars normally.
+        self.search_validation = None;
+    }
 }
 pub(crate) fn io(error: rusqlite::Error) -> String {
     match error.sqlite_error_code() {
@@ -31,6 +40,8 @@ pub fn library_path(root: &Path, instance: &str, account: &str) -> Result<PathBu
 }
 impl LibraryStore {
     pub fn recover_search(&mut self) -> Result<(), String> {
+        self.search_validation = None;
+        self.search_trusted = false;
         super::local_search::rebuild(&mut self.db).map_err(|error| {
             if error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull) {
                 io(error)
@@ -40,6 +51,7 @@ impl LibraryStore {
         })?;
         self.recovery_error = None;
         self.search_organization = None;
+        self.search_trusted = true;
         Ok(())
     }
     pub fn search(
@@ -47,9 +59,15 @@ impl LibraryStore {
         request: &super::search_contract::SearchRequest,
         cancelled: &impl Fn() -> bool,
     ) -> Result<super::search_contract::SearchPage, String> {
+        self.poll_search_validation()?;
         let tx = self.db.transaction().map_err(io)?;
-        let result =
-            super::search_query::search(&tx, request, cancelled, &mut self.search_organization)?;
+        let result = super::search_query::search(
+            &tx,
+            request,
+            cancelled,
+            &mut self.search_organization,
+            self.search_trusted,
+        )?;
         tx.commit().map_err(io)?;
         Ok(result)
     }
@@ -88,13 +106,57 @@ impl LibraryStore {
         // A single bounded page cache shares the resident process budget with WebView2.
         db.execute_batch("PRAGMA cache_size=-16384; PRAGMA mmap_size=0;")
             .map_err(io)?;
+        let data_version = db
+            .query_row("PRAGMA data_version", [], |row| row.get(0))
+            .map_err(io)?;
+        let search_validation = recovery_error
+            .is_none()
+            .then(|| super::search_validation::Validation::start(path, data_version));
         Ok(Self {
             db,
             recovery_error,
             search_organization: None,
+            search_validation,
+            search_trusted: false,
             instance: instance.into(),
             account: account.into(),
         })
+    }
+    fn poll_search_validation(&mut self) -> Result<(), String> {
+        use super::search_validation::{Outcome, Validation};
+        if self.recovery_error.is_some() {
+            return Err("search_recovery_required".into());
+        }
+        if self.search_trusted {
+            return Ok(());
+        }
+        let outcome = self
+            .search_validation
+            .as_mut()
+            .map_or(Outcome::Unavailable, Validation::poll);
+        let revision: i64 = self
+            .db
+            .query_row("SELECT revision FROM local_state", [], |row| row.get(0))
+            .map_err(io)?;
+        let data_version: i64 = self
+            .db
+            .query_row("PRAGMA data_version", [], |row| row.get(0))
+            .map_err(io)?;
+        match outcome {
+            Outcome::Valid(checked, epoch) if checked == revision && epoch == data_version => {
+                self.search_trusted = true;
+                self.search_validation = None;
+            }
+            Outcome::Corrupt(checked, epoch) if checked == revision && epoch == data_version => {
+                self.recover_search()?;
+            }
+            Outcome::Valid(_, _) | Outcome::Corrupt(_, _) => {
+                let path = self.db.path().ok_or("storage_unavailable")?;
+                self.search_validation = Some(Validation::start(PathBuf::from(path), data_version));
+            }
+            Outcome::Pending | Outcome::Unavailable => {}
+        }
+        Ok(())
     }
     pub fn pending(&self) -> Result<Option<(Manifest, usize)>, String> {
         let row: Option<(String,u32)> = self.db.query_row("SELECT manifest,applied FROM download WHERE id=(SELECT staging FROM state WHERE singleton=1)", [], |r| Ok((r.get(0)?,r.get(1)?))).optional().map_err(io)?;

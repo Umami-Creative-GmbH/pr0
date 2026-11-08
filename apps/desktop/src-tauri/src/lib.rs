@@ -25,6 +25,7 @@ mod resident_instance;
 mod resident_tests;
 mod search_contract;
 mod search_query;
+mod search_validation;
 mod startup;
 #[cfg(windows)]
 mod startup_windows;

@@ -1,0 +1,23 @@
+{
+  "fields": [
+    {
+      "field": "title",
+      "ms": 86.8428
+    },
+    {
+      "field": "description",
+      "ms": 79.0227
+    },
+    {
+      "field": "content",
+      "ms": 9827.4557
+    },
+    {
+      "field": "name",
+      "ms": 1.8939
+    }
+  ],
+  "fullContentComparison": true,
+  "mode": "memory",
+  "totalMs": 9995.2335
+}
