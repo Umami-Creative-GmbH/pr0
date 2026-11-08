@@ -1,0 +1,45 @@
+{
+  "recordedAt": "2026-11-08T13:39:33.0355977Z",
+  "classification": "Supporting evidence on the user-authorized Windows host; other validation workloads ran concurrently. Not the four-core, 8-GiB acceptance machine.",
+  "cpu": [
+    {
+      "Name": "AMD Ryzen 9 9950X3D2 16-Core Processor         ",
+      "NumberOfCores": 16,
+      "NumberOfLogicalProcessors": 32
+    }
+  ],
+  "memoryBytes": 100579700736,
+  "os": {
+    "version": "10.0.26300",
+    "build": "26300",
+    "caption": "Microsoft Windows 11 Business"
+  },
+  "disks": [
+    {
+      "FriendlyName": "Samsung SSD 9100 PRO 2TB",
+      "MediaType": "SSD",
+      "BusType": "NVMe",
+      "Size": 2000398934016
+    },
+    {
+      "FriendlyName": "WD_BLACK SN850X 4000GB",
+      "MediaType": "SSD",
+      "BusType": "NVMe",
+      "Size": 4000787030016
+    },
+    {
+      "FriendlyName": "WD_BLACK SN850X 2000GB",
+      "MediaType": "SSD",
+      "BusType": "NVMe",
+      "Size": 2000398934016
+    }
+  ],
+  "docker": {
+    "Architecture": "x86_64",
+    "OSType": "linux",
+    "NCPU": 32,
+    "MemTotal": 49280638976,
+    "Driver": "overlayfs",
+    "KernelVersion": "6.18.33.2-microsoft-standard-WSL2"
+  }
+}

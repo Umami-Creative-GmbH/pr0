@@ -140,6 +140,9 @@ test("all 1,000 tags remain searchable with archived counts, unused filtering an
       name: "Tag filters",
       exact: true,
     });
+    await filters
+      .locator("summary", { hasText: "Tag filters options" })
+      .press("Enter");
     await filters.getByRole("checkbox", { name: /Tag 1000/u }).waitFor();
     expect(await filters.getByRole("checkbox").count()).toBe(1000);
     await filters.getByLabel("Search tag filters").fill("1000");
@@ -207,7 +210,7 @@ test("saving a retained editor after selecting another prompt blocks duplication
   const paused = Promise.withResolvers<undefined>();
   try {
     await page
-      .getByRole("button", { name: "First prompt", exact: true })
+      .getByRole("button", { name: "First prompt Before edit", exact: true })
       .click();
     await page
       .getByRole("button", { name: "Edit prompt", exact: true })
@@ -218,7 +221,7 @@ test("saving a retained editor after selecting another prompt blocks duplication
     // The editor is modal; keep the draft mounted while selecting another row.
     await browseKeepingDraft(page);
     await page
-      .getByRole("button", { name: "Second prompt", exact: true })
+      .getByRole("button", { name: "Second prompt Other prompt", exact: true })
       .click();
     await page
       .getByRole("heading", { name: "Second prompt", exact: true })

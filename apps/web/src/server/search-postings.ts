@@ -2,6 +2,13 @@
 import type { Database } from "bun:sqlite";
 
 const slotCount = 10_000;
+const bitCounts = Uint8Array.from({ length: 256 }, (_, value) => {
+  let count = 0;
+  for (let bits = value; bits; bits &= bits - 1) {
+    count += 1;
+  }
+  return count;
+});
 export class SearchSlots {
   private readonly bits = new Uint8Array(slotCount / 8);
   constructor(slots: Iterable<number>) {
@@ -118,7 +125,7 @@ export const shortPostings = (db: Database, capacity = slotCount) => {
       const next = shortGrams(after);
       const change = (gram: string, add: boolean) => {
         const key = Buffer.from(gram);
-        const previous = read.get(field, key);
+        let previous = read.get(field, key);
         // Initial builds allocate increasing slots. Extending a final run keeps
         // the smallest representation without expanding a common key to 10,000 entries.
         if (add && previous?.representation === "runs") {
@@ -131,6 +138,27 @@ export const shortPostings = (db: Database, capacity = slotCount) => {
             write.run(field, key, "runs", payload, previous.count + 1);
             return;
           }
+        }
+        if (previous?.representation === "bitmap") {
+          const payload = new Uint8Array(previous.payload);
+          const byte = payload[slot >> 3] ?? 0;
+          const mask = 1 << (slot & 7);
+          const present = Boolean(byte & mask);
+          payload[slot >> 3] = add ? byte | mask : byte & ~mask;
+          const count = previous.count + Number(add) - Number(present);
+          let runs = 0;
+          let preceding = 0;
+          for (const value of payload) {
+            runs += bitCounts[value & ~((value << 1) | preceding)] ?? 0;
+            preceding = value >> 7;
+          }
+          // Preserve the minimal representation and existing tie rules without
+          // allocating and sorting thousands of Set entries for a single bit.
+          if (payload.length < count * 2 && payload.length < runs * 4) {
+            write.run(field, key, "bitmap", payload, count);
+            return;
+          }
+          previous = { representation: "bitmap", payload, count };
         }
         const slots = decode(previous);
         if (add) {

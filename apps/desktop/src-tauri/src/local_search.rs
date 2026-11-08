@@ -186,12 +186,41 @@ fn short_postings_valid(db: &Connection) -> rusqlite::Result<bool> {
         if !["title", "description", "content", "name"].contains(&field.as_str())
             || !(1..=2).contains(&gram.chars().count())
             || bytes.len() > 20_000
-            || decode(&kind, &bytes)?.len() != count as usize
+            || posting_count(&kind, &bytes, if field == "name" { 1200 } else { 10000 })?
+                != count as usize
         {
             return Ok(false);
         }
     }
     Ok(true)
+}
+fn posting_count(kind: &str, bytes: &[u8], capacity: usize) -> rusqlite::Result<usize> {
+    if kind == "bitmap" && bytes.len() == capacity.div_ceil(8) {
+        return Ok(bytes.iter().map(|byte| byte.count_ones() as usize).sum());
+    }
+    let width = match kind {
+        "sparse" => 2,
+        "runs" => 4,
+        _ => return Err(rusqlite::Error::InvalidQuery),
+    };
+    if bytes.len() % width != 0 {
+        return Err(rusqlite::Error::InvalidQuery);
+    }
+    let (mut count, mut end) = (0usize, 0usize);
+    for chunk in bytes.chunks_exact(width) {
+        let start = usize::from(u16::from_le_bytes([chunk[0], chunk[1]]));
+        let length = if width == 2 {
+            1
+        } else {
+            usize::from(u16::from_le_bytes([chunk[2], chunk[3]]))
+        };
+        if start < end || length == 0 || start + length > capacity {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
+        count += length;
+        end = start + length;
+    }
+    Ok(count)
 }
 fn grams(text: &str) -> BTreeSet<String> {
     let mut result = BTreeSet::new();
@@ -204,35 +233,6 @@ fn grams(text: &str) -> BTreeSet<String> {
         previous = Some(point);
     }
     result
-}
-fn encode(slots: &BTreeSet<u16>, capacity: usize) -> (&'static str, Vec<u8>) {
-    let mut runs: Vec<(u16, u16)> = Vec::new();
-    for slot in slots {
-        match runs.last_mut() {
-            Some((start, length)) if *start + *length == *slot => *length += 1,
-            _ => runs.push((*slot, 1)),
-        }
-    }
-    let bitmap_bytes = capacity.div_ceil(8);
-    if bitmap_bytes < slots.len() * 2 && bitmap_bytes < runs.len() * 4 {
-        let mut bytes = vec![0u8; bitmap_bytes];
-        for slot in slots {
-            bytes[*slot as usize / 8] |= 1 << (*slot % 8);
-        }
-        ("bitmap", bytes)
-    } else if runs.len() * 4 < slots.len() * 2 {
-        (
-            "runs",
-            runs.into_iter()
-                .flat_map(|(start, len)| start.to_le_bytes().into_iter().chain(len.to_le_bytes()))
-                .collect(),
-        )
-    } else {
-        (
-            "sparse",
-            slots.iter().flat_map(|s| s.to_le_bytes()).collect(),
-        )
-    }
 }
 pub(super) fn decode(kind: &str, bytes: &[u8]) -> rusqlite::Result<BTreeSet<u16>> {
     let mut slots = BTreeSet::new();
@@ -267,66 +267,157 @@ pub(super) fn decode(kind: &str, bytes: &[u8]) -> rusqlite::Result<BTreeSet<u16>
     }
     Ok(slots)
 }
-fn postings(
-    tx: &Transaction,
-    field: &str,
-    slot: u16,
-    before: &str,
-    after: &str,
-) -> rusqlite::Result<()> {
-    let old = grams(before);
-    let next = grams(after);
-    for gram in old.symmetric_difference(&next) {
-        let previous: Option<(String, Vec<u8>)> = tx
-            .query_row(
-                "SELECT representation,payload FROM local_search_short WHERE field=?1 AND gram=?2",
-                params![field, gram],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()?;
-        // Dense sequential downloads use a single persisted run. Extend its endpoint
-        // without expanding thousands of addresses for each common short gram.
-        if let Some((kind, bytes)) = &previous {
-            if kind == "runs" && bytes.len() == 4 && next.contains(gram) {
-                let start = u16::from_le_bytes([bytes[0], bytes[1]]);
-                let length = u16::from_le_bytes([bytes[2], bytes[3]]);
-                if start.checked_add(length) == Some(slot) && slot < 10000 {
-                    let length = length + 1;
-                    let payload: Vec<_> = start
-                        .to_le_bytes()
-                        .into_iter()
-                        .chain(length.to_le_bytes())
-                        .collect();
-                    tx.execute("UPDATE local_search_short SET payload=?3,count=?4 WHERE field=?1 AND gram=?2",params![field,gram,payload,length])?;
-                    continue;
+// Transaction-local cache: at most 16,384 bounded bitmaps (under 21 MiB of
+// payload), released before commit. No bodies or cross-library state are retained.
+#[derive(Default)]
+struct ShortPostings {
+    fields: std::collections::HashMap<&'static str, std::collections::HashMap<String, Vec<u8>>>,
+    entries: usize,
+}
+impl ShortPostings {
+    fn change(
+        &mut self,
+        tx: &Transaction,
+        field: &'static str,
+        slot: u16,
+        before: &str,
+        after: &str,
+    ) -> rusqlite::Result<()> {
+        let old = grams(before);
+        let next = grams(after);
+        let capacity: usize = if field == "name" { 1200 } else { 10000 };
+        if usize::from(slot) >= capacity {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
+        for gram in old.symmetric_difference(&next) {
+            if !self
+                .fields
+                .get(field)
+                .is_some_and(|entries| entries.contains_key(gram))
+            {
+                if self.entries >= 16_384 {
+                    self.flush(tx)?;
                 }
+                let previous: Option<(String, Vec<u8>)> = tx.prepare_cached("SELECT representation,payload FROM local_search_short WHERE field=?1 AND gram=?2")?
+                    .query_row(params![field, gram], |r| Ok((r.get(0)?, r.get(1)?))).optional()?;
+                let mut bitmap = vec![0u8; capacity.div_ceil(8)];
+                if let Some((kind, bytes)) = previous {
+                    match kind.as_str() {
+                        "bitmap" if bytes.len() == bitmap.len() => bitmap.copy_from_slice(&bytes),
+                        "sparse" if bytes.len() % 2 == 0 => {
+                            for pair in bytes.chunks_exact(2) {
+                                let address = usize::from(u16::from_le_bytes([pair[0], pair[1]]));
+                                if address >= capacity {
+                                    return Err(rusqlite::Error::InvalidQuery);
+                                }
+                                bitmap[address / 8] |= 1 << (address % 8);
+                            }
+                        }
+                        "runs" if bytes.len() % 4 == 0 => {
+                            for run in bytes.chunks_exact(4) {
+                                let start = usize::from(u16::from_le_bytes([run[0], run[1]]));
+                                let length = usize::from(u16::from_le_bytes([run[2], run[3]]));
+                                if start + length > capacity {
+                                    return Err(rusqlite::Error::InvalidQuery);
+                                }
+                                for address in start..start + length {
+                                    bitmap[address / 8] |= 1 << (address % 8);
+                                }
+                            }
+                        }
+                        _ => return Err(rusqlite::Error::InvalidQuery),
+                    }
+                }
+                self.fields
+                    .entry(field)
+                    .or_default()
+                    .insert(gram.clone(), bitmap);
+                self.entries += 1;
+            }
+            let bitmap = self
+                .fields
+                .get_mut(field)
+                .and_then(|entries| entries.get_mut(gram))
+                .ok_or(rusqlite::Error::InvalidQuery)?;
+            let byte = &mut bitmap[usize::from(slot) / 8];
+            let mask = 1 << (slot % 8);
+            if next.contains(gram) {
+                *byte |= mask;
+            } else {
+                *byte &= !mask;
             }
         }
-        let mut slots = match previous {
-            Some((kind, bytes)) => decode(&kind, &bytes)?,
-            None => BTreeSet::new(),
-        };
-        if next.contains(gram) {
-            slots.insert(slot);
-        } else {
-            slots.remove(&slot);
-        }
-        if slots.is_empty() {
-            tx.execute(
-                "DELETE FROM local_search_short WHERE field=?1 AND gram=?2",
-                params![field, gram],
-            )?;
-        } else {
-            let (kind, bytes) = encode(&slots, if field == "name" { 1200 } else { 10000 });
-            tx.execute(
-                "INSERT OR REPLACE INTO local_search_short VALUES(?1,?2,?3,?4,?5)",
-                params![field, gram, kind, bytes, slots.len() as i64],
-            )?;
-        }
+        Ok(())
     }
-    Ok(())
+    fn flush(&mut self, tx: &Transaction) -> rusqlite::Result<()> {
+        let mut replace =
+            tx.prepare_cached("INSERT OR REPLACE INTO local_search_short VALUES(?1,?2,?3,?4,?5)")?;
+        let mut remove =
+            tx.prepare_cached("DELETE FROM local_search_short WHERE field=?1 AND gram=?2")?;
+        for (field, entries) in self.fields.drain() {
+            for (gram, bitmap) in entries {
+                let (mut count, mut runs, mut previous_bit) = (0usize, 0usize, 0u8);
+                for byte in bitmap.iter().copied() {
+                    count += byte.count_ones() as usize;
+                    runs += (byte & !((byte << 1) | previous_bit)).count_ones() as usize;
+                    previous_bit = byte >> 7;
+                }
+                if count == 0 {
+                    remove.execute(params![field, gram])?;
+                    continue;
+                }
+                // Preserve the existing smallest-representation and tie rules.
+                let (kind, payload) = if bitmap.len() < count * 2 && bitmap.len() < runs * 4 {
+                    ("bitmap", bitmap)
+                } else if runs * 4 < count * 2 {
+                    let mut payload = Vec::with_capacity(runs * 4);
+                    let mut start = None;
+                    for address in 0..=bitmap.len() * 8 {
+                        let present = address < bitmap.len() * 8
+                            && bitmap[address / 8] & (1 << (address % 8)) != 0;
+                        if present && start.is_none() {
+                            start = Some(address);
+                        }
+                        if !present {
+                            if let Some(begin) = start.take() {
+                                payload.extend_from_slice(&(begin as u16).to_le_bytes());
+                                payload
+                                    .extend_from_slice(&((address - begin) as u16).to_le_bytes());
+                            }
+                        }
+                    }
+                    ("runs", payload)
+                } else {
+                    let mut payload = Vec::with_capacity(count * 2);
+                    for (index, byte) in bitmap.into_iter().enumerate() {
+                        let mut remaining = byte;
+                        while remaining != 0 {
+                            payload.extend_from_slice(
+                                &((index * 8 + remaining.trailing_zeros() as usize) as u16)
+                                    .to_le_bytes(),
+                            );
+                            remaining &= remaining - 1;
+                        }
+                    }
+                    ("sparse", payload)
+                };
+                replace.execute(params![field, gram, kind, payload, count as i64])?;
+            }
+        }
+        self.entries = 0;
+        Ok(())
+    }
 }
 pub fn remove(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
+    let mut postings = ShortPostings::default();
+    remove_with_postings(tx, id, &mut postings)?;
+    postings.flush(tx)
+}
+fn remove_with_postings(
+    tx: &Transaction,
+    id: &str,
+    postings: &mut ShortPostings,
+) -> rusqlite::Result<()> {
     let old: Option<(u16, [String; 3])> = tx
         .query_row(
             "SELECT slot,title,description,content FROM local_search WHERE id=?1",
@@ -337,13 +428,18 @@ pub fn remove(tx: &Transaction, id: &str) -> rusqlite::Result<()> {
     if let Some((slot, values)) = old {
         for (field, before) in ["title", "description", "content"].into_iter().zip(values) {
             tx.execute(&format!("INSERT INTO local_f_{field}(local_f_{field},rowid,{field}) VALUES('delete',?1,?2)"),params![slot,before])?;
-            postings(tx, field, slot, &before, "")?;
+            postings.change(tx, field, slot, &before, "")?;
         }
         tx.execute("DELETE FROM local_search WHERE id=?1", [id])?;
     }
     Ok(())
 }
-pub fn update(tx: &Transaction, prompt: &Prompt, revision: i64) -> rusqlite::Result<()> {
+fn update(
+    tx: &Transaction,
+    prompt: &Prompt,
+    revision: i64,
+    postings: &mut ShortPostings,
+) -> rusqlite::Result<()> {
     let old: Option<(u16, [String; 3])> = tx
         .query_row(
             "SELECT slot,title,description,content FROM local_search WHERE id=?1",
@@ -380,7 +476,7 @@ pub fn update(tx: &Transaction, prompt: &Prompt, revision: i64) -> rusqlite::Res
             &format!("INSERT INTO local_f_{field}(rowid,{field}) VALUES(?1,?2)"),
             params![slot, after],
         )?;
-        postings(tx, field, slot, before.unwrap_or(""), after)?;
+        postings.change(tx, field, slot, before.unwrap_or(""), after)?;
     }
     tx.execute(
         "INSERT OR REPLACE INTO local_search VALUES(?1,?2,?3,?4,?5,?6,?7)",
@@ -526,10 +622,11 @@ fn preflight(db: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 pub fn flush(tx: &Transaction) -> rusqlite::Result<()> {
+    let mut postings = ShortPostings::default();
     if tx.query_row("SELECT dirty FROM search_org_state", [], |r| {
         r.get::<_, bool>(0)
     })? {
-        organization(tx)?;
+        organization(tx, &mut postings)?;
         tx.execute("UPDATE search_org_state SET dirty=0", [])?;
     }
     let dirty = tx
@@ -547,7 +644,7 @@ pub fn flush(tx: &Transaction) -> rusqlite::Result<()> {
         )?;
         if !exists {
             tx.execute("DELETE FROM search_membership WHERE slot=(SELECT slot FROM local_search WHERE id=?1)",[&id])?;
-            remove(tx, &id)?;
+            remove_with_postings(tx, &id, &mut postings)?;
             tx.execute("DELETE FROM search_metadata WHERE id=?1", [&id])?;
             continue;
         }
@@ -567,7 +664,7 @@ pub fn flush(tx: &Transaction) -> rusqlite::Result<()> {
             )?;
             let prompt: Prompt =
                 serde_json::from_str(&record).map_err(|_| rusqlite::Error::InvalidQuery)?;
-            update(tx, &prompt, revision)?;
+            update(tx, &prompt, revision, &mut postings)?;
             super::excerpt::excerpt(&prompt.content)
         } else {
             tx.query_row(
@@ -591,11 +688,12 @@ pub fn flush(tx: &Transaction) -> rusqlite::Result<()> {
             tx.execute("INSERT INTO search_membership SELECT 'tag',j.value,m.slot FROM search_metadata m,json_each(m.tags) j WHERE m.id=?1 UNION ALL SELECT 'collection',collection_id,slot FROM search_metadata WHERE id=?1 AND collection_id IS NOT NULL", [&id])?;
         }
     }
+    postings.flush(tx)?;
     tx.execute("DELETE FROM search_dirty", [])?;
     Ok(())
 }
 
-fn organization(tx: &Transaction) -> rusqlite::Result<()> {
+fn organization(tx: &Transaction, postings: &mut ShortPostings) -> rusqlite::Result<()> {
     use std::collections::BTreeMap;
     let names = tx
         .prepare("SELECT kind,id,name FROM organization_local")?
@@ -622,7 +720,7 @@ fn organization(tx: &Transaction) -> rusqlite::Result<()> {
                 "INSERT INTO local_f_name(local_f_name,rowid,name) VALUES('delete',?1,?2)",
                 params![slot, before],
             )?;
-            postings(tx, "name", *slot, before, "")?;
+            postings.change(tx, "name", *slot, before, "")?;
             tx.execute("DELETE FROM search_organization WHERE slot=?1", [slot])?;
             used.remove(slot);
         }
@@ -645,7 +743,7 @@ fn organization(tx: &Transaction) -> rusqlite::Result<()> {
                 .find(|slot| !used.contains(slot))
                 .ok_or(rusqlite::Error::InvalidQuery)?,
         };
-        postings(
+        postings.change(
             tx,
             "name",
             slot,

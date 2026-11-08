@@ -123,9 +123,26 @@ export const trackContextNetwork = (context: BrowserContext) => {
   return { idle: tracker.idle };
 };
 
+/** Opens a large compact picker through its native keyboard disclosure. */
+export const openPickerOptions = async (
+  scope: Page | Locator,
+  label: string
+) => {
+  const summary = scope.locator("summary", { hasText: label });
+  if (await summary.count()) {
+    const open = await summary.evaluate((element) =>
+      element.parentElement?.hasAttribute("open")
+    );
+    if (!open) {
+      await summary.press("Enter");
+    }
+  }
+};
+
 /** Reveals the collection filter chips, which rest inside a disclosure. */
 export const openCollectionFilter = async (page: Page) => {
   await openDisclosure(
     page.locator("summary", { hasText: "Filter within this view" })
   );
+  await openPickerOptions(page, "Collection filter options");
 };

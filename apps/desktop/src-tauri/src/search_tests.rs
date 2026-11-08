@@ -897,3 +897,48 @@ fn search_finds_downloaded_and_saved_text_and_reopens_without_losing_pending_wor
     drop(service);
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn short_search_membership_tracks_dense_noisy_edits_and_persisted_restart() {
+    use std::collections::BTreeSet;
+    let directory = std::env::temp_dir().join(format!("pr0-search-bitmap-{}", uuid::Uuid::new_v4()));
+    let prompts = (0..2000).map(|index| {
+        let mut prompt = search_prompt(index);
+        prompt["title"] = json!(format!("Entry {index:04}"));
+        prompt["description"] = json!("");
+        prompt["content"] = json!(if index % 2 == 0 { "qx 🎯" } else { "zx 🫠" });
+        prompt
+    }).collect();
+    let service = search_download(&directory, search_snapshot(prompts, vec![], vec![]));
+    for (index, content) in [(0, "zx 🫠"), (1, "qx 🎯")] {
+        let id = search_prompt(index)["id"].as_str().unwrap().to_owned();
+        let editor = service.library_editor(&id).unwrap();
+        let mut request = save_request(&service);
+        request.operation_id = uuid::Uuid::new_v4().to_string();
+        request.prompt_id = id;
+        request.expected_local_revision = Some(editor.local_revision);
+        request.desired.title = editor.prompt.title;
+        request.desired.description.clear();
+        request.desired.content = content.into();
+        service.library_edit(request).unwrap();
+    }
+    drop(service);
+    let service = AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+    for query in ["q", "qx", "🎯"] {
+        let mut ids = BTreeSet::new();
+        let mut request = search_request(&service, query);
+        request.limit = 100;
+        loop {
+            let page = service.library_search(request.clone()).unwrap();
+            ids.extend(page.prompts.into_iter().map(|prompt| prompt.id));
+            request.cursor = page.next_cursor;
+            if request.cursor.is_none() { break; }
+        }
+        let expected = (1..2000).filter(|index| *index == 1 || index % 2 == 0)
+            .map(|index| search_prompt(index)["id"].as_str().unwrap().to_owned()).collect::<BTreeSet<_>>();
+        assert_eq!(ids, expected);
+    }
+    assert_eq!(service.library_pending().unwrap().len(), 2);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}

@@ -83,6 +83,15 @@ fn organization_byte_delta(db: &Connection) -> Result<i64, String> {
     db.query_row("SELECT (SELECT coalesce(sum(length(cast(name AS BLOB))),0) FROM organization_local)-(SELECT coalesce(sum(length(cast(name AS BLOB))),0) FROM organization WHERE snapshot=(SELECT active FROM state))",[],|r|r.get(0)).map_err(io)
 }
 impl LibraryStore {
+    fn organization_snapshot_entries(&self, kind: &str) -> Result<Vec<OrganizationEntry>, String> {
+        if self.recovery_error.is_none() {
+            if let Ok(entries) = super::search_query::organization_entries(&self.db, kind) {
+                return Ok(entries);
+            }
+        }
+        // Recovery and mutation admission continue to use primary records.
+        organization_entries(&self.db, kind)
+    }
     pub fn organization_snapshot(&self) -> Result<Value, String> {
         let effects=organization_rows(&self.db,"SELECT json_object('id',r.id,'effect',json_extract(result,'$.effect'),'accepted',json(CASE WHEN EXISTS(SELECT 1 FROM organization_ack a WHERE a.id=r.id) THEN 'true' ELSE 'false' END)) FROM organization_receipt r WHERE json_extract(result,'$.effect') IS NOT NULL ORDER BY rowid DESC LIMIT 100")?;
         let pending=organization_rows(&self.db,"SELECT json_object('id',id,'operation',json(payload),'error',error,'failure',json(failure),'accepted',json(CASE WHEN receipt IS NULL THEN 'false' ELSE 'true' END)) FROM organization_queue ORDER BY local_revision")?;
@@ -127,7 +136,7 @@ impl LibraryStore {
             .query_row("SELECT revision FROM local_state", [], |r| r.get(0))
             .map_err(io)?;
         Ok(
-            json!({"instanceId":self.instance,"accountId":self.account,"revision":organization_base_revision(&self.db)?,"localRevision":local_revision.to_string(),"collections":organization_entries(&self.db,"collection")?,"tags":organization_entries(&self.db,"tag")?,"pending":pending,"effects":effects,"states":states,"textBytes":self.known_usage()?.1,"complete":self.status()?.complete}),
+            json!({"instanceId":self.instance,"accountId":self.account,"revision":organization_base_revision(&self.db)?,"localRevision":local_revision.to_string(),"collections":self.organization_snapshot_entries("collection")?,"tags":self.organization_snapshot_entries("tag")?,"pending":pending,"effects":effects,"states":states,"textBytes":self.known_usage()?.1,"complete":self.status()?.complete}),
         )
     }
     pub fn organization_impact(

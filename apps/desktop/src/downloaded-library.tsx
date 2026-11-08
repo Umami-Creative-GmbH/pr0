@@ -69,14 +69,26 @@ const useDownloadedLibrary = ({
   const selectedPrompt = useRef<string | null>(null);
   const openedCopy = useRef<string | null>(null);
   const observedMappings = useRef(new Set<string>());
-  const open = useCallback(async (id: string) => {
+  const openingEditor = useRef(false);
+  const open = useCallback(async (id: string, forEditor = false) => {
+    if (openingEditor.current) {
+      return false;
+    }
+    if (forEditor) {
+      openingEditor.current = true;
+    }
     selectedPrompt.current = id;
     selection.current += 1;
     const request = selection.current;
+    let opened = false;
     try {
       const value = await libraryClient.editor(id);
       if (alive.current && request === selection.current) {
         setLocalDetail(value);
+        if (forEditor) {
+          setEditor({ initial: value });
+        }
+        opened = true;
       }
     } catch (error) {
       if (alive.current && request === selection.current) {
@@ -88,6 +100,10 @@ const useDownloadedLibrary = ({
         setErrorText(downloadError(error));
       }
     }
+    if (forEditor) {
+      openingEditor.current = false;
+    }
+    return opened;
   }, []);
   const lifecycle = useLifecycle(account, (id, action) => {
     if (action.kind === "duplicate" || openedCopy.current !== id) {
@@ -315,6 +331,11 @@ export const DownloadedLibrary = (props: LibraryProps) => {
     promptSaved,
     lifecycle,
   } = useDownloadedLibrary(props);
+  const editPrompt = async (id: string) => {
+    if (await open(id, true)) {
+      onEditing(true);
+    }
+  };
   return (
     <section aria-label={t("downloadedLibrary")} className="contents">
       <PromptVariables copy={copy} />
@@ -457,8 +478,7 @@ export const DownloadedLibrary = (props: LibraryProps) => {
             }
             onAction={lifecycle.handleAction}
             onEdit={() => {
-              setEditor({ initial: localDetail });
-              onEditing(true);
+              void editPrompt(localDetail.prompt.id);
             }}
             copying={copy.busy || editingDisabled || busy}
             onCopy={() => {
@@ -469,7 +489,7 @@ export const DownloadedLibrary = (props: LibraryProps) => {
           <EmptyDetail hint={t("chooseAPromptOnTheLeftOrOpenTheQuick")} />
         )}
         {localDetail && organization ? (
-          <div className="wf-meta">
+          <div className="wf-meta max-h-[40dvh] overflow-y-auto">
             <PromptOrganization
               account={account}
               value={localDetail}

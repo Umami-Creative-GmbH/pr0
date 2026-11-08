@@ -1,0 +1,8 @@
+{
+  "recordedAt": "2026-11-08T12:16:52.4440826Z",
+  "classification": "Failed supporting first optimization; stopped before the bounded transaction-cache rerun",
+  "indexedPromptsObservedBeforeStop": 2400,
+  "elapsedMs": 220476.6098,
+  "targetMs": 120000,
+  "completed": false
+}

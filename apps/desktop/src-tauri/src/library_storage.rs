@@ -8,6 +8,7 @@ pub struct LibraryStore {
     instance: String,
     account: String,
     recovery_error: Option<String>,
+    search_organization: Option<super::search_query::OrganizationCache>,
 }
 pub(crate) fn io(error: rusqlite::Error) -> String {
     match error.sqlite_error_code() {
@@ -38,6 +39,7 @@ impl LibraryStore {
             }
         })?;
         self.recovery_error = None;
+        self.search_organization = None;
         Ok(())
     }
     pub fn search(
@@ -46,7 +48,8 @@ impl LibraryStore {
         cancelled: &impl Fn() -> bool,
     ) -> Result<super::search_contract::SearchPage, String> {
         let tx = self.db.transaction().map_err(io)?;
-        let result = super::search_query::search(&tx, request, cancelled)?;
+        let result =
+            super::search_query::search(&tx, request, cancelled, &mut self.search_organization)?;
         tx.commit().map_err(io)?;
         Ok(result)
     }
@@ -87,6 +90,7 @@ impl LibraryStore {
         Ok(Self {
             db,
             recovery_error,
+            search_organization: None,
             instance: instance.into(),
             account: account.into(),
         })

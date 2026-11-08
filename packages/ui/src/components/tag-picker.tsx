@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { useTranslations } from "../hooks/use-translations";
 import { localizedLabel } from "../lib/i18n";
 import type { CollectionOption } from "./collection-picker";
+import { PickerOptions } from "./picker-options";
 import { PickerSearch } from "./picker-search";
 
 export const TagPicker = ({
@@ -55,52 +56,56 @@ export const TagPicker = ({
           </button>
         ))}
       </div>
-      <PickerSearch count={tags.length}>
-        <label
-          className={compact ? "sr-only" : "wf-hint mt-2 block"}
-          htmlFor={id}
-        >
-          {t("search")} {localizedLabel(label)}
-        </label>
-        <input
-          id={id}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="mt-1 w-full text-sm"
-          placeholder={
-            compact ? t("searchValue", [localizedLabel(label)]) : undefined
-          }
-        />
-      </PickerSearch>
-      <div
-        className={compact ? "wf-chips" : "wf-chips max-h-48 overflow-y-auto"}
+      <PickerOptions
+        compact={compact}
+        count={tags.length}
+        label={t("valueOptions", [label])}
       >
-        {visible.map((tag) => (
-          <label key={tag.id} className="wf-chip" data-kind="tag">
-            <input
-              type="checkbox"
-              checked={selected.has(tag.id)}
-              onChange={(event) =>
-                onChange(
-                  event.target.checked
-                    ? [...value, tag.id]
-                    : value.filter((entry) => entry !== tag.id)
-                )
-              }
-            />
-            <span>
-              <span aria-hidden="true">#</span>
-              {tag.name}
-              <span className="sr-only">
-                {" "}
-                · {tag.totalCount} {t("total2")} {tag.activeCount} {t("active")}{" "}
-                {tag.archivedCount} {t("archived2")}
-              </span>
-            </span>
-            <small aria-hidden="true">{tag.totalCount}</small>
+        <PickerSearch count={tags.length}>
+          <label
+            className={compact ? "sr-only" : "wf-hint mt-2 block"}
+            htmlFor={id}
+          >
+            {t("search")} {localizedLabel(label)}
           </label>
-        ))}
-      </div>
+          <input
+            id={id}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="mt-1 w-full text-sm"
+            placeholder={
+              compact ? t("searchValue", [localizedLabel(label)]) : undefined
+            }
+          />
+        </PickerSearch>
+        <div className="wf-chips max-h-48 overflow-y-auto">
+          {visible.map((tag) => (
+            <label key={tag.id} className="wf-chip" data-kind="tag">
+              <input
+                type="checkbox"
+                checked={selected.has(tag.id)}
+                onChange={(event) =>
+                  onChange(
+                    event.target.checked
+                      ? [...value, tag.id]
+                      : value.filter((entry) => entry !== tag.id)
+                  )
+                }
+              />
+              <span>
+                <span aria-hidden="true">#</span>
+                {tag.name}
+                <span className="sr-only">
+                  {" "}
+                  · {tag.totalCount} {t("total2")} {tag.activeCount}{" "}
+                  {t("active")} {tag.archivedCount} {t("archived2")}
+                </span>
+              </span>
+              <small aria-hidden="true">{tag.totalCount}</small>
+            </label>
+          ))}
+        </div>
+      </PickerOptions>
     </fieldset>
   );
 };
