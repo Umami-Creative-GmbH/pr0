@@ -1,6 +1,8 @@
 {
-  "recordedAt": "2026-11-08T23:13:58.728Z",
-  "classification": "Supporting public native search with an unavailable temporary volume and deliberately incomplete but structurally valid content postings. A private two-prompt fixture; not a capacity or installed-build certification.",
+  "recordedAt": "2026-11-08T23:33:19.787Z",
+  "classification": "Supporting public native search with deliberately incomplete content postings and either an unavailable temporary volume or a test-only SQLite snapshot page quota. The latter forces real SQLITE_FULL during backup without filling the host disk. Private two-prompt fixture; no capacity certification.",
+  "mode": "unavailable-volume",
+  "snapshotDiskFull": false,
   "releaseCriteriaMet": false,
   "queries": 3,
   "postingsStillRequireRecovery": true,

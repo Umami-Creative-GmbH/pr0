@@ -1,6 +1,6 @@
 # Proposed startup validation change for #65 / PR #119
 
-Status: **explicitly approved by the user; implemented, with final capacity validation in progress**. Automatic approval review initially blocked the production redesign. The user then approved this concrete plan, including background snapshots, exact fallback and revision-matched trust.
+Status: **explicitly approved by the user; implemented and measured; release capacity gates remain open**. Automatic approval review initially blocked the production redesign. The user then approved this concrete plan, including background snapshots, exact fallback and revision-matched trust.
 
 ## Evidence and decision
 
@@ -33,3 +33,7 @@ SQLite's [unnamed temporary databases](https://www.sqlite.org/inmemorydb.html#te
 ## Risks to review
 
 This adds native concurrency and temporary disk I/O. The main correctness risks are trusting a stale snapshot, allowing unverified postings to hide matches, blocking durable saves during copying, and retaining account data after closure. The user explicitly approved this design before implementation. The proposal does not relax integrity checking or change the release budgets.
+
+## Collected result
+
+The focused public native startup assertion passes. The complete supporting desktop run and separate real UI probe still fail UI startup, search and residency targets. All fourteen WebView regressions and the 176-test release native suite pass. The missing-volume and snapshot-full failure-path checks both retain complete exact results. See [the validation report](capacity-65.md#affected-desktop-workload-after-background-validation) for complete measurements and remaining release gates. This implements the approved design; it does not certify issue #65.

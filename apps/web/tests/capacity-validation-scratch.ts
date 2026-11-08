@@ -11,7 +11,11 @@ import { downloadStatusSchema } from "@pr0/api-contract/snapshots";
 import { capacityIdentity } from "./capacity-snapshot";
 import { localNativeWorker } from "./local-native-worker";
 
-const [output] = process.argv.slice(2);
+const [output, mode = "unavailable-volume"] = process.argv.slice(2);
+assert.ok(
+  ["unavailable-volume", "snapshot-full"].includes(mode),
+  "Unknown scratch failure mode"
+);
 assert.ok(output, "Pass output JSON path");
 const control = await mkdtemp(
   path.join(tmpdir(), "pr0-validation-scratch-65-")
@@ -21,7 +25,9 @@ await mkdir(directory);
 const evidence = {
   recordedAt: new Date().toISOString(),
   classification:
-    "Supporting public native search with an unavailable temporary volume and deliberately incomplete but structurally valid content postings. A private two-prompt fixture; not a capacity or installed-build certification.",
+    "Supporting public native search with deliberately incomplete content postings and either an unavailable temporary volume or a test-only SQLite snapshot page quota. The latter forces real SQLITE_FULL during backup without filling the host disk. Private two-prompt fixture; no capacity certification.",
+  mode,
+  snapshotDiskFull: false,
   releaseCriteriaMet: false,
   queries: 0,
   postingsStillRequireRecovery: false,
@@ -53,12 +59,30 @@ try {
     false,
     "release",
     false,
-    { TEMP: missing, TMP: missing }
+    mode === "snapshot-full"
+      ? {
+          PR0_SEARCH_VALIDATION_TEST_MAX_PAGES: "1",
+          PR0_SEARCH_VALIDATION_TEST_GATE: control,
+        }
+      : { TEMP: missing, TMP: missing }
   );
   assert.equal(
     downloadStatusSchema.parse(await native.command("library_status")).complete,
     true
   );
+  if (mode === "snapshot-full") {
+    const marker = path.join(control, "backup-disk-full");
+    const deadline = performance.now() + 10_000;
+    while (!(await Bun.file(marker).exists())) {
+      assert.ok(
+        performance.now() < deadline,
+        "Snapshot backup did not hit SQLITE_FULL"
+      );
+      await Bun.sleep(5);
+    }
+    assert.equal(await Bun.file(marker).text(), "SQLITE_FULL");
+    evidence.snapshotDiskFull = true;
+  }
   for (let sample = 0; sample < 3; sample += 1) {
     const page = desktopSearchPageSchema.parse(
       await native.command("library_search", {

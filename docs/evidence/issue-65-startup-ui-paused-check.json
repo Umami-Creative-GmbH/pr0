@@ -4,10 +4,6 @@
   "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
   "browserDefaultsPreserved": true,
   "releaseCriteriaMet": false,
-  "samplesMs": [
-    4074.5383999999995,
-    2429.6175000000003,
-    4559.914400000001
-  ],
+  "samplesMs": [4074.5383999999995, 2429.6175000000003, 4559.914400000001],
   "failure": "AssertionError [ERR_ASSERTION]: A process-cold UI open exceeds three seconds"
 }

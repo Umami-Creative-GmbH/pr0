@@ -95,3 +95,25 @@ pub fn before_field(field: &str) {
         }
     }
 }
+
+// Force a real SQLite backup SQLITE_FULL without filling the host volume.
+pub fn before_backup(snapshot: &rusqlite::Connection) -> Result<(), String> {
+    if std::env::var("PR0_SEARCH_VALIDATION_TEST_MAX_PAGES").as_deref() == Ok("1") {
+        snapshot
+            .pragma_update(None, "max_page_count", 1)
+            .map_err(super::super::library_storage::io)?;
+    }
+    Ok(())
+}
+pub fn backup_error(error: &rusqlite::Error) -> Result<(), String> {
+    if error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull) {
+        if let Ok(directory) = std::env::var("PR0_SEARCH_VALIDATION_TEST_GATE") {
+            std::fs::write(
+                std::path::PathBuf::from(directory).join("backup-disk-full"),
+                b"SQLITE_FULL",
+            )
+            .map_err(|_| "validation_test_gate")?;
+        }
+    }
+    Ok(())
+}

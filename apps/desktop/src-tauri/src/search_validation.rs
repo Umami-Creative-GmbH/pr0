@@ -120,13 +120,20 @@ fn validate(
             return Err("operation_cancelled".into());
         }
     }
+    #[cfg(test)]
+    testing::before_backup(&snapshot)?;
     {
         let backup = Backup::new(&source, &mut snapshot).map_err(io)?;
         loop {
             if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
                 return Err("operation_cancelled".into());
             }
-            match backup.step(128).map_err(io)? {
+            let step = backup.step(128);
+            #[cfg(test)]
+            if let Err(error) = &step {
+                testing::backup_error(error)?;
+            }
+            match step.map_err(io)? {
                 StepResult::Done => break,
                 StepResult::Busy | StepResult::Locked => {
                     std::thread::sleep(Duration::from_millis(5))
