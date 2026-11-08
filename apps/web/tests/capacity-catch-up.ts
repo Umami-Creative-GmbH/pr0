@@ -11,6 +11,68 @@ import type { MutationEnvelope } from "@pr0/api-contract/prompts";
 import { capacityPhrase } from "./capacity-corpus";
 import type { CapacityServiceInstance } from "./capacity-service-fixture";
 
+const deliverCapacityBatch = async (
+  instance: CapacityServiceInstance,
+  cookie: string,
+  identity: Omit<MutationEnvelope, "operations">,
+  operations: MutationEnvelope["operations"],
+  started: number
+) => {
+  let pending = operations;
+  let throttled = 0;
+  while (pending.length) {
+    assert.ok(
+      performance.now() - started < 120_000,
+      "Catch-up retry deadline exceeded"
+    );
+    const envelope: MutationEnvelope = { ...identity, operations: pending };
+    assert.ok(utf8Bytes(JSON.stringify(envelope)) <= 4_194_304);
+    const response = await instance.request(
+      "/api/v1/sync/mutations",
+      envelope,
+      cookie
+    );
+    let delay = 0;
+    if (response.status === 429 || response.status === 503) {
+      delay = Number(response.headers.get("Retry-After"));
+      assert.ok(delay > 0, "Catch-up refusal needs a bounded retry delay");
+      await response.body?.cancel();
+    } else {
+      assert.equal(response.status, 200, await response.clone().text());
+      const result = mutationResponseSchema.parse(await response.json());
+      assert.equal(result.results.length, pending.length);
+      const retry: MutationEnvelope["operations"] = [];
+      for (const [index, receipt] of result.results.entries()) {
+        const operation = pending[index];
+        assert.ok(operation);
+        if (receipt.status === "accepted") {
+          assert.equal(receipt.operationId, operation.operationId);
+          assert.ok(
+            "promptId" in receipt &&
+              "promptId" in operation &&
+              receipt.promptId === operation.promptId
+          );
+        } else {
+          assert.equal(receipt.error.operationId, operation.operationId);
+          assert.ok(receipt.error.retryable, JSON.stringify(receipt.error));
+          retry.push(operation);
+          delay = Math.max(delay, receipt.error.retryAfter ?? 1);
+        }
+      }
+      pending = retry;
+    }
+    if (delay) {
+      assert.ok(
+        performance.now() - started + delay * 1000 <= 120_000,
+        "Catch-up retry exceeds deadline"
+      );
+      throttled += 1;
+      await Bun.sleep(delay * 1000);
+    }
+  }
+  return throttled;
+};
+
 export const measureCapacityCatchUp = async (
   instance: CapacityServiceInstance,
   cookie: string
@@ -52,38 +114,17 @@ export const measureCapacityCatchUp = async (
   const started = performance.now();
   let throttled = 0;
   for (let offset = 0; offset < operations.length; offset += 100) {
-    const batch = operations.slice(offset, offset + 100);
-    const envelope: MutationEnvelope = { ...identity, operations: batch };
-    assert.ok(utf8Bytes(JSON.stringify(envelope)) <= 4_194_304);
-    while (true) {
-      const response = await instance.request(
-        "/api/v1/sync/mutations",
-        envelope,
-        cookie
-      );
-      if (response.status === 429 || response.status === 503) {
-        const delay = Number(response.headers.get("Retry-After"));
-        assert.ok(
-          delay > 0 && performance.now() - started < 120_000,
-          "Catch-up stalled without a bounded retry"
-        );
-        throttled += 1;
-        await response.body?.cancel();
-        await Bun.sleep(delay * 1000);
-        continue;
-      }
-      assert.equal(response.status, 200, await response.clone().text());
-      const result = mutationResponseSchema.parse(await response.json());
-      assert.equal(result.results.length, batch.length);
-      for (const [index, receipt] of result.results.entries()) {
-        assert.ok(
-          receipt.status === "accepted" &&
-            receipt.operationId === batch[index]?.operationId,
-          "Catch-up has unacknowledged work"
-        );
-      }
-      break;
-    }
+    // Match the default 200-operation/10-second burst budget without disabling it.
+    await Bun.sleep(
+      Math.max(0, started + (offset / 100) * 5000 - performance.now())
+    );
+    throttled += await deliverCapacityBatch(
+      instance,
+      cookie,
+      identity,
+      operations.slice(offset, offset + 100),
+      started
+    );
   }
   const elapsedMs = performance.now() - started;
   const ids = new Set<string>();
@@ -122,6 +163,7 @@ export const measureCapacityCatchUp = async (
     acknowledged: operations.length,
     logicalTextBytes: 10_485_760,
     throttled,
+    minimumBatchIntervalMs: 5000,
     classification:
       "REST delivery of queued creates; does not measure the native durable outbox or shaped online network",
   };

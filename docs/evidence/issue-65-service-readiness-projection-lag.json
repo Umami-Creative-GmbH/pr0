@@ -1,0 +1,59 @@
+{
+  "recordedAt": "2026-11-08T14:14:40.6342821Z",
+  "classification": "Supporting availability observation during the fixed-arrival service run; health readiness is separate from successful timed library requests",
+  "health": {
+    "Status": "healthy",
+    "FailingStreak": 0,
+    "Log": [
+      {
+        "Start": "2026-11-08T14:12:23.389330133Z",
+        "End": "2026-11-08T14:12:23.42350599Z",
+        "ExitCode": 1,
+        "Output": ""
+      },
+      {
+        "Start": "2026-11-08T14:12:53.423760249Z",
+        "End": "2026-11-08T14:12:53.475441063Z",
+        "ExitCode": 1,
+        "Output": ""
+      },
+      {
+        "Start": "2026-11-08T14:13:23.475331227Z",
+        "End": "2026-11-08T14:13:23.515760352Z",
+        "ExitCode": 0,
+        "Output": ""
+      },
+      {
+        "Start": "2026-11-08T14:13:53.515909827Z",
+        "End": "2026-11-08T14:13:53.560934398Z",
+        "ExitCode": 0,
+        "Output": ""
+      },
+      {
+        "Start": "2026-11-08T14:14:23.560185867Z",
+        "End": "2026-11-08T14:14:23.603691551Z",
+        "ExitCode": 0,
+        "Output": ""
+      }
+    ]
+  },
+  "internalReadiness": {
+    "status": 503,
+    "body": {
+      "status": "unavailable",
+      "checks": {
+        "schema": "ready",
+        "deletionReplay": "ready",
+        "email": "ready",
+        "search": "search_preparing"
+      }
+    }
+  },
+  "precedingObservation": {
+    "status": "unhealthy",
+    "failingStreak": 33,
+    "lastCheckEndedAt": "2026-11-08T14:12:53.475441063Z",
+    "source": "docker inspect during this same run, before the retained healthy observation"
+  },
+  "interpretation": "Point-in-time readiness fluctuates while current index revision catches up with library writes. The subsequent healthy Docker state and direct 503 probe are both retained; no continuously healthy claim is made."
+}

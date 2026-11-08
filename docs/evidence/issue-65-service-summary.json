@@ -1,0 +1,48 @@
+{
+  "observedAt": "2026-11-08T14:28:33.411Z",
+  "source": "docs/evidence/issue-65-service.json",
+  "classification": "Supporting workload summary; the source passed flag covers its measured subset, not complete issue-65 release certification",
+  "preparedAccounts": 1000,
+  "serverBun": "1.4.4",
+  "phases": [
+    {
+      "phase": "sustained",
+      "arrivals": 18000,
+      "statuses": {
+        "200": 18000
+      },
+      "failed": 0,
+      "dispatchesOver100Ms": 23,
+      "p95ResponseMs": 60.15520000003744,
+      "maxResponseMs": 532.2235999999994,
+      "p95DispatchDelayMs": 1.3273000000044703,
+      "maxDispatchDelayMs": 517.2332000001334,
+      "maxResponseBytes": 63210
+    },
+    {
+      "phase": "burst",
+      "arrivals": 1800,
+      "statuses": {
+        "200": 1800
+      },
+      "failed": 0,
+      "dispatchesOver100Ms": 4,
+      "p95ResponseMs": 65.40850000013597,
+      "maxResponseMs": 246.88119999994524,
+      "p95DispatchDelayMs": 1.3067000000737607,
+      "maxDispatchDelayMs": 214.12630000011995,
+      "maxResponseBytes": 63210
+    }
+  ],
+  "resourceSamples": 58,
+  "failure": "AssertionError [ERR_ASSERTION]: Catch-up has unacknowledged work",
+  "sourcePassed": false,
+  "resources": {
+    "samples": 58,
+    "collectionErrors": 0,
+    "allResidentContainersCounted": true,
+    "peakSampledDockerWorkingBytes": 2240817397.76,
+    "peakSampledDockerCpuPercentOfTwoCpus": 33.25,
+    "interpretation": "Docker stats reports rounded working memory with inactive file cache excluded; this is not a hard process-commit peak or a dedicated-machine measurement."
+  }
+}

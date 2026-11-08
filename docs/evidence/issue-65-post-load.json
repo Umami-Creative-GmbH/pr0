@@ -1,0 +1,126 @@
+{
+  "recordedAt": "2026-11-08T14:39:30.935Z",
+  "releaseCriteriaMet": false,
+  "classification": "Separate post-load supplement on the retained fixture. Account 18 receives 1000 fresh creates; account 19 retains the original partial attempt. Timed fixed-arrival evidence is unchanged. This is not native queued-edit or network-shaped validation.",
+  "failure": "",
+  "readinessFailure": "",
+  "verification": [
+    {
+      "account": 0,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 1,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 2,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 3,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 4,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 5,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 6,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 7,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 8,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 9,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 10,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 11,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 12,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 13,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 14,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 15,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 16,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 17,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 18,
+      "expected": 198,
+      "actual": 198
+    },
+    {
+      "account": 19,
+      "expected": 198,
+      "actual": 198
+    }
+  ],
+  "catchUp": {
+    "elapsedMs": 46033.272300000004,
+    "acknowledged": 1000,
+    "logicalTextBytes": 10485760,
+    "throttled": 2,
+    "minimumBatchIntervalMs": 5000,
+    "classification": "REST delivery of queued creates; does not measure the native durable outbox or shaped online network"
+  },
+  "storage": {
+    "recordedAt": "2026-11-08T14:40:23.521Z",
+    "primary": "7120994940\t/var/lib/postgresql/data\n",
+    "ledgerA": "48353916\t/var/lib/postgresql/data\n",
+    "ledgerB": "48353916\t/var/lib/postgresql/data\n",
+    "search": "11328503808\t/var/lib/pr0-search\n",
+    "temporary": "0\t/tmp\n",
+    "classification": "Apparent bytes of service data directories, including PostgreSQL WAL/global metadata, both deletion ledgers and web scratch; excludes container images, Docker filesystem allocation and backup volume. Shared disk has no enforced 64-GiB quota."
+  }
+}

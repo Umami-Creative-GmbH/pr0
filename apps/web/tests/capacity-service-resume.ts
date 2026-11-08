@@ -10,7 +10,8 @@ import type { CapacityServiceInstance } from "./capacity-service-fixture";
 import { selfHostingPassword } from "./self-hosting-fixture";
 
 export const resumeCapacityService = async (
-  report: string
+  report: string,
+  allowCatchUpProgress = false
 ): Promise<CapacityServiceInstance> => {
   const retained = z
     .object({
@@ -108,7 +109,20 @@ export const resumeCapacityService = async (
     "-c",
     "SELECT count(*)||':'||sum(text_bytes)||':'||sum(prompt_count) FROM library"
   );
-  assert.equal(counts.trim(), "1000:10737418240:109900");
+  if (allowCatchUpProgress) {
+    const [accounts, bytes, prompts] = counts.trim().split(":").map(Number);
+    assert.equal(accounts, 1000);
+    assert.ok(
+      bytes !== undefined &&
+        bytes >= 10_737_418_240 &&
+        bytes <= 10_737_418_240 + 2 * 10_485_760
+    );
+    assert.ok(
+      prompts !== undefined && prompts >= 109_900 && prompts <= 111_900
+    );
+  } else {
+    assert.equal(counts.trim(), "1000:10737418240:109900");
+  }
   return {
     origin,
     project,
@@ -144,10 +158,14 @@ export const resumeCapacityService = async (
     },
     async ready(expectedStatus = 200) {
       for (let attempt = 0; attempt < 100; attempt += 1) {
-        const response = await request("/api/v1/ready");
-        await response.body?.cancel();
-        if (response.status === expectedStatus) {
-          return;
+        try {
+          const response = await request("/api/v1/ready");
+          await response.body?.cancel();
+          if (response.status === expectedStatus) {
+            return;
+          }
+        } catch {
+          // The restarted container may not have bound its HTTP socket yet.
         }
         await Bun.sleep(500);
       }
