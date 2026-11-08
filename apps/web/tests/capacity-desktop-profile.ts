@@ -15,6 +15,24 @@ const processSchema = z.array(
     privateBytes: z.number(),
   })
 );
+export const snapshotDesktopProcesses = async (processId: number) => {
+  const child = Bun.spawn(
+    [
+      "powershell.exe",
+      "-NoProfile",
+      "-File",
+      "apps/web/tests/capacity-process-snapshot.ps1",
+      "-NativeProcessId",
+      String(processId),
+    ],
+    { stdout: "pipe", stderr: "inherit" }
+  );
+  const processes = processSchema.parse(
+    await new Response(child.stdout).json()
+  );
+  assert.equal(await child.exited, 0);
+  return processes;
+};
 export interface ProfilePhase {
   name: string;
   elapsedMs: number;
@@ -29,21 +47,7 @@ export const profileDesktopPhase = async (
   started: number,
   automationConnected = true
 ): Promise<ProfilePhase> => {
-  const child = Bun.spawn(
-    [
-      "powershell.exe",
-      "-NoProfile",
-      "-File",
-      "apps/web/tests/capacity-process-snapshot.ps1",
-      "-NativeProcessId",
-      String(view.processId),
-    ],
-    { stdout: "pipe", stderr: "inherit" }
-  );
-  const processes = processSchema.parse(
-    await new Response(child.stdout).json()
-  );
-  assert.equal(await child.exited, 0);
+  const processes = await snapshotDesktopProcesses(view.processId);
   const pages = [];
   for (const page of automationConnected
     ? (view.browser.contexts()[0]?.pages() ?? [])
@@ -94,6 +98,7 @@ const runProfile = async () => {
     hostMemoryBytes: totalmem(),
     startupMs: 0,
     releaseCriteriaMet: false,
+    browserDefaultsPreserved: true,
     phases,
     failure: "",
   };

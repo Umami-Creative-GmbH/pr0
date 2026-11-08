@@ -9,5 +9,12 @@
     "networkResourceDataObjects": 2624,
     "liveJavaScriptHeapBytes": 13522968
   },
-  "hypothesis": "Inspector network response retention contributes to the large renderer footprint. Test by disconnecting browser automation before the settled interval; not yet proven by this dump alone."
+  "hypothesis": "Inspector network response retention may contribute to the renderer footprint, but disconnecting automation did not reduce the immediate private-commit sample. Buffer ownership and longer-term retention remain unresolved; do not attribute the whole footprint to live React state or instrumentation alone.",
+  "observerControl": {
+    "unobservedHiddenBytes": 337014784,
+    "observedHiddenBytes": 401211392,
+    "requests": 100,
+    "differenceBytes": 64196608,
+    "note": "One paired diagnostic found higher private commit with Playwright attached. Separate controls show substantial GPU-process variation, so this is supporting evidence of observer overhead, not a stable causal estimate or an explanation of the entire full-workload footprint."
+  }
 }

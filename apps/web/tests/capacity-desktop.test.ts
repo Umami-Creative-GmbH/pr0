@@ -154,6 +154,7 @@ interface DesktopCapacityEvidence {
   automationDisconnectedBeforeResidency?: boolean;
   passed: boolean;
   releaseCriteriaMet: false;
+  browserDefaultsPreserved: true;
   interactionProgress?: { launcher: number[]; copy: number[]; save: number[] };
   initialDownloadMs?: number;
   processColdUiMs?: number;
@@ -197,6 +198,7 @@ test("maximum Unicode library preserves complete results after restart and recor
     results,
     passed: false,
     releaseCriteriaMet: false,
+    browserDefaultsPreserved: true,
     fixtureDirectory: directory,
     reused: Boolean(reused),
   };
@@ -300,8 +302,7 @@ test("maximum Unicode library preserves complete results after restart and recor
     if (process.env.PR0_CAPACITY_RESIDENCY === "true") {
       evidence.residencyState = await prepareDesktopResidency(view.page);
       await profile("hidden-with-automation");
-      // Inspector network response buffers belong to the measurement apparatus.
-      // Disconnect without closing the native-owned WebViews, then settle again.
+      // Detach the observer before settling; native-owned WebViews stay alive.
       await view.browser.close();
       automationConnected = false;
       evidence.automationDisconnectedBeforeResidency = true;

@@ -1,0 +1,227 @@
+{
+  "recordedAt": "2026-11-08T21:50:14.559Z",
+  "classification": "Supporting diagnostic: 100 identical public native search IPC requests with fixed visible UI, then 30 seconds hidden. No Copy/Save journey, network shaping or ten-minute residency certification. No forced GC.",
+  "releaseCriteriaMet": false,
+  "observed": false,
+  "browserDefaultsPreserved": true,
+  "observerAttachedAt": 0,
+  "executable": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-de28390caae013fb.exe",
+  "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+  "phases": [
+    {
+      "event": {
+        "phase": "ready",
+        "at": 1794174627563,
+        "completedQueries": 0,
+        "elements": 1162,
+        "error": ""
+      },
+      "observedAt": 1794174628201,
+      "processes": [
+        {
+          "id": 89324,
+          "parent": 77680,
+          "name": "pr0_desktop_lib-de28390caae013fb.exe",
+          "role": "native",
+          "privateBytes": 31694848
+        },
+        {
+          "id": 33556,
+          "parent": 89324,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 54349824
+        },
+        {
+          "id": 89588,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2838528
+        },
+        {
+          "id": 29528,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 215478272
+        },
+        {
+          "id": 26652,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12517376
+        },
+        {
+          "id": 75688,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7688192
+        },
+        {
+          "id": 100868,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 88887296
+        },
+        {
+          "id": 34148,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 34496512
+        }
+      ],
+      "totalPrivateBytes": 447950848
+    },
+    {
+      "event": {
+        "phase": "queried",
+        "at": 1794174632572,
+        "completedQueries": 100,
+        "elements": 1162,
+        "error": ""
+      },
+      "observedAt": 1794174633123,
+      "processes": [
+        {
+          "id": 89324,
+          "parent": 77680,
+          "name": "pr0_desktop_lib-de28390caae013fb.exe",
+          "role": "native",
+          "privateBytes": 32182272
+        },
+        {
+          "id": 33556,
+          "parent": 89324,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 52035584
+        },
+        {
+          "id": 89588,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2838528
+        },
+        {
+          "id": 29528,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 287576064
+        },
+        {
+          "id": 26652,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12566528
+        },
+        {
+          "id": 75688,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7688192
+        },
+        {
+          "id": 100868,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 164450304
+        },
+        {
+          "id": 34148,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 34500608
+        }
+      ],
+      "totalPrivateBytes": 593838080
+    },
+    {
+      "event": {
+        "phase": "hidden",
+        "at": 1794174662622,
+        "completedQueries": 100,
+        "elements": 1162,
+        "error": ""
+      },
+      "observedAt": 1794174663141,
+      "processes": [
+        {
+          "id": 89324,
+          "parent": 77680,
+          "name": "pr0_desktop_lib-de28390caae013fb.exe",
+          "role": "native",
+          "privateBytes": 31682560
+        },
+        {
+          "id": 33556,
+          "parent": 89324,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 51900416
+        },
+        {
+          "id": 89588,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3760128
+        },
+        {
+          "id": 29528,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 282468352
+        },
+        {
+          "id": 26652,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12554240
+        },
+        {
+          "id": 75688,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7831552
+        },
+        {
+          "id": 100868,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 72507392
+        },
+        {
+          "id": 34148,
+          "parent": 33556,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 32808960
+        }
+      ],
+      "totalPrivateBytes": 495513600
+    }
+  ],
+  "browserErrors": [],
+  "failure": "",
+  "elapsedMs": 48829.2995,
+  "experiment": {
+    "change": "Wrap the 200 collection-navigation choices in the existing compact PickerOptions disclosure. Candidate source retained in issue-65-navigation-probe.patch; reverted in production.",
+    "outcome": "DOM elements fell from 2167 to 1162, but hidden total private commit rose from 337014784 to 495513600 bytes. GPU-process private commit rose from 86863872 to 282468352 bytes. No material total-memory benefit established. Candidate UI regression test passed before revert.",
+    "retained": false
+  }
+}

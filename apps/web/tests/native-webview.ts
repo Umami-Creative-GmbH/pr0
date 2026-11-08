@@ -47,7 +47,10 @@ export const nativeWebview = async (
     if (!ready) {
       throw new Error("WebView2 did not start");
     }
-    const browser = await chromium.connectOverCDP(endpoint);
+    // Keep WebView2 focus, fonts and media settings faithful to the native app.
+    const browser = await chromium.connectOverCDP(endpoint, {
+      noDefaults: true,
+    });
     const [context] = browser.contexts();
     if (!context) {
       throw new Error("WebView2 has no application context");
