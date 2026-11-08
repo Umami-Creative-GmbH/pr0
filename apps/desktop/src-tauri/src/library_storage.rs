@@ -143,14 +143,20 @@ impl LibraryStore {
             .query_row("PRAGMA data_version", [], |row| row.get(0))
             .map_err(io)?;
         match outcome {
-            Outcome::Valid(checked, epoch) if checked == revision && epoch == data_version => {
+            Outcome::Valid {
+                projection_revision,
+                source_data_version,
+            } if projection_revision == revision && source_data_version == data_version => {
                 self.search_trusted = true;
                 self.search_validation = None;
             }
-            Outcome::Corrupt(checked, epoch) if checked == revision && epoch == data_version => {
+            Outcome::Corrupt {
+                projection_revision,
+                source_data_version,
+            } if projection_revision == revision && source_data_version == data_version => {
                 self.recover_search()?;
             }
-            Outcome::Valid(_, _) | Outcome::Corrupt(_, _) => {
+            Outcome::Valid { .. } | Outcome::Corrupt { .. } => {
                 let path = self.db.path().ok_or("storage_unavailable")?;
                 self.search_validation = Some(Validation::start(PathBuf::from(path), data_version));
             }

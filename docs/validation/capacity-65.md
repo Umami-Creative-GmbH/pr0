@@ -124,6 +124,8 @@ The code-review skill used separate Standards and Spec agents twice: initially f
 
 ### Standards
 
+The startup follow-up review of 7f68df7..53cbf53 found zero hard documented-standard violations and one optional naming/data-clump heuristic: `Valid(i64, i64)` and `Corrupt(i64, i64)` obscured the distinction between projection revision and SQLite data_version, while `epoch` conflicted with recovery terminology. Both variants now name their `projection_revision` and `source_data_version` fields. The reviewer confirmed native connection ownership, bounded snapshot caches/steps, joined cancellation, test-only hooks, Bun tooling and streamed exact fallback.
+
 The observer follow-up review of d368d56..24d91ac found zero documented-standard violations and zero actionable heuristic findings. The opt-in reporting channel remains test-only, bounded and main-window authorized; shared sampling, Bun tooling and production CSP are preserved.
 
 A separate follow-up Standards agent reviewed 9218fd5..d368d56 and found zero documented-standard violations or actionable heuristic findings. COM interfaces are obtained, used and released inside the UI-thread callback; failures remain best effort.
@@ -131,6 +133,8 @@ A separate follow-up Standards agent reviewed 9218fd5..d368d56 and found zero do
 The final review found zero hard documented-standard violations and one P3 duplication heuristic: the service runner and post-load collector independently counted acknowledged uses with the same traffic-selection formula. A shared workload helper now selects usage traffic and counts accepted uses for both collectors. Evaluating the retained 19,800 samples through that helper preserves exactly 198 accepted uses for each of twenty accounts. No production behavior changed.
 
 ### Spec
+
+The startup follow-up review of 7f68df7..53cbf53 found zero introduced correctness defects, missing approved behavior or scope expansion. It verified consistent private backup, exact scans until revision/data_version validation, preserving recovery, deadline/cache bounds and cancellation/join before closure. Stale results, concurrent text/name/usage writes, scratch failures, account transitions and temporary-file cleanup are covered. Final affected capacity measurements were pending at review time; whole-issue release gaps remain open.
 
 The observer follow-up review of d368d56..24d91ac found zero introduced actionable defects or scope expansion. It confirmed that the unobserved mode has no debugging flag or CDP connection and that the report retains the single-pair and GPU-variation limits. The noDefaults full workload was pending at review time; known release gates remain open.
 

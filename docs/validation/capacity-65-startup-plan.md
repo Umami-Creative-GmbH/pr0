@@ -19,7 +19,7 @@ Keep this behavior inside native search storage; keep public REST and typed nati
 5. A matching-revision corruption result invokes the existing preserving recovery path. Scratch/I/O failure never makes unchecked postings trusted. Continue exact matching where possible and retain explicit recovery errors where it is unavailable.
 6. Account transition, store closure and shutdown cancel and join the job. Interrupt both SQLite connections. Verify temporary-database removal on normal closure and forced process termination; do not leave named copies of account data.
 
-SQLite's [unnamed temporary databases](https://www.sqlite.org/inmemorydb.html#temporary_databases) are private to their connection and removed on close. Force file-backed temporary storage with bounded caches rather than a full in-memory library copy. Windows crash cleanup must still be verified in the implementation.
+SQLite's [unnamed temporary databases](https://www.sqlite.org/inmemorydb.html#temporary_databases) are private to their connection and removed on close. Force file-backed temporary storage with bounded caches rather than a full in-memory library copy. The real maximum-library lifecycle check verifies removal after both graceful exit and forced Windows termination; [raw evidence](../evidence/issue-65-validation-lifecycle.json).
 
 ## Required validation before pushing a production fix
 

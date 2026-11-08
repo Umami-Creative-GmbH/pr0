@@ -19,8 +19,14 @@ use std::{
 
 pub enum Outcome {
     Pending,
-    Valid(i64, i64),
-    Corrupt(i64, i64),
+    Valid {
+        projection_revision: i64,
+        source_data_version: i64,
+    },
+    Corrupt {
+        projection_revision: i64,
+        source_data_version: i64,
+    },
     Unavailable,
 }
 
@@ -153,11 +159,17 @@ fn validate(
             "INSERT INTO local_f_{field}(local_f_{field},rank) VALUES('integrity-check',1);"
         )) {
             return if error.sqlite_error_code() == Some(rusqlite::ErrorCode::DatabaseCorrupt) {
-                Ok(Outcome::Corrupt(revision, data_version))
+                Ok(Outcome::Corrupt {
+                    projection_revision: revision,
+                    source_data_version: data_version,
+                })
             } else {
                 Err(io(error))
             };
         }
     }
-    Ok(Outcome::Valid(revision, data_version))
+    Ok(Outcome::Valid {
+        projection_revision: revision,
+        source_data_version: data_version,
+    })
 }
