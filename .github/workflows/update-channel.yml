@@ -88,6 +88,6 @@ jobs:
           bun -e '
             const url = process.env.COOLIFY_DEPLOY_WEBHOOK;
             const token = process.env.COOLIFY_TOKEN;
-            const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(30000) });
+            const response = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${token}` }, redirect: "error", signal: AbortSignal.timeout(30000) });
             if (!response.ok) throw new Error(`Coolify rejected deployment: HTTP ${response.status}`);
           '
