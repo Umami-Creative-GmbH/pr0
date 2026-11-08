@@ -32,7 +32,7 @@ Raw artifacts retain initial failures:
 - [Desktop baseline](../evidence/issue-65-desktop-baseline.json), [first optimization](../evidence/issue-65-desktop-first-optimization.json), [before query optimization](../evidence/issue-65-desktop-before-query-optimization.json), [before compact snapshot reads](../evidence/issue-65-desktop-before-snapshot-optimization.json), and [latest desktop run](../evidence/issue-65-desktop.json).
 - [Service baseline](../evidence/issue-65-service-baseline.json), [first optimization](../evidence/issue-65-service-first-optimization.json), [provisioning throttle failure](../evidence/issue-65-service-provisioning-failure.json), and [latest service run](../evidence/issue-65-service.json).
 
-The initial native run was stopped after 626 seconds with only 3,900 prompts indexed. An optimized complete download was approximately 128 seconds, still above 120 seconds even without network shaping. The last completed cold UI observation before compact snapshot reads was approximately 14.7 seconds, above three seconds. Common and long searches also exceeded 150 ms in that run. Supporting results cannot be promoted to release certification by omitting these failures.
+The initial native run was stopped after 626 seconds with only 3,900 prompts indexed. An optimized complete download was 126.1 seconds, still above 120 seconds even without network shaping. The last completed cold UI observation before compact snapshot reads was approximately 14.7 seconds, above three seconds. Common and long searches also exceeded 150 ms in that run. Supporting results cannot be promoted to release certification by omitting these failures.
 
 The complete **foreground/offline** ten-minute run is retained separately in [desktop with residency](../evidence/issue-65-desktop-with-residency.json) and [foreground per-process samples](../evidence/issue-65-residency-foreground.json). It failed the memory target: 1,114,820,608 bytes peak sampled private commit (about 1,063 MiB), with 0.335% mean total-host CPU over 600.9 seconds. The final sample still used about 814 MiB. Both surfaces had not been closed, so this is not the specified idle interval. The revised harness hides both through native commands, verifies visibility, allows thirty seconds to settle and records the remaining edit/usage backlog; it still does not start production sync loops. Cold UI took 12.38 seconds; launcher/copy/save p95s were 3,139/159/279 ms, respectively. Search p95s ranged from 150.4 to 219.9 ms. Complete pagination and all twenty copy/save operations succeeded. These failures remain visible; the offline worker and concurrent host activity further limit release interpretation.
 
@@ -75,14 +75,14 @@ The workspace suite passed 145 tests (84 contract, 49 client, seven web and five
 
 ## Review
 
-The code-review skill reviewed the committed diff from f0a1e0d to 5b29320 in separate Standards and Spec agents. Production code has not changed after that review. Subsequent changes correct benchmark collection, permit resuming a prepared disposable service, and record more evidence.
+The code-review skill used separate Standards and Spec agents twice: initially for f0a1e0d..5b29320 and finally for f0a1e0d..ee0ee69. Production code has not changed since the initial review. Later changes correct benchmark collection, permit resuming a prepared disposable service, and retain complete evidence.
 
 ### Standards
 
-No documented-standard breaches or actionable baseline smells. Runtime boundaries, bounded revision-bound caches and transactional persistence are preserved.
+The final review found zero hard documented-standard violations and one P3 duplication heuristic: the service runner and post-load collector independently counted acknowledged uses with the same traffic-selection formula. A shared workload helper now selects usage traffic and counts accepted uses for both collectors. Evaluating the retained 19,800 samples through that helper preserves exactly 198 accepted uses for each of twenty accounts. No production behavior changed.
 
 ### Spec
 
-Two findings: (P1) release acceptance remains incomplete, including the documented memory/latency failures and missing actual native queued-edit reconciliation; (P2) the original residency harness left the library visible, contrary to “close both library and launcher surfaces and measure a continuous ten-minute idle interval” in desktop-process-model.md. P2 is corrected in the collector, and retained foreground observations are labeled explicitly. P1 remains open. No unrequested behavior or concrete preservation/matching regression was found.
+The final review found one P1: release acceptance remains incomplete, including the documented memory/latency failures and missing actual native queued-edit reconciliation. The earlier P2 residency collector finding is corrected: native commands hide both surfaces, visibility is verified and thirty seconds of settling precede sampling. Disabled synchronization and pending work remain disclosed. No new actionable implementation defect or scope expansion was found; catch-up receipt identities and bounded retries, post-restart exact usage checks and constrained fixture resume were verified.
 
-Standards: zero findings. Spec: two findings at review, one collector correction applied and one set of release blockers outstanding.
+Standards: zero hard violations, one P3 heuristic corrected. Spec: one P1 set of release blockers remains open; the earlier P2 collector finding is corrected.

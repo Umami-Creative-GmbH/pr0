@@ -8,6 +8,7 @@ import { measureCapacityCatchUp } from "./capacity-catch-up";
 import { capacityId } from "./capacity-corpus";
 import { resumeCapacityService } from "./capacity-service-resume";
 import { capacityStorage } from "./capacity-storage";
+import { acknowledgedCapacityUses } from "./capacity-usage";
 
 const source = z
   .object({
@@ -86,13 +87,7 @@ try {
     );
     assert.equal(response.status, 200);
     const prompt = promptSchema.parse(await response.json());
-    const expected = source.samples.filter(
-      (sample) =>
-        sample.account === account.number &&
-        sample.status === 200 &&
-        !sample.error &&
-        Math.floor(sample.number / 20) % 5 === 0
-    ).length;
+    const expected = acknowledgedCapacityUses(source.samples, account.number);
     evidence.verification.push({
       account: account.number,
       expected,

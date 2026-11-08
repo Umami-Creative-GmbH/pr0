@@ -17,6 +17,10 @@ import { capacityServiceFixture } from "./capacity-service-fixture";
 import type { CapacityServiceInstance } from "./capacity-service-fixture";
 import { resumeCapacityService } from "./capacity-service-resume";
 import { capacityStorage } from "./capacity-storage";
+import {
+  acknowledgedCapacityUses,
+  isCapacityUsageSample,
+} from "./capacity-usage";
 import { measureCapacityWeb } from "./capacity-web";
 
 interface Sample {
@@ -57,7 +61,7 @@ const requestSample = async (
 ) => {
   const started = performance.now();
   const turn = Math.floor(sample.number / 20);
-  const write = turn % 5 === 0;
+  const write = isCapacityUsageSample(sample.number);
   const operationId = crypto.randomUUID();
   const query = queries[turn % queries.length] ?? "common";
   try {
@@ -369,13 +373,7 @@ try {
     );
     assert.equal(response.status, 200);
     const prompt = promptSchema.parse(await response.json());
-    const acknowledged = samples.filter(
-      (sample) =>
-        sample.account === index &&
-        sample.status === 200 &&
-        !sample.error &&
-        Math.floor(sample.number / 20) % 5 === 0
-    ).length;
+    const acknowledged = acknowledgedCapacityUses(samples, index);
     assert.equal(
       prompt.useCount,
       acknowledged,
