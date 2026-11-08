@@ -14,8 +14,10 @@ import { capacityId } from "./capacity-corpus";
 import { monitorCapacityService } from "./capacity-monitor";
 import type { CapacityResourceSample } from "./capacity-monitor";
 import { capacityServiceFixture } from "./capacity-service-fixture";
+import type { CapacityServiceInstance } from "./capacity-service-fixture";
+import { resumeCapacityService } from "./capacity-service-resume";
+import { capacityStorage } from "./capacity-storage";
 import { measureCapacityWeb } from "./capacity-web";
-import type { SelfHostingInstance } from "./self-hosting-fixture";
 
 interface Sample {
   phase: string;
@@ -49,7 +51,7 @@ const queries = [
   "never-present-6500",
 ];
 const requestSample = async (
-  instance: SelfHostingInstance,
+  instance: CapacityServiceInstance,
   account: LoadAccount,
   sample: Sample
 ) => {
@@ -137,7 +139,7 @@ const requestSample = async (
 };
 
 const runPhase = async (
-  instance: SelfHostingInstance,
+  instance: CapacityServiceInstance,
   accounts: LoadAccount[],
   phase: string,
   rate: number,
@@ -188,7 +190,7 @@ const runPhase = async (
 };
 
 const prepareAccount = async (
-  instance: SelfHostingInstance,
+  instance: CapacityServiceInstance,
   number: number
 ): Promise<LoadAccount> => {
   const cookie = await instance.login(`capacity-${number}@example.test`);
@@ -225,8 +227,22 @@ const prepareAccount = async (
   return account;
 };
 
-const instance = await capacityServiceFixture();
+const resumeIndex = process.argv.indexOf("--resume");
+const resumeReport =
+  resumeIndex === -1 ? undefined : process.argv[resumeIndex + 1];
+assert.ok(
+  resumeIndex === -1 || resumeReport,
+  "--resume requires a retained evidence report"
+);
+const instance = resumeReport
+  ? await resumeCapacityService(resumeReport)
+  : await capacityServiceFixture();
 const samples: Sample[] = [];
+interface ServiceStorageEvidence {
+  before?: Awaited<ReturnType<typeof capacityStorage>>;
+  after?: Awaited<ReturnType<typeof capacityStorage>>;
+}
+const physicalStorage: ServiceStorageEvidence = {};
 const resources: CapacityResourceSample[] = [];
 const resourceController = new AbortController();
 let monitoring: Promise<void> | undefined;
@@ -252,16 +268,22 @@ const evidence = {
   },
   serverBun: "",
   preparedAccounts: 0,
+  resumedFrom: resumeReport ?? null,
   searchStorage: "",
   ledgerStorage: "",
   failure: "",
+  webFailure: "",
   passed: false,
+  releaseCriteriaMet: false,
+  physicalStorage,
   samples,
   resources,
 };
 try {
   process.stdout.write(
-    "Preparing 1000 accounts and 10 GiB; fixture-only database setup.\n"
+    resumeReport
+      ? "Reusing the verified 1000-account/10-GiB fixture and its prepared indexes.\n"
+      : "Preparing 1000 accounts and 10 GiB; fixture-only database setup.\n"
   );
   evidence.seed = await instance.seed();
   evidence.image = await instance.compose("images", "--format", "json");
@@ -274,7 +296,7 @@ try {
   );
   process.stdout.write(evidence.seed.slice(-700));
   const accounts: LoadAccount[] = [];
-  for (let number = 0; number < (smoke ? 20 : 1000); number += 1) {
+  for (let number = 0; number < (resumeReport ? 20 : 1000); number += 1) {
     const account = await prepareAccount(instance, number);
     if (number < 20) {
       accounts.push(account);
@@ -282,14 +304,25 @@ try {
     evidence.preparedAccounts += 1;
     if (number < 20 || number % 20 === 19) {
       process.stdout.write(
-        `Prepared account ${number + 1}/${smoke ? 20 : 1000}\n`
+        `Prepared account ${number + 1}/${resumeReport ? 20 : 1000}\n`
       );
     }
+  }
+  if (resumeReport) {
+    evidence.preparedAccounts = 1000;
+    await instance.ready();
   }
   const [webAccount] = accounts;
   assert.ok(webAccount);
   if (process.argv.includes("--web")) {
-    await measureCapacityWeb(instance, webAccount.cookie);
+    try {
+      await measureCapacityWeb(instance, webAccount.cookie);
+    } catch (error) {
+      evidence.webFailure = String(error);
+      process.stdout.write(
+        "Web supplement failed; continuing the independent service load.\n"
+      );
+    }
     await Bun.sleep(60_000);
   }
   const storage = async () =>
@@ -307,6 +340,7 @@ try {
       `SELECT json_build_object('databaseBytes',pg_database_size(current_database()),'walBytes',(SELECT sum(size) FROM pg_ls_waldir()),'tables',(SELECT json_agg(t) FROM (SELECT relname,pg_total_relation_size(relid) AS bytes FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC) t));`
     );
   evidence.storageBefore = await storage();
+  physicalStorage.before = await capacityStorage(instance);
   monitoring = monitorCapacityService(
     instance,
     resourceController.signal,
@@ -349,6 +383,7 @@ try {
     );
   }
   evidence.storageAfter = await storage();
+  physicalStorage.after = await capacityStorage(instance);
   evidence.containerStats = await instance.compose(
     "stats",
     "--no-stream",
@@ -378,15 +413,16 @@ try {
   );
   evidence.passed =
     !smoke &&
+    !evidence.webFailure &&
     samples.length === 19_800 &&
     samples.every(
       (sample) =>
         !sample.error && sample.status === 200 && sample.dispatchDelayMs <= 100
     ) &&
     catchUp.elapsedMs <= 60_000;
-  if (samples.some((sample) => sample.error)) {
+  if ((!smoke && !evidence.passed) || samples.some((sample) => sample.error)) {
     throw new Error(
-      "The capacity workload recorded failed requests; see per-arrival evidence"
+      "The capacity workload missed measured targets; see per-arrival and supplemental evidence"
     );
   }
 } catch (error) {
@@ -399,7 +435,10 @@ try {
     "docs/evidence/issue-65-service.json",
     `${JSON.stringify({ ...evidence, catchUp }, null, 2)}\n`
   );
-  if (evidence.failure && process.argv.includes("--keep-on-failure")) {
+  if (
+    (evidence.failure || evidence.webFailure) &&
+    process.argv.includes("--keep-on-failure")
+  ) {
     process.stdout.write(
       `Retained disposable fixture ${instance.project} at ${instance.origin}; configuration in ${instance.directory}\n`
     );

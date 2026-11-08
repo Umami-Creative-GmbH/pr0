@@ -16,7 +16,10 @@ import {
   capacityPhrase,
   capacityId,
 } from "./capacity-corpus";
-import { measureDesktopInteractions } from "./capacity-desktop-interactions";
+import {
+  measureDesktopInteractions,
+  prepareDesktopResidency,
+} from "./capacity-desktop-interactions";
 import { capacityIdentity, writeCapacitySnapshot } from "./capacity-snapshot";
 import { capacityP95 } from "./capacity-statistics";
 import { localNativeWorker } from "./local-native-worker";
@@ -147,6 +150,7 @@ interface DesktopCapacityEvidence {
   fixtureDirectory?: string;
   reused?: boolean;
   interactions?: Awaited<ReturnType<typeof measureDesktopInteractions>>;
+  residencyState?: Awaited<ReturnType<typeof prepareDesktopResidency>>;
   residency?: {
     intervalMs: number;
     peakSampledPrivateBytes: number;
@@ -267,6 +271,7 @@ test("maximum Unicode library preserves complete results after restart and recor
     );
     evidence.databaseBytes = database.size;
     if (process.env.PR0_CAPACITY_RESIDENCY === "true") {
+      evidence.residencyState = await prepareDesktopResidency(view.page);
       const sampler = Bun.spawn(
         [
           "powershell.exe",

@@ -12,6 +12,20 @@ import {
   selfHostingFixture,
   selfHostingPassword,
 } from "./self-hosting-fixture";
+import type { SelfHostingInstance } from "./self-hosting-fixture";
+
+export type CapacityServiceInstance = Pick<
+  SelfHostingInstance,
+  | "origin"
+  | "project"
+  | "directory"
+  | "request"
+  | "library"
+  | "login"
+  | "ready"
+  | "compose"
+  | "cleanup"
+> & { seed: () => Promise<string> };
 
 const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
 export const capacityServiceFixture = async () => {

@@ -9,8 +9,8 @@ import { chromium } from "playwright";
 import type { BrowserContext, Page } from "playwright";
 
 import { capacityId } from "./capacity-corpus";
+import type { CapacityServiceInstance } from "./capacity-service-fixture";
 import { capacityP95 } from "./capacity-statistics";
-import type { SelfHostingInstance } from "./self-hosting-fixture";
 
 const benchmarkPage = async (context: BrowserContext) => {
   const page = await context.newPage();
@@ -33,7 +33,7 @@ const painted = async (page: Page) =>
   });
 
 export const measureCapacityWeb = async (
-  instance: SelfHostingInstance,
+  instance: CapacityServiceInstance,
   cookie: string
 ) => {
   const browser = await chromium.launch({
@@ -64,6 +64,8 @@ export const measureCapacityWeb = async (
       await painted(page);
       opens.push(performance.now() - started);
       await page.close();
+      // Separate opens exceed a rapid-refresh burst in the authenticated request budget.
+      await Bun.sleep(8000);
     }
     // Keep separate journey groups within the ordinary authenticated request budget.
     await Bun.sleep(60_000);

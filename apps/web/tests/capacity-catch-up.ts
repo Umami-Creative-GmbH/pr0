@@ -9,10 +9,10 @@ import {
 import type { MutationEnvelope } from "@pr0/api-contract/prompts";
 
 import { capacityPhrase } from "./capacity-corpus";
-import type { SelfHostingInstance } from "./self-hosting-fixture";
+import type { CapacityServiceInstance } from "./capacity-service-fixture";
 
 export const measureCapacityCatchUp = async (
-  instance: SelfHostingInstance,
+  instance: CapacityServiceInstance,
   cookie: string
 ) => {
   const library = await instance.library(cookie);

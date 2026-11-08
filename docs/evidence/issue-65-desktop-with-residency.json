@@ -160,6 +160,7 @@
     "Offline fixture worker; production resident synchronization loops were not started. Pending local edits and usage remain, so this is not the ordinary-sync/no-backlog gate.",
     "Process tree private commit sampled approximately once per second; short-lived peaks can be missed.",
     "Cold UI is one observation, not a p95 distribution.",
-    "Other host validation workloads ran concurrently."
+    "Other host validation workloads ran concurrently.",
+    "The library surface remained open during this sample; this is foreground/offline evidence, not the specified closed-surface idle interval."
   ]
 }

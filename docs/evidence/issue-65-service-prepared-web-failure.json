@@ -1,0 +1,25 @@
+{
+  "recordedAt": "2026-11-08T13:09:55.923Z",
+  "bun": "1.4.4",
+  "smoke": false,
+  "classification": "supporting evidence: shared Linux Docker VM, same two CPUs for all resident services, memory limits sum to 3776 MiB; backing disk is shared and has no 64 GiB hard quota; not a dedicated 2-vCPU/4-GiB/64-GiB machine",
+  "fixture": "1000 accounts, exactly 10737418240 logical UTF-8 bytes, one 10000-prompt/100-MiB library, 20 authenticated active accounts; 80% search and 20% durable usage mutations; no retries during timed load",
+  "seed": "DO\nCREATE TABLE\nINSERT 0 100\nSELECT 1\nINSERT 0 999\nINSERT 0 999\nSELECT 1000\nSELECT 1000\nINSERT 0 1199\nINSERT 0 1999\nSELECT 109900\nINSERT 0 109900\nINSERT 0 299900\nINSERT 0 109900\nINSERT 0 109900\nUPDATE 1000\nDO\nANALYZE\n                                        json_build_object                                         \n--------------------------------------------------------------------------------------------------\n {\"accounts\" : 1000, \"textBytes\" : 10737418240, \"prompts\" : 109900, \"databaseBytes\" : 6192538127}\n(1 row)\n\n",
+  "storageBefore": "",
+  "storageAfter": "",
+  "containerStats": "",
+  "image": "[{\"ID\":\"sha256:996a58e8935ce1b2c481407900a25082dda8104f2d4ac573a71e535a0e3bce75\",\"ContainerName\":\"pr0-self-host-4961c1b5-web-1\",\"Repository\":\"pr0-capacity-65\",\"Tag\":\"latest\",\"Platform\":\"linux/amd64\",\"Size\":457851634,\"Created\":\"2026-11-08T12:51:05.645301499Z\",\"LastTagTime\":\"2026-11-08T12:51:07.006735581Z\"},{\"ID\":\"sha256:030f06031ce5c60913ac9363da1ab0d4be6fd2a78147dd0e1ca0fcac665d6b34\",\"ContainerName\":\"pr0-self-host-4961c1b5-smtp-1\",\"Repository\":\"axllent/mailpit\",\"Tag\":\"\",\"Platform\":\"linux/amd64\",\"Size\":53339431,\"Created\":\"2026-02-24T23:34:25.96395216Z\",\"LastTagTime\":\"2026-11-08T10:59:14.359141353Z\"},{\"ID\":\"sha256:996a58e8935ce1b2c481407900a25082dda8104f2d4ac573a71e535a0e3bce75\",\"ContainerName\":\"pr0-self-host-4961c1b5-mail-1\",\"Repository\":\"pr0-capacity-65\",\"Tag\":\"latest\",\"Platform\":\"linux/amd64\",\"Size\":457851634,\"Created\":\"2026-11-08T12:51:05.645301499Z\",\"LastTagTime\":\"2026-11-08T12:51:07.006735581Z\"},{\"ID\":\"sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca\",\"ContainerName\":\"pr0-self-host-4961c1b5-ledger-b-1\",\"Repository\":\"postgres\",\"Tag\":\"\",\"Platform\":\"linux/amd64\",\"Size\":399054458,\"Created\":\"2026-05-14T19:03:53.21056061Z\",\"LastTagTime\":\"2026-11-08T10:59:20.69316887Z\"},{\"ID\":\"sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca\",\"ContainerName\":\"pr0-self-host-4961c1b5-ledger-a-1\",\"Repository\":\"postgres\",\"Tag\":\"\",\"Platform\":\"linux/amd64\",\"Size\":399054458,\"Created\":\"2026-05-14T19:03:53.21056061Z\",\"LastTagTime\":\"2026-11-08T10:59:20.69316887Z\"},{\"ID\":\"sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca\",\"ContainerName\":\"pr0-self-host-4961c1b5-database-1\",\"Repository\":\"postgres\",\"Tag\":\"\",\"Platform\":\"linux/amd64\",\"Size\":399054458,\"Created\":\"2026-05-14T19:03:53.21056061Z\",\"LastTagTime\":\"2026-11-08T10:59:20.69316887Z\"}]\n\n",
+  "fixtureLocation": {
+    "origin": "http://localhost:55860",
+    "project": "pr0-self-host-4961c1b5",
+    "directory": "X:\\t3-code\\worktrees\\pr0\\t3-1b1e6163\\.scratch\\self-hosting-2UXdNd"
+  },
+  "serverBun": "1.4.4\n",
+  "preparedAccounts": 1000,
+  "searchStorage": "",
+  "ledgerStorage": "",
+  "failure": "TimeoutError: waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /^Prompt 00001 Caf\\u00E9/u }) to be visible\u001b[22m\n",
+  "passed": false,
+  "samples": [],
+  "resources": []
+}

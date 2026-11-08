@@ -1,5 +1,5 @@
 // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Record the resident service group repeatedly during the declared load interval.
-import type { SelfHostingInstance } from "./self-hosting-fixture";
+import type { CapacityServiceInstance } from "./capacity-service-fixture";
 
 export interface CapacityResourceSample {
   recordedAt: string;
@@ -7,7 +7,7 @@ export interface CapacityResourceSample {
   error: string;
 }
 export const monitorCapacityService = async (
-  instance: SelfHostingInstance,
+  instance: CapacityServiceInstance,
   signal: AbortSignal,
   samples: CapacityResourceSample[]
 ) => {

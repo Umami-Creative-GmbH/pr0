@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-11-08T14:09:08.492Z",
+  "status": 200,
+  "body": {
+    "status": "ready",
+    "checks": {
+      "schema": "ready",
+      "deletionReplay": "ready",
+      "email": "ready",
+      "search": "ready"
+    }
+  }
+}
