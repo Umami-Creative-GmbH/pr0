@@ -77,10 +77,17 @@ jobs:
           docker run -d --name update-channel-check "$IMAGE:latest"
           docker exec update-channel-check wget -q -O /dev/null http://127.0.0.1:8080/healthz
           docker rm -f update-channel-check
-      - name: Publish image
+      - name: Publish AMD64 and ARM64 image
         run: |
-          docker push "$IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker push "$IMAGE:latest"
+          docker buildx create --driver docker-container --name update-channel-builder --use
+          docker buildx build --platform linux/amd64,linux/arm64 --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -t "$IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" -t "$IMAGE:latest" --push infrastructure/update-channel
+          docker buildx imagetools inspect "$IMAGE:latest" --raw > "$RUNNER_TEMP/channel-manifest.json"
+          bun -e '
+            const manifest = await Bun.file(process.env.RUNNER_TEMP + "/channel-manifest.json").json();
+            for (const architecture of ["amd64", "arm64"]) {
+              if (!manifest.manifests.some(entry => entry.platform?.os === "linux" && entry.platform?.architecture === architecture)) throw new Error(`Published image is missing linux/${architecture}`);
+            }
+          '
           echo "Image: $IMAGE:run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
       - name: Deploy through Coolify
         if: env.DEPLOY_ENABLED == 'true'
