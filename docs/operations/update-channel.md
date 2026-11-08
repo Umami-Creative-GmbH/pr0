@@ -19,6 +19,8 @@ Use the full base64 Tauri public-key file contents for `PR0_UPDATE_PUBLIC_KEY`. 
 
 The image workflow uses `GITHUB_TOKEN` with package-write permission to publish `ghcr.io/umami-creative-gmbh/pr0-updates`. It creates a unique `run-<id>-<attempt>` tag and updates `latest`. See [GitHub container publishing](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images).
 
+Each tag includes both `linux/amd64` and `linux/arm64`, so x64 and ARM64 Coolify hosts pull their native Nginx image automatically. The packaged Windows installer remains Windows x64. The image build only copies configuration and verified release files into the matching Nginx base image; it does not execute foreign-architecture build commands. CI builds both variants, and publication verifies both platform entries before calling Coolify.
+
 Before publishing any desktop release, run **Publish update channel** from Actions with **bootstrap** enabled. With no releases, it creates an image whose `/update/` endpoint returns HTTP 204. Leave the Coolify secrets unset for this first run; the workflow reports that it published without deployment. Bootstrap is only for the initial empty channel. Later builds must retrieve `latest` successfully, otherwise they stop rather than drop old artifacts.
 
 ## One time Coolify setup
