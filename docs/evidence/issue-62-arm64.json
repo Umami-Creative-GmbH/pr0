@@ -1,0 +1,26 @@
+{
+  "measuredAt": "2026-11-08T11:10:29.691Z",
+  "architecture": "aarch64",
+  "bun": "1.4.2",
+  "postgresql": "postgres (PostgreSQL) 17.10",
+  "tools": "pg_dump (PostgreSQL) 17.11 (Debian 17.11-1.pgdg12+2)",
+  "images": ["pr0-self-host-62-arm64", "pr0-self-host-tools-62-arm64"],
+  "mountedSecrets": true,
+  "emailVerification": true,
+  "browserCreateSearchVariableCopy": true,
+  "restartAndDownPreservedIdentity": true,
+  "schema19To20Upgrade": true,
+  "independentSameEmail": true,
+  "nativeHttpsOfflineReconnectAndSwitch": false,
+  "recovery": {
+    "recoverySeconds": 59.219,
+    "lossWindowSeconds": 8.08,
+    "deletedAccountRevived": false,
+    "unavailableLedgerRefused": true
+  },
+  "limitations": [
+    "Local ledger containers and backup mount do not establish independent host-loss durability.",
+    "SMTP sink is local; real SMTP delivery and optional OAuth require operator integration.",
+    "Native command worker is not a signed installed release acceptance test."
+  ]
+}

@@ -26,7 +26,7 @@ bun install
 bun run dev
 ```
 
-This starts the web/API at `http://localhost:3000` and the desktop frontend at `http://localhost:1420`. The latter is useful for browser development without Rust. The web app presents verified account access; configure its PostgreSQL and SMTP services using the account deployment guide below. The desktop remains a separate prototype.
+This starts the web/API at `http://localhost:3000` and the desktop frontend at `http://localhost:1420`. The latter is useful for presentation development without Rust. Configure the web instance using the self-hosting guide below. Native desktop account access, offline storage and clipboard commands require the Tauri shell.
 
 For a native desktop window, keep the web/API running and start Tauri in another terminal:
 
@@ -70,7 +70,7 @@ Desktop production builds require an explicit HTTPS API origin so a shipped appl
 VITE_API_BASE_URL=https://your-api.example.com
 ```
 
-Vite embeds this public URL at build time. It must point to the deployed Next.js host; it is not a secret. Tauri CSP permits HTTPS API connections. Development CSP also permits the local API and Vite servers; update `devCsp` in `tauri.conf.json` if using a custom HTTP development origin.
+Vite embeds this public URL as the initial instance choice; users can select another compatible HTTPS instance before native sign-in. It is not a secret. The desktop uses native HTTPS sessions and the Windows certificate store. Instance selection does not change the official updater endpoint or signing trust.
 
 ```sh
 bun run build           # Next.js production build and desktop frontend assets
@@ -80,11 +80,11 @@ bun run start           # Serve the built Next.js app
 
 For only the web app: `bun x --bun turbo run build --filter=@pr0/web`.
 
-The Tauri application identifier is currently `com.umami-creative.pr0`; confirm it before the first distributed release. The native capability set is empty until a feature needs native commands. Installer signing, auto-updates and release publishing are outside this foundation.
+The Tauri application identifier is `com.umami-creative.pr0`. Main/launcher capabilities expose narrowly scoped typed native commands. For signing, independent update trust and installed-release validation, follow [Windows releases](docs/operations/windows-releases.md).
 
 ## Docker Compose
 
-The web account slice runs under Bun with PostgreSQL and a durable SMTP worker. Follow [account deployment and local initialization](docs/operations/accounts.md) to configure secrets and email, migrate, and admit the first account. Self-hosted registration defaults to closed.
+Follow the [complete self-hosting guide](docs/operations/self-hosting.md) from a clean checkout to an independent web/desktop library, including mounted secrets, independent deletion stores, HTTPS/SMTP, initialization, maintenance, upgrades and deletion-safe recovery. The web/API and mail/search workers run under Bun with persistent PostgreSQL and derived SQLite search. Self-hosted registration defaults to closed.
 
 [Google and GitHub sign-in](docs/social-login.md) are optional per-instance methods with verified-email safeguards. Run `bun run --cwd apps/web test:social` for the disposable PostgreSQL/SMTP production acceptance matrix (Docker required; localhost ports 30426, 55426, 11426, and 18426).
 
@@ -92,12 +92,13 @@ The web account slice runs under Bun with PostgreSQL and a durable SMTP worker. 
 docker compose build
 docker compose up -d database
 docker compose run --rm accounts migrate
+docker compose run --rm deletions initialize
 docker compose run --rm restore initialize
 docker compose run --rm accounts admit-first you@example.com
 docker compose up -d web mail
 ```
 
-Initialize independent deletion storage before offering account deletion or desktop sign-in. Follow [encrypted backups and deletion-safe restore](docs/operations/backup-restore.md) for off-server storage, key recovery, admission barriers and the pre-release/quarterly rehearsal. Existing installations adopt the barrier through the documented recovery sequence; `restore initialize` is only for a new empty instance.
+Configure independent deletion storage before initialization and switch to its restricted runtime roles before starting web/mail. Follow [encrypted backups and deletion-safe restore](docs/operations/backup-restore.md) for off-server storage, key recovery, admission barriers and the pre-release/quarterly rehearsal. Existing installations adopt the barrier through the documented recovery sequence; `restore initialize` is only for a new empty instance.
 
 The named PostgreSQL volume retains accounts, sessions, and immutable instance identity across container recreation. `/api/v1/ready` checks schema and worker readiness; `/api/v1/health` remains liveness. The [deployment specification](docs/specs/deployment-self-hosting.md) retains the broader requirements for later MVP slices.
 

@@ -20,10 +20,17 @@ include!("organization_tests.rs");
 include!("deletion_tests.rs");
 
 fn fixtures() -> serde_json::Value {
-    serde_json::from_str(include_str!(
+    let mut data: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../packages/api-contract/src/device-fixtures.json"
     ))
-    .unwrap()
+    .unwrap();
+    // The protocol vector has a fixed example date. Native restoration tests
+    // need an active session; expiry cases explicitly replace this timestamp.
+    data["session"]["session"]["expiresAt"] = json!((chrono::DateTime::<chrono::Utc>::from(
+        std::time::SystemTime::now()
+    ) + chrono::Duration::days(30))
+    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
+    data
 }
 fn approval() -> Arc<Fixture> {
     let data = fixtures();

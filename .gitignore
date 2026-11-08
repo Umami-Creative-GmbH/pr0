@@ -19,6 +19,9 @@ next-env.d.ts
 /.scratch/
 .env*
 !.env.example
+/.secrets/
+/backups/
+/compose.override.yaml
 .vercel/
 .DS_Store
 *.pem
