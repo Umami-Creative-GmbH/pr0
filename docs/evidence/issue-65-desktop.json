@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-11-08T21:09:44.926Z",
+  "recordedAt": "2026-11-08T21:53:43.707Z",
   "bun": "1.4.4",
   "cpu": "AMD Ryzen 9 9950X3D2 16-Core Processor         ",
   "logicalCpus": 32,
@@ -14,648 +14,648 @@
     {
       "query": "a",
       "samples": [
-        95.60000002384186, 97, 101.30000001192093, 104.10000002384186,
-        104.80000001192093, 104.89999997615814, 107.39999997615814,
-        108.70000004768372, 111.69999998807907, 111.90000003576279,
-        112.59999996423721, 112.80000001192093, 114.10000002384186,
-        114.40000003576279, 192.60000002384186, 194.5999999642372,
-        209.39999997615814, 212, 218.9000000357628, 310.69999998807907
+        95.60000002384186, 96.39999997615814, 98.09999996423721,
+        101.80000001192093, 103.79999995231628, 105, 105.39999997615814,
+        106.30000001192093, 108.80000001192093, 112, 113.59999996423721, 121,
+        128.9000000357628, 194, 196, 206.89999997615814, 207,
+        212.10000002384186, 302.19999998807907, 310.60000002384186
       ],
-      "p95Ms": 218.9000000357628
+      "p95Ms": 302.19999998807907
     },
     {
       "query": "C++",
       "samples": [
-        96.59999996423721, 98.5, 98.59999996423721, 100.40000003576279,
-        100.59999996423721, 100.59999996423721, 105.89999997615814,
-        109.69999998807907, 110.5, 111.30000001192093, 112.09999996423721,
-        113.40000003576279, 114.80000001192093, 123.5, 184.0999999642372,
-        193.39999997615814, 194.5, 205.80000001192093, 212.80000001192093,
-        213.80000001192093
+        95.20000004768372, 104.89999997615814, 106.69999998807907,
+        108.19999998807907, 112.5, 127.90000003576279, 130.69999998807907,
+        132.30000001192093, 133.70000004768372, 136.19999998807907,
+        141.39999997615814, 142, 146.4000000357628, 165.10000002384186,
+        186.20000004768372, 192.9000000357628, 196.5, 199.10000002384186, 226.5,
+        271.5
       ],
-      "p95Ms": 212.80000001192093
+      "p95Ms": 226.5
     },
     {
       "query": "common",
       "samples": [
-        101.40000003576279, 102.19999998807907, 103.80000001192093,
-        106.79999995231628, 107.5, 110.10000002384186, 111.59999996423721,
-        111.60000002384186, 118.40000003576279, 118.90000003576279, 123,
-        123.59999996423721, 127, 181, 184, 184.80000001192093, 189,
-        195.0999999642372, 208.80000001192093, 320.2000000476837
+        119.69999998807907, 127.30000001192093, 134.5, 134.60000002384186,
+        135.89999997615814, 140.5, 141.80000001192093, 143.10000002384186,
+        145.5, 146.0999999642372, 150.30000001192093, 174.89999997615814,
+        250.0999999642372, 252.19999998807907, 252.39999997615814, 254,
+        257.39999997615814, 259.89999997615814, 268.60000002384186,
+        500.69999998807907
       ],
-      "p95Ms": 208.80000001192093
+      "p95Ms": 268.60000002384186
     },
     {
       "query": "abcdbcdabc",
       "samples": [
-        52.89999997615814, 53.59999996423721, 57.60000002384186, 60.5,
-        67.69999998807907, 70.39999997615814, 79.90000003576279,
-        90.19999998807907, 93.80000001192093, 95.69999998807907,
-        96.39999997615814, 97.80000001192093, 99.19999998807907,
-        100.69999998807907, 105.60000002384186, 105.80000001192093,
-        107.69999998807907, 111, 111.10000002384186, 181.60000002384186
+        55.19999998807907, 58.39999997615814, 60.09999996423721,
+        61.89999997615814, 62.39999997615814, 63.69999998807907,
+        63.89999997615814, 64.5, 65.69999998807907, 66, 67.79999995231628,
+        69.59999996423721, 74.09999996423721, 77.80000001192093,
+        80.90000003576279, 81.5, 181.80000001192093, 185.30000001192093,
+        189.69999998807907, 197.39999997615814
       ],
-      "p95Ms": 111.10000002384186
+      "p95Ms": 189.69999998807907
     },
     {
       "query": "abcd",
       "samples": [
-        313.19999998807907, 320.5, 324.39999997615814, 326.89999997615814,
-        337.10000002384186, 347.89999997615814, 357.69999998807907,
-        358.80000001192093, 359.10000002384186, 370.89999997615814, 387,
-        388.4000000357628, 392.7000000476837, 394.80000001192093,
-        399.80000001192093, 405, 424.5, 428.5, 439.30000001192093,
-        441.30000001192093
+        312.10000002384186, 323, 330, 335.5999999642372, 339.5999999642372,
+        342.80000001192093, 364.80000001192093, 376, 380, 381, 388.5,
+        395.2999999523163, 404.69999998807907, 406.80000001192093,
+        407.9000000357628, 413.60000002384186, 429.5, 458.89999997615814,
+        462.4000000357628, 484.89999997615814
       ],
-      "p95Ms": 439.30000001192093
+      "p95Ms": 462.4000000357628
     },
     {
       "query": "cafe resume common equipe reponses",
       "samples": [
-        125.80000001192093, 129, 129.69999998807907, 130, 130.4000000357628,
-        131.5, 132.0999999642372, 137.4000000357628, 137.80000001192093, 141,
-        146.39999997615814, 147.60000002384186, 148.19999998807907,
-        152.19999998807907, 173, 198.80000001192093, 200.30000001192093, 207.5,
-        214.20000004768372, 233.5999999642372
+        125.79999995231628, 132.80000001192093, 134.69999998807907, 135,
+        135.39999997615814, 136.80000001192093, 138.4000000357628,
+        141.10000002384186, 155.20000004768372, 183.30000001192093,
+        189.69999998807907, 193, 197.69999998807907, 216.70000004768372,
+        243.30000001192093, 247.80000001192093, 253.5, 259.10000002384186,
+        297.80000001192093, 364.19999998807907
       ],
-      "p95Ms": 214.20000004768372
+      "p95Ms": 297.80000001192093
     },
     {
       "query": "Σίσυφος 東京",
       "samples": [
-        95.59999996423721, 100.89999997615814, 107.30000001192093,
-        109.10000002384186, 109.29999995231628, 111.19999998807907,
-        111.89999997615814, 113.89999997615814, 113.89999997615814,
-        114.59999996423721, 118.39999997615814, 130.19999998807907,
-        133.80000001192093, 143.80000001192093, 185.69999998807907,
-        202.19999998807907, 209.60000002384186, 214.69999998807907,
-        215.9000000357628, 216.29999995231628
+        98.59999996423721, 99.60000002384186, 104.89999997615814,
+        106.69999998807907, 109.90000003576279, 111.10000002384186,
+        111.19999998807907, 114, 124.80000001192093, 126.69999998807907,
+        130.0999999642372, 133, 163.89999997615814, 195.5, 197.30000001192093,
+        206.80000001192093, 209.5999999642372, 214.80000001192093,
+        219.9000000357628, 321
       ],
-      "p95Ms": 215.9000000357628
+      "p95Ms": 219.9000000357628
     },
     {
       "query": "🎯",
       "samples": [
-        98.40000003576279, 99.59999996423721, 100.60000002384186,
-        100.69999998807907, 101.30000001192093, 101.5, 102.30000001192093,
-        105.10000002384186, 105.90000003576279, 106.60000002384186,
-        109.60000002384186, 113.79999995231628, 114.89999997615814,
-        117.90000003576279, 129.80000001192093, 130, 186.9000000357628,
-        187.69999998807907, 207.80000001192093, 376.2999999523163
+        107.10000002384186, 107.80000001192093, 108, 108.59999996423721,
+        109.40000003576279, 112.5, 114.80000001192093, 125.90000003576279,
+        126.09999996423721, 127.40000003576279, 184.4000000357628,
+        185.39999997615814, 195.10000002384186, 199.5, 203.80000001192093,
+        208.9000000357628, 211.30000001192093, 240.19999998807907,
+        248.39999997615814, 265.5
       ],
-      "p95Ms": 207.80000001192093
+      "p95Ms": 248.39999997615814
     },
     {
       "query": "write concise answer useful examples clear steps review following document identify important changes explain reasoning preserve exact names punctuation summarize meeting notes actions owners dates",
       "samples": [
-        137.5, 137.89999997615814, 138, 139.5, 143.60000002384186,
-        144.10000002384186, 144.60000002384186, 145.4000000357628,
-        145.69999998807907, 147.39999997615814, 149.69999998807907, 153.5,
-        154.80000001192093, 186.20000004768372, 208.5, 227.19999998807907,
-        234.39999997615814, 235.30000001192093, 242.4000000357628,
-        251.69999998807907
+        134.69999998807907, 135.29999995231628, 137.29999995231628,
+        137.39999997615814, 139.30000001192093, 143.60000002384186,
+        144.30000001192093, 147.30000001192093, 148.5, 151.79999995231628, 157,
+        182.80000001192093, 194.69999998807907, 195.30000001192093, 208,
+        239.10000002384186, 241.69999998807907, 246.5, 318.30000001192093,
+        333.2000000476837
       ],
-      "p95Ms": 242.4000000357628
+      "p95Ms": 318.30000001192093
     }
   ],
   "passed": false,
   "releaseCriteriaMet": false,
+  "browserDefaultsPreserved": true,
   "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
   "reused": true,
-  "processColdUiMs": 11456.2633,
+  "processColdUiMs": 12574.7683,
   "webview": "157.0.4341.42",
   "profile": [
     {
       "name": "initial-render",
-      "elapsedMs": 11985.0986,
-      "totalPrivateBytes": 488718336,
+      "elapsedMs": 13238.3455,
+      "totalPrivateBytes": 492392448,
       "processes": [
         {
-          "id": 56420,
-          "parent": 57316,
+          "id": 40812,
+          "parent": 74264,
           "name": "pr0_desktop_lib-de28390caae013fb.exe",
           "role": "native",
-          "privateBytes": 29872128
+          "privateBytes": 29925376
         },
         {
-          "id": 40488,
-          "parent": 56420,
+          "id": 40376,
+          "parent": 40812,
           "name": "msedgewebview2.exe",
           "role": "browser",
-          "privateBytes": 84934656
+          "privateBytes": 88236032
         },
         {
-          "id": 66876,
-          "parent": 40488,
+          "id": 87808,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "crashpad-handler",
-          "privateBytes": 2822144
+          "privateBytes": 2813952
         },
         {
-          "id": 50144,
-          "parent": 40488,
+          "id": 105316,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "gpu-process",
-          "privateBytes": 212619264
+          "privateBytes": 212135936
         },
         {
-          "id": 75356,
-          "parent": 40488,
+          "id": 61404,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 12492800
+          "privateBytes": 12410880
         },
         {
-          "id": 47992,
-          "parent": 40488,
+          "id": 77268,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 7688192
+          "privateBytes": 7696384
         },
         {
-          "id": 30232,
-          "parent": 40488,
+          "id": 72052,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 104476672
+          "privateBytes": 103895040
         },
         {
-          "id": 70676,
-          "parent": 40488,
+          "id": 102348,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 33812480
+          "privateBytes": 35278848
         }
       ],
       "automationConnected": true,
       "pages": [
         {
-          "url": "http://tauri.localhost/launcher.html",
-          "heap": {
-            "usedSize": 4834812,
-            "totalSize": 7520256,
-            "embedderHeapUsedSize": 1977104,
-            "backingStorageSize": 604341
-          },
-          "dom": {
-            "documents": 3,
-            "nodes": 97,
-            "jsEventListeners": 187
-          }
-        },
-        {
           "url": "http://tauri.localhost/",
           "heap": {
-            "usedSize": 15574044,
-            "totalSize": 21475328,
-            "embedderHeapUsedSize": 27930368,
-            "backingStorageSize": 1148687
+            "usedSize": 15815280,
+            "totalSize": 21999616,
+            "embedderHeapUsedSize": 28070656,
+            "backingStorageSize": 1148747
           },
           "dom": {
             "documents": 3,
             "nodes": 5446,
             "jsEventListeners": 1413
           }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 4828748,
+            "totalSize": 8044544,
+            "embedderHeapUsedSize": 1982624,
+            "backingStorageSize": 604330
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 97,
+            "jsEventListeners": 187
+          }
         }
       ]
     },
     {
       "name": "after-searches",
-      "elapsedMs": 87762.1651,
-      "totalPrivateBytes": 721420288,
+      "elapsedMs": 93553.71729999999,
+      "totalPrivateBytes": 709292032,
       "processes": [
         {
-          "id": 56420,
-          "parent": 57316,
+          "id": 40812,
+          "parent": 74264,
           "name": "pr0_desktop_lib-de28390caae013fb.exe",
           "role": "native",
-          "privateBytes": 37928960
+          "privateBytes": 37781504
         },
         {
-          "id": 40488,
-          "parent": 56420,
+          "id": 40376,
+          "parent": 40812,
           "name": "msedgewebview2.exe",
           "role": "browser",
-          "privateBytes": 88055808
+          "privateBytes": 85913600
         },
         {
-          "id": 66876,
-          "parent": 40488,
+          "id": 87808,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "crashpad-handler",
-          "privateBytes": 3366912
+          "privateBytes": 3387392
         },
         {
-          "id": 50144,
-          "parent": 40488,
+          "id": 105316,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "gpu-process",
-          "privateBytes": 122929152
+          "privateBytes": 111878144
         },
         {
-          "id": 75356,
-          "parent": 40488,
+          "id": 61404,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 12259328
+          "privateBytes": 12042240
         },
         {
-          "id": 47992,
-          "parent": 40488,
+          "id": 77268,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 7725056
+          "privateBytes": 7610368
         },
         {
-          "id": 30232,
-          "parent": 40488,
+          "id": 72052,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 416993280
+          "privateBytes": 417230848
         },
         {
-          "id": 70676,
-          "parent": 40488,
+          "id": 102348,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 32161792
+          "privateBytes": 33447936
         }
       ],
       "automationConnected": true,
       "pages": [
         {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 33540992,
+            "totalSize": 117944320,
+            "embedderHeapUsedSize": 12521816,
+            "backingStorageSize": 968870
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 5572,
+            "jsEventListeners": 1720
+          }
+        },
+        {
           "url": "http://tauri.localhost/launcher.html",
           "heap": {
-            "usedSize": 3612224,
+            "usedSize": 3612296,
             "totalSize": 4374528,
-            "embedderHeapUsedSize": 936568,
-            "backingStorageSize": 603488
+            "embedderHeapUsedSize": 972088,
+            "backingStorageSize": 603489
           },
           "dom": {
             "documents": 1,
             "nodes": 88,
             "jsEventListeners": 180
-          }
-        },
-        {
-          "url": "http://tauri.localhost/",
-          "heap": {
-            "usedSize": 66077656,
-            "totalSize": 114536448,
-            "embedderHeapUsedSize": 21410552,
-            "backingStorageSize": 1305871
-          },
-          "dom": {
-            "documents": 1,
-            "nodes": 5494,
-            "jsEventListeners": 7348
           }
         }
       ]
     },
     {
       "name": "after-complete-pagination",
-      "elapsedMs": 119775.4809,
-      "totalPrivateBytes": 725430272,
+      "elapsedMs": 125431.0539,
+      "totalPrivateBytes": 721846272,
       "processes": [
         {
-          "id": 56420,
-          "parent": 57316,
+          "id": 40812,
+          "parent": 74264,
           "name": "pr0_desktop_lib-de28390caae013fb.exe",
           "role": "native",
-          "privateBytes": 30461952
+          "privateBytes": 36700160
         },
         {
-          "id": 40488,
-          "parent": 56420,
+          "id": 40376,
+          "parent": 40812,
           "name": "msedgewebview2.exe",
           "role": "browser",
-          "privateBytes": 90963968
+          "privateBytes": 83652608
         },
         {
-          "id": 66876,
-          "parent": 40488,
+          "id": 87808,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "crashpad-handler",
-          "privateBytes": 3366912
+          "privateBytes": 3383296
         },
         {
-          "id": 50144,
-          "parent": 40488,
+          "id": 105316,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "gpu-process",
-          "privateBytes": 113426432
+          "privateBytes": 110903296
         },
         {
-          "id": 75356,
-          "parent": 40488,
+          "id": 61404,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 12595200
+          "privateBytes": 12165120
         },
         {
-          "id": 47992,
-          "parent": 40488,
+          "id": 77268,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 7725056
+          "privateBytes": 7610368
         },
         {
-          "id": 30232,
-          "parent": 40488,
+          "id": 72052,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 434728960
+          "privateBytes": 433983488
         },
         {
-          "id": 70676,
-          "parent": 40488,
+          "id": 102348,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 32161792
+          "privateBytes": 33447936
         }
       ],
       "automationConnected": true,
       "pages": [
         {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 12215804,
+            "totalSize": 80457728,
+            "embedderHeapUsedSize": 11021376,
+            "backingStorageSize": 711521
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 5570,
+            "jsEventListeners": 1207
+          }
+        },
+        {
           "url": "http://tauri.localhost/launcher.html",
           "heap": {
-            "usedSize": 3612224,
+            "usedSize": 3612296,
             "totalSize": 4374528,
-            "embedderHeapUsedSize": 936568,
-            "backingStorageSize": 603488
+            "embedderHeapUsedSize": 972088,
+            "backingStorageSize": 603489
           },
           "dom": {
             "documents": 1,
             "nodes": 88,
             "jsEventListeners": 180
           }
-        },
-        {
-          "url": "http://tauri.localhost/",
-          "heap": {
-            "usedSize": 12188864,
-            "totalSize": 85176320,
-            "embedderHeapUsedSize": 10915160,
-            "backingStorageSize": 703466
-          },
-          "dom": {
-            "documents": 1,
-            "nodes": 5422,
-            "jsEventListeners": 1198
-          }
         }
       ]
     },
     {
       "name": "after-interactions",
-      "elapsedMs": 235993.5344,
-      "totalPrivateBytes": 1070481408,
+      "elapsedMs": 239506.4321,
+      "totalPrivateBytes": 1079091200,
       "processes": [
         {
-          "id": 56420,
-          "parent": 57316,
+          "id": 40812,
+          "parent": 74264,
           "name": "pr0_desktop_lib-de28390caae013fb.exe",
           "role": "native",
-          "privateBytes": 37691392
+          "privateBytes": 39038976
         },
         {
-          "id": 40488,
-          "parent": 56420,
+          "id": 40376,
+          "parent": 40812,
           "name": "msedgewebview2.exe",
           "role": "browser",
-          "privateBytes": 68702208
+          "privateBytes": 67776512
         },
         {
-          "id": 66876,
-          "parent": 40488,
+          "id": 87808,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "crashpad-handler",
-          "privateBytes": 3207168
+          "privateBytes": 3203072
         },
         {
-          "id": 50144,
-          "parent": 40488,
+          "id": 105316,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "gpu-process",
-          "privateBytes": 319885312
+          "privateBytes": 322437120
         },
         {
-          "id": 75356,
-          "parent": 40488,
+          "id": 61404,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 12959744
+          "privateBytes": 12804096
         },
         {
-          "id": 47992,
-          "parent": 40488,
+          "id": 77268,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 7725056
+          "privateBytes": 7610368
         },
         {
-          "id": 30232,
-          "parent": 40488,
+          "id": 72052,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 478736384
+          "privateBytes": 474615808
         },
         {
-          "id": 70676,
-          "parent": 40488,
+          "id": 102348,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 141574144
+          "privateBytes": 151605248
         }
       ],
       "automationConnected": true,
       "pages": [
         {
-          "url": "http://tauri.localhost/launcher.html",
-          "heap": {
-            "usedSize": 28934048,
-            "totalSize": 71081984,
-            "embedderHeapUsedSize": 2802824,
-            "backingStorageSize": 834201
-          },
-          "dom": {
-            "documents": 1,
-            "nodes": 772,
-            "jsEventListeners": 514
-          }
-        },
-        {
           "url": "http://tauri.localhost/",
           "heap": {
-            "usedSize": 43686476,
-            "totalSize": 122986496,
-            "embedderHeapUsedSize": 25730216,
-            "backingStorageSize": 1164734
+            "usedSize": 49052340,
+            "totalSize": 122462208,
+            "embedderHeapUsedSize": 25173512,
+            "backingStorageSize": 1144208
           },
           "dom": {
             "documents": 1,
             "nodes": 4568,
-            "jsEventListeners": 1781
+            "jsEventListeners": 1565
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 11916904,
+            "totalSize": 75014144,
+            "embedderHeapUsedSize": 5129072,
+            "backingStorageSize": 1750718
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 772,
+            "jsEventListeners": 1476
           }
         }
       ]
     },
     {
       "name": "hidden-with-automation",
-      "elapsedMs": 268452.23260000005,
-      "totalPrivateBytes": 735473664,
+      "elapsedMs": 271223.8963,
+      "totalPrivateBytes": 749072384,
       "processes": [
         {
-          "id": 56420,
-          "parent": 57316,
+          "id": 40812,
+          "parent": 74264,
           "name": "pr0_desktop_lib-de28390caae013fb.exe",
           "role": "native",
-          "privateBytes": 36614144
+          "privateBytes": 37629952
         },
         {
-          "id": 40488,
-          "parent": 56420,
+          "id": 40376,
+          "parent": 40812,
           "name": "msedgewebview2.exe",
           "role": "browser",
-          "privateBytes": 59432960
+          "privateBytes": 59772928
         },
         {
-          "id": 66876,
-          "parent": 40488,
+          "id": 87808,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "crashpad-handler",
           "privateBytes": 3203072
         },
         {
-          "id": 50144,
-          "parent": 40488,
+          "id": 105316,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "gpu-process",
-          "privateBytes": 126603264
+          "privateBytes": 124633088
         },
         {
-          "id": 75356,
-          "parent": 40488,
+          "id": 61404,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 12713984
+          "privateBytes": 12500992
         },
         {
-          "id": 47992,
-          "parent": 40488,
+          "id": 77268,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 7725056
+          "privateBytes": 7610368
         },
         {
-          "id": 30232,
-          "parent": 40488,
+          "id": 72052,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 349958144
+          "privateBytes": 349028352
         },
         {
-          "id": 70676,
-          "parent": 40488,
+          "id": 102348,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 139223040
+          "privateBytes": 154693632
         }
       ],
       "automationConnected": true,
       "pages": [
         {
-          "url": "http://tauri.localhost/launcher.html",
+          "url": "http://tauri.localhost/",
           "heap": {
-            "usedSize": 10176860,
-            "totalSize": 71081984,
-            "embedderHeapUsedSize": 3497368,
-            "backingStorageSize": 1063924
+            "usedSize": 13366228,
+            "totalSize": 18128896,
+            "embedderHeapUsedSize": 10224864,
+            "backingStorageSize": 704802
           },
           "dom": {
             "documents": 1,
-            "nodes": 773,
-            "jsEventListeners": 595
+            "nodes": 4366,
+            "jsEventListeners": 917
           }
         },
         {
-          "url": "http://tauri.localhost/",
+          "url": "http://tauri.localhost/launcher.html",
           "heap": {
-            "usedSize": 13374792,
-            "totalSize": 16818176,
-            "embedderHeapUsedSize": 10306144,
-            "backingStorageSize": 712815
+            "usedSize": 6554616,
+            "totalSize": 73441280,
+            "embedderHeapUsedSize": 1978640,
+            "backingStorageSize": 605089
           },
           "dom": {
             "documents": 1,
-            "nodes": 4430,
-            "jsEventListeners": 928
+            "nodes": 88,
+            "jsEventListeners": 206
           }
         }
       ]
     },
     {
       "name": "hidden-after-automation-disconnect",
-      "elapsedMs": 299085.03380000003,
-      "totalPrivateBytes": 840089600,
+      "elapsedMs": 301696.05960000004,
+      "totalPrivateBytes": 859619328,
       "processes": [
         {
-          "id": 56420,
-          "parent": 57316,
+          "id": 40812,
+          "parent": 74264,
           "name": "pr0_desktop_lib-de28390caae013fb.exe",
           "role": "native",
-          "privateBytes": 36560896
+          "privateBytes": 37675008
         },
         {
-          "id": 40488,
-          "parent": 56420,
+          "id": 40376,
+          "parent": 40812,
           "name": "msedgewebview2.exe",
           "role": "browser",
-          "privateBytes": 58908672
+          "privateBytes": 59142144
         },
         {
-          "id": 66876,
-          "parent": 40488,
+          "id": 87808,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "crashpad-handler",
-          "privateBytes": 3203072
+          "privateBytes": 3301376
         },
         {
-          "id": 50144,
-          "parent": 40488,
+          "id": 105316,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "gpu-process",
-          "privateBytes": 238690304
+          "privateBytes": 234938368
         },
         {
-          "id": 75356,
-          "parent": 40488,
+          "id": 61404,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 12713984
+          "privateBytes": 12578816
         },
         {
-          "id": 47992,
-          "parent": 40488,
+          "id": 77268,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 7725056
+          "privateBytes": 7729152
         },
         {
-          "id": 30232,
-          "parent": 40488,
+          "id": 72052,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 343642112
+          "privateBytes": 349433856
         },
         {
-          "id": 70676,
-          "parent": 40488,
+          "id": 102348,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 138645504
+          "privateBytes": 154820608
         }
       ],
       "automationConnected": false,
@@ -663,64 +663,64 @@
     },
     {
       "name": "after-ten-minutes",
-      "elapsedMs": 900852.5928,
-      "totalPrivateBytes": 839823360,
+      "elapsedMs": 903258.2087,
+      "totalPrivateBytes": 859021312,
       "processes": [
         {
-          "id": 56420,
-          "parent": 57316,
+          "id": 40812,
+          "parent": 74264,
           "name": "pr0_desktop_lib-de28390caae013fb.exe",
           "role": "native",
-          "privateBytes": 36499456
+          "privateBytes": 37548032
         },
         {
-          "id": 40488,
-          "parent": 56420,
+          "id": 40376,
+          "parent": 40812,
           "name": "msedgewebview2.exe",
           "role": "browser",
-          "privateBytes": 58736640
+          "privateBytes": 59043840
         },
         {
-          "id": 66876,
-          "parent": 40488,
+          "id": 87808,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "crashpad-handler",
-          "privateBytes": 3162112
+          "privateBytes": 3207168
         },
         {
-          "id": 50144,
-          "parent": 40488,
+          "id": 105316,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "gpu-process",
-          "privateBytes": 238481408
+          "privateBytes": 234811392
         },
         {
-          "id": 75356,
-          "parent": 40488,
+          "id": 61404,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 12513280
+          "privateBytes": 12378112
         },
         {
-          "id": 47992,
-          "parent": 40488,
+          "id": 77268,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "utility",
-          "privateBytes": 7737344
+          "privateBytes": 7622656
         },
         {
-          "id": 30232,
-          "parent": 40488,
+          "id": 72052,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 343863296
+          "privateBytes": 349626368
         },
         {
-          "id": 70676,
-          "parent": 40488,
+          "id": 102348,
+          "parent": 40376,
           "name": "msedgewebview2.exe",
           "role": "renderer",
-          "privateBytes": 138829824
+          "privateBytes": 154783744
         }
       ],
       "automationConnected": false,
@@ -730,62 +730,64 @@
   "completePaginationCount": 10000,
   "interactionProgress": {
     "launcher": [
-      11.257700000016484, 12.032399999996414, 8.575099999987287,
-      8.449200000002747, 7.958000000013271, 8.622200000012526,
-      9.443199999979697, 8.365799999999581, 10.086000000010245,
-      8.181000000011409, 9.22599999999511, 9.378499999991618, 7.768899999995483,
-      9.017699999996694, 8.167400000005728, 12.413300000014715,
-      9.021699999982957, 11.040200000017649, 9.614600000000792,
-      8.037599999981467
+      70.8066000000108, 10.102700000017649, 8.656600000016624,
+      9.711999999999534, 9.33540000001085, 13.790999999997439,
+      9.254600000014761, 8.770100000023376, 8.485899999999674,
+      10.04869999998482, 7.5209000000031665, 8.617399999988265,
+      8.028300000005402, 9.702000000019325, 6.814899999997579,
+      10.277700000006007, 7.561099999991711, 8.01589999999851,
+      7.410700000007637, 7.289900000003399
     ],
     "copy": [
-      72.80000001192093, 73, 73, 73.19999998807907, 74.19999998807907,
-      74.69999998807907, 74.80000001192093, 75, 75.60000002384186, 76, 76,
-      76.19999998807907, 77.30000001192093, 78.80000001192093, 79.5,
-      81.80000001192093, 82, 82.10000002384186, 83, 92.90000003576279
+      70.69999998807907, 71.80000001192093, 72, 72.69999998807907,
+      72.69999998807907, 73.30000001192093, 74, 74.19999998807907, 74.5,
+      75.09999996423721, 75.5, 75.69999998807907, 76.30000001192093,
+      76.60000002384186, 77.89999997615814, 78, 78.19999998807907,
+      78.80000001192093, 79.39999997615814, 81
     ],
     "save": [
-      148.70000004768372, 151.30000001192093, 152.9000000357628,
-      152.9000000357628, 153.89999997615814, 154.20000004768372,
-      154.39999997615814, 155.10000002384186, 155.39999997615814,
-      155.39999997615814, 156.10000002384186, 156.30000001192093, 157, 157.5,
-      159.10000002384186, 159.20000004768372, 159.69999998807907, 163.5,
-      171.89999997615814, 172.0999999642372
+      146.9000000357628, 150.5, 152.10000002384186, 152.19999998807907,
+      153.19999998807907, 153.20000004768372, 153.30000001192093,
+      153.30000001192093, 153.5999999642372, 154.39999997615814, 155,
+      156.80000001192093, 157.4000000357628, 157.5999999642372,
+      157.80000001192093, 158.80000001192093, 159.29999995231628,
+      162.10000002384186, 164.20000004768372, 188
     ]
   },
   "interactions": {
     "launcher": {
-      "warmupMs": 2908.5129000000015,
+      "warmupMs": 3032.2899000000034,
       "samples": [
-        11.257700000016484, 12.032399999996414, 8.575099999987287,
-        8.449200000002747, 7.958000000013271, 8.622200000012526,
-        9.443199999979697, 8.365799999999581, 10.086000000010245,
-        8.181000000011409, 9.22599999999511, 9.378499999991618,
-        7.768899999995483, 9.017699999996694, 8.167400000005728,
-        12.413300000014715, 9.021699999982957, 11.040200000017649,
-        9.614600000000792, 8.037599999981467
+        70.8066000000108, 10.102700000017649, 8.656600000016624,
+        9.711999999999534, 9.33540000001085, 13.790999999997439,
+        9.254600000014761, 8.770100000023376, 8.485899999999674,
+        10.04869999998482, 7.5209000000031665, 8.617399999988265,
+        8.028300000005402, 9.702000000019325, 6.814899999997579,
+        10.277700000006007, 7.561099999991711, 8.01589999999851,
+        7.410700000007637, 7.289900000003399
       ],
-      "p95Ms": 12.032399999996414
+      "p95Ms": 13.790999999997439
     },
     "copy": {
       "samples": [
-        72.80000001192093, 73, 73, 73.19999998807907, 74.19999998807907,
-        74.69999998807907, 74.80000001192093, 75, 75.60000002384186, 76, 76,
-        76.19999998807907, 77.30000001192093, 78.80000001192093, 79.5,
-        81.80000001192093, 82, 82.10000002384186, 83, 92.90000003576279
+        70.69999998807907, 71.80000001192093, 72, 72.69999998807907,
+        72.69999998807907, 73.30000001192093, 74, 74.19999998807907, 74.5,
+        75.09999996423721, 75.5, 75.69999998807907, 76.30000001192093,
+        76.60000002384186, 77.89999997615814, 78, 78.19999998807907,
+        78.80000001192093, 79.39999997615814, 81
       ],
-      "p95Ms": 83
+      "p95Ms": 79.39999997615814
     },
     "save": {
       "samples": [
-        148.70000004768372, 151.30000001192093, 152.9000000357628,
-        152.9000000357628, 153.89999997615814, 154.20000004768372,
-        154.39999997615814, 155.10000002384186, 155.39999997615814,
-        155.39999997615814, 156.10000002384186, 156.30000001192093, 157, 157.5,
-        159.10000002384186, 159.20000004768372, 159.69999998807907, 163.5,
-        171.89999997615814, 172.0999999642372
+        146.9000000357628, 150.5, 152.10000002384186, 152.19999998807907,
+        153.19999998807907, 153.20000004768372, 153.30000001192093,
+        153.30000001192093, 153.5999999642372, 154.39999997615814, 155,
+        156.80000001192093, 157.4000000357628, 157.5999999642372,
+        157.80000001192093, 158.80000001192093, 159.29999995231628,
+        162.10000002384186, 164.20000004768372, 188
       ],
-      "p95Ms": 171.89999997615814
+      "p95Ms": 164.20000004768372
     }
   },
   "databaseBytes": 418226176,
@@ -793,14 +795,14 @@
     "surfacesHidden": true,
     "productionSynchronization": false,
     "pendingEdits": 1,
-    "pendingUsage": 82,
+    "pendingUsage": 102,
     "settleMs": 30000
   },
   "automationDisconnectedBeforeResidency": true,
   "residency": {
-    "intervalMs": 600074.6487,
-    "peakSampledPrivateBytes": 841613312,
-    "meanCpuPercentOfMachine": 0.00016274016942985714
+    "intervalMs": 600160.3387000001,
+    "peakSampledPrivateBytes": 860454912,
+    "meanCpuPercentOfMachine": 0.0004067923340766402
   },
-  "failure": "Error: expect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 314572800\nReceived: 841613312\n"
+  "failure": "Error: expect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 314572800\nReceived: 860454912\n"
 }
