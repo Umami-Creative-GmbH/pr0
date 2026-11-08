@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-11-08T21:01:38.542Z",
+  "classification": "Diagnostic CDP allocation dump during the offline supporting residency interval; not an uninstrumented idle gate. No forced GC (deterministic:false). Allocator categories overlap and must not be summed.",
+  "mainRenderer": {
+    "pid": 88556,
+    "bufferPartitionBytes": 226058240,
+    "bufferBucket458752Bytes": 97255424,
+    "bufferBucket655360Bytes": 65536000,
+    "networkResourceDataObjects": 2624,
+    "liveJavaScriptHeapBytes": 13522968
+  },
+  "hypothesis": "Inspector network response retention contributes to the large renderer footprint. Test by disconnecting browser automation before the settled interval; not yet proven by this dump alone."
+}

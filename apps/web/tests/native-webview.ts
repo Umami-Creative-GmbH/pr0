@@ -48,9 +48,37 @@ export const nativeWebview = async (
       throw new Error("WebView2 did not start");
     }
     const browser = await chromium.connectOverCDP(endpoint);
-    const page = browser.contexts()[0]?.pages()[0];
-    if (!page) {
-      throw new Error("WebView2 has no application page");
+    const [context] = browser.contexts();
+    if (!context) {
+      throw new Error("WebView2 has no application context");
+    }
+    // The debugging socket opens before both native-owned surfaces attach.
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const pages = context.pages();
+      if (
+        pages.some((entry) => entry.url().includes("launcher.html")) &&
+        pages.some(
+          (entry) =>
+            entry.url() !== "about:blank" &&
+            !entry.url().includes("launcher.html")
+        )
+      ) {
+        break;
+      }
+      await Bun.sleep(100);
+    }
+    const page = context
+      .pages()
+      .find(
+        (entry) =>
+          entry.url() !== "about:blank" &&
+          !entry.url().includes("launcher.html")
+      );
+    if (
+      !page ||
+      !context.pages().some((entry) => entry.url().includes("launcher.html"))
+    ) {
+      throw new Error("WebView2 did not attach both application surfaces");
     }
     return {
       browser,

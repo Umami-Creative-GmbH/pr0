@@ -107,6 +107,7 @@ fn desktop_search_webview_worker() {
                 .focused(false)
                 .data_directory(profile)
                 .build()?;
+            crate::webview_memory::initialize(app.handle());
             crate::register_launcher_shortcut(app.handle())?;
             if !quiet { crate::show_library(app.handle())?; }
             instance.listen(app.handle().clone());

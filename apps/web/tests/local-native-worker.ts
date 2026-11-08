@@ -9,7 +9,10 @@ export const localNativeWorker = async (
   uploadFixture = false,
   organizationCapacity = false,
   recoveryFixture = false,
-  profile: "debug" | "release" = "debug",
+  profile: "debug" | "release" = process.env.PR0_NATIVE_TEST_PROFILE ===
+  "release"
+    ? "release"
+    : "debug",
   compatibilityMismatch = false
 ) => {
   const artifactsDirectory = `apps/desktop/src-tauri/target/${profile}/deps`;

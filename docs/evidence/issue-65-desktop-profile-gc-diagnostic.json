@@ -1,0 +1,472 @@
+{
+  "supportingEvidence": true,
+  "startedAt": "2026-11-08T20:36:45.732Z",
+  "startupMs": 12220.327000000001,
+  "phases": [
+    {
+      "name": "initial-render",
+      "elapsedMs": 12690.6435,
+      "totalPrivateBytes": 596000768,
+      "processes": [
+        {
+          "id": 77376,
+          "parent": 30884,
+          "name": "pr0_desktop_lib-67fc5753dd5c800f.exe",
+          "privateBytes": 88715264,
+          "command": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-67fc5753dd5c800f.exe --exact auth_tests::desktop_search_webview_worker --nocapture"
+        },
+        {
+          "id": 43028,
+          "parent": 77376,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 82608128,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --embedded-browser-webview=1 --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --accept-lang=en-US --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --lang=en-US --remote-debugging-port=62376 --mojo-named-platform-channel-pipe=77376.78548.17743096067526441486 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 68760,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 2826240,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=crashpad-handler --user-data-dir=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView /prefetch:4 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 --monitor-self-annotation=ptype=crashpad-handler --user-stream-region=348,65568 --database=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\\Crashpad --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=157.0.8103.39 \"--annotation=exe=C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --annotation=plat=Win64 \"--annotation=prod=Edge WebView2\" --annotation=ver=157.0.4341.42 --initial-client-data=0x1a0,0x1a4,0x1a8,0x17c,0x1b0,0x7ffaa109b3a0,0x7ffaa109b3b0,0x7ffaa109b3c0"
+        },
+        {
+          "id": 50744,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 257830912,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=gpu-process --gpu-recent-crash-count=0 --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --gpu-preferences=WAAAAAAAAABgAAACAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --startup-read-main-dll --metrics-shmem-handle=1876,i,4023979550940653069,96900483444552440,262144 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=2040 /prefetch:2 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 78120,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 12525568,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=en-US --service-sandbox-type=none --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2268,i,10957092642438420997,10901613318901490368,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2000 /prefetch:11 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 91436,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 7663616,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=en-US --service-sandbox-type=service --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2628,i,11503986974655840119,9914470547775097475,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2640 /prefetch:13 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 37152,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 109219840,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --ssd-no-pressure-read-main-dll --launch-time-ticks=468124404569 --metrics-shmem-handle=3920,i,5420660017120236539,14757272696511133287,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3944 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        },
+        {
+          "id": 22012,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 34611200,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=6 --skip-read-main-dll --launch-time-ticks=468124716085 --metrics-shmem-handle=4532,i,5845574036852958278,9707623655181539206,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708991934122588 --mojo-platform-channel-handle=4540 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        }
+      ],
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 15584152,
+            "totalSize": 20951040,
+            "embedderHeapUsedSize": 34708672,
+            "backingStorageSize": 1149060
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 5446,
+            "jsEventListeners": 1414
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 4661268,
+            "totalSize": 8306688,
+            "embedderHeapUsedSize": 1980384,
+            "backingStorageSize": 604353
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 97,
+            "jsEventListeners": 187
+          }
+        }
+      ]
+    },
+    {
+      "name": "exact-verification-query",
+      "elapsedMs": 13653.1703,
+      "totalPrivateBytes": 617209856,
+      "processes": [
+        {
+          "id": 77376,
+          "parent": 30884,
+          "name": "pr0_desktop_lib-67fc5753dd5c800f.exe",
+          "privateBytes": 90288128,
+          "command": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-67fc5753dd5c800f.exe --exact auth_tests::desktop_search_webview_worker --nocapture"
+        },
+        {
+          "id": 43028,
+          "parent": 77376,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 81326080,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --embedded-browser-webview=1 --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --accept-lang=en-US --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --lang=en-US --remote-debugging-port=62376 --mojo-named-platform-channel-pipe=77376.78548.17743096067526441486 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 68760,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 2826240,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=crashpad-handler --user-data-dir=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView /prefetch:4 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 --monitor-self-annotation=ptype=crashpad-handler --user-stream-region=348,65568 --database=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\\Crashpad --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=157.0.8103.39 \"--annotation=exe=C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --annotation=plat=Win64 \"--annotation=prod=Edge WebView2\" --annotation=ver=157.0.4341.42 --initial-client-data=0x1a0,0x1a4,0x1a8,0x17c,0x1b0,0x7ffaa109b3a0,0x7ffaa109b3b0,0x7ffaa109b3c0"
+        },
+        {
+          "id": 50744,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 259944448,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=gpu-process --gpu-recent-crash-count=0 --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --gpu-preferences=WAAAAAAAAABgAAACAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --startup-read-main-dll --metrics-shmem-handle=1876,i,4023979550940653069,96900483444552440,262144 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=2040 /prefetch:2 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 78120,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 12529664,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=en-US --service-sandbox-type=none --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2268,i,10957092642438420997,10901613318901490368,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2000 /prefetch:11 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 91436,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 7663616,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=en-US --service-sandbox-type=service --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2628,i,11503986974655840119,9914470547775097475,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2640 /prefetch:13 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 37152,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 128061440,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --ssd-no-pressure-read-main-dll --launch-time-ticks=468124404569 --metrics-shmem-handle=3920,i,5420660017120236539,14757272696511133287,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3944 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        },
+        {
+          "id": 22012,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 34570240,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=6 --skip-read-main-dll --launch-time-ticks=468124716085 --metrics-shmem-handle=4532,i,5845574036852958278,9707623655181539206,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708991934122588 --mojo-platform-channel-handle=4540 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        }
+      ],
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 16387784,
+            "totalSize": 33271808,
+            "embedderHeapUsedSize": 37832144,
+            "backingStorageSize": 1345324
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 5758,
+            "jsEventListeners": 1841
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 4661268,
+            "totalSize": 8306688,
+            "embedderHeapUsedSize": 1980384,
+            "backingStorageSize": 604353
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 97,
+            "jsEventListeners": 187
+          }
+        }
+      ]
+    },
+    {
+      "name": "hidden-five-seconds",
+      "elapsedMs": 19127.321,
+      "totalPrivateBytes": 499253248,
+      "processes": [
+        {
+          "id": 77376,
+          "parent": 30884,
+          "name": "pr0_desktop_lib-67fc5753dd5c800f.exe",
+          "privateBytes": 90296320,
+          "command": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-67fc5753dd5c800f.exe --exact auth_tests::desktop_search_webview_worker --nocapture"
+        },
+        {
+          "id": 43028,
+          "parent": 77376,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 73252864,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --embedded-browser-webview=1 --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --accept-lang=en-US --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --lang=en-US --remote-debugging-port=62376 --mojo-named-platform-channel-pipe=77376.78548.17743096067526441486 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 68760,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 2826240,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=crashpad-handler --user-data-dir=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView /prefetch:4 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 --monitor-self-annotation=ptype=crashpad-handler --user-stream-region=348,65568 --database=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\\Crashpad --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=157.0.8103.39 \"--annotation=exe=C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --annotation=plat=Win64 \"--annotation=prod=Edge WebView2\" --annotation=ver=157.0.4341.42 --initial-client-data=0x1a0,0x1a4,0x1a8,0x17c,0x1b0,0x7ffaa109b3a0,0x7ffaa109b3b0,0x7ffaa109b3c0"
+        },
+        {
+          "id": 50744,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 147091456,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=gpu-process --gpu-recent-crash-count=0 --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --gpu-preferences=WAAAAAAAAABgAAACAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --startup-read-main-dll --metrics-shmem-handle=1876,i,4023979550940653069,96900483444552440,262144 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=2040 /prefetch:2 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 78120,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 12529664,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=en-US --service-sandbox-type=none --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2268,i,10957092642438420997,10901613318901490368,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2000 /prefetch:11 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 91436,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 7663616,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=en-US --service-sandbox-type=service --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2628,i,11503986974655840119,9914470547775097475,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2640 /prefetch:13 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 37152,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 131014656,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --ssd-no-pressure-read-main-dll --launch-time-ticks=468124404569 --metrics-shmem-handle=3920,i,5420660017120236539,14757272696511133287,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3944 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        },
+        {
+          "id": 22012,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 34578432,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=6 --skip-read-main-dll --launch-time-ticks=468124716085 --metrics-shmem-handle=4532,i,5845574036852958278,9707623655181539206,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708991934122588 --mojo-platform-channel-handle=4540 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        }
+      ],
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 16510096,
+            "totalSize": 33796096,
+            "embedderHeapUsedSize": 39414888,
+            "backingStorageSize": 1345451
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 5760,
+            "jsEventListeners": 1843
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 4698728,
+            "totalSize": 8306688,
+            "embedderHeapUsedSize": 1980384,
+            "backingStorageSize": 604429
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 97,
+            "jsEventListeners": 187
+          }
+        }
+      ]
+    },
+    {
+      "name": "after-explicit-gc-diagnostic",
+      "elapsedMs": 19622.1188,
+      "totalPrivateBytes": 455831552,
+      "processes": [
+        {
+          "id": 77376,
+          "parent": 30884,
+          "name": "pr0_desktop_lib-67fc5753dd5c800f.exe",
+          "privateBytes": 90296320,
+          "command": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-67fc5753dd5c800f.exe --exact auth_tests::desktop_search_webview_worker --nocapture"
+        },
+        {
+          "id": 43028,
+          "parent": 77376,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 73248768,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --embedded-browser-webview=1 --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --accept-lang=en-US --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --lang=en-US --remote-debugging-port=62376 --mojo-named-platform-channel-pipe=77376.78548.17743096067526441486 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 68760,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 2826240,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=crashpad-handler --user-data-dir=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView /prefetch:4 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 --monitor-self-annotation=ptype=crashpad-handler --user-stream-region=348,65568 --database=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\\Crashpad --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=157.0.8103.39 \"--annotation=exe=C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --annotation=plat=Win64 \"--annotation=prod=Edge WebView2\" --annotation=ver=157.0.4341.42 --initial-client-data=0x1a0,0x1a4,0x1a8,0x17c,0x1b0,0x7ffaa109b3a0,0x7ffaa109b3b0,0x7ffaa109b3c0"
+        },
+        {
+          "id": 50744,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 142761984,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=gpu-process --gpu-recent-crash-count=0 --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --gpu-preferences=WAAAAAAAAABgAAACAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --startup-read-main-dll --metrics-shmem-handle=1876,i,4023979550940653069,96900483444552440,262144 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=2040 /prefetch:2 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 78120,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 12529664,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=en-US --service-sandbox-type=none --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2268,i,10957092642438420997,10901613318901490368,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2000 /prefetch:11 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 91436,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 7663616,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=en-US --service-sandbox-type=service --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2628,i,11503986974655840119,9914470547775097475,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2640 /prefetch:13 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 37152,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 94150656,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --ssd-no-pressure-read-main-dll --launch-time-ticks=468124404569 --metrics-shmem-handle=3920,i,5420660017120236539,14757272696511133287,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3944 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        },
+        {
+          "id": 22012,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 32354304,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=6 --skip-read-main-dll --launch-time-ticks=468124716085 --metrics-shmem-handle=4532,i,5845574036852958278,9707623655181539206,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708991934122588 --mojo-platform-channel-handle=4540 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        }
+      ],
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 10113828,
+            "totalSize": 10989568,
+            "embedderHeapUsedSize": 9415712,
+            "backingStorageSize": 722264
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 4482,
+            "jsEventListeners": 940
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 3613276,
+            "totalSize": 4374528,
+            "embedderHeapUsedSize": 948328,
+            "backingStorageSize": 603477
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 88,
+            "jsEventListeners": 180
+          }
+        }
+      ]
+    },
+    {
+      "name": "after-memory-pressure-diagnostic",
+      "elapsedMs": 25083.0759,
+      "totalPrivateBytes": 456155136,
+      "processes": [
+        {
+          "id": 77376,
+          "parent": 30884,
+          "name": "pr0_desktop_lib-67fc5753dd5c800f.exe",
+          "privateBytes": 90091520,
+          "command": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-67fc5753dd5c800f.exe --exact auth_tests::desktop_search_webview_worker --nocapture"
+        },
+        {
+          "id": 43028,
+          "parent": 77376,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 73285632,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --embedded-browser-webview=1 --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --noerrdialogs --embedded-browser-webview-dpi-awareness=2 --accept-lang=en-US --autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --lang=en-US --remote-debugging-port=62376 --mojo-named-platform-channel-pipe=77376.78548.17743096067526441486 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 68760,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 2826240,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=crashpad-handler --user-data-dir=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView /prefetch:4 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 --monitor-self-annotation=ptype=crashpad-handler --user-stream-region=348,65568 --database=C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\\Crashpad --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=157.0.8103.39 \"--annotation=exe=C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --annotation=plat=Win64 \"--annotation=prod=Edge WebView2\" --annotation=ver=157.0.4341.42 --initial-client-data=0x1a0,0x1a4,0x1a8,0x17c,0x1b0,0x7ffaa109b3a0,0x7ffaa109b3b0,0x7ffaa109b3c0"
+        },
+        {
+          "id": 50744,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 143093760,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=gpu-process --gpu-recent-crash-count=0 --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --gpu-preferences=WAAAAAAAAABgAAACAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --startup-read-main-dll --metrics-shmem-handle=1876,i,4023979550940653069,96900483444552440,262144 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=2040 /prefetch:2 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 78120,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 12529664,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=en-US --service-sandbox-type=none --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2268,i,10957092642438420997,10901613318901490368,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2000 /prefetch:11 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 91436,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 7663616,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=en-US --service-sandbox-type=service --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --startup-read-main-dll --metrics-shmem-handle=2628,i,11503986974655840119,9914470547775097475,524288 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2640 /prefetch:13 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75"
+        },
+        {
+          "id": 37152,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 94314496,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=5 --ssd-no-pressure-read-main-dll --launch-time-ticks=468124404569 --metrics-shmem-handle=3920,i,5420660017120236539,14757272696511133287,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3944 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        },
+        {
+          "id": 22012,
+          "parent": 43028,
+          "name": "msedgewebview2.exe",
+          "privateBytes": 32350208,
+          "command": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\157.0.4341.42\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-data-dir=\"C:\\Users\\KAIHEN~1\\AppData\\Local\\Temp\\pr0-capacity-65-1B3nQB\\webview\\EBWebView\" --webview-exe-name=pr0_desktop_lib-67fc5753dd5c800f.exe --embedded-browser-webview=1 --embedded-browser-webview-dpi-awareness=2 --autoplay-policy=no-user-gesture-required --remote-debugging-port=62376 --video-capture-use-gpu-memory-buffer --lang=en-US --device-scale-factor=1 --num-raster-threads=4 --enable-main-frame-before-activation --renderer-client-id=6 --skip-read-main-dll --launch-time-ticks=468124716085 --metrics-shmem-handle=4532,i,5845574036852958278,9707623655181539206,1048576 --field-trial-handle=2044,i,3369713689373009388,9496121061985634635,262144 --disable-features=msPdfOOUI,msSmartScreenProtection,msWebOOUI --variations-seed-version --pseudonymization-salt-handle=2056,i,9138897345904106344,12857260852913504870,4 --trace-process-track-uuid=3190708991934122588 --mojo-platform-channel-handle=4540 /pfhostedapp:0b08db2f69c96c4b0c0bf117e60f7ce10fdbaf75 /prefetch:1"
+        }
+      ],
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 10113828,
+            "totalSize": 10989568,
+            "embedderHeapUsedSize": 9415712,
+            "backingStorageSize": 722264
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 4482,
+            "jsEventListeners": 940
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 3613276,
+            "totalSize": 4374528,
+            "embedderHeapUsedSize": 948328,
+            "backingStorageSize": 603477
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 88,
+            "jsEventListeners": 180
+          }
+        }
+      ]
+    }
+  ]
+}

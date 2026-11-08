@@ -85,7 +85,8 @@ impl LibraryStore {
         }
         super::library_migrations::migrate(&mut db, &path, instance, account)?;
         let recovery_error = super::local_search::recover(&mut db, &path).err();
-        db.execute_batch("PRAGMA cache_size=-65536; PRAGMA mmap_size=0;")
+        // A single bounded page cache shares the resident process budget with WebView2.
+        db.execute_batch("PRAGMA cache_size=-16384; PRAGMA mmap_size=0;")
             .map_err(io)?;
         Ok(Self {
             db,

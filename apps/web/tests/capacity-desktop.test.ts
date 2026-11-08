@@ -20,15 +20,27 @@ import {
   measureDesktopInteractions,
   prepareDesktopResidency,
 } from "./capacity-desktop-interactions";
+import { profileDesktopPhase } from "./capacity-desktop-profile";
+import type { ProfilePhase } from "./capacity-desktop-profile";
 import { capacityIdentity, writeCapacitySnapshot } from "./capacity-snapshot";
 import { capacityP95 } from "./capacity-statistics";
 import { localNativeWorker } from "./local-native-worker";
 import { nativeWebview } from "./native-webview";
 
 const measureSearch = async (page: Page, query: string) => {
-  await page
-    .getByRole("searchbox", { name: "Search downloaded prompts" })
-    .fill("");
+  await page.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>(
+      'input[type="search"]:not(details input)'
+    );
+    if (!input) {
+      throw new Error("Missing production search field");
+    }
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set?.call(input, "");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
   await page.locator('[data-search-query=""]').waitFor();
   return await page.evaluate(async (value) => {
     const input = document.querySelector<HTMLInputElement>(
@@ -138,6 +150,8 @@ interface DesktopCapacityEvidence {
   tagsPerPrompt: number;
   classification: string;
   results: { query: string; samples: number[]; p95Ms: number }[];
+  profile?: ProfilePhase[];
+  automationDisconnectedBeforeResidency?: boolean;
   passed: boolean;
   releaseCriteriaMet: false;
   interactionProgress?: { launcher: number[]; copy: number[]; save: number[] };
@@ -219,6 +233,16 @@ test("maximum Unicode library preserves complete results after restart and recor
     await view.page.locator("[data-search-query]").waitFor();
     evidence.processColdUiMs = performance.now() - cold;
     evidence.webview = view.browser.version();
+    let automationConnected = true;
+    const profile = async (name: string) => {
+      if (process.env.PR0_CAPACITY_PROFILE === "true" && view) {
+        evidence.profile ??= [];
+        evidence.profile.push(
+          await profileDesktopPhase(view, name, cold, automationConnected)
+        );
+      }
+    };
+    await profile("initial-render");
     const queries = [
       "a",
       "C++",
@@ -248,6 +272,7 @@ test("maximum Unicode library preserves complete results after restart and recor
         p95Ms: capacityP95(samples),
       });
     }
+    await profile("after-searches");
     const account = desktopStatusSchema.parse(
       await view.page.evaluate(() =>
         window.__TAURI_INTERNALS__.invoke("auth_status", {})
@@ -257,12 +282,14 @@ test("maximum Unicode library preserves complete results after restart and recor
     expect(ids.size).toBe(10_000);
     expect(ids.has(capacityId(10_000))).toBe(true);
     evidence.completePaginationCount = ids.size;
+    await profile("after-complete-pagination");
     evidence.interactions = await measureDesktopInteractions(
       view.page,
       (samples) => {
         evidence.interactionProgress = samples;
       }
     );
+    await profile("after-interactions");
     const database = await stat(
       path.join(
         directory,
@@ -272,6 +299,14 @@ test("maximum Unicode library preserves complete results after restart and recor
     evidence.databaseBytes = database.size;
     if (process.env.PR0_CAPACITY_RESIDENCY === "true") {
       evidence.residencyState = await prepareDesktopResidency(view.page);
+      await profile("hidden-with-automation");
+      // Inspector network response buffers belong to the measurement apparatus.
+      // Disconnect without closing the native-owned WebViews, then settle again.
+      await view.browser.close();
+      automationConnected = false;
+      evidence.automationDisconnectedBeforeResidency = true;
+      await Bun.sleep(30_000);
+      await profile("hidden-after-automation-disconnect");
       const sampler = Bun.spawn(
         [
           "powershell.exe",
@@ -296,6 +331,7 @@ test("maximum Unicode library preserves complete results after restart and recor
         .parse(JSON.parse(output));
       await Bun.write("docs/evidence/issue-65-residency.json", output);
       evidence.residency = residency;
+      await profile("after-ten-minutes");
       expect(residency.intervalMs).toBeGreaterThanOrEqual(599_000);
       expect(residency.peakSampledPrivateBytes).toBeLessThanOrEqual(
         314_572_800
