@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-update-request-install"
+description = "Enables the update_request_install command without any pre-configured scope."
+commands.allow = ["update_request_install"]
+
+[[permission]]
+identifier = "deny-update-request-install"
+description = "Denies the update_request_install command without any pre-configured scope."
+commands.deny = ["update_request_install"]

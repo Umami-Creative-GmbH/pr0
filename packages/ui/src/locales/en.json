@@ -1023,5 +1023,8 @@
   "validationEnterANonblankValue": "Enter a nonblank value.",
   "validationValueMustBeAtMost256KibOfUtf": "Value must be at most 256 KiB of UTF-8 text.",
   "validationEnterDecimalTextSuchAs3Or0250": "Enter decimal text, such as -3 or +02.50, without exponents or line breaks.",
-  "validationCheckTheVariableValues": "Check the variable values."
+  "validationCheckTheVariableValues": "Check the variable values.",
+  "installUpdateAndRestart": "Install update and restart",
+  "saveAndUpdate": "Save and update",
+  "discardDraftAndUpdate": "Discard draft and update"
 }

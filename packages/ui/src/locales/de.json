@@ -1023,5 +1023,8 @@
   "validationEnterANonblankValue": "Gib einen nichtleeren Wert ein.",
   "validationValueMustBeAtMost256KibOfUtf": "Der Wert darf höchstens 256 KiB UTF-8-Text umfassen.",
   "validationEnterDecimalTextSuchAs3Or0250": "Gib eine Dezimalzahl wie -3 oder +02.50 ohne Exponenten oder Zeilenumbrüche ein.",
-  "validationCheckTheVariableValues": "Prüfe die Variablenwerte."
+  "validationCheckTheVariableValues": "Prüfe die Variablenwerte.",
+  "installUpdateAndRestart": "Update installieren und neu starten",
+  "saveAndUpdate": "Speichern und aktualisieren",
+  "discardDraftAndUpdate": "Entwurf verwerfen und aktualisieren"
 }
