@@ -6,6 +6,8 @@ The account, persistence, recovery, and compatibility guarantees still come from
 
 ## Run the current application
 
+For the complete implemented application, follow [the self-hosting runbook](../operations/self-hosting.md), with [current measured validation](../operations/self-hosting-validation.md). The account-slice notes and starter evidence below describe their historical scope; they are not the complete onboarding path.
+
 The account slice in issue #24 now consumes PostgreSQL and a durable verification-mail worker. Follow [the account deployment guide](../operations/accounts.md) for runtime secrets, SMTP, explicit Bun migrations, local first-account admission, readiness, and repeatable container tests. Self-hosted registration defaults to closed and verification remains mandatory. The named PostgreSQL volume preserves account/session data and immutable instance identity across restart and recreation.
 
 The earlier starter-container evidence below is historical. It does not replace the account slice's validation report or establish the remaining full-MVP release guarantees. The normative deployment requirements in the following sections remain in effect as their consuming features arrive.
