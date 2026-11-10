@@ -34,4 +34,6 @@ next-env.d.ts
 # Generated update-channel image contents (prepared by the release workflow).
 /infrastructure/update-channel/channel/*
 !/infrastructure/update-channel/channel/.gitkeep
+# Private rehearsal channel contents (decrypted rehearsal target; never commit).
+/infrastructure/update-channel/rehearsal-channel/channel/
 .tauri-keys/
