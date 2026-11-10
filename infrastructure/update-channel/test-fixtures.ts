@@ -4,6 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { releaseFiles } from "./release-versions";
+
 const temporaryDirectories: string[] = [];
 
 export const temporaryDirectory = async (): Promise<string> => {
@@ -54,7 +56,7 @@ export const signedRelease = async (
   signedVersion = version
 ) => {
   const directory = await temporaryDirectory();
-  const installer = `pr0_${version}_x64-setup.exe`;
+  const [installer, , evidenceFile] = releaseFiles(version);
   const installerPath = path.join(directory, installer);
   const publicPath = path.join(keyDirectory ?? directory, "test.pub");
   const privatePath = path.join(keyDirectory ?? directory, "test.key");
@@ -78,7 +80,7 @@ export const signedRelease = async (
   ).toString("base64");
   await Bun.write(`${installerPath}.sig`, signature);
   await Bun.write(
-    path.join(directory, "signing-evidence.json"),
+    path.join(directory, evidenceFile),
     JSON.stringify({
       version,
       installer,

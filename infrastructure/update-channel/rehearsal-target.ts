@@ -6,20 +6,13 @@
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 
-import { validateRehearsalVersion } from "./release-versions";
+// Type-only: erased at runtime, so the dependency-free copy still runs.
+import type { RehearsalTargetManifest } from "./open-rehearsal-target";
+import { releaseFiles, validateRehearsalVersion } from "./release-versions";
 import type { RehearsalReservation } from "./release-versions";
 
 export const rehearsalManifestFile = "rehearsal-target.json";
 export const sealedSuffix = ".sealed";
-
-export interface RehearsalTargetManifest {
-  candidate: string;
-  candidateCommit: string;
-  files: string[];
-  installer: string;
-  sha256: string;
-  version: string;
-}
 
 const keyLength = 32;
 /** AES-GCM nonce length; each sealed file starts with its nonce. */
@@ -116,10 +109,10 @@ export const importRehearsalArtifactKey = async (base64Key: string) => {
 export const sealedFileContext = (version: string, filename: string) =>
   new TextEncoder().encode(`pr0 rehearsal target ${version}/${filename}`);
 
-export const rehearsalTargetFiles = (version: string) => {
-  const installer = `pr0_${version}_x64-setup.exe`;
-  return [installer, `${installer}.sig`, "signing-evidence.json"];
-};
+/** A rehearsal target holds exactly the files of a public release. */
+export const rehearsalTargetFiles = (version: string): string[] => [
+  ...releaseFiles(version),
+];
 
 export const sha256File = async (filePath: string) => {
   const bytes = await Bun.file(filePath).arrayBuffer();

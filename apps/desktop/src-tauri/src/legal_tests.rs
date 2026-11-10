@@ -1,3 +1,5 @@
+use super::auth_contract::LegalKind;
+
 // Records system-browser launches so legal links are proven to leave only by kind.
 struct LegalBrowser {
     fixture: Arc<Fixture>,
@@ -41,7 +43,7 @@ fn instance_legal_links_follow_the_selected_instance_through_sign_in_and_restart
     let service = AuthService::new(directory.clone(), transport.clone(), vault.clone()).unwrap();
     assert_eq!(view(&service)["legal"], serde_json::Value::Null);
     assert_eq!(
-        service.open_legal("impressum").err().as_deref(),
+        service.open_legal(LegalKind::Impressum).err().as_deref(),
         Some("legal_link_unavailable")
     );
     service.begin("https://instance.example").unwrap();
@@ -49,18 +51,15 @@ fn instance_legal_links_follow_the_selected_instance_through_sign_in_and_restart
     assert_eq!(view(&service)["legal"], legal);
     // An approval opens the device URL; only legal launches are asserted below.
     transport.opened.lock().unwrap().clear();
-    service.open_legal("terms").unwrap();
+    service.open_legal(LegalKind::Terms).unwrap();
     assert_eq!(
-        service.open_legal("privacy").err().as_deref(),
+        service.open_legal(LegalKind::Privacy).err().as_deref(),
         Some("legal_link_unavailable")
     );
-    assert_eq!(
-        service
-            .open_legal("https://attacker.example")
-            .err()
-            .as_deref(),
-        Some("legal_link_unavailable")
-    );
+    // The command argument is a kind, so a URL or unknown name never reaches the service.
+    for kind in ["https://attacker.example", "cookies", "Terms"] {
+        assert!(serde_json::from_value::<LegalKind>(json!(kind)).is_err(), "{kind}");
+    }
     assert_eq!(
         *transport.opened.lock().unwrap(),
         vec!["https://operator.example/terms".to_string()]
@@ -86,7 +85,7 @@ fn unconfigured_instances_show_no_legal_links() {
     assert_eq!(view(&service)["legal"], serde_json::Value::Null);
     transport.opened.lock().unwrap().clear();
     assert_eq!(
-        service.open_legal("impressum").err().as_deref(),
+        service.open_legal(LegalKind::Impressum).err().as_deref(),
         Some("legal_link_unavailable")
     );
     assert!(transport.opened.lock().unwrap().is_empty());

@@ -6,6 +6,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import {
+  releaseFiles,
   reservedRehearsalVersions,
   validatePublicVersion,
   validateRehearsalVersion,
@@ -46,10 +47,10 @@ const verifyRelease = async (
   release: Pick<ChannelRelease, "directory" | "version">,
   publicKey: string
 ) => {
-  const installer = `pr0_${release.version}_x64-setup.exe`;
+  const [installer, , evidenceFile] = releaseFiles(release.version);
   const installerPath = path.join(release.directory, installer);
   const evidence = signingEvidenceSchema.parse(
-    await Bun.file(path.join(release.directory, "signing-evidence.json")).json()
+    await Bun.file(path.join(release.directory, evidenceFile)).json()
   );
   const sha256 = new Bun.CryptoHasher("sha256")
     .update(await Bun.file(installerPath).arrayBuffer())
@@ -200,7 +201,7 @@ export const packageChannel = async ({
     const directory = path.join(outputDirectory, "releases", release.version);
     await mkdir(directory, { recursive: true });
     await Promise.all(
-      [installer, `${installer}.sig`, "signing-evidence.json"].map((filename) =>
+      releaseFiles(release.version).map((filename) =>
         copyImmutableArtifact(
           path.join(release.directory, filename),
           path.join(directory, filename)

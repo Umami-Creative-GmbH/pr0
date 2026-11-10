@@ -4,7 +4,10 @@ import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { librarySchema } from "@pr0/api-contract/accounts";
+import { instanceConfigurationPattern } from "@pr0/api-contract/operator-output";
 import { z } from "zod";
+
+import { availablePort, randomOctet } from "./test-network";
 
 const root = path.resolve(import.meta.dir, "../../..");
 const postgres =
@@ -25,22 +28,13 @@ const steps = [
   "reopen-ingress",
 ];
 // Strips the operator's own configuration so only the disposable checkout's .env applies.
-const configurationPattern =
-  /^(?:PR0_|SMTP_|COMPOSE_|DATABASE_URL|BETTER_AUTH_|POSTGRES_)/u;
 const cleanEnvironment = () =>
   Object.fromEntries(
     Object.entries(process.env).filter(
-      ([name]) => !configurationPattern.test(name)
+      ([name]) => !instanceConfigurationPattern.test(name)
     )
   );
 const slash = (value: string) => value.replaceAll("\\", "/");
-const randomOctet = () => Math.floor(Math.random() * 250) + 1;
-const availablePort = async () => {
-  const reservation = Bun.serve({ port: 0, fetch: () => new Response() });
-  const { port } = reservation;
-  await reservation.stop(true);
-  return port;
-};
 const execute = async (command: string[], cwd: string) => {
   const child = Bun.spawn(command, {
     cwd,

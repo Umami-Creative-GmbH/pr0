@@ -32,7 +32,7 @@ Do not add this repository to Coolify as an application. Do not let Coolify's Do
 | `/etc/pr0/credentials/backup-heartbeat-url` | Dead-man's switch check URL for `pr0-backup`, root `0600` |
 | `/mnt/pr0-backups` | Storage Box mount for encrypted backups (`PR0_BACKUP_MOUNT`), writable by UID 1000 |
 
-The host needs Docker Engine with the Compose plugin, `git`, `flock` (util-linux) and Bun 1.4.4 at `/usr/local/bin/bun` for the redeploy script. The script's one dependency (`zod`) is installed in the checkout with `bun install --frozen-lockfile --filter @pr0/hosted`. The overlay and the example contain no secrets. Each secret is a file. The application reads it through `NAME_FILE=/run/secrets/NAME`, as described in [self-hosting](self-hosting.md#prepare-configuration-and-storage).
+The host needs Docker Engine with the Compose plugin, `git`, `flock` (util-linux) and Bun 1.4.4 at `/usr/local/bin/bun` for the redeploy script. The script's dependencies (`zod` and the repository's `@pr0/api-contract` package) are installed in the checkout with `bun install --frozen-lockfile --filter @pr0/hosted`. The overlay and the example contain no secrets. Each secret is a file. The application reads it through `NAME_FILE=/run/secrets/NAME`, as described in [self-hosting](self-hosting.md#prepare-configuration-and-storage).
 
 `.env` sets `COMPOSE_PROJECT_NAME=pr0` and `COMPOSE_FILE=compose.yaml:compose.hosted.yaml`. Every plain `docker compose …` command run in `/opt/pr0` therefore uses the right project, overlay and release images, including the backup timer. Never run Compose for this stack from another directory or with `-p`.
 
@@ -103,19 +103,29 @@ The script refuses a checkout with local changes or a revision that isn't a comm
 | `migrate` | One `docker compose run --rm accounts migrate` |
 | `replay-deletions` | `docker compose run --rm deletions replay` |
 | `recreate` | `docker compose up --force-recreate web mail` on the new image |
-| `check` | The authenticated canary check (`canary` service: the availability probe's library and search check, run in web's network namespace with the canary session), then `/api/v1/ready` from inside web. Each is retried every 5 seconds for up to two minutes while web starts and search prepares |
+| `check` | The authenticated canary check (`canary` service: the availability probe's library and search check, run in web's network namespace with the canary session), then `/api/v1/ready` from inside web. Both are retried every 5 seconds while web starts and search prepares. Together they get `PR0_REDEPLOY_CHECK_SECONDS` from `.env` (whole seconds, 60–1800, default 600) |
 | `backup` | `docker compose run --rm backup create`, labelled with the new release |
-| `reopen-ingress` | Recreates the ingress on its new image and checks `/api/v1/ready` through it |
+| `reopen-ingress` | Recreates the ingress on its new image and checks `/api/v1/ready` through it. If that fails, it stops the ingress again |
 
 The script never runs `deletions initialize`, `restore …`, `accounts admit-first`, `down`, `rm` or any volume or image removal. It refuses such a command even if code asks for one.
 
 **Output and records.** stdout carries one JSON event per line: `redeploy_started` (with the record path), `redeploy_step` per step with its duration, then `redeploy_complete` or `redeploy_failed`. Command output goes to stderr. The record `.deployments/<start>-<commit>.json` holds the previous and deployed commit, the image tags and image IDs, each step's start, duration and result, and every command run. Attach it to the candidate's evidence.
 
-**When a step fails.** If `preflight` fails, nothing has changed and ingress is still open: fix the cause (usually run `backup create`) and run the script again. After `close-ingress`, a failure leaves ingress, web and mail stopped and the data intact. The checkout may already be at the new commit. If the failure came after `build`, `.env` names the new images. To recover:
+**When a step fails.** The `redeploy_failed` event names the failed step, the error, the ingress state (`open`, `closed` or `unknown`) and the action to take. If `preflight` fails, nothing has changed and ingress is still open: fix the cause (usually run `backup create`) and run the script again. After `close-ingress`, a failure leaves ingress stopped and the data intact. Before `recreate`, web and mail are stopped too; after it, they run the new release. If `reopen-ingress` fails, the script stops the ingress again. If even that fails, the state is `unknown`: run `docker compose stop ingress` and check `docker compose ps`. The checkout may already be at the new commit. If the failure came after `build`, `.env` names the new images. To recover:
 
 - **Fix forward:** run the script again with a fixed commit. This is the normal path; preflight accepts the backup taken before the failed attempt while it is less than one hour old.
 - **Go back to the previous commit** only if the current schema is still compatible with it: no migration ran, or `migrate` failed before applying anything (`docker compose run --rm accounts migrate` reports the current version). Run the script with the previous commit; its images are rebuilt from cache.
 - Otherwise follow [disaster recovery](backup-restore.md#restore-sequence). Never run initialization to get past an error.
+
+**When readiness stays `search_preparing`.** `/api/v1/ready` reports `search_preparing` until every account with edits has a current search projection. A projection is rebuilt only by that account's next search, and nobody else can search while ingress is closed. Waiting longer can't fix another account's stale projection. If `check` fails with `Readiness stayed unavailable` and the quoted body shows every other check `ready` and only `"search":"search_preparing"`, the new release is working. Finish the sequence by hand under the maintenance lock:
+
+```sh
+cd /opt/pr0
+flock --wait 1800 /run/lock/pr0-maintenance.lock sh -c 'docker compose run --rm backup create && docker compose up --detach --no-build --no-deps --force-recreate --wait --wait-timeout 120 ingress'
+curl --silent https://pr0.umami-creative.app/api/v1/ready
+```
+
+Each account's first search rebuilds its projection. Until the last one is current, `/api/v1/ready` answers 503 and `operations metrics` reports `readiness_unavailable`. The probe host alerts on that ([probe host](probe-host.md)). Acknowledge the alert and record the manual steps and the readiness body with the deployment record. It clears when readiness returns to `ready`. If any other check is unavailable, or the canary failed, don't reopen: fix forward as above. If the projection usually takes longer than the default wait to prepare, raise `PR0_REDEPLOY_CHECK_SECONDS` in `.env`.
 
 Old image tags are kept for rollback and restore rehearsals. Remove a tag only after no backup within the 30-day retention names its release.
 

@@ -15,6 +15,17 @@ export interface ReservedVersionsFile {
   rehearsalTargets: readonly RehearsalReservation[];
 }
 
+/**
+ * The files the desktop build leaves for one version, in this order: the
+ * Windows installer, its updater signature and the signing evidence.
+ */
+export const releaseFiles = (
+  version: string
+): readonly [installer: string, signature: string, evidence: string] => {
+  const installer = `pr0_${version}_x64-setup.exe`;
+  return [installer, `${installer}.sig`, "signing-evidence.json"];
+};
+
 const versionPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u;
 
 const nextPatch = (version: string): string => {

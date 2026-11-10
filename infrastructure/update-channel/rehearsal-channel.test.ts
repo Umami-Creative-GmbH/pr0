@@ -173,3 +173,35 @@ test(
   },
   processTestTimeout
 );
+
+test(
+  "the verification CLI requires both keys and verifies the sealed target",
+  async () => {
+    const target = await sealedTarget();
+    const script = path.join(import.meta.dir, "verify-rehearsal.ts");
+    const missingKey = Bun.spawnSync(["bun", script, target.sealedDirectory], {
+      env: {
+        ...process.env,
+        PR0_REHEARSAL_ARTIFACT_KEY: "",
+        PR0_UPDATE_PUBLIC_KEY: target.publicKey,
+      },
+    });
+    expect(missingKey.exitCode).not.toBe(0);
+    expect(missingKey.stderr.toString()).toContain(
+      "PR0_REHEARSAL_ARTIFACT_KEY is required"
+    );
+    const verified = Bun.spawnSync(["bun", script, target.sealedDirectory], {
+      env: {
+        ...process.env,
+        PR0_REHEARSAL_ARTIFACT_KEY: key,
+        PR0_UPDATE_PUBLIC_KEY: target.publicKey,
+      },
+    });
+    expect(verified.stderr.toString()).toBe("");
+    expect(verified.exitCode).toBe(0);
+    expect(verified.stdout.toString()).toContain(
+      "Rehearsal target 0.1.1 (candidate 0.1.0 at 0123456789abcdef0123456789abcdef01234567) verified"
+    );
+  },
+  processTestTimeout
+);

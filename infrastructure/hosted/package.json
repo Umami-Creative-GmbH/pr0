@@ -6,6 +6,7 @@
     "typecheck": "bun --bun tsc --noEmit"
   },
   "dependencies": {
+    "@pr0/api-contract": "workspace:*",
     "zod": "^4.6.5"
   },
   "devDependencies": {

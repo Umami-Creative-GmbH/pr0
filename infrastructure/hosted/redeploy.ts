@@ -8,22 +8,28 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import {
+  availabilitySampleSchema,
+  instanceConfigurationPattern,
+  parseLastJsonLine,
+} from "@pr0/api-contract/operator-output";
 import { z } from "zod";
 
 const checkout = process.cwd();
 const environmentFile = path.join(checkout, ".env");
 const recordDirectory = path.join(checkout, ".deployments");
 const scratchReserveBytes = 16n * 1024n * 1024n;
-// The post-deploy checks retry for up to two minutes while web starts and search prepares.
-const checkAttempts = 24;
 const checkIntervalMs = 5000;
+/**
+ * How long the check step waits for the canary and then for readiness while
+ * web starts and search prepares. PR0_REDEPLOY_CHECK_SECONDS in .env overrides it.
+ */
+const checkSeconds = { default: 600, minimum: 60, maximum: 1800 } as const;
 const revisionPattern = /^[A-Za-z0-9][\w./-]*$/u;
 const commitPattern = /^[0-9a-f]{40}$/u;
 const imageNamePattern = /^[a-z0-9][a-z0-9._/-]*$/u;
 const settingPattern = /^(?<name>[A-Z][A-Z0-9_]*)=(?<value>.*)$/u;
-// Configuration comes only from the checkout's .env, never from the operator's shell.
-const inheritedConfiguration =
-  /^(?:PR0_|SMTP_|COMPOSE_|DATABASE_URL|BETTER_AUTH_|POSTGRES_)/u;
+const wholeSecondsPattern = /^\d+$/u;
 // The script never runs initialization, admission or recovery commands.
 const forbiddenArguments = new Set([
   "restore",
@@ -38,15 +44,19 @@ const releaseSettings = [
   "PR0_INGRESS_IMAGE",
   "PR0_BACKUP_RELEASE",
 ] as const;
+const servingServices = ["ingress", "web", "mail"];
 type ReleaseSettings = Record<(typeof releaseSettings)[number], string>;
 type JsonValue = z.infer<ReturnType<typeof z.json>>;
+type StepDetails = Record<string, JsonValue>;
+/** Whether the public route can reach the stack; "unknown" until a stop or check proves it. */
+type IngressState = "open" | "closed" | "unknown";
 
 interface StepRecord {
   step: string;
   status: "ok" | "failed";
   startedAt: string;
   durationMs: number;
-  details?: Record<string, JsonValue>;
+  details?: StepDetails;
   error?: string;
 }
 interface RedeployRecord {
@@ -66,6 +76,10 @@ interface ImageRecord {
   tag: string;
   id: string;
 }
+interface Target {
+  imageName: string;
+  checkTimeoutMs: number;
+}
 const record: RedeployRecord = {
   event: "redeploy",
   status: "running",
@@ -80,6 +94,14 @@ const record: RedeployRecord = {
   commands: [],
 };
 let recordFile = "";
+let ingress: IngressState = "open";
+const failureActions: Record<IngressState, string> = {
+  open: "Nothing was changed; ingress is still open.",
+  closed:
+    "Ingress stays closed and data is intact. Inspect the record, fix forward with a new commit, or roll back only to a binary compatible with the current schema.",
+  unknown:
+    "Ingress may be serving: run docker compose stop ingress, then check docker compose ps. Data is intact; inspect the record and fix forward with a new commit.",
+};
 
 const writeRecord = () => {
   if (!recordFile) {
@@ -96,7 +118,8 @@ const emit = (event: Record<string, JsonValue>) => {
 const childEnvironment = (overrides: Record<string, string> = {}) => ({
   ...Object.fromEntries(
     Object.entries(process.env).filter(
-      ([name]) => !inheritedConfiguration.test(name)
+      // Configuration comes only from the checkout's .env, never from the operator's shell.
+      ([name]) => !instanceConfigurationPattern.test(name)
     )
   ),
   ...overrides,
@@ -157,15 +180,27 @@ const git = async (...args: string[]) => {
   return stdout.trim();
 };
 
-/** Parses the last stdout line, where every operator command writes its JSON result. */
-const lastJson = <T extends z.ZodType>(schema: T, text: string): z.infer<T> => {
-  const line = text.trim().split("\n").at(-1) ?? "";
-  try {
-    return schema.parse(JSON.parse(line));
-  } catch {
-    throw new Error(`Unexpected command result: ${line.slice(0, 200)}`);
+/**
+ * Repeats an attempt every few seconds until it succeeds or the next attempt
+ * would start after the deadline.
+ */
+const retry = async <T>(
+  deadline: number,
+  attempt: () => Promise<T>,
+  succeeded: (result: T) => boolean
+) => {
+  let attempts = 0;
+  for (;;) {
+    attempts += 1;
+    const result = await attempt();
+    const ok = succeeded(result);
+    if (ok || performance.now() + checkIntervalMs > deadline) {
+      return { result, attempts, ok };
+    }
+    await Bun.sleep(checkIntervalMs);
   }
 };
+
 const metricsSchema = z.object({
   backup: z.object({ status: z.string(), checkpoint: z.string().nullable() }),
   storage: z.object({ databaseBytes: z.number().nonnegative() }),
@@ -174,11 +209,6 @@ const freeBytes = z.string().regex(/^\d+$/u).transform(BigInt);
 const spaceSchema = z.object({
   migrationBackups: freeBytes,
   scratch: freeBytes,
-});
-const sampleSchema = z.object({
-  at: z.string(),
-  available: z.boolean(),
-  durationMs: z.number(),
 });
 const readinessSchema = z.object({ status: z.number(), body: z.json() });
 const backupSchema = z.object({
@@ -219,11 +249,24 @@ const writeReleaseSettings = (release: ReleaseSettings) => {
   writeFileSync(temporary, `${lines.join("\n")}\n`, { mode: 0o600 });
   renameSync(temporary, environmentFile);
 };
+const checkTimeoutMs = (configured = "") => {
+  if (!configured) {
+    return checkSeconds.default * 1000;
+  }
+  const seconds = Number(configured);
+  if (
+    !wholeSecondsPattern.test(configured) ||
+    seconds < checkSeconds.minimum ||
+    seconds > checkSeconds.maximum
+  ) {
+    throw new Error(
+      `PR0_REDEPLOY_CHECK_SECONDS must be whole seconds from ${checkSeconds.minimum} to ${checkSeconds.maximum}`
+    );
+  }
+  return seconds * 1000;
+};
 
-const step = async (
-  name: string,
-  action: () => Promise<Record<string, JsonValue>>
-) => {
+const step = async (name: string, action: () => Promise<StepDetails>) => {
   const started = performance.now();
   const entry: StepRecord = {
     step: name,
@@ -257,248 +300,274 @@ const runningServices = async () => {
     .map((line) => line.trim())
     .filter(Boolean);
 };
+/** Stops services and proves they stopped; only then is ingress known to be closed. */
+const stopServing = async (services: string[]) => {
+  ingress = "unknown";
+  await compose(["stop", ...services]);
+  const running = await runningServices();
+  const stopped = new Set(services);
+  const open = running.filter((name) => stopped.has(name));
+  if (open.length) {
+    throw new Error(`Still running after stop: ${open.join(", ")}`);
+  }
+  ingress = "closed";
+  return running;
+};
+
+/** Resolves the commit, checks the checkout and settings, and opens the record. */
+const prepare = async (revision: string): Promise<Target> => {
+  if (!revisionPattern.test(revision)) {
+    throw new Error("Usage: redeploy.ts <commit>");
+  }
+  if ((await git("status", "--porcelain")) !== "") {
+    throw new Error("The pinned checkout has local changes; refusing");
+  }
+  record.previousCommit = await git("rev-parse", "HEAD");
+  record.commit = await git("rev-parse", "--verify", `${revision}^{commit}`);
+  if (!commitPattern.test(record.commit)) {
+    throw new Error("Revision did not resolve to a commit");
+  }
+  const settings = readSettings();
+  if (!settings.get("COMPOSE_PROJECT_NAME")) {
+    throw new Error("Set the fixed COMPOSE_PROJECT_NAME in .env");
+  }
+  const imageName = settings.get("PR0_IMAGE_NAME") || "pr0";
+  if (!imageNamePattern.test(imageName)) {
+    throw new Error("PR0_IMAGE_NAME must be a lowercase image name");
+  }
+  const target = {
+    imageName,
+    checkTimeoutMs: checkTimeoutMs(settings.get("PR0_REDEPLOY_CHECK_SECONDS")),
+  };
+  mkdirSync(recordDirectory, { recursive: true, mode: 0o700 });
+  recordFile = path.join(
+    recordDirectory,
+    `${record.startedAt.replaceAll(":", "")}-${record.commit.slice(0, 12)}.json`
+  );
+  writeRecord();
+  emit({
+    event: "redeploy_started",
+    commit: record.commit,
+    previousCommit: record.previousCommit,
+    record: recordFile,
+  });
+  return target;
+};
+
+const preflight = async () => {
+  const metrics = await compose(
+    ["run", "--rm", "--no-deps", "operations", "metrics"],
+    { allowFailure: true }
+  );
+  const observed = parseLastJsonLine(metricsSchema, metrics.stdout);
+  if (observed.backup.status !== "ready") {
+    throw new Error(
+      "No fresh verified backup (backup.status is not ready); run backup create first"
+    );
+  }
+  const { databaseBytes } = observed.storage;
+  const required = BigInt(Math.ceil(databaseBytes)) * 3n + scratchReserveBytes;
+  // Measured inside the tools image, where migration backups and backup
+  // verification actually write.
+  const space = await compose([
+    "run",
+    "--rm",
+    "--no-deps",
+    "--entrypoint",
+    "bun",
+    "accounts",
+    "--bun",
+    "-e",
+    'const { statfsSync } = require("node:fs"); const free = (p) => { const s = statfsSync(p, { bigint: true }); return String(s.bavail * s.bsize); }; console.log(JSON.stringify({ migrationBackups: free("/var/lib/pr0-backups"), scratch: free(require("node:os").tmpdir()) }));',
+  ]);
+  const free = parseLastJsonLine(spaceSchema, space.stdout);
+  for (const [location, bytes] of Object.entries(free)) {
+    if (bytes < required) {
+      throw new Error(
+        `Insufficient ${location} space: ${bytes} bytes free, ${required} required`
+      );
+    }
+  }
+  return {
+    backupCheckpoint: observed.backup.checkpoint,
+    databaseBytes,
+    requiredScratchBytes: String(required),
+    freeBytes: Object.fromEntries(
+      Object.entries(free).map(([name, bytes]) => [name, String(bytes)])
+    ),
+  };
+};
+
+const closeIngress = async () => ({
+  running: await stopServing(servingServices),
+});
+
+const build = async ({ imageName }: Target) => {
+  await git("checkout", "--quiet", "--detach", record.commit);
+  const version = record.commit.slice(0, 12);
+  const release: ReleaseSettings = {
+    PR0_IMAGE: `${imageName}:${version}`,
+    PR0_TOOLS_IMAGE: `${imageName}-tools:${version}`,
+    PR0_INGRESS_IMAGE: `${imageName}-ingress:${version}`,
+    PR0_BACKUP_RELEASE: `pr0@${record.commit}`,
+  };
+  // Tags reach .env only after every image exists, so a failed build never
+  // points the backup timer at a missing image.
+  await compose(["config", "--quiet"], { env: release });
+  await compose(["build", "web", "accounts", "ingress"], { env: release });
+  for (const [service, tag] of [
+    ["app", release.PR0_IMAGE],
+    ["tools", release.PR0_TOOLS_IMAGE],
+    ["ingress", release.PR0_INGRESS_IMAGE],
+  ] as const) {
+    const { stdout } = await run([
+      "docker",
+      "image",
+      "inspect",
+      "--format",
+      "{{.Id}}",
+      tag,
+    ]);
+    record.images[service] = { tag, id: stdout.trim() };
+  }
+  writeReleaseSettings(release);
+  return { release: release.PR0_BACKUP_RELEASE };
+};
+
+/** Runs a one-off tools command and keeps the tail of its output. */
+const toolsCommand = async (service: string, command: string) => {
+  const { stdout } = await compose(["run", "--rm", service, command]);
+  return { output: stdout.trim().split("\n").slice(-5) };
+};
+
+const recreate = async () => {
+  await compose([
+    "up",
+    "--detach",
+    "--no-build",
+    "--no-deps",
+    "--force-recreate",
+    "web",
+    "mail",
+  ]);
+  // Readiness is checked in the next step, after the canary search has
+  // prepared its projection, as the documented sequence orders it.
+  const running = await runningServices();
+  if (!(running.includes("web") && running.includes("mail"))) {
+    throw new Error(`web and mail did not start: ${running.join(", ")}`);
+  }
+  return { running };
+};
+
+const check = async (target: Target) => {
+  const deadline = performance.now() + target.checkTimeoutMs;
+  // A first search after an edit can answer search_preparing; retry until the deadline.
+  const canary = await retry(
+    deadline,
+    async () => {
+      const { stdout } = await compose(["run", "--rm", "--no-deps", "canary"], {
+        allowFailure: true,
+      });
+      return parseLastJsonLine(availabilitySampleSchema, stdout);
+    },
+    (sample) => sample.available
+  );
+  if (!canary.ok) {
+    throw new Error(
+      `The canary library/search check failed ${canary.attempts} times`
+    );
+  }
+  const readiness = await retry(
+    deadline,
+    () =>
+      compose(
+        [
+          "exec",
+          "-T",
+          "web",
+          "bun",
+          "--bun",
+          "-e",
+          "const response = await fetch('http://127.0.0.1:3000/api/v1/ready'); console.log(JSON.stringify({ status: response.status, body: await response.json() })); process.exit(response.ok ? 0 : 1);",
+        ],
+        { allowFailure: true }
+      ),
+    ({ code }) => code === 0
+  );
+  if (!readiness.ok) {
+    throw new Error(
+      `Readiness stayed unavailable: ${readiness.result.stdout.trim().slice(-500)}`
+    );
+  }
+  return {
+    canary: { ...canary.result, attempts: canary.attempts },
+    readiness: parseLastJsonLine(readinessSchema, readiness.result.stdout),
+    readinessAttempts: readiness.attempts,
+  };
+};
+
+const backup = async () => {
+  const { stdout } = await compose(["run", "--rm", "backup", "create"]);
+  const result = parseLastJsonLine(backupSchema, stdout);
+  if (result.event !== "backup_verified") {
+    throw new Error("Backup did not report a verified archive");
+  }
+  return { archive: result.archive, checkpoint: result.checkpoint };
+};
+
+const reopenIngress = async () => {
+  ingress = "unknown";
+  try {
+    await compose([
+      "up",
+      "--detach",
+      "--no-build",
+      "--no-deps",
+      "--force-recreate",
+      "--wait",
+      "--wait-timeout",
+      "120",
+      "ingress",
+    ]);
+    // Through the ingress itself: proves the new ingress reaches the new web.
+    const { stdout } = await compose([
+      "exec",
+      "-T",
+      "ingress",
+      "wget",
+      "-q",
+      "-O",
+      "-",
+      "http://127.0.0.1:8080/api/v1/ready",
+    ]);
+    const readiness = parseLastJsonLine(z.json(), stdout);
+    ingress = "open";
+    return { readiness };
+  } catch (error) {
+    // Stop at this failed step with ingress closed again; if even that fails,
+    // the state stays unknown and the failure action says so.
+    try {
+      await stopServing(["ingress"]);
+    } catch {
+      /* The original failure is reported; the ingress state remains "unknown". */
+    }
+    throw error;
+  }
+};
 
 const redeploy = async (revision: string) => {
   const started = performance.now();
-  let ingressClosed = false;
   try {
-    if (!revisionPattern.test(revision)) {
-      throw new Error("Usage: redeploy.ts <commit>");
-    }
-    if ((await git("status", "--porcelain")) !== "") {
-      throw new Error("The pinned checkout has local changes; refusing");
-    }
-    record.previousCommit = await git("rev-parse", "HEAD");
-    record.commit = await git("rev-parse", "--verify", `${revision}^{commit}`);
-    if (!commitPattern.test(record.commit)) {
-      throw new Error("Revision did not resolve to a commit");
-    }
-    const settings = readSettings();
-    if (!settings.get("COMPOSE_PROJECT_NAME")) {
-      throw new Error("Set the fixed COMPOSE_PROJECT_NAME in .env");
-    }
-    const imageName = settings.get("PR0_IMAGE_NAME") || "pr0";
-    if (!imageNamePattern.test(imageName)) {
-      throw new Error("PR0_IMAGE_NAME must be a lowercase image name");
-    }
-    mkdirSync(recordDirectory, { recursive: true, mode: 0o700 });
-    recordFile = path.join(
-      recordDirectory,
-      `${record.startedAt.replaceAll(":", "")}-${record.commit.slice(0, 12)}.json`
-    );
-    writeRecord();
-    emit({
-      event: "redeploy_started",
-      commit: record.commit,
-      previousCommit: record.previousCommit,
-      record: recordFile,
-    });
-
-    await step("preflight", async () => {
-      const metrics = await compose(
-        ["run", "--rm", "--no-deps", "operations", "metrics"],
-        { allowFailure: true }
-      );
-      const observed = lastJson(metricsSchema, metrics.stdout);
-      if (observed.backup.status !== "ready") {
-        throw new Error(
-          "No fresh verified backup (backup.status is not ready); run backup create first"
-        );
-      }
-      const { databaseBytes } = observed.storage;
-      const required =
-        BigInt(Math.ceil(databaseBytes)) * 3n + scratchReserveBytes;
-      // Measured inside the tools image, where migration backups and backup
-      // verification actually write.
-      const space = await compose([
-        "run",
-        "--rm",
-        "--no-deps",
-        "--entrypoint",
-        "bun",
-        "accounts",
-        "--bun",
-        "-e",
-        'const { statfsSync } = require("node:fs"); const free = (p) => { const s = statfsSync(p, { bigint: true }); return String(s.bavail * s.bsize); }; console.log(JSON.stringify({ migrationBackups: free("/var/lib/pr0-backups"), scratch: free(require("node:os").tmpdir()) }));',
-      ]);
-      const free = lastJson(spaceSchema, space.stdout);
-      for (const [location, bytes] of Object.entries(free)) {
-        if (bytes < required) {
-          throw new Error(
-            `Insufficient ${location} space: ${bytes} bytes free, ${required} required`
-          );
-        }
-      }
-      return {
-        backupCheckpoint: observed.backup.checkpoint,
-        databaseBytes,
-        requiredScratchBytes: String(required),
-        freeBytes: Object.fromEntries(
-          Object.entries(free).map(([name, bytes]) => [name, String(bytes)])
-        ),
-      };
-    });
-
-    await step("close-ingress", async () => {
-      ingressClosed = true;
-      await compose(["stop", "ingress", "web", "mail"]);
-      const running = await runningServices();
-      const open = running.filter((name) =>
-        ["ingress", "web", "mail"].includes(name)
-      );
-      if (open.length) {
-        throw new Error(`Still running after stop: ${open.join(", ")}`);
-      }
-      return { running };
-    });
-
-    await step("build", async () => {
-      await git("checkout", "--quiet", "--detach", record.commit);
-      const version = record.commit.slice(0, 12);
-      const release: ReleaseSettings = {
-        PR0_IMAGE: `${imageName}:${version}`,
-        PR0_TOOLS_IMAGE: `${imageName}-tools:${version}`,
-        PR0_INGRESS_IMAGE: `${imageName}-ingress:${version}`,
-        PR0_BACKUP_RELEASE: `pr0@${record.commit}`,
-      };
-      // Tags reach .env only after every image exists, so a failed build never
-      // points the backup timer at a missing image.
-      await compose(["config", "--quiet"], { env: release });
-      await compose(["build", "web", "accounts", "ingress"], { env: release });
-      for (const [service, tag] of [
-        ["app", release.PR0_IMAGE],
-        ["tools", release.PR0_TOOLS_IMAGE],
-        ["ingress", release.PR0_INGRESS_IMAGE],
-      ] as const) {
-        const { stdout } = await run([
-          "docker",
-          "image",
-          "inspect",
-          "--format",
-          "{{.Id}}",
-          tag,
-        ]);
-        record.images[service] = { tag, id: stdout.trim() };
-      }
-      writeReleaseSettings(release);
-      return { release: release.PR0_BACKUP_RELEASE };
-    });
-
-    await step("migrate", async () => {
-      const { stdout } = await compose(["run", "--rm", "accounts", "migrate"]);
-      return { output: stdout.trim().split("\n").slice(-5) };
-    });
-
-    await step("replay-deletions", async () => {
-      const { stdout } = await compose(["run", "--rm", "deletions", "replay"]);
-      return { output: stdout.trim().split("\n").slice(-5) };
-    });
-
-    await step("recreate", async () => {
-      await compose([
-        "up",
-        "--detach",
-        "--no-build",
-        "--no-deps",
-        "--force-recreate",
-        "web",
-        "mail",
-      ]);
-      // Readiness is checked in the next step, after the canary search has
-      // prepared its projection, as the documented sequence orders it.
-      const running = await runningServices();
-      if (!(running.includes("web") && running.includes("mail"))) {
-        throw new Error(`web and mail did not start: ${running.join(", ")}`);
-      }
-      return { running };
-    });
-
-    await step("check", async () => {
-      // A first search after an edit can answer search_preparing; retry briefly.
-      let canaryAttempts = 0;
-      let sample: z.infer<typeof sampleSchema> | undefined;
-      while (!sample?.available && canaryAttempts < checkAttempts) {
-        if (canaryAttempts > 0) {
-          await Bun.sleep(checkIntervalMs);
-        }
-        canaryAttempts += 1;
-        const { stdout } = await compose(
-          ["run", "--rm", "--no-deps", "canary"],
-          { allowFailure: true }
-        );
-        sample = lastJson(sampleSchema, stdout);
-      }
-      if (!sample?.available) {
-        throw new Error(
-          `The canary library/search check failed ${canaryAttempts} times`
-        );
-      }
-      let readiness = { attempts: 0, code: 1, stdout: "" };
-      while (readiness.code !== 0 && readiness.attempts < checkAttempts) {
-        if (readiness.attempts > 0) {
-          await Bun.sleep(checkIntervalMs);
-        }
-        const result = await compose(
-          [
-            "exec",
-            "-T",
-            "web",
-            "bun",
-            "--bun",
-            "-e",
-            "const response = await fetch('http://127.0.0.1:3000/api/v1/ready'); console.log(JSON.stringify({ status: response.status, body: await response.json() })); process.exit(response.ok ? 0 : 1);",
-          ],
-          { allowFailure: true }
-        );
-        readiness = { attempts: readiness.attempts + 1, ...result };
-      }
-      if (readiness.code !== 0) {
-        throw new Error(
-          `Readiness stayed unavailable: ${readiness.stdout.trim().slice(-500)}`
-        );
-      }
-      return {
-        canary: { ...sample, attempts: canaryAttempts },
-        readiness: lastJson(readinessSchema, readiness.stdout),
-        readinessAttempts: readiness.attempts,
-      };
-    });
-
-    await step("backup", async () => {
-      const { stdout } = await compose(["run", "--rm", "backup", "create"]);
-      const result = lastJson(backupSchema, stdout);
-      if (result.event !== "backup_verified") {
-        throw new Error("Backup did not report a verified archive");
-      }
-      return { archive: result.archive, checkpoint: result.checkpoint };
-    });
-
-    await step("reopen-ingress", async () => {
-      await compose([
-        "up",
-        "--detach",
-        "--no-build",
-        "--no-deps",
-        "--force-recreate",
-        "--wait",
-        "--wait-timeout",
-        "120",
-        "ingress",
-      ]);
-      // Through the ingress itself: proves the new ingress reaches the new web.
-      const { stdout } = await compose([
-        "exec",
-        "-T",
-        "ingress",
-        "wget",
-        "-q",
-        "-O",
-        "-",
-        "http://127.0.0.1:8080/api/v1/ready",
-      ]);
-      ingressClosed = false;
-      return { readiness: lastJson(z.json(), stdout) };
-    });
+    const target = await prepare(revision);
+    await step("preflight", preflight);
+    await step("close-ingress", closeIngress);
+    await step("build", () => build(target));
+    await step("migrate", () => toolsCommand("accounts", "migrate"));
+    await step("replay-deletions", () => toolsCommand("deletions", "replay"));
+    await step("recreate", recreate);
+    await step("check", () => check(target));
+    await step("backup", backup);
+    await step("reopen-ingress", reopenIngress);
 
     record.status = "complete";
     emit({
@@ -520,9 +589,8 @@ const redeploy = async (revision: string) => {
       step: failed?.status === "failed" ? failed.step : "setup",
       error: error instanceof Error ? error.message : String(error),
       record: recordFile || null,
-      action: ingressClosed
-        ? "Ingress stays closed and data is intact. Inspect the record, fix forward with a new commit, or roll back only to a binary compatible with the current schema."
-        : "Nothing was changed; ingress is still open.",
+      ingress,
+      action: failureActions[ingress],
     });
     process.exitCode = 1;
   } finally {
@@ -532,4 +600,6 @@ const redeploy = async (revision: string) => {
   }
 };
 
-await redeploy(process.argv[2] ?? "");
+if (import.meta.main) {
+  await redeploy(process.argv[2] ?? "");
+}

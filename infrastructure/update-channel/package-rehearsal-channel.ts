@@ -5,10 +5,13 @@ import { copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { openRehearsalTarget } from "./open-rehearsal-target";
-import { updateManifest, verifyRehearsalTarget } from "./package-channel";
+import {
+  openVerifiedRehearsalTarget,
+  requireRehearsalVerificationKeys,
+} from "./open-rehearsal-target";
+import type { RehearsalTargetManifest } from "./open-rehearsal-target";
+import { updateManifest } from "./package-channel";
 import { requireEmptyDirectory } from "./rehearsal-target";
-import type { RehearsalTargetManifest } from "./rehearsal-target";
 import type { RehearsalReservation } from "./release-versions";
 
 /** The manifest the rehearsal channel serves at /update/. */
@@ -38,17 +41,12 @@ export const packageRehearsalChannel = async ({
   await requireEmptyDirectory(outputDirectory);
   const opened = await mkdtemp(path.join(tmpdir(), "pr0-rehearsal-channel-"));
   try {
-    const target = await openRehearsalTarget({
+    const { installer, signature, target } = await openVerifiedRehearsalTarget({
       key,
       outputDirectory: opened,
-      reservations,
-      sealedDirectory,
-    });
-    const { installer, signature } = await verifyRehearsalTarget({
-      directory: opened,
       publicKey,
       reservations,
-      version: target.version,
+      sealedDirectory,
     });
     const releaseDirectory = path.join(
       outputDirectory,
@@ -88,17 +86,14 @@ if (import.meta.main) {
       "channel"
     ),
   ] = process.argv.slice(2);
-  const key = process.env.PR0_REHEARSAL_ARTIFACT_KEY;
-  const publicKey = process.env.PR0_UPDATE_PUBLIC_KEY;
-  if (!(sealedDirectory && key && publicKey)) {
+  if (!sealedDirectory) {
     throw new Error(
       "Usage: bun package-rehearsal-channel.ts <sealed directory> [empty output directory] with PR0_REHEARSAL_ARTIFACT_KEY and PR0_UPDATE_PUBLIC_KEY set"
     );
   }
   const target = await packageRehearsalChannel({
-    key,
+    ...requireRehearsalVerificationKeys(),
     outputDirectory,
-    publicKey,
     sealedDirectory,
   });
   process.stdout.write(
