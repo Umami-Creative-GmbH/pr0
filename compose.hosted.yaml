@@ -22,6 +22,12 @@ services:
   web:
     # Only the ingress reaches web; nothing is published on the host.
     ports: !reset []
+    # The ingress also sits on Coolify's shared network, where another container
+    # could answer to the plain name "web"; it targets this alias instead.
+    networks:
+      default:
+        aliases: [pr0-web]
+      database: {}
     secrets: *hosted-secrets
   mail:
     secrets: *hosted-secrets
@@ -42,6 +48,7 @@ services:
       PR0_INGRESS_SECRET_FILE: /run/secrets/PR0_INGRESS_SECRET
       PR0_INGRESS_TRUSTED_PROXIES: "${PR0_INGRESS_TRUSTED_PROXIES:?Set the proxy network subnet}"
       PR0_INGRESS_METRICS_ALLOW: "${PR0_INGRESS_METRICS_ALLOW:-}"
+      PR0_INGRESS_UPSTREAM: pr0-web:3000
     secrets: [PR0_INGRESS_SECRET]
     networks: [default, proxy]
     restart: unless-stopped

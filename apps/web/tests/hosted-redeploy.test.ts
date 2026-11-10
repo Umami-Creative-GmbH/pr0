@@ -81,7 +81,134 @@ const recordSchema = z.object({
   ),
   commands: z.array(z.string()),
 });
+const hostedSecrets = [
+  "POSTGRES_PASSWORD",
+  "DATABASE_URL",
+  "BETTER_AUTH_SECRET",
+  "PR0_MAIL_SECRET",
+  "PR0_LEDGER_A_URL",
+  "PR0_LEDGER_B_URL",
+  "SMTP_PASSWORD",
+  "PR0_INGRESS_SECRET",
+  "PR0_METRICS_SECRET",
+  "PR0_GOOGLE_CLIENT_SECRET",
+  "PR0_GITHUB_CLIENT_SECRET",
+  "PR0_CANARY_COOKIE",
+];
+// Secret-bearing setting names that must never carry a value in the example.
+const secretSettingPattern =
+  /(?:SECRET|PASSWORD|COOKIE|TOKEN|DATABASE_URL|LEDGER_[AB]_URL|HEARTBEAT_URL)$/u;
+const configuredService = z.object({
+  environment: z.record(z.string(), z.string()),
+  secrets: z.array(z.object({ source: z.string() })).default([]),
+  ports: z.array(z.object({})).optional(),
+  networks: z.record(z.string(), z.json()).default({}),
+  labels: z.record(z.string(), z.string()).default({}),
+  network_mode: z.string().optional(),
+});
+const applicationServices = [
+  "web",
+  "mail",
+  "accounts",
+  "deletions",
+  "restore",
+  "backup",
+  "operations",
+] as const;
+const configuredProject = z.object({
+  services: z.object({
+    web: configuredService,
+    mail: configuredService,
+    accounts: configuredService,
+    deletions: configuredService,
+    restore: configuredService,
+    backup: configuredService,
+    operations: configuredService,
+    database: configuredService,
+    ingress: configuredService,
+    canary: configuredService,
+  }),
+  networks: z.object({ proxy: z.object({ name: z.string() }) }),
+  secrets: z.record(z.string(), z.object({ file: z.string() })),
+});
+const applicationSecrets = hostedSecrets.filter(
+  (name) => !["POSTGRES_PASSWORD", "PR0_CANARY_COOKIE"].includes(name)
+);
+/** Each application service mounts every application secret and reads it through NAME_FILE. */
+const expectFileSecrets = (service: z.infer<typeof configuredService>) => {
+  expect(new Set(service.secrets.map((secret) => secret.source))).toEqual(
+    new Set(applicationSecrets)
+  );
+  for (const secret of applicationSecrets) {
+    expect(service.environment[`${secret}_FILE`]).toBe(
+      `/run/secrets/${secret}`
+    );
+  }
+};
 
+test("the hosted overlay and example name every secret as a file and route the origin root through the ingress", async () => {
+  const example = await readFile(
+    path.join(root, "infrastructure/hosted/hosted.env.example"),
+    "utf-8"
+  );
+  for (const line of example.split("\n")) {
+    const [name = "", value = ""] = line.split("=", 2);
+    if (secretSettingPattern.test(name)) {
+      expect({ name, value }).toEqual({ name, value: "" });
+    }
+  }
+  const configuration = configuredProject.parse(
+    JSON.parse(
+      await must(
+        [
+          "docker",
+          "compose",
+          "--env-file",
+          "infrastructure/hosted/hosted.env.example",
+          "-f",
+          "compose.yaml",
+          "-f",
+          "compose.hosted.yaml",
+          "--profile",
+          "operations",
+          "config",
+          "--format",
+          "json",
+        ],
+        root
+      )
+    )
+  );
+  expect(new Set(Object.keys(configuration.secrets))).toEqual(
+    new Set(hostedSecrets)
+  );
+  for (const [name, secret] of Object.entries(configuration.secrets)) {
+    expect(secret.file).toBe(`/etc/pr0/secrets/${name}`);
+  }
+  const { services } = configuration;
+  for (const name of applicationServices) {
+    expectFileSecrets(services[name]);
+  }
+  expect(services.database.environment.POSTGRES_PASSWORD_FILE).toBe(
+    "/run/secrets/POSTGRES_PASSWORD"
+  );
+  const { web, backup } = services;
+  expect(web.environment.PR0_REGISTRATION).toBe("allowlist");
+  expect(web.environment.PR0_ORIGIN).toBe("https://pr0.umami-creative.app");
+  expect(web.ports).toBeUndefined();
+  expect(backup.environment.PR0_BACKUP_RELEASE).toStartWith("pr0@");
+  expect(new Set(Object.keys(services.ingress.networks))).toEqual(
+    new Set(["default", "proxy"])
+  );
+  expect(configuration.networks.proxy.name).toBe("coolify");
+  expect(services.ingress.labels).toMatchObject({
+    "traefik.enable": "true",
+    "traefik.http.routers.pr0-https.rule": "Host(`pr0.umami-creative.app`)",
+    "traefik.http.routers.pr0-https.priority": "1",
+    "traefik.http.services.pr0-ingress.loadbalancer.server.port": "8080",
+  });
+  expect(services.canary.network_mode).toBe("service:web");
+});
 test("the operator script upgrades a disposable hosted deployment between commits and stops closed on failure", async () => {
   await mkdir(path.join(root, ".scratch"), { recursive: true });
   const directory = await mkdtemp(path.join(root, ".scratch/hosted-"));
@@ -372,9 +499,14 @@ test("the operator script upgrades a disposable hosted deployment between commit
         .map((line) => eventSchema.parse(JSON.parse(line)));
       const started = z
         .object({ record: z.string() })
-        .parse(events.find((event) => event.event === "redeploy_started"));
+        .safeParse(events.find((event) => event.event === "redeploy_started"));
+      if (!started.success) {
+        throw new Error(
+          `redeploy.ts ${commit} did not start (${result.code}): ${result.stdout}\n${result.stderr.slice(-3000)}`
+        );
+      }
       const record = recordSchema.parse(
-        JSON.parse(await readFile(started.record, "utf-8"))
+        JSON.parse(await readFile(started.data.record, "utf-8"))
       );
       evidence.push({ commit, exitCode: result.code, events, record });
       return { code: result.code, events, record };
