@@ -120,6 +120,7 @@ test("the operator script upgrades a disposable hosted deployment between commit
   const commits: string[] = [];
   let deployed = false;
   let networkCreated = false;
+  let passed = false;
   try {
     // A pinned checkout of the commit under test plus three disposable candidates.
     const initial = await must(
@@ -490,6 +491,7 @@ test("the operator script upgrades a disposable hosted deployment between commit
     expect(recovery.record.steps.map((entry) => entry.step)).toEqual(steps);
     expect(await migrationVersion()).toBe("20");
     await expectDeployed(fixed);
+    passed = true;
   } finally {
     if (process.env.PR0_HOSTED_EVIDENCE) {
       await Bun.write(
@@ -498,6 +500,13 @@ test("the operator script upgrades a disposable hosted deployment between commit
       );
     }
     try {
+      if (deployed && !passed) {
+        const logs = await execute(
+          ["docker", "compose", "logs", "--no-color", "--tail", "60"],
+          checkout
+        );
+        process.stderr.write(logs.stdout);
+      }
       if (deployed) {
         // Only this run's randomly named project, network and image tags.
         await execute(
