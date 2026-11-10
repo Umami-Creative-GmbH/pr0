@@ -105,6 +105,33 @@ const verifyRelease = async (
   return { installer, signature };
 };
 
+/** The Tauri updater manifest served at the official endpoint. */
+export const updateManifest = ({
+  installer,
+  notes,
+  signature,
+  version,
+}: {
+  installer: string;
+  notes: string;
+  signature: string;
+  version: string;
+}) =>
+  JSON.stringify(
+    {
+      version,
+      notes,
+      platforms: {
+        "windows-x86_64": {
+          url: `https://pr0.umami-creative.app/update/releases/${version}/${installer}`,
+          signature,
+        },
+      },
+    },
+    null,
+    2
+  );
+
 const copyImmutableArtifact = async (source: string, destination: string) => {
   if (await Bun.file(destination).exists()) {
     const [existing, incoming] = await Promise.all([
@@ -182,20 +209,12 @@ export const packageChannel = async ({
     );
     await Bun.write(
       path.join(outputDirectory, "live.json"),
-      JSON.stringify(
-        {
-          version: release.version,
-          notes: release.notes,
-          platforms: {
-            "windows-x86_64": {
-              url: `https://pr0.umami-creative.app/update/releases/${release.version}/${installer}`,
-              signature,
-            },
-          },
-        },
-        null,
-        2
-      )
+      updateManifest({
+        installer,
+        notes: release.notes,
+        signature,
+        version: release.version,
+      })
     );
   }
 };

@@ -14,6 +14,7 @@ Create two GitHub Actions environments:
 | --- | --- |
 | `desktop-signing` | `PR0_UPDATE_PUBLIC_KEY`, `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` when applicable, and `PR0_REHEARSAL_ARTIFACT_KEY` before the first [rehearsal target build](#build-a-rehearsal-target) |
 | `update-channel` | `PR0_UPDATE_PUBLIC_KEY`, and later `COOLIFY_DEPLOY_WEBHOOK` and `COOLIFY_TOKEN` |
+| `rehearsal-channel` | `PR0_UPDATE_PUBLIC_KEY` and `PR0_REHEARSAL_ARTIFACT_KEY`, before the first [rehearsal channel](#rehearsal-channel) packaging. Require reviewers: the image this environment builds holds a decrypted rehearsal installer. |
 
 Use the full base64 Tauri public-key file contents for `PR0_UPDATE_PUBLIC_KEY`. On a GitHub-hosted runner, the private-key secret must contain the key contents, not a path on your PC. Keep the signing environment restricted to trusted operators and refs. The workflow fixes the official update endpoint and default instance URL. The update-image workflow receives only the public key, never the signing key.
 
@@ -66,7 +67,9 @@ https://pr0.umami-creative.app/update/releases/0.1.0/signing-evidence.json
 
 The manifest responds with `application/json` and `Cache-Control: no-store`. It embeds the actual signature file contents. No signing secrets, source checkout, draft assets or dependency toolchains are copied into the final image. Only the Nginx config and prepared channel files are included. The service remains independent of the hosted web app and its database.
 
-Rehearsal targets must remain private. They are built by their own workflow (below), never as a draft release. The tester address allowlist and the rehearsal channel that serves a target to testers are separate work (#125); until they exist, no installed update rehearsal can run. Never publish a rehearsal target or a draft to work around this requirement.
+If image publication succeeds but Coolify deployment fails, fix the deployment issue and redeploy `latest` in Coolify; do not rebuild the Windows candidate. To iterate on the channel image/configuration, merge the change and rerun **Publish update channel** with bootstrap disabled. Existing release assets are reused and reverified. Withdrawal of a live release needs a separate reviewed manifest operation; this workflow will not silently downgrade or erase a feed when a GitHub release disappears.
+
+Rehearsal targets must remain private. They are built by their own workflow and served to allowlisted testers only by the separate [rehearsal channel](#rehearsal-channel), never as a draft or published release. Never publish a rehearsal target or a draft to work around this requirement.
 
 ## Build a rehearsal target
 
@@ -90,7 +93,101 @@ If **Verify** fails for an infrastructure reason, use **Re-run failed jobs**; it
 
 To inspect a target locally, download the artifact, set `PR0_REHEARSAL_ARTIFACT_KEY` and run `bun infrastructure/update-channel/open-rehearsal-target.ts <sealed directory> <empty output directory>`; with `PR0_UPDATE_PUBLIC_KEY` and Minisign also available, `bun infrastructure/update-channel/verify-rehearsal.ts <sealed directory>` repeats the workflow's verification. Install a target only on a disposable test machine or through the rehearsal channel.
 
-If image publication succeeds but Coolify deployment fails, fix the deployment issue and redeploy `latest` in Coolify; do not rebuild the Windows candidate. To iterate on the channel image/configuration, merge the change and rerun **Publish update channel** with bootstrap disabled. Existing release assets are reused and reverified. Withdrawal of a live release needs a separate reviewed manifest operation; this workflow will not silently downgrade or erase a feed when a GitHub release disappears.
+## Rehearsal channel
+
+The rehearsal channel serves a rehearsal target to allowlisted testers through the official endpoint, as [ADR-0001](../adr/0001-rehearse-updates-on-the-live-update-endpoint.md) requires. It is a separate Nginx image, built from [`infrastructure/update-channel/rehearsal-channel`](../../infrastructure/update-channel/rehearsal-channel) into its own private package `ghcr.io/umami-creative-gmbh/pr0-rehearsal`. It serves the **rehearsal manifest** at `/update/` and the target's installer, `.sig` and `signing-evidence.json` under `/update/releases/<version>/`, with the same URLs, `application/json`, `Cache-Control: no-store` and no cookies as the live channel. Every response carries `X-Pr0-Update-Channel: rehearsal`, so you can tell which channel answered. The live channel never responds with that header. It holds nothing else: an allowlisted tester gets HTTP 404 for public release files while the rehearsal route exists.
+
+The live image can't contain rehearsal files. Its build context admits only `nginx.conf` and `channel/`, and live packaging refuses reserved versions. The rehearsal channel writes to `rehearsal-channel/channel/`, which git ignores and the live build never reads.
+
+A higher-priority Traefik router on the official host sends all `/update` traffic from tester addresses to the rehearsal channel. Everyone else keeps the live channel's routing. Deleting that router and resource is how the rehearsal ends.
+
+### One-time setup
+
+1. Create the `rehearsal-channel` GitHub environment (see [One time GitHub setup](#one-time-github-setup)) with required reviewers.
+2. Run **Package rehearsal channel** with **bootstrap** enabled. It creates the package with an image tagged `bootstrap` that holds no target. In the package settings (organization **Packages** > `pr0-rehearsal` > **Package settings**), set visibility to **Private** if the step summary says otherwise. Keep it private for good; never make it public, even after the rehearsal. Later runs refuse to push a target while the package can be pulled anonymously, and they re-check after pushing.
+3. Let the Coolify server pull the private package: on the server, `docker login ghcr.io` with a classic personal access token that has only `read:packages`, from an account with access to the package. If the live package is also private, the existing login may already cover it.
+
+### Package a target
+
+Run **Package rehearsal channel** with the reserved `version` and the run ID of its successful **Build rehearsal target** run (`target-run`, from the run's URL). The workflow:
+
+1. refuses an unreserved version, a missing or anonymously readable package, and any run that isn't a successful **Build rehearsal target** run;
+2. downloads the sealed `rehearsal-target-<version>` artifact and decrypts it with `PR0_REHEARSAL_ARTIFACT_KEY`. It then verifies the installer hash, the signing evidence (version, installer name, hash), and the updater signature and signed version with Minisign, exactly as the live channel verifies public releases. The step summary records the version, candidate commit and installer SHA-256.
+3. checks that the built image serves that version, then pushes `linux/amd64` and `linux/arm64` images tagged `<version>` and `<version>-run-<id>-<attempt>`.
+
+To package locally instead, set both keys and run `bun infrastructure/update-channel/package-rehearsal-channel.ts <sealed directory>`, then `docker build -t pr0-rehearsal-channel infrastructure/update-channel/rehearsal-channel`. Delete `infrastructure/update-channel/rehearsal-channel/channel/` afterwards; it holds the decrypted installer.
+
+### Tester requirements
+
+- Collect each tester's public IPv4 address and IPv6 /64 prefix, for example from their router's status page. Allowlist both: the client connects over whichever family works.
+- Testers must reach the host directly, without a VPN, proxy (including a Windows system proxy, which the updater honors), or anything else that changes their source address. Otherwise the rule sees the wrong address and they get the live channel.
+- An allowlisted IPv4 address shared by others (carrier-grade NAT, an office or guest network) offers the rehearsal to everyone behind it. Allowlist only addresses the tester controls, or use the IPv6 /64 alone.
+- Traefik must see the client's own address. If a CDN or another reverse proxy is in front of the Coolify proxy, the rule can't match testers. Don't run the rehearsal in that setup.
+
+### Route tester addresses to the rehearsal channel
+
+In Coolify, in the same project and server as the live channel:
+
+1. Create a **Docker Image** application: image `ghcr.io/umami-creative-gmbh/pr0-rehearsal`, tag the target version (for example `0.1.1`), exposed port `8080`. Name it `pr0-rehearsal-<version>`.
+2. Leave **Domains** empty so Coolify generates no router of its own. Add no storage.
+3. Set the health check to port `8080`, path `/healthz`.
+4. Under **Container Labels**, turn off **Readonly labels** and add exactly these labels. Replace the addresses with the testers', and keep Coolify's other generated labels:
+
+   ```text
+   traefik.enable=true
+   traefik.docker.network=coolify
+   traefik.http.routers.pr0-rehearsal.rule=Host(`pr0.umami-creative.app`) && PathPrefix(`/update`) && (ClientIP(`203.0.113.7`) || ClientIP(`2001:db8:1234:5678::/64`))
+   traefik.http.routers.pr0-rehearsal.priority=1000
+   traefik.http.routers.pr0-rehearsal.entrypoints=https
+   traefik.http.routers.pr0-rehearsal.tls=true
+   traefik.http.routers.pr0-rehearsal.tls.certresolver=letsencrypt
+   traefik.http.routers.pr0-rehearsal.service=pr0-rehearsal
+   traefik.http.services.pr0-rehearsal.loadbalancer.server.port=8080
+   ```
+
+   - **Path:** ``PathPrefix(`/update`)`` covers the manifest and every artifact, the same path the live resource uses.
+   - **Client-address rule:** one ``ClientIP(`...`)`` per tester address, joined with `||` inside the parentheses. Write an IPv4 address on its own and an IPv6 prefix as `/64`. `ClientIP` matches the TCP peer address and ignores `X-Forwarded-For`, so headers can't forge it.
+   - **Priority:** `1000` is above every router Coolify generates for this host (those default to their rule length), so tester traffic reaches this router before the live one.
+   - `traefik.docker.network` is the Coolify destination network that the proxy shares with the container (`coolify` unless you changed it). `entrypoints`, `tls` and `certresolver` follow Coolify's generated HTTPS routers. Compare them with the live resource's labels and copy its values if they differ.
+
+5. Deploy and wait until the container is healthy.
+
+To add or remove a tester, edit the `rule` label and redeploy the rehearsal resource; the live resource doesn't change.
+
+### Verify the routing
+
+The automated local check runs both images behind Traefik v3 with these labels (plain HTTP, otherwise unchanged) and clients at fixed addresses. It checks that an allowlisted IPv4 address and two addresses in an allowlisted IPv6 /64 get the rehearsal manifest and installer, and that other IPv4 and IPv6 addresses get the live channel's HTTP 204 and no rehearsal installer. With Docker, Minisign (`MINISIGN_PATH`) and IPv6 Docker networks available:
+
+```powershell
+bun test infrastructure/update-channel/rehearsal-channel-image.test.ts
+```
+
+On the official host, from an allowlisted tester's machine:
+
+```powershell
+curl.exe --silent --show-error --dump-header - https://pr0.umami-creative.app/update/
+```
+
+Expect HTTP 200, `Content-Type: application/json`, `Cache-Control: no-store`, `X-Pr0-Update-Channel: rehearsal`, no `Set-Cookie`, and the target version in the body. Run the same command from an address that isn't allowlisted, such as a phone hotspot. Expect the live answer: HTTP 204 before the first release, or the live manifest afterwards, and no `X-Pr0-Update-Channel` header. Never bypass certificate verification. Record both outputs, with tester addresses redacted, in the release's go/no-go record.
+
+### Tear down
+
+After the rehearsal, whether it passed or failed:
+
+1. In Coolify, delete the `pr0-rehearsal-<version>` resource. Its labels are the router, so the router goes with it.
+2. On the Coolify server, confirm both are gone and remove the pulled image by name:
+
+   ```sh
+   docker ps -a --filter label=traefik.http.routers.pr0-rehearsal.rule --format '{{.Names}}'
+   docker image rm ghcr.io/umami-creative-gmbh/pr0-rehearsal:<version>
+   ```
+
+   The first command must print nothing. If you added a `docker login ghcr.io` only for the rehearsal, and the live package is public, run `docker logout ghcr.io` and revoke that token.
+
+3. From a former tester's address, run the verification `curl.exe` command again. Expect the same answer as every other address: HTTP 204 before the first release, or the live manifest afterwards, and no `X-Pr0-Update-Channel` header.
+4. Record the evidence on the go/no-go record: the deletion time, the empty `docker ps` output, and the redacted `curl.exe` output from step 3.
+
+Keep the private package and its image versions; they show exactly what testers received. Its visibility stays private.
 
 ## Verification
 
@@ -102,4 +199,4 @@ curl.exe --silent --show-error --dump-header - --output NUL https://pr0.umami-cr
 
 Expect HTTP 204 before the first release, or HTTP 200 JSON afterwards, with no login redirect or cookies. Do not bypass certificate verification. Record public HTTPS results and downloaded installer verification on [issue #111](https://github.com/Umami-Creative-GmbH/pr0/issues/111); automated packaging alone does not close it.
 
-For development, install Minisign (or set `MINISIGN_PATH` to its executable) and run `bun run test:update-channel`. The tests generate disposable signing keys and exercise the packaging boundary, including bad hashes/signatures, signed-version mismatch, retained predecessors, immutable files, refusal of reserved versions for candidates and live packaging, and the rehearsal path's version change, sealing and verification of reserved versions only. CI runs this on Linux. `bun run typecheck` includes the packaging workspace. Build an empty local image with `docker build -t pr0-update-channel infrastructure/update-channel`; run it with `docker run --rm -p 127.0.0.1:8080:8080 pr0-update-channel`.
+For development, install Minisign (or set `MINISIGN_PATH` to its executable) and run `bun run test:update-channel`. The tests generate disposable signing keys and exercise the packaging boundary, including bad hashes/signatures, signed-version mismatch, retained predecessors, immutable files, refusal of reserved versions for candidates and live packaging, and the rehearsal path's version change, sealing and verification of reserved versions only. They also cover rehearsal channel packaging. With Docker, they build the rehearsal and live images, check what each serves, check that a live image built beside a packaged rehearsal channel holds no rehearsal files, and check the tester routing behind Traefik. CI runs this on Linux. `bun run typecheck` includes the packaging workspace. Build an empty local image with `docker build -t pr0-update-channel infrastructure/update-channel`; run it with `docker run --rm -p 127.0.0.1:8080:8080 pr0-update-channel`.

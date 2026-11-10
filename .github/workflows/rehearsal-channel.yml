@@ -1,0 +1,122 @@
+name: Package rehearsal channel
+
+# Packages one verified rehearsal target into the private rehearsal channel
+# image (ADR-0001), ghcr.io/<owner>/<repo>-rehearsal. That package is separate
+# from the public live channel and must stay private: its image holds the
+# decrypted rehearsal installer. Every run refuses to push a target unless the
+# package exists and anonymous pulls are refused.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Reserved rehearsal target version, for example 0.1.1 (ignored for bootstrap)
+        type: string
+        default: ""
+      target-run:
+        description: Run ID of the successful "Build rehearsal target" run for that version (ignored for bootstrap)
+        type: string
+        default: ""
+      bootstrap:
+        description: Create the private package with an image that holds no rehearsal target
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: rehearsal-channel
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    environment: rehearsal-channel
+    permissions:
+      contents: read
+      # Download the sealed artifact from the rehearsal target run.
+      actions: read
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      TARGET_RUN: ${{ inputs.target-run }}
+      BOOTSTRAP: ${{ inputs.bootstrap }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y minisign
+      - run: bun run test:update-channel
+      - name: Select image and log in
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-rehearsal" >> "$GITHUB_ENV"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Create the package with an image that holds no target
+        if: inputs.bootstrap
+        run: |
+          mkdir -p infrastructure/update-channel/rehearsal-channel/channel
+          docker build --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -t "$IMAGE:bootstrap" infrastructure/update-channel/rehearsal-channel
+          docker push "$IMAGE:bootstrap"
+          if DOCKER_CONFIG="$(mktemp -d)" docker manifest inspect "$IMAGE:bootstrap" > /dev/null 2>&1; then
+            visibility='PUBLIC: change it to private before packaging a target'
+          else
+            visibility='private (anonymous pulls refused)'
+          fi
+          {
+            echo "Created $IMAGE:bootstrap (no rehearsal target)."
+            echo "Package visibility: $visibility"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Require a private package and a verified rehearsal target run
+        if: ${{ !inputs.bootstrap }}
+        run: |
+          bun infrastructure/update-channel/release-versions.ts rehearsal "$VERSION"
+          if ! docker manifest inspect "$IMAGE:bootstrap" > /dev/null; then
+            echo "::error::$IMAGE does not exist; run this workflow with bootstrap and make the package private first." >&2
+            exit 1
+          fi
+          if DOCKER_CONFIG="$(mktemp -d)" docker manifest inspect "$IMAGE:bootstrap" > /dev/null 2>&1; then
+            echo "::error::$IMAGE can be pulled anonymously; make the package private before packaging a rehearsal target." >&2
+            exit 1
+          fi
+          run=$(gh run view "$TARGET_RUN" --repo "$GITHUB_REPOSITORY" --json workflowName,conclusion --jq '.workflowName + " " + .conclusion')
+          if [ "$run" != "Build rehearsal target success" ]; then
+            echo "::error::Run $TARGET_RUN is not a successful Build rehearsal target run ($run)." >&2
+            exit 1
+          fi
+          gh run download "$TARGET_RUN" --repo "$GITHUB_REPOSITORY" --name "rehearsal-target-$VERSION" --dir "$RUNNER_TEMP/sealed"
+      - name: Open and verify hash, updater signature and signed version
+        if: ${{ !inputs.bootstrap }}
+        env:
+          PR0_REHEARSAL_ARTIFACT_KEY: ${{ secrets.PR0_REHEARSAL_ARTIFACT_KEY }}
+          PR0_UPDATE_PUBLIC_KEY: ${{ secrets.PR0_UPDATE_PUBLIC_KEY }}
+        run: bun infrastructure/update-channel/package-rehearsal-channel.ts "$RUNNER_TEMP/sealed" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Build and check the rehearsal image
+        if: ${{ !inputs.bootstrap }}
+        run: |
+          docker build -t rehearsal-channel-check infrastructure/update-channel/rehearsal-channel
+          docker run --rm rehearsal-channel-check -t
+          docker run -d --name rehearsal-channel-check rehearsal-channel-check
+          docker exec rehearsal-channel-check wget -q -O /dev/null http://127.0.0.1:8080/healthz
+          served=$(docker exec rehearsal-channel-check wget -q -O - http://127.0.0.1:8080/update/ | jq -r .version)
+          docker rm -f rehearsal-channel-check
+          if [ "$served" != "$VERSION" ]; then
+            echo "::error::The rehearsal image serves $served, not $VERSION." >&2
+            exit 1
+          fi
+      - name: Publish AMD64 and ARM64 image to the private package
+        if: ${{ !inputs.bootstrap }}
+        run: |
+          tag="$VERSION-run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker buildx create --driver docker-container --name rehearsal-channel-builder --use
+          docker buildx build --platform linux/amd64,linux/arm64 --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" -t "$IMAGE:$tag" -t "$IMAGE:$VERSION" --push infrastructure/update-channel/rehearsal-channel
+          if DOCKER_CONFIG="$(mktemp -d)" docker manifest inspect "$IMAGE:$VERSION" > /dev/null 2>&1; then
+            echo "::error::$IMAGE:$VERSION can be pulled anonymously. Delete its package versions and make the package private now." >&2
+            exit 1
+          fi
+          echo "Image: $IMAGE:$VERSION ($IMAGE:$tag), anonymous pulls refused" >> "$GITHUB_STEP_SUMMARY"

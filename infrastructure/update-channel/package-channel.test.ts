@@ -1,97 +1,16 @@
 import { afterEach, expect, test } from "bun:test";
-import { copyFile, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { copyFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { packageChannel, verifyRehearsalTarget } from "./package-channel";
+import {
+  commandOutput,
+  removeTemporaryDirectories,
+  signedRelease,
+  temporaryDirectory,
+} from "./test-fixtures";
 
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true }))
-  );
-});
-
-const temporaryDirectory = async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "pr0-channel-test-"));
-  temporaryDirectories.push(directory);
-  return directory;
-};
-
-const minisign = (...args: string[]) => {
-  const result = Bun.spawnSync([
-    process.env.MINISIGN_PATH ?? "minisign",
-    ...args,
-  ]);
-  if (result.exitCode !== 0) {
-    throw new Error(result.stderr.toString());
-  }
-};
-
-const commandOutput = async (command: string[]) => {
-  const child = Bun.spawn(command, { stdout: "pipe", stderr: "pipe" });
-  const [output, error, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  if (exitCode !== 0) {
-    throw new Error(error);
-  }
-  return output.trim();
-};
-
-const signedRelease = async (
-  version: string,
-  keyDirectory?: string,
-  signedVersion = version
-) => {
-  const directory = await temporaryDirectory();
-  const installer = `pr0_${version}_x64-setup.exe`;
-  const installerPath = path.join(directory, installer);
-  const publicPath = path.join(keyDirectory ?? directory, "test.pub");
-  const privatePath = path.join(keyDirectory ?? directory, "test.key");
-  const rawSignaturePath = path.join(directory, "test.minisig");
-  await Bun.write(installerPath, "abc");
-  if (!keyDirectory) {
-    minisign("-G", "-W", "-p", publicPath, "-s", privatePath);
-  }
-  minisign(
-    "-Sm",
-    installerPath,
-    "-s",
-    privatePath,
-    "-x",
-    rawSignaturePath,
-    "-t",
-    `timestamp:0\tversion:${signedVersion}`
-  );
-  const signature = Buffer.from(
-    await Bun.file(rawSignaturePath).text()
-  ).toString("base64");
-  await Bun.write(`${installerPath}.sig`, signature);
-  await Bun.write(
-    path.join(directory, "signing-evidence.json"),
-    JSON.stringify({
-      version,
-      installer,
-      sha256:
-        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-    })
-  );
-  return {
-    directory,
-    notes: "A tested release",
-    version,
-    publicKey: Buffer.from(await Bun.file(publicPath).text()).toString(
-      "base64"
-    ),
-    signature,
-  };
-};
+afterEach(removeTemporaryDirectories);
 
 test("an empty release history packages a channel without a live manifest", async () => {
   const outputDirectory = path.join(await temporaryDirectory(), "channel");
