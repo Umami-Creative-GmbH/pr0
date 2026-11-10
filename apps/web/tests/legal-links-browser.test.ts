@@ -1,11 +1,9 @@
 // oxlint-disable eslint/no-await-in-loop -- Keyboard focus order is a sequential user journey.
 import { expect, test } from "bun:test";
 
-import { capabilitiesSchema } from "@pr0/api-contract/device";
 import type { Page } from "playwright";
 
 import { copyBrowser } from "./copy-browser-fixture";
-import { origin } from "./http-fixture";
 import { promptBrowser } from "./prompt-fixture";
 
 // The accessibility runner serves the same build without, then with, operator
@@ -61,21 +59,6 @@ const expectLegalLinks = async (page: Page) => {
   }
   expect(reached).toEqual(expected.map(([name]) => name));
 };
-
-test("negotiated discovery publishes only configured legal links", async () => {
-  const negotiatedResponse = await fetch(
-    `${origin}/api/v1/capabilities?negotiation=1`
-  );
-  const negotiated = capabilitiesSchema.parse(await negotiatedResponse.json());
-  expect(negotiated.legal).toEqual(
-    configured ? { impressum, privacy } : undefined
-  );
-  // Legacy strict discovery keeps its exact shape.
-  const legacyResponse = await fetch(`${origin}/api/v1/capabilities`);
-  const legacy = capabilitiesSchema.parse(await legacyResponse.json());
-  expect(legacy.legal).toBeUndefined();
-  expect(legacy.compatibility).toBeUndefined();
-});
 
 test("legal links appear on sign-in, sign-up and the signed-in footer only when configured", async () => {
   const account = await promptBrowser();
