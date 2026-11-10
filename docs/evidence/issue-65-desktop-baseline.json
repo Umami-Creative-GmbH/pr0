@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-11-08T12:09:30.8050184Z",
+  "classification": "Failed supporting baseline, stopped after exceeding the initial indexing budget",
+  "expectedPrompts": 10000,
+  "expectedLogicalBytes": 104857600,
+  "elapsedMs": 626966.3612,
+  "cpuSeconds": 611.609375,
+  "privateBytes": 85897216,
+  "targetMs": 120000,
+  "completed": false,
+  "indexedPromptsObservedBeforeStop": 3700,
+  "observation": "Progress was last sampled before termination; the stopped worker subsequently printed 3900 indexed prompts. elapsedMs is the termination observation, not a complete-download duration."
+}

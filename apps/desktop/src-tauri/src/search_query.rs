@@ -3,8 +3,52 @@ use super::search_contract::{SearchPage, SearchRequest, SearchSummary};
 use rusqlite::{Connection, OptionalExtension};
 use std::collections::BTreeSet;
 
-pub fn hits(db: &Connection, field: &str, term: &str) -> rusqlite::Result<BTreeSet<u16>> {
+// Fixed library-domain membership avoids tree allocation and logarithmic probes
+// for every candidate of common and multi-term queries.
+struct SlotSet([u64; 157]);
+impl SlotSet {
+    fn new() -> Self {
+        Self([0; 157])
+    }
+    fn insert(&mut self, slot: u16) -> rusqlite::Result<()> {
+        if slot >= 10000 {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
+        self.0[usize::from(slot) / 64] |= 1 << (slot % 64);
+        Ok(())
+    }
+    fn contains(&self, slot: &u16) -> bool {
+        *slot < 10000 && self.0[usize::from(*slot) / 64] & (1 << (*slot % 64)) != 0
+    }
+    fn union(mut self, other: &Self) -> Self {
+        for (left, right) in self.0.iter_mut().zip(other.0.iter()) {
+            *left |= right;
+        }
+        self
+    }
+    fn intersection(mut self, other: &Self) -> Self {
+        for (left, right) in self.0.iter_mut().zip(other.0.iter()) {
+            *left &= right;
+        }
+        self
+    }
+    fn iter(&self) -> impl Iterator<Item = u16> + '_ {
+        self.0.iter().enumerate().flat_map(|(index, word)| {
+            let mut remaining = *word;
+            std::iter::from_fn(move || {
+                if remaining == 0 {
+                    return None;
+                }
+                let bit = remaining.trailing_zeros();
+                remaining &= remaining - 1;
+                Some((index * 64 + bit as usize) as u16)
+            })
+        })
+    }
+}
+fn hits(db: &Connection, field: &str, term: &str) -> rusqlite::Result<SlotSet> {
     let points: Vec<_> = term.chars().collect();
+    let mut slots = SlotSet::new();
     if points.len() < 3 {
         let value: Option<(String, Vec<u8>)> = db
             .query_row(
@@ -13,29 +57,100 @@ pub fn hits(db: &Connection, field: &str, term: &str) -> rusqlite::Result<BTreeS
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()?;
-        return value.map_or_else(
-            || Ok(BTreeSet::new()),
-            |(kind, bytes)| decode(&kind, &bytes),
-        );
+        if let Some((kind, bytes)) = value {
+            for slot in decode(&kind, &bytes)? {
+                slots.insert(slot)?;
+            }
+        }
+        return Ok(slots);
     }
     let grams: BTreeSet<String> = points
         .windows(3)
         .map(|p| format!("\"{}\"", p.iter().collect::<String>().replace('"', "\"\"")))
         .collect();
     let query = grams.into_iter().collect::<Vec<_>>().join(" AND ");
-    db.prepare(&format!(
+    let mut statement = db.prepare(&format!(
         "SELECT rowid FROM local_f_{field} WHERE local_f_{field} MATCH ?1"
-    ))?
-    .query_map([query], |r| r.get(0))?
-    .collect()
+    ))?;
+    for slot in statement.query_map([query], |r| r.get::<_, u16>(0))? {
+        slots.insert(slot?)?;
+    }
+    Ok(slots)
 }
 struct Term {
     value: String,
-    title: BTreeSet<u16>,
-    description: BTreeSet<u16>,
-    content: BTreeSet<u16>,
-    organization: BTreeSet<u16>,
-    short: bool,
+    title: SlotSet,
+    description: SlotSet,
+    content: SlotSet,
+    organization: SlotSet,
+    exact: bool,
+}
+// Before a compatible snapshot is validated, candidate exclusions must come from
+// exact values, never from possibly incomplete postings. Stream each body once
+// for every term and retain only fixed-domain membership bitsets.
+fn scan_terms(
+    db: &Connection,
+    terms: &mut [Term],
+    cancelled: &impl Fn() -> bool,
+) -> Result<(), String> {
+    if terms.is_empty() {
+        return Ok(());
+    }
+    let mut statement = db.prepare("SELECT slot,title,description,CASE WHEN content_bytes<=4194304 THEN content ELSE NULL END FROM local_search").map_err(recovery)?;
+    let mut rows = statement.query([]).map_err(recovery)?;
+    while let Some(row) = rows.next().map_err(recovery)? {
+        if cancelled() {
+            return Err("operation_cancelled".into());
+        }
+        let slot: u16 = row.get(0).map_err(recovery)?;
+        let title: String = row.get(1).map_err(recovery)?;
+        let description: String = row.get(2).map_err(recovery)?;
+        let content: String = row.get(3).map_err(recovery)?;
+        for term in terms.iter_mut() {
+            if title.contains(&term.value) {
+                term.title.insert(slot).map_err(recovery)?;
+            }
+            if description.contains(&term.value) {
+                term.description.insert(slot).map_err(recovery)?;
+            }
+            if content.contains(&term.value) {
+                term.content.insert(slot).map_err(recovery)?;
+            }
+        }
+    }
+    let mut statement = db
+        .prepare("SELECT kind,id,name FROM search_organization")
+        .map_err(recovery)?;
+    let mut rows = statement.query([]).map_err(recovery)?;
+    let mut membership = db
+        .prepare("SELECT slot FROM search_membership WHERE kind=?1 AND id=?2")
+        .map_err(recovery)?;
+    while let Some(row) = rows.next().map_err(recovery)? {
+        if cancelled() {
+            return Err("operation_cancelled".into());
+        }
+        let kind: String = row.get(0).map_err(recovery)?;
+        let id: String = row.get(1).map_err(recovery)?;
+        let name: String = row.get(2).map_err(recovery)?;
+        let matching: Vec<usize> = terms
+            .iter()
+            .enumerate()
+            .filter_map(|(index, term)| name.contains(&term.value).then_some(index))
+            .collect();
+        if matching.is_empty() {
+            continue;
+        }
+        let slots = membership
+            .query_map([kind, id], |row| row.get::<_, u16>(0))
+            .map_err(recovery)?;
+        for slot in slots {
+            let slot = slot.map_err(recovery)?;
+            for index in &matching {
+                terms[*index].organization.insert(slot).map_err(recovery)?;
+            }
+        }
+    }
+    Ok(())
 }
 struct Candidate {
     slot: u16,
@@ -48,9 +163,9 @@ struct Candidate {
     tier: u8,
     outstanding: Vec<usize>,
 }
-fn organization_hits(db: &Connection, term: &str) -> rusqlite::Result<BTreeSet<u16>> {
+fn organization_hits(db: &Connection, term: &str) -> rusqlite::Result<SlotSet> {
     let candidates = hits(db, "name", term)?;
-    let mut result = BTreeSet::new();
+    let mut result = SlotSet::new();
     let mut names = db.prepare("SELECT slot,kind,id,name FROM search_organization")?;
     let rows = names.query_map([], |r| {
         Ok((
@@ -63,11 +178,12 @@ fn organization_hits(db: &Connection, term: &str) -> rusqlite::Result<BTreeSet<u
     for row in rows {
         let (slot, kind, id, name) = row?;
         if candidates.contains(&slot) && name.contains(term) {
-            result.extend(
-                db.prepare("SELECT slot FROM search_membership WHERE kind=?1 AND id=?2")?
-                    .query_map([kind, id], |r| r.get::<_, u16>(0))?
-                    .collect::<rusqlite::Result<Vec<_>>>()?,
-            );
+            for slot in db
+                .prepare("SELECT slot FROM search_membership WHERE kind=?1 AND id=?2")?
+                .query_map([kind, id], |r| r.get::<_, u16>(0))?
+            {
+                result.insert(slot?)?;
+            }
         }
     }
     Ok(result)
@@ -80,32 +196,34 @@ fn candidates(
 ) -> rusqlite::Result<Vec<Candidate>> {
     let selected_tags: BTreeSet<&str> = request.tag_ids.iter().map(String::as_str).collect();
     let mut result = Vec::new();
-    let mut eligible: Option<BTreeSet<u16>> = None;
+    let mut eligible: Option<SlotSet> = None;
     for term in terms {
-        let union: BTreeSet<_> = term
-            .title
-            .iter()
-            .chain(&term.description)
-            .chain(&term.content)
-            .chain(&term.organization)
-            .copied()
-            .collect();
-        eligible = Some(match eligible {
-            Some(previous) => previous.intersection(&union).copied().collect(),
-            None => union,
-        });
+        let mut union = SlotSet::new()
+            .union(&term.title)
+            .union(&term.description)
+            .union(&term.content)
+            .union(&term.organization);
+        if let Some(previous) = eligible {
+            union = previous.intersection(&union);
+        }
+        eligible = Some(union);
     }
     let condition = eligible.map_or_else(String::new, |slots| {
         format!(
             " WHERE m.slot IN ({})",
             slots
-                .into_iter()
+                .iter()
                 .map(|slot| slot.to_string())
                 .collect::<Vec<_>>()
                 .join(",")
         )
     });
-    let mut statement = db.prepare(&format!("SELECT m.slot,m.id,m.title,m.description,m.content_bytes,m.created,m.modified,m.used,m.archived,m.favorite,m.collection_id,m.tags FROM search_metadata m{condition}"))?;
+    let tags_column = if selected_tags.is_empty() {
+        "'[]'"
+    } else {
+        "m.tags"
+    };
+    let mut statement = db.prepare(&format!("SELECT m.slot,m.id,m.title,m.description,m.content_bytes,m.created,m.modified,m.used,m.archived,m.favorite,m.collection_id,{tags_column} FROM search_metadata m{condition}"))?;
     let mut rows = statement.query([])?;
     while let Some(row) = rows.next()? {
         let archived: bool = row.get(8)?;
@@ -127,11 +245,13 @@ fn candidates(
         {
             continue;
         }
-        let tags: String = row.get(11)?;
-        let tags: BTreeSet<String> =
-            serde_json::from_str(&tags).map_err(|_| rusqlite::Error::InvalidQuery)?;
-        if !selected_tags.iter().all(|t| tags.contains(*t)) {
-            continue;
+        if !selected_tags.is_empty() {
+            let tags: String = row.get(11)?;
+            let tags: BTreeSet<String> =
+                serde_json::from_str(&tags).map_err(|_| rusqlite::Error::InvalidQuery)?;
+            if !selected_tags.iter().all(|t| tags.contains(*t)) {
+                continue;
+            }
         }
         let slot: u16 = row.get(0)?;
         let title: String = row.get(2)?;
@@ -160,7 +280,7 @@ fn candidates(
                     eligible = false;
                     break;
                 }
-                if !term.short {
+                if !term.exact {
                     outstanding.push(index);
                 }
             }
@@ -227,7 +347,7 @@ fn signature(request: &SearchRequest, revision: i64, offset: usize, secret: &str
 fn recovery(_: rusqlite::Error) -> String {
     "search_recovery_required".into()
 }
-fn organization_entries(
+pub(super) fn organization_entries(
     db: &Connection,
     kind: &str,
 ) -> rusqlite::Result<Vec<super::library_contract::OrganizationEntry>> {
@@ -251,10 +371,36 @@ fn organization_entries(
     entries.sort_by_cached_key(|entry| (normalize(&entry.name), entry.id.clone()));
     Ok(entries)
 }
+// One bounded organization snapshot per retained library, fenced by the same
+// local revision as result cursors. Never cache prompt bodies or another account.
+pub struct OrganizationCache {
+    revision: i64,
+    pub(super) collections: Vec<super::library_contract::OrganizationEntry>,
+    pub(super) tags: Vec<super::library_contract::OrganizationEntry>,
+}
+pub(super) fn cached_organization<'a>(
+    db: &Connection,
+    revision: i64,
+    cache: &'a mut Option<OrganizationCache>,
+) -> rusqlite::Result<&'a OrganizationCache> {
+    if cache
+        .as_ref()
+        .is_none_or(|cached| cached.revision != revision)
+    {
+        *cache = Some(OrganizationCache {
+            revision,
+            collections: organization_entries(db, "collection")?,
+            tags: organization_entries(db, "tag")?,
+        });
+    }
+    cache.as_ref().ok_or(rusqlite::Error::InvalidQuery)
+}
 pub fn search(
     db: &Connection,
     request: &SearchRequest,
     cancelled: &impl Fn() -> bool,
+    organization_cache: &mut Option<OrganizationCache>,
+    trusted: bool,
 ) -> Result<SearchPage, String> {
     let check = || {
         if cancelled() {
@@ -295,14 +441,28 @@ pub fn search(
         .collect::<BTreeSet<_>>()
     {
         check()?;
-        terms.push(Term {
-            value: term.into(),
-            title: hits(db, "title", term).map_err(recovery)?,
-            description: hits(db, "description", term).map_err(recovery)?,
-            content: hits(db, "content", term).map_err(recovery)?,
-            organization: organization_hits(db, term).map_err(recovery)?,
-            short: term.chars().count() < 3,
+        terms.push(if trusted {
+            Term {
+                value: term.into(),
+                title: hits(db, "title", term).map_err(recovery)?,
+                description: hits(db, "description", term).map_err(recovery)?,
+                content: hits(db, "content", term).map_err(recovery)?,
+                organization: organization_hits(db, term).map_err(recovery)?,
+                exact: term.chars().count() < 3,
+            }
+        } else {
+            Term {
+                value: term.into(),
+                title: SlotSet::new(),
+                description: SlotSet::new(),
+                content: SlotSet::new(),
+                organization: SlotSet::new(),
+                exact: true,
+            }
         });
+    }
+    if !trusted {
+        scan_terms(db, &mut terms, cancelled)?;
     }
     let candidates = candidates(db, request, &query, &terms).map_err(recovery)?;
     let mut accepted = 0;
@@ -414,9 +574,10 @@ pub fn search(
         }
     }
     check()?;
+    let organization = cached_organization(db, revision, organization_cache).map_err(recovery)?;
     Ok(SearchPage {
-        collections: organization_entries(db, "collection").map_err(recovery)?,
-        tags: organization_entries(db, "tag").map_err(recovery)?,
+        collections: organization.collections.clone(),
+        tags: organization.tags.clone(),
         instance_id: request.instance_id.clone(),
         account_id: request.account_id.clone(),
         revision: revision.to_string(),

@@ -1,0 +1,17 @@
+{
+  "classification": "Supporting profiling on the unrestricted Windows host. Native command worker on retained maximum-library fixture; no concurrent WebView process. Temporary source timing instrumentation; full integrity checks preserved.",
+  "cacheProbe": {
+    "beforeConfiguredCacheMs": 9090.3975,
+    "afterConfiguredCacheMs": 8876.6673,
+    "result": "No material improvement; change reverted."
+  },
+  "timedRecovery": {
+    "tableChecksMs": 166.7313,
+    "titleCumulativeMs": 203.4437,
+    "descriptionCumulativeMs": 250.4461,
+    "contentCumulativeMs": 9645.4325,
+    "nameCumulativeMs": 9646.8142,
+    "shortPostingsCumulativeMs": 9667.5326
+  },
+  "note": "The concurrent WebView probe from this diagnostic interval hit storage contention and is discarded; these per-boundary native timings identify the dominant code path, not isolated benchmark latency."
+}

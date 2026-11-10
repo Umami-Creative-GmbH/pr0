@@ -1,0 +1,229 @@
+{
+  "recordedAt": "2026-11-10T11:25:15.746Z",
+  "classification": "Supporting diagnostic: 100 identical public native search IPC requests with fixed visible UI, then 30 seconds hidden. No Copy/Save journey, network shaping or ten-minute residency certification. No forced GC.",
+  "releaseCriteriaMet": false,
+  "observed": false,
+  "browserDefaultsPreserved": true,
+  "observerAttachedAt": 0,
+  "processReadyMs": 4269,
+  "executable": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-e1b73585bd40f959.exe",
+  "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+  "phases": [
+    {
+      "event": {
+        "phase": "ready",
+        "at": 1794309919970,
+        "completedQueries": 0,
+        "elements": 2167,
+        "error": ""
+      },
+      "observedAt": 1794309921554,
+      "processes": [
+        {
+          "id": 92612,
+          "parent": 56680,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 49876992
+        },
+        {
+          "id": 92712,
+          "parent": 92612,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 40075264
+        },
+        {
+          "id": 5464,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2838528
+        },
+        {
+          "id": 103376,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 212054016
+        },
+        {
+          "id": 23548,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12345344
+        },
+        {
+          "id": 17648,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7704576
+        },
+        {
+          "id": 5152,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 94048256
+        },
+        {
+          "id": 88008,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 35966976
+        }
+      ],
+      "totalPrivateBytes": 454909952
+    },
+    {
+      "event": {
+        "phase": "queried",
+        "at": 1794309942783,
+        "completedQueries": 100,
+        "elements": 2167,
+        "error": ""
+      },
+      "observedAt": 1794309944175,
+      "processes": [
+        {
+          "id": 92612,
+          "parent": 56680,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 56107008
+        },
+        {
+          "id": 92712,
+          "parent": 92612,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 40333312
+        },
+        {
+          "id": 5464,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2838528
+        },
+        {
+          "id": 103376,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 86581248
+        },
+        {
+          "id": 23548,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12410880
+        },
+        {
+          "id": 17648,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7704576
+        },
+        {
+          "id": 5152,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 143503360
+        },
+        {
+          "id": 88008,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 33804288
+        }
+      ],
+      "totalPrivateBytes": 383283200
+    },
+    {
+      "event": {
+        "phase": "hidden",
+        "at": 1794309972806,
+        "completedQueries": 100,
+        "elements": 2167,
+        "error": ""
+      },
+      "observedAt": 1794309973461,
+      "processes": [
+        {
+          "id": 92612,
+          "parent": 56680,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 55640064
+        },
+        {
+          "id": 92712,
+          "parent": 92612,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 40005632
+        },
+        {
+          "id": 5464,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3837952
+        },
+        {
+          "id": 103376,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 85794816
+        },
+        {
+          "id": 23548,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12304384
+        },
+        {
+          "id": 17648,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7704576
+        },
+        {
+          "id": 5152,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 76279808
+        },
+        {
+          "id": 88008,
+          "parent": 92712,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 31580160
+        }
+      ],
+      "totalPrivateBytes": 313147392
+    }
+  ],
+  "browserErrors": [],
+  "failure": "",
+  "elapsedMs": 57861.3788,
+  "experimentalConfiguration": {
+    "deferredValidation": true,
+    "sharedOrganizationCache": false,
+    "suspendedHiddenViews": false,
+    "sqliteMemoryStatistics": true
+  }
+}

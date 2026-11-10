@@ -43,6 +43,7 @@ fn open_launcher(app: &tauri::AppHandle) -> Result<(), String> {
         app.state::<launcher_runtime::Launcher>().hide(opening)?;
         return Err("launcher_unavailable".into());
     }
+    webview_memory::update(app, "launcher");
     let _ = app.emit("launcher-changed", ());
     let _ = window.set_focus();
     if window.is_focused().unwrap_or(false) {
@@ -58,6 +59,7 @@ fn hide_launcher(app: &tauri::AppHandle, opening: u64) -> Result<(), String> {
             .ok_or("launcher_unavailable")?
             .hide()
             .map_err(|_| "launcher_unavailable")?;
+        webview_memory::update(app, "launcher");
         let _ = app.emit("launcher-changed", ());
     }
     Ok(())
@@ -73,6 +75,7 @@ fn launcher_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
         tauri::WindowEvent::Focused(focused) => {
             if state.observe_focus(*focused).unwrap_or(false) {
                 let _ = window.hide();
+                webview_memory::update(window.app_handle(), window.label());
             }
             let _ = window.app_handle().emit("launcher-changed", ());
         }

@@ -1,0 +1,41 @@
+{
+  "classification": "Supporting harness diagnosis; alternating Playwright actionability click and direct DOM button activation; same production native command",
+  "samples": [
+    {
+      "mode": "playwright",
+      "dispatchMs": 141.32949999999983,
+      "focusMs": 2769.8552,
+      "totalMs": 2911.1854000000003
+    },
+    {
+      "mode": "dom",
+      "dispatchMs": 24.29110000000037,
+      "focusMs": 6.2356999999992695,
+      "totalMs": 30.527099999999336
+    },
+    {
+      "mode": "playwright",
+      "dispatchMs": 2969.6070999999993,
+      "focusMs": 4.172500000000582,
+      "totalMs": 2973.779700000001
+    },
+    {
+      "mode": "dom",
+      "dispatchMs": 9.124500000001717,
+      "focusMs": 1.2097999999969034,
+      "totalMs": 10.334399999999732
+    },
+    {
+      "mode": "playwright",
+      "dispatchMs": 2961.640199999998,
+      "focusMs": 1.3876999999993131,
+      "totalMs": 2963.0279999999984
+    },
+    {
+      "mode": "dom",
+      "dispatchMs": 7.191200000001118,
+      "focusMs": 1.0534999999981665,
+      "totalMs": 8.244800000000396
+    }
+  ]
+}

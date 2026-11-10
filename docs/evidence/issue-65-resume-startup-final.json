@@ -1,0 +1,9 @@
+{
+  "recordedAt": "2026-11-10T11:51:07.974Z",
+  "classification": "Supporting three process-cold UI opens on the authorized host, using a retained maximum library, real WebView2 and production assets. OS caches are not flushed; this is not installed-build cold-start p95 certification on the required machine.",
+  "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+  "browserDefaultsPreserved": true,
+  "releaseCriteriaMet": false,
+  "samplesMs": [1680.8515, 2039.6442000000002, 1986.4405000000002],
+  "failure": ""
+}

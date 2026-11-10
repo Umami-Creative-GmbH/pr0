@@ -1,0 +1,45 @@
+{
+  "classification": "Test-harness bootstrap failures before any control queries; the opt-in measurement command was blocked by the existing app ACL. Production permissions were not relaxed; later test context adds only its measurement command. A later bootstrap exposed the diagnostic bundle's pre-CSP eval-capability detection; explicit jitless parsing fixes that bundle without changing CSP.",
+  "runs": [
+    {
+      "recordedAt": "2026-11-08T21:31:48.560Z",
+      "classification": "Supporting diagnostic: 100 identical public native search IPC requests with fixed visible UI, then 30 seconds hidden. No Copy/Save journey, network shaping or ten-minute residency certification. No forced GC.",
+      "releaseCriteriaMet": false,
+      "observed": false,
+      "browserDefaultsPreserved": true,
+      "observerAttachedAt": 0,
+      "executable": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-de28390caae013fb.exe",
+      "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+      "phases": [],
+      "failure": "AssertionError [ERR_ASSERTION]: Probe did not finish",
+      "elapsedMs": 97695.1166
+    },
+    {
+      "recordedAt": "2026-11-08T21:33:59.638Z",
+      "classification": "Supporting diagnostic: 100 identical public native search IPC requests with fixed visible UI, then 30 seconds hidden. No Copy/Save journey, network shaping or ten-minute residency certification. No forced GC.",
+      "releaseCriteriaMet": false,
+      "observed": true,
+      "browserDefaultsPreserved": true,
+      "observerAttachedAt": 1794173640542,
+      "executable": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-de28390caae013fb.exe",
+      "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+      "phases": [],
+      "failure": "AssertionError [ERR_ASSERTION]: Probe did not finish",
+      "elapsedMs": 90100.02010000001
+    },
+    {
+      "recordedAt": "2026-11-08T21:37:15.596Z",
+      "classification": "Supporting diagnostic: 100 identical public native search IPC requests with fixed visible UI, then 30 seconds hidden. No Copy/Save journey, network shaping or ten-minute residency certification. No forced GC.",
+      "releaseCriteriaMet": false,
+      "observed": false,
+      "browserDefaultsPreserved": true,
+      "observerAttachedAt": 0,
+      "executable": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-de28390caae013fb.exe",
+      "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+      "phases": [],
+      "browserErrors": [],
+      "failure": "AssertionError [ERR_ASSERTION]: EvalError: Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed source of script: script-src 'self' 'sha256-PDnxh/cXAOydHB9Y6XxEfoz2DLq1SbMcd4btj/16inU=' 'sha256-3Cw/fIxnzl1x6zGzrphD0G8hrn9qd1YxeOPZUW1NBHE=' 'sha256-9gXQ+fgtRYoeZyTjjTyvFOGlMVrLQQmLnBt+WY+y8TI='\".\n",
+      "elapsedMs": 12832.265899999999
+    }
+  ]
+}

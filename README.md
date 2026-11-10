@@ -19,7 +19,7 @@ Shared packages export source files through explicit package subpaths. Next.js a
 
 ## Development
 
-Install [Bun 1.4.2](https://bun.sh/), then run from the repository root:
+Install [Bun 1.4.4](https://bun.sh/), then run from the repository root:
 
 ```sh
 bun install

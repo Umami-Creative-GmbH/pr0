@@ -1,0 +1,15 @@
+{
+  "recordedAt": "2026-11-08T12:06:46.375Z",
+  "bun": "1.4.4",
+  "smoke": true,
+  "classification": "supporting evidence: shared Linux Docker VM, same two CPUs for all resident services, memory limits sum to 3776 MiB; backing disk is shared and has no 64 GiB hard quota; not a dedicated 2-vCPU/4-GiB/64-GiB machine",
+  "fixture": "1000 accounts, exactly 10737418240 logical UTF-8 bytes, one 10000-prompt/100-MiB library, 20 authenticated active accounts; 80% search and 20% durable usage mutations; no retries during timed load",
+  "seed": "DO\nCREATE TABLE\nINSERT 0 100\nSELECT 1\nINSERT 0 999\nINSERT 0 999\nSELECT 1000\nSELECT 1000\nINSERT 0 1199\nINSERT 0 1999\nSELECT 109900\nINSERT 0 109900\nINSERT 0 299900\nINSERT 0 109900\nINSERT 0 109900\nUPDATE 1000\nDO\nANALYZE\n                                        json_build_object                                         \n--------------------------------------------------------------------------------------------------\n {\"accounts\" : 1000, \"textBytes\" : 10737418240, \"prompts\" : 109900, \"databaseBytes\" : 6195741199}\n(1 row)\n\n",
+  "storageBefore": "",
+  "storageAfter": "",
+  "containerStats": "",
+  "image": "null\n\n",
+  "failure": "AssertionError [ERR_ASSERTION]: {\"code\":\"temporarily_unavailable\",\"message\":\"The service is busy. Keep your draft and retry shortly.\",\"retryable\":true,\"retryAfter\":2}",
+  "passed": false,
+  "samples": []
+}

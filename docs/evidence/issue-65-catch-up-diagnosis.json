@@ -1,0 +1,6 @@
+{
+  "recordedAt": "2026-11-08T14:31:59.231Z",
+  "classification": "Supporting retry to retain the precise REST catch-up refusal after the fixed-arrival workload",
+  "result": null,
+  "failure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ '1000:10740218002:110167'\n- '1000:10737418240:109900'\n           ^\n"
+}

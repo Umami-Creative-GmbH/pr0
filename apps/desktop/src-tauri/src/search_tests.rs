@@ -206,6 +206,7 @@ fn search_reopen_recovers_incompatible_normalization() {
 }
 #[test]
 fn search_shared_sort_recency_scope_and_filter_fixtures() {
+    let validation = super::search_validation::testing::pause_next(false);
     let data: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../packages/api-contract/src/search-order-fixtures.json"
     ))
@@ -257,6 +258,8 @@ fn search_shared_sort_recency_scope_and_filter_fixtures() {
         &directory,
         search_snapshot(prompts, org.clone(), collections.clone()),
     );
+    service.library_search(search_request(&service, "")).unwrap();
+    validation.wait_reached();
     for case in data["cases"].as_array().unwrap() {
         let mut request = search_request(&service, "needle");
         request.limit = 2;
@@ -314,6 +317,7 @@ fn search_shared_sort_recency_scope_and_filter_fixtures() {
         }
     }
     drop(service);
+    validation.wait_finished();
     std::fs::remove_dir_all(directory).unwrap();
 }
 fn search_snapshot(
@@ -745,6 +749,7 @@ fn search_corruption_recovers_on_reopen_and_can_rebuild_explicitly() {
 
 #[test]
 fn search_shared_unicode_vectors_match_in_each_of_the_five_fields() {
+    let validation = super::search_validation::testing::pause_next(false);
     let data: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../packages/api-contract/src/search-fixtures.json"
     ))
@@ -782,6 +787,8 @@ fn search_shared_unicode_vectors_match_in_each_of_the_five_fields() {
         &directory,
         search_snapshot(prompts.clone(), tags, collections),
     );
+    service.library_search(search_request(&service, "")).unwrap();
+    validation.wait_reached();
     for (index, fixture) in vectors.iter().enumerate() {
         let mut request = search_request(&service, fixture["query"].as_str().unwrap());
         request.limit = 100;
@@ -797,6 +804,7 @@ fn search_shared_unicode_vectors_match_in_each_of_the_five_fields() {
         }
     }
     drop(service);
+    validation.wait_finished();
     std::fs::remove_dir_all(directory).unwrap();
 }
 
@@ -895,5 +903,226 @@ fn search_finds_downloaded_and_saved_text_and_reopens_without_losing_pending_wor
     );
     assert_eq!(service.library_pending().unwrap().len(), 1);
     drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn short_search_membership_tracks_dense_noisy_edits_and_persisted_restart() {
+    use std::collections::BTreeSet;
+    let directory = std::env::temp_dir().join(format!("pr0-search-bitmap-{}", uuid::Uuid::new_v4()));
+    let prompts = (0..2000).map(|index| {
+        let mut prompt = search_prompt(index);
+        prompt["title"] = json!(format!("Entry {index:04}"));
+        prompt["description"] = json!("");
+        prompt["content"] = json!(if index % 2 == 0 { "qx 🎯" } else { "zx 🫠" });
+        prompt
+    }).collect();
+    let service = search_download(&directory, search_snapshot(prompts, vec![], vec![]));
+    for (index, content) in [(0, "zx 🫠"), (1, "qx 🎯")] {
+        let id = search_prompt(index)["id"].as_str().unwrap().to_owned();
+        let editor = service.library_editor(&id).unwrap();
+        let mut request = save_request(&service);
+        request.operation_id = uuid::Uuid::new_v4().to_string();
+        request.prompt_id = id;
+        request.expected_local_revision = Some(editor.local_revision);
+        request.desired.title = editor.prompt.title;
+        request.desired.description.clear();
+        request.desired.content = content.into();
+        service.library_edit(request).unwrap();
+    }
+    drop(service);
+    let service = AuthService::new(directory.clone(), approval(), Arc::new(Vault::default())).unwrap();
+    for query in ["q", "qx", "🎯"] {
+        let mut ids = BTreeSet::new();
+        let mut request = search_request(&service, query);
+        request.limit = 100;
+        loop {
+            let page = service.library_search(request.clone()).unwrap();
+            ids.extend(page.prompts.into_iter().map(|prompt| prompt.id));
+            request.cursor = page.next_cursor;
+            if request.cursor.is_none() { break; }
+        }
+        let expected = (1..2000).filter(|index| *index == 1 || index % 2 == 0)
+            .map(|index| search_prompt(index)["id"].as_str().unwrap().to_owned()).collect::<BTreeSet<_>>();
+        assert_eq!(ids, expected);
+    }
+    assert_eq!(service.library_pending().unwrap().len(), 2);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn search_reopen_repairs_missing_content_postings_without_losing_edits() {
+    let directory = std::env::temp_dir().join(format!("pr0-search-content-check-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), vault.clone());
+    let mut edit = save_request(&service);
+    edit.desired.content = "Preserved validation needle".into();
+    let saved = service.library_create(edit).unwrap();
+    let request = search_request(&service, "validation needle");
+    drop(service);
+    let path = super::library_storage::library_path(&directory, &request.instance_id, &request.account_id).unwrap();
+    let db = rusqlite::Connection::open(path).unwrap();
+    db.execute("INSERT INTO local_f_content(local_f_content,rowid,content) SELECT 'delete',slot,content FROM local_search WHERE id=?1", [&saved.prompt.id]).unwrap();
+    db.execute_batch("INSERT INTO local_f_content(local_f_content,rank) VALUES('integrity-check',0);").unwrap();
+    assert!(db.execute_batch("INSERT INTO local_f_content(local_f_content,rank) VALUES('integrity-check',1);").is_err(), "Structurally valid postings can still disagree with their external content");
+    drop(db);
+    let validation = super::search_validation::testing::pause_next(false);
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
+    validation.wait_reached();
+    validation.release();
+    validation.wait_finished();
+    let page = service.library_search(search_request(&service, "validation needle")).unwrap();
+    assert_eq!(page.prompts.len(), 1);
+    assert_eq!(page.prompts[0].id, saved.prompt.id);
+    assert_eq!(service.library_detail(&saved.prompt.id).unwrap().content, saved.prompt.content);
+    assert_eq!(service.library_pending().unwrap().len(), 1);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn search_validation_unavailable_keeps_exact_results_and_cancels_on_close() {
+    let directory = std::env::temp_dir().join(format!("pr0-search-unavailable-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), vault.clone());
+    let identity = search_request(&service, "Hello");
+    drop(service);
+    let path = super::library_storage::library_path(&directory, &identity.instance_id, &identity.account_id).unwrap();
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.execute_batch("INSERT INTO local_f_content(local_f_content) VALUES('delete-all');").unwrap();
+    drop(db);
+    let validation = super::search_validation::testing::pause_next(true);
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
+    validation.wait_reached();
+    assert_eq!(service.library_search(search_request(&service, "Hello")).unwrap().prompts.len(), 2);
+    validation.release();
+    validation.wait_finished();
+    assert_eq!(service.library_search(search_request(&service, "Hello")).unwrap().prompts.len(), 2);
+    let saved = service.library_create(save_request(&service)).unwrap();
+    assert_eq!(service.library_detail(&saved.prompt.id).unwrap().content, saved.prompt.content);
+    assert_eq!(service.library_pending().unwrap().len(), 1);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn search_validation_discards_stale_snapshots_after_writes_and_external_changes() {
+    let directory = std::env::temp_dir().join(format!("pr0-search-stale-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), vault.clone());
+    let identity = search_request(&service, "Hello");
+    drop(service);
+    let validation = super::search_validation::testing::pause_next(false);
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
+    validation.wait_reached();
+    let path = super::library_storage::library_path(&directory, &identity.instance_id, &identity.account_id).unwrap();
+    let db = rusqlite::Connection::open(path).unwrap();
+    db.execute_batch("INSERT INTO local_f_content(local_f_content) VALUES('delete-all');").unwrap();
+    drop(db);
+    validation.release();
+    validation.wait_finished();
+    let retry = super::search_validation::testing::pause_next(false);
+    assert_eq!(service.library_search(search_request(&service, "Hello")).unwrap().prompts.len(), 2);
+    retry.wait_reached();
+    assert_eq!(service.library_pending().unwrap().len(), 0);
+    let closing = std::time::Instant::now();
+    drop(service);
+    retry.wait_finished();
+    assert!(closing.elapsed() < std::time::Duration::from_secs(1), "Closing cancels a paused validation instead of waiting for completion");
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn search_validation_uses_index_only_after_success_and_preserves_recovery_errors() {
+    let directory = std::env::temp_dir().join(format!("pr0-search-trusted-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), vault.clone());
+    let identity = search_request(&service, "Hello");
+    drop(service);
+    let validation = super::search_validation::testing::pause_next(false);
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
+    validation.wait_reached();
+    validation.release();
+    validation.wait_finished();
+    service.library_search(search_request(&service, "")).unwrap();
+    let db = rusqlite::Connection::open(super::library_storage::library_path(&directory, &identity.instance_id, &identity.account_id).unwrap()).unwrap();
+    db.execute_batch("DROP TABLE local_f_content").unwrap();
+    drop(db);
+    assert_eq!(service.library_search(search_request(&service, "Hello")).err().as_deref(), Some("search_recovery_required"));
+    service.library_recover_search(search_request(&service, "")).unwrap();
+    assert_eq!(service.library_search(search_request(&service, "Hello")).unwrap().prompts.len(), 2);
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn search_validation_sign_out_joins_before_next_login_and_rejects_stale_commands() {
+    let directory = std::env::temp_dir().join(format!("pr0-search-account-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), vault.clone());
+    drop(service);
+    let validation = super::search_validation::testing::pause_next(false);
+    let service = AuthService::new(directory.clone(), upload_fixture(false, false), vault).unwrap();
+    service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
+    validation.wait_reached();
+    let stale = search_request(&service, "Hello");
+    service.sign_out().unwrap();
+    validation.wait_finished();
+    assert_eq!(view(&service)["state"], "signed_out");
+    sign_in(&service);
+    assert_eq!(service.library_search(stale).err().as_deref(), Some("operation_cancelled"));
+    drop(service);
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn search_validation_preserves_text_names_and_usage_written_during_check() {
+    let directory = std::env::temp_dir().join(format!("pr0-search-concurrent-writes-{}", uuid::Uuid::new_v4()));
+    let vault = Arc::new(Vault::default());
+    let service = downloaded_upload_service(&directory, upload_fixture(false, false), vault.clone());
+    let prompt_id = service.library_search(search_request(&service, "Hello")).unwrap().prompts[0].id.clone();
+    let tag = uuid::Uuid::new_v4().to_string();
+    service.library_organize(organization_request(&service, json!({"kind":"tag.create","id":tag,"name":"Before validation"}))).unwrap();
+    service.library_organize(organization_request(&service, json!({"kind":"prompt.tags","id":prompt_id,"add":[tag],"remove":[]}))).unwrap();
+    drop(service);
+    let validation = super::search_validation::testing::pause_next(false);
+    let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
+    service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
+    validation.wait_reached();
+    let editor = service.library_editor(&prompt_id).unwrap();
+    let mut request = save_request(&service);
+    request.prompt_id = prompt_id.clone();
+    request.expected_local_revision = Some(editor.local_revision);
+    request.desired.title = editor.prompt.title;
+    request.desired.content = "Text changed during validation".into();
+    service.library_edit(request).unwrap();
+    service.library_organize(organization_request(&service, json!({"kind":"tag.rename","id":tag,"name":"Renamed during validation"}))).unwrap();
+    service.library_copy(copy_request(&service, &prompt_id), |_| Ok(())).unwrap();
+    validation.release();
+    validation.wait_finished();
+    let retry = super::search_validation::testing::pause_next(false);
+    let page = service.library_search(search_request(&service, "Text changed during validation")).unwrap();
+    assert_eq!(page.prompts[0].id, prompt_id);
+    retry.wait_reached();
+    assert!(service.library_search(search_request(&service, "Before validation")).unwrap().prompts.is_empty());
+    let renamed = service.library_search(search_request(&service, "Renamed during validation")).unwrap();
+    assert_eq!(renamed.prompts[0].id, prompt_id);
+    assert_eq!(renamed.tags.iter().find(|entry| entry.id == tag).unwrap().name, "Renamed during validation");
+    assert_eq!(service.library_usage_status().unwrap().waiting, 1);
+    assert_eq!(service.library_pending().unwrap().len(), 1);
+    assert_eq!(service.library_detail(&prompt_id).unwrap().content, "Text changed during validation");
+    drop(service);
+    retry.wait_finished();
     std::fs::remove_dir_all(directory).unwrap();
 }

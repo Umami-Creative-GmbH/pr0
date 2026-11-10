@@ -1,0 +1,20 @@
+{
+  "recordedAt": "2026-11-08T21:01:38.542Z",
+  "classification": "Diagnostic CDP allocation dump during the offline supporting residency interval; not an uninstrumented idle gate. No forced GC (deterministic:false). Allocator categories overlap and must not be summed.",
+  "mainRenderer": {
+    "pid": 88556,
+    "bufferPartitionBytes": 226058240,
+    "bufferBucket458752Bytes": 97255424,
+    "bufferBucket655360Bytes": 65536000,
+    "networkResourceDataObjects": 2624,
+    "liveJavaScriptHeapBytes": 13522968
+  },
+  "hypothesis": "Inspector network response retention may contribute to the renderer footprint, but disconnecting automation did not reduce the immediate private-commit sample. Buffer ownership and longer-term retention remain unresolved; do not attribute the whole footprint to live React state or instrumentation alone.",
+  "observerControl": {
+    "unobservedHiddenBytes": 337014784,
+    "observedHiddenBytes": 401211392,
+    "requests": 100,
+    "differenceBytes": 64196608,
+    "note": "One paired diagnostic found higher private commit with Playwright attached. Separate controls show substantial GPU-process variation, so this is supporting evidence of observer overhead, not a stable causal estimate or an explanation of the entire full-workload footprint."
+  }
+}

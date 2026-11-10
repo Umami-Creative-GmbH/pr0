@@ -1,0 +1,806 @@
+{
+  "recordedAt": "2026-11-08T23:14:42.458Z",
+  "bun": "1.4.4",
+  "cpu": "AMD Ryzen 9 9950X3D2 16-Core Processor         ",
+  "logicalCpus": 32,
+  "memoryBytes": 100579700736,
+  "promptCount": 10000,
+  "textBytes": 104857600,
+  "tags": 1000,
+  "collections": 200,
+  "tagsPerPrompt": 20,
+  "classification": "supporting evidence; account and snapshot transport fixtures; unrestricted host; offline test worker without production synchronization loops; online latency, bandwidth, installed-build and settled online residency gates are unmeasured",
+  "results": [
+    {
+      "query": "a",
+      "samples": [
+        98, 101.69999998807907, 103.80000001192093, 107.20000004768372,
+        112.59999996423721, 112.89999997615814, 123.40000003576279,
+        182.60000002384186, 203.60000002384186, 205.80000001192093, 386, 389.5,
+        408.69999998807907, 413.0999999642372, 445.2999999523163,
+        456.19999998807907, 472.10000002384186, 472.2999999523163, 474.5,
+        475.89999997615814
+      ],
+      "p95Ms": 474.5
+    },
+    {
+      "query": "C++",
+      "samples": [
+        101.30000001192093, 107.29999995231628, 108.69999998807907, 110.5,
+        111.69999998807907, 116.19999998807907, 116.20000004768372,
+        116.30000001192093, 120.69999998807907, 126.80000001192093,
+        130.60000002384186, 139, 183.79999995231628, 186.0999999642372,
+        186.80000001192093, 187.39999997615814, 207.89999997615814,
+        218.5999999642372, 234.80000001192093, 236.69999998807907
+      ],
+      "p95Ms": 234.80000001192093
+    },
+    {
+      "query": "common",
+      "samples": [
+        95.09999996423721, 95.19999998807907, 98.40000003576279,
+        99.19999998807907, 101.40000003576279, 105.39999997615814,
+        108.80000001192093, 115.10000002384186, 115.29999995231628,
+        116.10000002384186, 116.69999998807907, 126.19999998807907,
+        135.4000000357628, 196.69999998807907, 200.5999999642372,
+        202.30000001192093, 203, 216.10000002384186, 236.19999998807907,
+        313.10000002384186
+      ],
+      "p95Ms": 236.19999998807907
+    },
+    {
+      "query": "abcdbcdabc",
+      "samples": [
+        50.69999998807907, 51.10000002384186, 51.60000002384186, 52.5,
+        53.30000001192093, 55.200000047683716, 56, 57.69999998807907,
+        57.89999997615814, 59.09999996423721, 59.200000047683716,
+        64.80000001192093, 64.89999997615814, 67, 90.39999997615814, 91,
+        97.30000001192093, 98, 156.9000000357628, 166.5
+      ],
+      "p95Ms": 156.9000000357628
+    },
+    {
+      "query": "abcd",
+      "samples": [
+        310, 326.7000000476837, 342, 344, 348.5, 349.7000000476837, 355,
+        357.7000000476837, 361, 362.4000000357628, 376.80000001192093,
+        381.60000002384186, 392.5, 397.69999998807907, 398.10000002384186,
+        398.19999998807907, 400.60000002384186, 402.69999998807907,
+        413.19999998807907, 424.5
+      ],
+      "p95Ms": 413.19999998807907
+    },
+    {
+      "query": "cafe resume common equipe reponses",
+      "samples": [
+        120.19999998807907, 122.09999996423721, 122.10000002384186,
+        122.39999997615814, 123.40000003576279, 124.10000002384186,
+        124.59999996423721, 125.19999998807907, 126.5, 128.39999997615814,
+        128.80000001192093, 131.19999998807907, 132.89999997615814,
+        170.20000004768372, 196.60000002384186, 207.0999999642372,
+        207.69999998807907, 212, 217.30000001192093, 249.80000001192093
+      ],
+      "p95Ms": 217.30000001192093
+    },
+    {
+      "query": "Σίσυφος 東京",
+      "samples": [
+        98, 101.69999998807907, 102.60000002384186, 102.69999998807907,
+        102.80000001192093, 106.40000003576279, 108, 109.59999996423721,
+        109.60000002384186, 113.5, 117.60000002384186, 118.59999996423721,
+        128.10000002384186, 171.30000001192093, 175.69999998807907,
+        183.4000000357628, 193.80000001192093, 197.30000001192093,
+        203.30000001192093, 204
+      ],
+      "p95Ms": 203.30000001192093
+    },
+    {
+      "query": "🎯",
+      "samples": [
+        95.60000002384186, 96.39999997615814, 98.69999998807907,
+        100.30000001192093, 102.60000002384186, 102.69999998807907,
+        103.20000004768372, 104.60000002384186, 108.69999998807907, 111.5,
+        111.5, 118.19999998807907, 124.60000002384186, 167.4000000357628,
+        170.39999997615814, 173.69999998807907, 195.80000001192093,
+        201.60000002384186, 202.89999997615814, 204.79999995231628
+      ],
+      "p95Ms": 202.89999997615814
+    },
+    {
+      "query": "write concise answer useful examples clear steps review following document identify important changes explain reasoning preserve exact names punctuation summarize meeting notes actions owners dates",
+      "samples": [
+        139.0999999642372, 140.30000001192093, 151.10000002384186, 152.5,
+        174.79999995231628, 180.39999997615814, 180.5999999642372, 188, 193,
+        195.29999995231628, 196.30000001192093, 203.5, 207, 207.30000001192093,
+        209.60000002384186, 215, 222.5, 251, 302, 315.69999998807907
+      ],
+      "p95Ms": 302
+    }
+  ],
+  "passed": false,
+  "releaseCriteriaMet": false,
+  "browserDefaultsPreserved": true,
+  "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+  "reused": true,
+  "processColdUiMs": 6282.6952,
+  "webview": "157.0.4341.42",
+  "profile": [
+    {
+      "name": "initial-render",
+      "elapsedMs": 6910.3269,
+      "totalPrivateBytes": 525533184,
+      "processes": [
+        {
+          "id": 26064,
+          "parent": 88528,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 53870592
+        },
+        {
+          "id": 73376,
+          "parent": 26064,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 85364736
+        },
+        {
+          "id": 13916,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2822144
+        },
+        {
+          "id": 56824,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 213225472
+        },
+        {
+          "id": 76212,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12378112
+        },
+        {
+          "id": 56168,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7704576
+        },
+        {
+          "id": 47680,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 111063040
+        },
+        {
+          "id": 5500,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 39104512
+        }
+      ],
+      "automationConnected": true,
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 12336540,
+            "totalSize": 29863936,
+            "embedderHeapUsedSize": 27807992,
+            "backingStorageSize": 1138973
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 5445,
+            "jsEventListeners": 1413
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 4834864,
+            "totalSize": 8044544,
+            "embedderHeapUsedSize": 1979208,
+            "backingStorageSize": 604349
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 97,
+            "jsEventListeners": 187
+          }
+        }
+      ]
+    },
+    {
+      "name": "after-searches",
+      "elapsedMs": 84686.9267,
+      "totalPrivateBytes": 733196288,
+      "processes": [
+        {
+          "id": 26064,
+          "parent": 88528,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 56311808
+        },
+        {
+          "id": 73376,
+          "parent": 26064,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 80506880
+        },
+        {
+          "id": 13916,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3387392
+        },
+        {
+          "id": 56824,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 121368576
+        },
+        {
+          "id": 76212,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12050432
+        },
+        {
+          "id": 56168,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7614464
+        },
+        {
+          "id": 47680,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 416997376
+        },
+        {
+          "id": 5500,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 34959360
+        }
+      ],
+      "automationConnected": true,
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 12642200,
+            "totalSize": 113487872,
+            "embedderHeapUsedSize": 11656104,
+            "backingStorageSize": 847526
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 5570,
+            "jsEventListeners": 1207
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 3612312,
+            "totalSize": 4112384,
+            "embedderHeapUsedSize": 941512,
+            "backingStorageSize": 603488
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 88,
+            "jsEventListeners": 180
+          }
+        }
+      ]
+    },
+    {
+      "name": "after-complete-pagination",
+      "elapsedMs": 115540.3048,
+      "totalPrivateBytes": 765063168,
+      "processes": [
+        {
+          "id": 26064,
+          "parent": 88528,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 53051392
+        },
+        {
+          "id": 73376,
+          "parent": 26064,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 89952256
+        },
+        {
+          "id": 13916,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3387392
+        },
+        {
+          "id": 56824,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 109072384
+        },
+        {
+          "id": 76212,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12263424
+        },
+        {
+          "id": 56168,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7614464
+        },
+        {
+          "id": 47680,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 454762496
+        },
+        {
+          "id": 5500,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 34959360
+        }
+      ],
+      "automationConnected": true,
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 20023356,
+            "totalSize": 83865600,
+            "embedderHeapUsedSize": 11062888,
+            "backingStorageSize": 1286062
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 5422,
+            "jsEventListeners": 1198
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 3612312,
+            "totalSize": 4112384,
+            "embedderHeapUsedSize": 941512,
+            "backingStorageSize": 603488
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 88,
+            "jsEventListeners": 180
+          }
+        }
+      ]
+    },
+    {
+      "name": "after-interactions",
+      "elapsedMs": 224617.6545,
+      "totalPrivateBytes": 1102307328,
+      "processes": [
+        {
+          "id": 26064,
+          "parent": 88528,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 60690432
+        },
+        {
+          "id": 73376,
+          "parent": 26064,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 66646016
+        },
+        {
+          "id": 13916,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3198976
+        },
+        {
+          "id": 56824,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 310620160
+        },
+        {
+          "id": 76212,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 13000704
+        },
+        {
+          "id": 56168,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7614464
+        },
+        {
+          "id": 47680,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 484950016
+        },
+        {
+          "id": 5500,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 155586560
+        }
+      ],
+      "automationConnected": true,
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 36737320,
+            "totalSize": 121413632,
+            "embedderHeapUsedSize": 24953608,
+            "backingStorageSize": 1133966
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 4568,
+            "jsEventListeners": 1579
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 11917772,
+            "totalSize": 75276288,
+            "embedderHeapUsedSize": 4625432,
+            "backingStorageSize": 1750744
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 772,
+            "jsEventListeners": 1476
+          }
+        }
+      ]
+    },
+    {
+      "name": "hidden-with-automation",
+      "elapsedMs": 256312.06639999998,
+      "totalPrivateBytes": 767131648,
+      "processes": [
+        {
+          "id": 26064,
+          "parent": 88528,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 59219968
+        },
+        {
+          "id": 73376,
+          "parent": 26064,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 59375616
+        },
+        {
+          "id": 13916,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3203072
+        },
+        {
+          "id": 56824,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 123985920
+        },
+        {
+          "id": 76212,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12537856
+        },
+        {
+          "id": 56168,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7614464
+        },
+        {
+          "id": 47680,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 349032448
+        },
+        {
+          "id": 5500,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 152162304
+        }
+      ],
+      "automationConnected": true,
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 13455708,
+            "totalSize": 18128896,
+            "embedderHeapUsedSize": 10142384,
+            "backingStorageSize": 704818
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 4366,
+            "jsEventListeners": 917
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 18596808,
+            "totalSize": 75276288,
+            "embedderHeapUsedSize": 5171208,
+            "backingStorageSize": 1980500
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 773,
+            "jsEventListeners": 1557
+          }
+        }
+      ]
+    },
+    {
+      "name": "hidden-after-automation-disconnect",
+      "elapsedMs": 286778.4033,
+      "totalPrivateBytes": 867487744,
+      "processes": [
+        {
+          "id": 26064,
+          "parent": 88528,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 59166720
+        },
+        {
+          "id": 73376,
+          "parent": 26064,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 58740736
+        },
+        {
+          "id": 13916,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3203072
+        },
+        {
+          "id": 56824,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 235589632
+        },
+        {
+          "id": 76212,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12427264
+        },
+        {
+          "id": 56168,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7614464
+        },
+        {
+          "id": 47680,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 339652608
+        },
+        {
+          "id": 5500,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 151093248
+        }
+      ],
+      "automationConnected": false,
+      "pages": []
+    },
+    {
+      "name": "after-ten-minutes",
+      "elapsedMs": 888175.5877,
+      "totalPrivateBytes": 867987456,
+      "processes": [
+        {
+          "id": 26064,
+          "parent": 88528,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 59101184
+        },
+        {
+          "id": 73376,
+          "parent": 26064,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 58613760
+        },
+        {
+          "id": 13916,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3198976
+        },
+        {
+          "id": 56824,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 235589632
+        },
+        {
+          "id": 76212,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12488704
+        },
+        {
+          "id": 56168,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7733248
+        },
+        {
+          "id": 47680,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 339951616
+        },
+        {
+          "id": 5500,
+          "parent": 73376,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 151310336
+        }
+      ],
+      "automationConnected": false,
+      "pages": []
+    }
+  ],
+  "completePaginationCount": 10000,
+  "interactionProgress": {
+    "launcher": [
+      54.962100000004284, 9.6420999999973, 8.279599999994389, 9.599900000001071,
+      9.4037000000244, 10.831299999990733, 11.027600000001257, 8.80559999999241,
+      8.530300000013085, 13.510299999994459, 7.602000000013504,
+      8.431799999991199, 10.011599999997998, 8.791100000002189,
+      8.057799999980489, 7.829300000012154, 8.401700000016717,
+      8.957900000008522, 8.826499999995576, 7.194699999992736
+    ],
+    "copy": [
+      50.19999998807907, 70.5, 70.89999997615814, 71.5, 71.80000001192093, 72.5,
+      72.69999998807907, 74, 74.09999996423721, 74.5, 75.40000003576279,
+      77.19999998807907, 78.10000002384186, 84.39999997615814,
+      84.69999998807907, 85.30000001192093, 87.69999998807907,
+      87.90000003576279, 98.30000001192093, 99.10000002384186
+    ],
+    "save": [
+      119.5, 147.39999997615814, 148.10000002384186, 148.30000001192093,
+      148.5999999642372, 148.80000001192093, 148.89999997615814,
+      149.89999997615814, 151.10000002384186, 151.39999997615814,
+      152.0999999642372, 152.19999998807907, 152.9000000357628,
+      153.89999997615814, 154.4000000357628, 154.60000002384186, 155, 157.5,
+      162.80000001192093, 164.80000001192093
+    ]
+  },
+  "interactions": {
+    "launcher": {
+      "warmupMs": 2990.584400000007,
+      "samples": [
+        54.962100000004284, 9.6420999999973, 8.279599999994389,
+        9.599900000001071, 9.4037000000244, 10.831299999990733,
+        11.027600000001257, 8.80559999999241, 8.530300000013085,
+        13.510299999994459, 7.602000000013504, 8.431799999991199,
+        10.011599999997998, 8.791100000002189, 8.057799999980489,
+        7.829300000012154, 8.401700000016717, 8.957900000008522,
+        8.826499999995576, 7.194699999992736
+      ],
+      "p95Ms": 13.510299999994459
+    },
+    "copy": {
+      "samples": [
+        50.19999998807907, 70.5, 70.89999997615814, 71.5, 71.80000001192093,
+        72.5, 72.69999998807907, 74, 74.09999996423721, 74.5, 75.40000003576279,
+        77.19999998807907, 78.10000002384186, 84.39999997615814,
+        84.69999998807907, 85.30000001192093, 87.69999998807907,
+        87.90000003576279, 98.30000001192093, 99.10000002384186
+      ],
+      "p95Ms": 98.30000001192093
+    },
+    "save": {
+      "samples": [
+        119.5, 147.39999997615814, 148.10000002384186, 148.30000001192093,
+        148.5999999642372, 148.80000001192093, 148.89999997615814,
+        149.89999997615814, 151.10000002384186, 151.39999997615814,
+        152.0999999642372, 152.19999998807907, 152.9000000357628,
+        153.89999997615814, 154.4000000357628, 154.60000002384186, 155, 157.5,
+        162.80000001192093, 164.80000001192093
+      ],
+      "p95Ms": 162.80000001192093
+    }
+  },
+  "databaseBytes": 418226176,
+  "residencyState": {
+    "surfacesHidden": true,
+    "productionSynchronization": false,
+    "pendingEdits": 1,
+    "pendingUsage": 122,
+    "settleMs": 30000
+  },
+  "automationDisconnectedBeforeResidency": true,
+  "residency": {
+    "intervalMs": 600075.3866000001,
+    "peakSampledPrivateBytes": 869797888,
+    "meanCpuPercentOfMachine": 0.00040684992327928943
+  },
+  "failure": "Error: expect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 314572800\nReceived: 869797888\n"
+}

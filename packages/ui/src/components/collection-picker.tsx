@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { useTranslations } from "../hooks/use-translations";
 import { localizedLabel, translate } from "../lib/i18n";
 import { accentFor } from "../lib/present";
+import { PickerOptions } from "./picker-options";
 import { PickerSearch } from "./picker-search";
 
 const buttonClass = "wf-btn";
@@ -68,51 +69,57 @@ export const CollectionPicker = ({
           </button>
         </div>
       ) : null}
-      <PickerSearch count={collections.length}>
-        <label
-          className={compact ? "sr-only" : "wf-hint mt-2 block"}
-          htmlFor={id}
-        >
-          {t("search")} {localizedLabel(label)}
-        </label>
-        <input
-          id={id}
-          className="mt-1 w-full text-sm"
-          placeholder={
-            compact ? t("searchValue", [localizedLabel(label)]) : undefined
-          }
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </PickerSearch>
-      <fieldset
-        className={compact ? "wf-chips" : "wf-chips max-h-48 overflow-y-auto"}
-        aria-label={t("valueOptions", [label])}
+      <PickerOptions
+        compact={compact}
+        count={collections.length}
+        label={t("valueOptions", [label])}
       >
-        <button
-          type="button"
-          className="wf-chip"
-          aria-pressed={!value}
-          onClick={() => onChange(null)}
+        <PickerSearch count={collections.length}>
+          <label
+            className={compact ? "sr-only" : "wf-hint mt-2 block"}
+            htmlFor={id}
+          >
+            {t("search")} {localizedLabel(label)}
+          </label>
+          <input
+            id={id}
+            className="mt-1 w-full text-sm"
+            placeholder={
+              compact ? t("searchValue", [localizedLabel(label)]) : undefined
+            }
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </PickerSearch>
+        <fieldset
+          className="wf-chips max-h-48 overflow-y-auto"
+          aria-label={t("valueOptions", [label])}
         >
-          <span className="wf-dot" />
-          {emptyLabel}
-        </button>
-        {visible.map((entry) => (
           <button
-            key={entry.id}
             type="button"
             className="wf-chip"
-            aria-label={countsLabel(entry)}
-            aria-pressed={value === entry.id}
-            onClick={() => onChange(entry.id)}
+            aria-pressed={!value}
+            onClick={() => onChange(null)}
           >
-            <span className="wf-dot" data-accent={accentFor(entry.id)} />
-            {entry.name}
-            <small>{entry.totalCount}</small>
+            <span className="wf-dot" />
+            {emptyLabel}
           </button>
-        ))}
-      </fieldset>
+          {visible.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              className="wf-chip"
+              aria-label={countsLabel(entry)}
+              aria-pressed={value === entry.id}
+              onClick={() => onChange(entry.id)}
+            >
+              <span className="wf-dot" data-accent={accentFor(entry.id)} />
+              {entry.name}
+              <small>{entry.totalCount}</small>
+            </button>
+          ))}
+        </fieldset>
+      </PickerOptions>
     </fieldset>
   );
 };

@@ -1,0 +1,158 @@
+diff --git a/apps/desktop/src/search-library.tsx b/apps/desktop/src/search-library.tsx
+index 202215c..ce95275 100644
+--- a/apps/desktop/src/search-library.tsx
++++ b/apps/desktop/src/search-library.tsx
+@@ -3,6 +3,7 @@ import { organizationSearch } from "@pr0/api-contract/organization";
+ import { promptSortSchema } from "@pr0/api-contract/prompts";
+ import type { Collection, PromptView } from "@pr0/api-contract/prompts";
+ import { LocalizedMessage } from "@pr0/ui/components/localized-message";
++import { PickerOptions } from "@pr0/ui/components/picker-options";
+ import { pickerSearchThreshold } from "@pr0/ui/components/picker-search";
+ import { PromptIconAction } from "@pr0/ui/components/prompt-actions";
+ import { PromptRow } from "@pr0/ui/components/prompt-row";
+@@ -81,6 +82,15 @@ const OrganizationPicker = ({
+     );
+   };
+   const searchable = entries.length > pickerSearchThreshold;
++  const selectedNames: string[] = [];
++  for (const entry of entries) {
++    if (chosen.has(entry.id)) {
++      selectedNames.push(entry.name);
++    }
++  }
++  const pickerLabel = selectedNames.length
++    ? `${label}: ${selectedNames.join(", ")}`
++    : label;
+   return (
+     <div className="flex flex-col gap-2">
+       <div className="wf-section-head">
+@@ -89,70 +99,72 @@ const OrganizationPicker = ({
+           {selected.length ? t("valueSelected", [selected.length]) : ""}
+         </h3>
+       </div>
+-      {searchable ? (
+-        <label className="wf-hint">
+-          {t("find")} {localizedLabel(label)}
+-          <input
+-            className="mt-1 w-full text-sm"
+-            type="search"
+-            value={query}
+-            onChange={(event) => setQuery(event.target.value)}
+-          />
+-        </label>
+-      ) : null}
+-      <fieldset className="wf-chips max-h-40 overflow-y-auto">
+-        <legend className="sr-only">{label}</legend>
+-        {multiple ? null : (
+-          <label className="wf-chip">
++      {selected.map((id) =>
++        available.has(id) ? null : (
++          <label key={id} className="wf-chip">
+             <input
+-              type="radio"
+-              name={label}
+-              checked={selected.length === 0}
+-              onChange={() => onChange([])}
++              type="checkbox"
++              checked
++              onChange={() =>
++                onChange(selected.filter((value) => value !== id))
++              }
+             />
+-            <span className="wf-dot" />
+-            {t("any")}
++            {t("unavailable")} {localizedLabel(label)}: {id} {t("remove2")}
+           </label>
+-        )}
+-        {selected.map((id) =>
+-          available.has(id) ? null : (
+-            <label key={id} className="wf-chip">
+-              <input
+-                type="checkbox"
+-                checked
+-                onChange={() =>
+-                  onChange(selected.filter((value) => value !== id))
+-                }
+-              />
+-              {t("unavailable")} {localizedLabel(label)}: {id} {t("remove2")}
+-            </label>
+-          )
+-        )}
+-        {entries.map((entry) => {
+-          // oxlint-disable-next-line react-doctor/js-set-map-lookups -- Names use literal substring matching, not array membership.
+-          if (!chosen.has(entry.id) && !nameMatches(entry.name, normalized)) {
+-            return null;
+-          }
+-          return (
+-            <label key={entry.id} className="wf-chip">
++        )
++      )}
++      <PickerOptions compact count={entries.length} label={pickerLabel}>
++        {searchable ? (
++          <label className="wf-hint">
++            {t("find")} {localizedLabel(label)}
++            <input
++              className="mt-1 w-full text-sm"
++              type="search"
++              value={query}
++              onChange={(event) => setQuery(event.target.value)}
++            />
++          </label>
++        ) : null}
++        <fieldset className="wf-chips max-h-40 overflow-y-auto">
++          <legend className="sr-only">{label}</legend>
++          {multiple ? null : (
++            <label className="wf-chip">
+               <input
+-                type={multiple ? "checkbox" : "radio"}
++                type="radio"
+                 name={label}
+-                checked={chosen.has(entry.id)}
+-                onChange={() => toggle(entry.id)}
++                checked={selected.length === 0}
++                onChange={() => onChange([])}
+               />
+-              <span className="wf-dot" data-accent={accentFor(entry.id)} />
+-              {entry.name}
+-              <span className="sr-only">
+-                {" "}
+-                ({entry.totalCount}; {entry.activeCount} {t("active")}{" "}
+-                {entry.archivedCount} {t("archived")}
+-              </span>
+-              <small aria-hidden="true">{entry.totalCount}</small>
++              <span className="wf-dot" />
++              {t("any")}
+             </label>
+-          );
+-        })}
+-      </fieldset>
++          )}
++          {entries.map((entry) => {
++            // oxlint-disable-next-line react-doctor/js-set-map-lookups -- Names use literal substring matching, not array membership.
++            if (!chosen.has(entry.id) && !nameMatches(entry.name, normalized)) {
++              return null;
++            }
++            return (
++              <label key={entry.id} className="wf-chip">
++                <input
++                  type={multiple ? "checkbox" : "radio"}
++                  name={label}
++                  checked={chosen.has(entry.id)}
++                  onChange={() => toggle(entry.id)}
++                />
++                <span className="wf-dot" data-accent={accentFor(entry.id)} />
++                {entry.name}
++                <span className="sr-only">
++                  {" "}
++                  ({entry.totalCount}; {entry.activeCount} {t("active")}{" "}
++                  {entry.archivedCount} {t("archived")}
++                </span>
++                <small aria-hidden="true">{entry.totalCount}</small>
++              </label>
++            );
++          })}
++        </fieldset>
++      </PickerOptions>
+     </div>
+   );
+ };

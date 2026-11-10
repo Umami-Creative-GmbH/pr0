@@ -1,0 +1,25 @@
+{
+  "fields": [
+    {
+      "field": "title",
+      "ms": 43.6935
+    },
+    {
+      "field": "description",
+      "ms": 41.2235
+    },
+    {
+      "field": "content",
+      "ms": 9777.093799999999
+    },
+    {
+      "field": "name",
+      "ms": 1.244
+    }
+  ],
+  "fullContentComparison": true,
+  "mode": "full",
+  "sqliteVersion": "3.53.2",
+  "totalMs": 9863.2965,
+  "win32Heap": true
+}

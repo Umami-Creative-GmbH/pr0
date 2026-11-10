@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 
 import { chromium } from "playwright";
 
+import { openPickerOptions } from "./app-menus";
 import { collectionOperation, seedCollections } from "./collection-fixture";
 import { origin } from "./http-fixture";
 import { promptBrowser, promptOperation, promptClient } from "./prompt-fixture";
@@ -145,6 +146,7 @@ test("complete pickers reach capacity entries and a deleted collection view stay
     await page
       .getByRole("heading", { name: "Your library is empty" })
       .waitFor();
+    await openPickerOptions(page, "Collection view options");
     await page
       .getByLabel("Search collection view", { exact: true })
       .fill("200");
@@ -158,6 +160,7 @@ test("complete pickers reach capacity entries and a deleted collection view stay
         { exact: true }
       )
       .waitFor();
+    await openPickerOptions(page, "Tag filters options");
     await page.getByLabel("Search tag filters", { exact: true }).fill("1000");
     const tag = page.getByRole("checkbox", { name: /^Tag 1000/u });
     await tag.press("Space");

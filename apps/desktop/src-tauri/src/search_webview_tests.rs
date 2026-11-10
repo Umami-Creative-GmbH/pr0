@@ -1,3 +1,18 @@
+// This opt-in measurement channel exists only in the native WebView test harness.
+#[tauri::command]
+fn capacity_probe(window: tauri::WebviewWindow, evidence: serde_json::Value) -> Result<(), String> {
+    use std::io::Write;
+    crate::authorize(&window)?;
+    let path = std::env::var("PR0_CAPACITY_PROBE_OUTPUT").map_err(|_| "probe_disabled")?;
+    let mut data = serde_json::to_vec(&evidence).map_err(|_| "invalid_probe")?;
+    if data.len() > 16384 {
+        return Err("invalid_probe".into());
+    }
+    data.push(b'\n');
+    std::fs::OpenOptions::new().create(true).append(true).open(path)
+        .and_then(|mut file| file.write_all(&data)).map_err(|_| "probe_unavailable".into())
+}
+
 // Opt-in test process: actual production assets, WebView2, IPC authorization and
 // native commands. Only account approval is a fixture; no test code ships in the app.
 #[test]
@@ -15,12 +30,23 @@ fn desktop_search_webview_worker() {
     ));
     let mut context = tauri::generate_context!();
     context.config_mut().app.windows.clear();
+    if std::env::var_os("PR0_CAPACITY_PROBE_SCRIPT").is_some()
+        && std::env::var_os("PR0_CAPACITY_PROBE_OUTPUT").is_some()
+    {
+        // Only this opt-in test context gains the local measurement command.
+        // Its handler additionally authorizes the main window.
+        context.runtime_authority_mut().__allow_command(
+            "capacity_probe".into(),
+            tauri::utils::acl::ExecutionContext::Local,
+        );
+    }
     tauri::Builder::default()
         .any_thread()
         .manage(service)
         .manage(crate::launcher_runtime::Launcher::default())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            capacity_probe,
             crate::update_status,
             crate::update_check,
             crate::update_download,
@@ -89,6 +115,8 @@ fn desktop_search_webview_worker() {
             app.manage(crate::startup::Startup::isolated(directory.clone(), startup_root));
             let profile = std::env::var("PR0_TEST_WEBVIEW_PROFILE")
                 .map(std::path::PathBuf::from).unwrap_or_else(|_| directory.join("webview"));
+            let probe = std::env::var("PR0_CAPACITY_PROBE_SCRIPT")
+                .ok().map(std::fs::read_to_string).transpose()?.unwrap_or_default();
             tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
@@ -99,6 +127,7 @@ fn desktop_search_webview_worker() {
             .visible(false)
             .focused(false)
             .data_directory(profile.clone())
+            .initialization_script(probe)
             .build()?;
             tauri::WebviewWindowBuilder::new(app, "launcher", tauri::WebviewUrl::App("launcher.html".into()))
                 .title("pr0 Quick launcher")
@@ -107,6 +136,7 @@ fn desktop_search_webview_worker() {
                 .focused(false)
                 .data_directory(profile)
                 .build()?;
+            crate::webview_memory::initialize(app.handle());
             crate::register_launcher_shortcut(app.handle())?;
             if !quiet { crate::show_library(app.handle())?; }
             instance.listen(app.handle().clone());

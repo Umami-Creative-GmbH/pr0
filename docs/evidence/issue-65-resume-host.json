@@ -1,0 +1,25 @@
+{
+  "recordedAt": "2026-11-10T11:49:19.2109721Z",
+  "os": {
+    "Caption": "Microsoft Windows 11 Business",
+    "Version": "10.0.26300",
+    "BuildNumber": "26300"
+  },
+  "cpu": {
+    "Name": "AMD Ryzen 9 9950X3D2 16-Core Processor         ",
+    "NumberOfCores": 16,
+    "NumberOfLogicalProcessors": 32
+  },
+  "memoryBytes": 100579700736,
+  "graphics": [
+    {
+      "Name": "NVIDIA GeForce RTX 5080",
+      "DriverVersion": "32.0.16.1714"
+    },
+    {
+      "Name": "AMD Radeon(TM) Graphics",
+      "DriverVersion": "32.0.21042.62"
+    }
+  ],
+  "classification": "Supporting host inventory; not the required four-core 8 GiB benchmark machine"
+}

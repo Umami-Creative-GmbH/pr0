@@ -1,0 +1,19 @@
+{
+  "recordedAt": "2026-11-08T13:52:40.120Z",
+  "browser": "156.0.8078.80",
+  "network": {
+    "latencyMs": 50,
+    "bitsPerSecond": 20000000,
+    "scope": "CDP per-page shaping; public REST and live web UI on shared host; shared browser session represents two online browser devices"
+  },
+  "opens": [
+    1469.0764999999665, 653.9788999999873, 652.350400000345, 552.6052000001073,
+    556.8279999997467, 1246.1756000001915, 1296.3457999997772,
+    1271.848100000061, 542.2355999997817, 659.4891999997199
+  ],
+  "crossDevice": [],
+  "openP95Ms": 1469.0764999999665,
+  "crossDeviceP95Ms": null,
+  "failure": "TimeoutError: waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /^Prompt 00001 Caf\\u00E9/u }) to be visible\u001b[22m\n",
+  "passed": false
+}

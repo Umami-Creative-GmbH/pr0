@@ -25,6 +25,7 @@ mod resident_instance;
 mod resident_tests;
 mod search_contract;
 mod search_query;
+mod search_validation;
 mod startup;
 #[cfg(windows)]
 mod startup_windows;
@@ -34,6 +35,7 @@ mod updates;
 mod upload_contract;
 mod usage_contract;
 mod variables;
+mod webview_memory;
 
 use auth::{AuthService, AuthView};
 use auth_storage::WindowsCredentials;
@@ -371,6 +373,7 @@ pub fn run() {
             }
             app.manage(service);
             app.manage(launcher_runtime::Launcher::default());
+            webview_memory::initialize(app.handle());
             register_launcher_shortcut(app.handle())?;
             if !quiet {
                 show_library(app.handle())?;

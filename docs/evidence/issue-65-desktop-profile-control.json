@@ -1,0 +1,294 @@
+{
+  "recordedAt": "2026-11-08T20:47:00.797Z",
+  "classification": "Supporting startup/memory profile: unrestricted host, retained maximum-library fixture, release native test worker and production WebView assets; no production synchronization loops. Point samples are not the ten-minute residency gate.",
+  "executable": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-67fc5753dd5c800f.exe",
+  "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+  "bun": "1.4.4",
+  "cpu": "AMD Ryzen 9 9950X3D2 16-Core Processor         ",
+  "logicalCpus": 32,
+  "hostMemoryBytes": 100579700736,
+  "startupMs": 12021.2908,
+  "releaseCriteriaMet": false,
+  "phases": [
+    {
+      "name": "initial-render",
+      "elapsedMs": 12692.3055,
+      "totalPrivateBytes": 544894976,
+      "processes": [
+        {
+          "id": 86932,
+          "parent": 62180,
+          "name": "pr0_desktop_lib-67fc5753dd5c800f.exe",
+          "role": "native",
+          "privateBytes": 88510464
+        },
+        {
+          "id": 68252,
+          "parent": 86932,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 83582976
+        },
+        {
+          "id": 71388,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2846720
+        },
+        {
+          "id": 105292,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 214556672
+        },
+        {
+          "id": 82460,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12574720
+        },
+        {
+          "id": 10804,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7680000
+        },
+        {
+          "id": 102116,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 100417536
+        },
+        {
+          "id": 77720,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 34725888
+        }
+      ],
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 16549148,
+            "totalSize": 21999616,
+            "embedderHeapUsedSize": 28257104,
+            "backingStorageSize": 1149094
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 5447,
+            "jsEventListeners": 1413
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 4825328,
+            "totalSize": 8568832,
+            "embedderHeapUsedSize": 1985896,
+            "backingStorageSize": 604384
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 97,
+            "jsEventListeners": 187
+          }
+        }
+      ]
+    },
+    {
+      "name": "exact-verification-query",
+      "elapsedMs": 13647.7812,
+      "totalPrivateBytes": 578232320,
+      "processes": [
+        {
+          "id": 86932,
+          "parent": 62180,
+          "name": "pr0_desktop_lib-67fc5753dd5c800f.exe",
+          "role": "native",
+          "privateBytes": 90087424
+        },
+        {
+          "id": 68252,
+          "parent": 86932,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 83845120
+        },
+        {
+          "id": 71388,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2846720
+        },
+        {
+          "id": 105292,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 223117312
+        },
+        {
+          "id": 82460,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12574720
+        },
+        {
+          "id": 10804,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7680000
+        },
+        {
+          "id": 102116,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 123346944
+        },
+        {
+          "id": 77720,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 34734080
+        }
+      ],
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 16520888,
+            "totalSize": 34058240,
+            "embedderHeapUsedSize": 31678224,
+            "backingStorageSize": 1353388
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 5759,
+            "jsEventListeners": 1840
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 4825328,
+            "totalSize": 8568832,
+            "embedderHeapUsedSize": 1985896,
+            "backingStorageSize": 604384
+          },
+          "dom": {
+            "documents": 3,
+            "nodes": 97,
+            "jsEventListeners": 187
+          }
+        }
+      ]
+    },
+    {
+      "name": "hidden-thirty-seconds",
+      "elapsedMs": 44431.2802,
+      "totalPrivateBytes": 398241792,
+      "processes": [
+        {
+          "id": 86932,
+          "parent": 62180,
+          "name": "pr0_desktop_lib-67fc5753dd5c800f.exe",
+          "role": "native",
+          "privateBytes": 89731072
+        },
+        {
+          "id": 68252,
+          "parent": 86932,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 70139904
+        },
+        {
+          "id": 71388,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 3760128
+        },
+        {
+          "id": 105292,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 87162880
+        },
+        {
+          "id": 82460,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12435456
+        },
+        {
+          "id": 10804,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7680000
+        },
+        {
+          "id": 102116,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 94851072
+        },
+        {
+          "id": 77720,
+          "parent": 68252,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 32481280
+        }
+      ],
+      "pages": [
+        {
+          "url": "http://tauri.localhost/",
+          "heap": {
+            "usedSize": 10186540,
+            "totalSize": 11776000,
+            "embedderHeapUsedSize": 9372144,
+            "backingStorageSize": 730386
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 4482,
+            "jsEventListeners": 940
+          }
+        },
+        {
+          "url": "http://tauri.localhost/launcher.html",
+          "heap": {
+            "usedSize": 3633408,
+            "totalSize": 4374528,
+            "embedderHeapUsedSize": 958608,
+            "backingStorageSize": 603489
+          },
+          "dom": {
+            "documents": 1,
+            "nodes": 88,
+            "jsEventListeners": 180
+          }
+        }
+      ]
+    }
+  ],
+  "failure": "AssertionError [ERR_ASSERTION]: Summed native + WebView private commit exceeds 300 MiB"
+}

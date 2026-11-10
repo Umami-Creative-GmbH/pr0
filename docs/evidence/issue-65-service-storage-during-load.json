@@ -1,0 +1,9 @@
+{
+  "recordedAt": "2026-11-08T14:03:26.430Z",
+  "primary": "7240778364\t/var/lib/postgresql/data\n",
+  "ledgerA": "48353916\t/var/lib/postgresql/data\n",
+  "ledgerB": "48353916\t/var/lib/postgresql/data\n",
+  "search": "11311960064\t/var/lib/pr0-search\n",
+  "temporary": "0\t/tmp\n",
+  "classification": "Apparent bytes of service data directories, including PostgreSQL WAL/global metadata, both deletion ledgers and web scratch; excludes container images, Docker filesystem allocation and backup volume. Shared disk has no enforced 64-GiB quota."
+}

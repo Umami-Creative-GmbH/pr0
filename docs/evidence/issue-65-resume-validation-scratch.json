@@ -1,0 +1,10 @@
+{
+  "recordedAt": "2026-11-10T11:51:19.243Z",
+  "classification": "Supporting public native search with deliberately incomplete content postings and either an unavailable temporary volume or a test-only SQLite snapshot page quota. The latter forces real SQLITE_FULL during backup without filling the host disk. Private two-prompt fixture; no capacity certification.",
+  "mode": "unavailable-volume",
+  "snapshotDiskFull": false,
+  "releaseCriteriaMet": false,
+  "queries": 3,
+  "postingsStillRequireRecovery": true,
+  "failure": ""
+}

@@ -1,0 +1,163 @@
+{
+  "recordedAt": "2026-11-10T11:28:35.660Z",
+  "classification": "Supporting diagnostic: 100 identical public native search IPC requests with fixed visible UI, then 30 seconds hidden. No Copy/Save journey, network shaping or ten-minute residency certification. No forced GC.",
+  "releaseCriteriaMet": false,
+  "observed": false,
+  "settleMs": 30000,
+  "nativeSurfacesHidden": false,
+  "browserDefaultsPreserved": true,
+  "observerAttachedAt": 0,
+  "processReadyMs": 3258,
+  "executable": "apps/desktop/src-tauri/target/release/deps/pr0_desktop_lib-e1b73585bd40f959.exe",
+  "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+  "phases": [
+    {
+      "event": {
+        "phase": "ready",
+        "at": 1794310118117,
+        "completedQueries": 0,
+        "elements": 2061,
+        "error": ""
+      },
+      "observedAt": 1794310119141,
+      "processes": [
+        {
+          "id": 51676,
+          "parent": 49524,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 52396032
+        },
+        {
+          "id": 84916,
+          "parent": 51676,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 39829504
+        },
+        {
+          "id": 82920,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2854912
+        },
+        {
+          "id": 25968,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 210640896
+        },
+        {
+          "id": 98264,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12619776
+        },
+        {
+          "id": 47428,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7688192
+        },
+        {
+          "id": 83760,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 95035392
+        },
+        {
+          "id": 17532,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 35934208
+        }
+      ],
+      "totalPrivateBytes": 456998912
+    },
+    {
+      "event": {
+        "phase": "queried",
+        "at": 1794310133373,
+        "completedQueries": 100,
+        "elements": 2167,
+        "error": ""
+      },
+      "observedAt": 1794310133980,
+      "processes": [
+        {
+          "id": 51676,
+          "parent": 49524,
+          "name": "pr0_desktop_lib-e1b73585bd40f959.exe",
+          "role": "native",
+          "privateBytes": 56635392
+        },
+        {
+          "id": 84916,
+          "parent": 51676,
+          "name": "msedgewebview2.exe",
+          "role": "browser",
+          "privateBytes": 39313408
+        },
+        {
+          "id": 82920,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "crashpad-handler",
+          "privateBytes": 2854912
+        },
+        {
+          "id": 25968,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "gpu-process",
+          "privateBytes": 282738688
+        },
+        {
+          "id": 98264,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 12697600
+        },
+        {
+          "id": 47428,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "utility",
+          "privateBytes": 7688192
+        },
+        {
+          "id": 83760,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 162787328
+        },
+        {
+          "id": 17532,
+          "parent": 84916,
+          "name": "msedgewebview2.exe",
+          "role": "renderer",
+          "privateBytes": 33734656
+        }
+      ],
+      "totalPrivateBytes": 598450176
+    }
+  ],
+  "browserErrors": [],
+  "failure": "AssertionError [ERR_ASSERTION]: A native surface remains visible\n\n1 !== 0\n",
+  "elapsedMs": 49428.897,
+  "experimentalConfiguration": {
+    "deferredValidation": true,
+    "sharedOrganizationCache": false,
+    "suspendedHiddenViews": true,
+    "sqliteMemoryStatistics": true,
+    "visibilityCheck": "Get-Process.MainWindowHandle; includes console, replaced by scoped EnumWindows check"
+  }
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "step": "baseline",
+    "ms": 6475.1
+  },
+  {
+    "step": "optimize",
+    "ms": 1486.6972000000005
+  },
+  {
+    "step": "optimized",
+    "ms": 6439.8437
+  }
+]

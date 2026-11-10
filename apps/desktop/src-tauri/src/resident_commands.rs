@@ -11,6 +11,7 @@ fn show_library(app: &tauri::AppHandle) -> Result<(), String> {
     // One request per explicit activation. Windows switching and the tray remain
     // available when Windows refuses foreground permission.
     let _ = window.set_focus();
+    webview_memory::update(window.app_handle(), window.label());
     let _ = window.emit("surface-visibility", ());
     Ok(())
 }
@@ -46,6 +47,7 @@ fn resident_hide(window: tauri::WebviewWindow) -> Result<(), String> {
     let file = std::fs::File::create(&marker.0).map_err(|_| "storage_unavailable")?;
     file.sync_all().map_err(|_| "storage_unavailable")?;
     window.hide().map_err(|_| "library_unavailable")?;
+    webview_memory::update(window.app_handle(), window.label());
     let _ = window.emit("surface-visibility", ());
     state.action(ResidentAction::CancelClose)?;
     let _ = window.emit("resident-changed", ());
@@ -75,6 +77,7 @@ fn resident_finish_quit(window: tauri::WebviewWindow) -> Result<(), String> {
 fn resident_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
     launcher_window_event(window, event);
     if matches!(event, tauri::WindowEvent::Focused(_) | tauri::WindowEvent::Resized(_)) {
+        webview_memory::update(window.app_handle(), window.label());
         let _ = window.emit("surface-visibility", ());
     }
     if window.label() != "main" {
@@ -93,6 +96,7 @@ fn resident_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
             .is_some_and(|marker| marker.0.exists())
         {
             let _ = window.hide();
+            webview_memory::update(window.app_handle(), window.label());
             let _ = window.emit("surface-visibility", ());
         } else {
             let _ = resident_action_impl(app, ResidentAction::Close);

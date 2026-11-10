@@ -83,7 +83,7 @@ fn recovery_organization_upgrades_both_version_six_schemas_without_losing_work()
         }
         db.pragma_update(None,"user_version",6).unwrap();
         drop(db);
-        let store = super::library_storage::LibraryStore::open(&directory,&prompt.instance_id,&prompt.account_id).unwrap();
+        let mut store = super::library_storage::LibraryStore::open(&directory,&prompt.instance_id,&prompt.account_id).unwrap();
         assert_eq!(store.detail(&prompt.id).unwrap().content,prompt.content);
         assert_eq!(store.pending_changes().unwrap().len(),1);
         assert!(store.recovery_browse(0).unwrap().is_empty());
