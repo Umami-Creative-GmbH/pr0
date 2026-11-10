@@ -357,7 +357,7 @@ impl AuthService {
         }
         if let Err(error) = &result {
             if matches!(endpoint, Endpoint::Snapshot | Endpoint::SnapshotPage)
-                && (matches!(error.as_str(), "network_unavailable" | "request_failed")
+                && (matches!(error.as_str(), "network_unavailable" | "certificate_untrusted" | "request_failed")
                     || error.starts_with("retry_after:"))
             {
                 let seconds = error

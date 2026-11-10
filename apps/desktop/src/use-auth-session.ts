@@ -41,6 +41,8 @@ const errorKeys = {
     "synchronizationDidNotCompleteLocalWorkIsPreservedRetryCancel" as const,
   network_unavailable:
     "theServerCouldNotBeReachedLocalWorkIsPreserved" as const,
+  certificate_untrusted:
+    "windowsDoesNotTrustThisServerSCertificateSignIn" as const,
   storage_unavailable:
     "localCleanupCouldNotFinishCheckStorageAccessAndRetry" as const,
   cleanup_required:

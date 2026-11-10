@@ -31,6 +31,7 @@ import {
   recoverySummariesSchema,
 } from "@pr0/api-contract/snapshots";
 import { translate } from "@pr0/ui/lib/i18n";
+import type { MessageKey } from "@pr0/ui/lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
@@ -203,6 +204,29 @@ export const libraryClient = {
   detail: async (id: string) =>
     promptSchema.parse(await invoke("library_detail", { id })),
 };
+// Connection failures keep downloaded prompts; each names its own recovery.
+const connectionDownloadErrors = new Map<string, MessageKey>([
+  [
+    "request_failed",
+    "theServerCouldNotCompleteTheDownloadRetryLaterDownloaded",
+  ],
+  [
+    "redirect_rejected",
+    "theServerRedirectedTheDownloadCheckItsCanonicalAddressDownloaded",
+  ],
+  [
+    "authentication_required",
+    "signInToResumeDownloadingYourDownloadedPromptsRemainAvailable",
+  ],
+  [
+    "certificate_untrusted",
+    "windowsDoesNotTrustThisServerSCertificateDownloadPaused",
+  ],
+  [
+    "network_unavailable",
+    "offlineDownloadPausedOnlyDownloadedPromptsAreAvailableRetryWhen",
+  ],
+]);
 export const downloadError = (
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native invoke rejection is an untrusted boundary; known codes map to fixed user-facing text.
   error: unknown,
@@ -238,25 +262,9 @@ export const downloadError = (
   if (error === "download_backoff") {
     return translate("downloadPausedAfterAConnectionOrServerErrorSavedPrompts");
   }
-  if (error === "request_failed") {
-    return translate(
-      "theServerCouldNotCompleteTheDownloadRetryLaterDownloaded"
-    );
-  }
-  if (error === "redirect_rejected") {
-    return translate(
-      "theServerRedirectedTheDownloadCheckItsCanonicalAddressDownloaded"
-    );
-  }
-  if (error === "authentication_required") {
-    return translate(
-      "signInToResumeDownloadingYourDownloadedPromptsRemainAvailable"
-    );
-  }
-  if (error === "network_unavailable") {
-    return translate(
-      "offlineDownloadPausedOnlyDownloadedPromptsAreAvailableRetryWhen"
-    );
+  const connection = code ? connectionDownloadErrors.get(code) : undefined;
+  if (connection) {
+    return translate(connection);
   }
   if (error === "snapshot_expired") {
     return translate("theDownloadExpiredRetryToStartAFreshDownloadExisting");

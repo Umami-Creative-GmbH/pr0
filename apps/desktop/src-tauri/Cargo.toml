@@ -24,11 +24,18 @@ dirs = "6"
 ring = "0.17.14"
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
+# Instance HTTPS bundles no public roots; trust comes from the platform verifier (ADR-0003).
 reqwest = { version = "0.12", default-features = false, features = [
   "blocking",
   "json",
-  "rustls-tls",
+  "rustls-tls-manual-roots",
 ] }
+rustls = { version = "0.23", default-features = false, features = [
+  "ring",
+  "std",
+  "tls12",
+] }
+rustls-platform-verifier = "0.7"
 rusqlite = { version = "0.40.2", features = ["bundled", "backup", "hooks"] }
 url = "2"
 tokio = { version = "1", features = ["time"] }

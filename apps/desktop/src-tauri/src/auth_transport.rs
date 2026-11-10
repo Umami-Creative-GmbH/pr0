@@ -1,5 +1,8 @@
+use rustls::pki_types::CertificateDer;
+use rustls_platform_verifier::Verifier;
 use serde_json::Value;
 use std::io::Read;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Clone, Copy)]
@@ -62,6 +65,43 @@ pub trait Transport: Send + Sync {
     ) -> Result<Value, String>;
     fn open_browser(&self, url: &str) -> Result<(), String>;
 }
+/// Trust anchors for instance HTTPS (ADR-0003). Update signatures never use this.
+pub enum InstanceTrust {
+    /// The Windows certificate store, revocation checks and enterprise policy.
+    Platform,
+    /// The platform verifier plus roots a test supplies.
+    #[cfg_attr(not(test), allow(dead_code))]
+    PlatformWithRoots(Vec<CertificateDer<'static>>),
+}
+impl InstanceTrust {
+    #[cfg(test)]
+    pub fn with_pem_roots(pem: &[u8]) -> Result<Self, String> {
+        use rustls::pki_types::pem::PemObject;
+        let roots = CertificateDer::pem_slice_iter(pem)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| "invalid_test_root")?;
+        if roots.is_empty() {
+            return Err("invalid_test_root".into());
+        }
+        Ok(Self::PlatformWithRoots(roots))
+    }
+    fn tls_config(self) -> Result<rustls::ClientConfig, String> {
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let verifier = match self {
+            Self::Platform => Verifier::new(provider.clone()),
+            Self::PlatformWithRoots(roots) => {
+                Verifier::new_with_extra_roots(roots, provider.clone())
+            }
+        }
+        .map_err(|_| "network_unavailable")?;
+        Ok(rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .map_err(|_| "network_unavailable")?
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(verifier))
+            .with_no_client_auth())
+    }
+}
 pub struct HttpsTransport {
     client: reqwest::blocking::Client,
     changes_client: reqwest::Client,
@@ -69,28 +109,16 @@ pub struct HttpsTransport {
 impl HttpsTransport {
     #[cfg(test)]
     pub fn with_test_root(pem: &[u8]) -> Result<Self, String> {
-        let root = reqwest::Certificate::from_pem(pem).map_err(|_| "invalid_test_root")?;
-        Ok(Self {
-            changes_client: reqwest::Client::builder()
-                .https_only(true)
-                .redirect(reqwest::redirect::Policy::none())
-                .connect_timeout(Duration::from_secs(10))
-                .timeout(Duration::from_secs(35))
-                .add_root_certificate(root.clone())
-                .build()
-                .map_err(|_| "network_unavailable")?,
-            client: reqwest::blocking::Client::builder()
-                .https_only(true)
-                .redirect(reqwest::redirect::Policy::none())
-                .timeout(Duration::from_secs(20))
-                .add_root_certificate(root)
-                .build()
-                .map_err(|_| "network_unavailable")?,
-        })
+        Self::with_trust(InstanceTrust::with_pem_roots(pem)?)
     }
     pub fn new() -> Result<Self, String> {
+        Self::with_trust(InstanceTrust::Platform)
+    }
+    pub fn with_trust(trust: InstanceTrust) -> Result<Self, String> {
+        let tls = trust.tls_config()?;
         Ok(Self {
             changes_client: reqwest::Client::builder()
+                .use_preconfigured_tls(tls.clone())
                 .https_only(true)
                 .redirect(reqwest::redirect::Policy::none())
                 .connect_timeout(Duration::from_secs(10))
@@ -98,6 +126,7 @@ impl HttpsTransport {
                 .build()
                 .map_err(|_| "network_unavailable")?,
             client: reqwest::blocking::Client::builder()
+                .use_preconfigured_tls(tls)
                 .https_only(true)
                 .redirect(reqwest::redirect::Policy::none())
                 .connect_timeout(Duration::from_secs(10))
@@ -106,6 +135,26 @@ impl HttpsTransport {
                 .map_err(|_| "network_unavailable")?,
         })
     }
+}
+
+/// A rejected server certificate is not an outage: it fails closed with its own code.
+fn send_failure(error: &reqwest::Error) -> String {
+    let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
+    while let Some(current) = source {
+        // `io::Error::source` skips the wrapped error, so inspect it directly.
+        let inner = current
+            .downcast_ref::<std::io::Error>()
+            .and_then(std::io::Error::get_ref)
+            .map(|inner| inner as &(dyn std::error::Error + 'static));
+        let tls = current
+            .downcast_ref::<rustls::Error>()
+            .or_else(|| inner.and_then(|inner| inner.downcast_ref::<rustls::Error>()));
+        if matches!(tls, Some(rustls::Error::InvalidCertificate(_))) {
+            return "certificate_untrusted".into();
+        }
+        source = inner.or_else(|| current.source());
+    }
+    "network_unavailable".into()
 }
 impl Transport for HttpsTransport {
     fn changes(
@@ -124,7 +173,7 @@ impl Transport for HttpsTransport {
                     .query(&body)
                     .send()
                     .await
-                    .map_err(|_| "network_unavailable")?;
+                    .map_err(|error| send_failure(&error))?;
                 let status = response.status().as_u16();
                 if status == 429 || status == 503 {
                     let delay = response
@@ -223,7 +272,7 @@ impl Transport for HttpsTransport {
         if let Some(token) = token {
             request = request.bearer_auth(token);
         }
-        let result = request.send().map_err(|_| "network_unavailable")?;
+        let result = request.send().map_err(|error| send_failure(&error))?;
         let status = result.status();
         if status.as_u16() == 429 || status.as_u16() == 503 {
             let delay = result

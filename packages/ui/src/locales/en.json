@@ -1026,5 +1026,10 @@
   "validationCheckTheVariableValues": "Check the variable values.",
   "installUpdateAndRestart": "Install update and restart",
   "saveAndUpdate": "Save and update",
-  "discardDraftAndUpdate": "Discard draft and update"
+  "discardDraftAndUpdate": "Discard draft and update",
+  "untrustedCertificate": "Untrusted certificate",
+  "untrustedCertificateChangesWaiting": "Untrusted certificate · Changes waiting",
+  "windowsDoesNotTrustThisServerSCertificateNothingWasSent": "Windows doesn't trust this server's certificate, so nothing was sent. This is not a connection problem. Saved work stays on this device and syncs once Windows trusts the certificate. Ask your administrator to install the server's certificate authority in Windows, then retry.",
+  "windowsDoesNotTrustThisServerSCertificateSignIn": "Windows doesn't trust this server's certificate, so pr0 did not connect. Check the server address, or ask your administrator to install the server's certificate authority in Windows, then retry. Local work is preserved.",
+  "windowsDoesNotTrustThisServerSCertificateDownloadPaused": "Windows doesn't trust this server's certificate. Download paused; downloaded prompts remain available. Ask your administrator to install the server's certificate authority in Windows, then retry."
 }
