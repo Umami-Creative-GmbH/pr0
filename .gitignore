@@ -22,6 +22,8 @@ next-env.d.ts
 /.secrets/
 /backups/
 /compose.override.yaml
+# Hosted redeploy records (infrastructure/hosted/redeploy.ts)
+/.deployments/
 .vercel/
 .DS_Store
 *.pem

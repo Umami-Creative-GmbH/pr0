@@ -10,6 +10,7 @@
     "test:operations": "bun --env-file=tests/operations.env tests/operations-runner.ts",
     "test:self-hosting": "bun tests/self-hosting-runner.ts",
     "test:ingress": "bun test ./tests/ingress.test.ts",
+    "test:hosted-redeploy": "bun test ./tests/hosted-redeploy.test.ts",
     "operations": "bun --conditions=react-server scripts/operations.ts",
     "availability": "bun scripts/availability.ts",
     "deletions": "bun --conditions=react-server scripts/deletions.ts",

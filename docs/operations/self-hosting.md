@@ -120,6 +120,8 @@ networks:
     name: coolify
 ```
 
+The hosted service uses a complete version of this arrangement: [`compose.hosted.yaml`](../../compose.hosted.yaml), with Traefik labels, file secrets and a redeploy script. See [the hosted runbook](hosted.md).
+
 Rotate the ingress secret by replacing the file and recreating `ingress` and `web` together; during the gap, clients fall back to the shared `untrusted` bucket. `bun run --cwd apps/web test:ingress` exercises the image through the self-hosting fixture (see [service health](service-health.md#trusted-ingress)).
 
 To enable Google or GitHub, register your own provider application and configure its client ID and secret (or `_FILE`). Exact callbacks are:
