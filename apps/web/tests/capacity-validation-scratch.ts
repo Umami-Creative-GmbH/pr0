@@ -70,6 +70,18 @@ try {
     downloadStatusSchema.parse(await native.command("library_status")).complete,
     true
   );
+  await native.command("library_search", {
+    request: {
+      ...capacityIdentity,
+      generation: native.generation,
+      requestId: crypto.randomUUID(),
+      query: "",
+      limit: 50,
+      view: "all",
+      sort: "relevance",
+      tagIds: [],
+    },
+  });
   if (mode === "snapshot-full") {
     const marker = path.join(control, "backup-disk-full");
     const deadline = performance.now() + 10_000;

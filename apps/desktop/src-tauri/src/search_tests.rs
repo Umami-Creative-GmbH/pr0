@@ -258,6 +258,7 @@ fn search_shared_sort_recency_scope_and_filter_fixtures() {
         &directory,
         search_snapshot(prompts, org.clone(), collections.clone()),
     );
+    service.library_search(search_request(&service, "")).unwrap();
     validation.wait_reached();
     for case in data["cases"].as_array().unwrap() {
         let mut request = search_request(&service, "needle");
@@ -786,6 +787,7 @@ fn search_shared_unicode_vectors_match_in_each_of_the_five_fields() {
         &directory,
         search_snapshot(prompts.clone(), tags, collections),
     );
+    service.library_search(search_request(&service, "")).unwrap();
     validation.wait_reached();
     for (index, fixture) in vectors.iter().enumerate() {
         let mut request = search_request(&service, fixture["query"].as_str().unwrap());
@@ -968,6 +970,7 @@ fn search_reopen_repairs_missing_content_postings_without_losing_edits() {
     let validation = super::search_validation::testing::pause_next(false);
     let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
     service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
     validation.wait_reached();
     validation.release();
     validation.wait_finished();
@@ -994,6 +997,7 @@ fn search_validation_unavailable_keeps_exact_results_and_cancels_on_close() {
     let validation = super::search_validation::testing::pause_next(true);
     let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
     service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
     validation.wait_reached();
     assert_eq!(service.library_search(search_request(&service, "Hello")).unwrap().prompts.len(), 2);
     validation.release();
@@ -1016,6 +1020,7 @@ fn search_validation_discards_stale_snapshots_after_writes_and_external_changes(
     let validation = super::search_validation::testing::pause_next(false);
     let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
     service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
     validation.wait_reached();
     let path = super::library_storage::library_path(&directory, &identity.instance_id, &identity.account_id).unwrap();
     let db = rusqlite::Connection::open(path).unwrap();
@@ -1044,6 +1049,7 @@ fn search_validation_uses_index_only_after_success_and_preserves_recovery_errors
     let validation = super::search_validation::testing::pause_next(false);
     let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
     service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
     validation.wait_reached();
     validation.release();
     validation.wait_finished();
@@ -1067,6 +1073,7 @@ fn search_validation_sign_out_joins_before_next_login_and_rejects_stale_commands
     let validation = super::search_validation::testing::pause_next(false);
     let service = AuthService::new(directory.clone(), upload_fixture(false, false), vault).unwrap();
     service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
     validation.wait_reached();
     let stale = search_request(&service, "Hello");
     service.sign_out().unwrap();
@@ -1091,6 +1098,7 @@ fn search_validation_preserves_text_names_and_usage_written_during_check() {
     let validation = super::search_validation::testing::pause_next(false);
     let service = AuthService::new(directory.clone(), approval(), vault).unwrap();
     service.library_status().unwrap();
+    service.library_search(search_request(&service, "")).unwrap();
     validation.wait_reached();
     let editor = service.library_editor(&prompt_id).unwrap();
     let mut request = save_request(&service);

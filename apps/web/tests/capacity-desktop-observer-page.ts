@@ -70,9 +70,8 @@ const run = async () => {
       completedQueries += 1;
     }
     await emit("queried");
+    await emit("hiding");
     await window.__TAURI_INTERNALS__.invoke("resident_hide", {});
-    await sleep(30_000);
-    await emit("hidden");
   } catch (error) {
     await emit("failed", String(error));
   }

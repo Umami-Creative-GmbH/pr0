@@ -11,13 +11,20 @@ import { z } from "zod";
 import { snapshotDesktopProcesses } from "./capacity-desktop-profile";
 
 const eventSchema = z.object({
-  phase: z.enum(["ready", "query-start", "queried", "hidden", "failed"]),
+  phase: z.enum([
+    "ready",
+    "query-start",
+    "queried",
+    "hiding",
+    "hidden",
+    "failed",
+  ]),
   at: z.number(),
   completedQueries: z.number().int().min(0).max(100),
   elements: z.number().int(),
   error: z.string(),
 });
-const [executable, directory, mode, output] = process.argv.slice(2);
+const [executable, directory, mode, output, assertion] = process.argv.slice(2);
 assert.ok(
   executable && directory && output,
   "Pass executable, retained library, observed/unobserved and output JSON"
@@ -40,6 +47,7 @@ const reservation = Bun.serve({ port: 0, fetch: () => new Response() });
 const { port } = reservation;
 await reservation.stop(true);
 const started = performance.now();
+const startedAt = Date.now();
 const child = Bun.spawn(
   [
     executable,
@@ -76,8 +84,11 @@ const evidence = {
     "Supporting diagnostic: 100 identical public native search IPC requests with fixed visible UI, then 30 seconds hidden. No Copy/Save journey, network shaping or ten-minute residency certification. No forced GC.",
   releaseCriteriaMet: false,
   observed,
+  settleMs: 30_000,
+  nativeSurfacesHidden: false,
   browserDefaultsPreserved: true,
   observerAttachedAt: 0,
+  processReadyMs: 0,
   executable,
   fixtureDirectory: directory,
   phases,
@@ -140,6 +151,30 @@ try {
         );
         continue;
       }
+      if (event.phase === "ready") {
+        evidence.processReadyMs = event.at - startedAt;
+      }
+      if (event.phase === "hiding") {
+        // Sample outside the WebView: suspended script timers must not drive the measurement.
+        await Bun.sleep(30_000);
+        const visibility = Bun.spawn(
+          [
+            "powershell.exe",
+            "-NoProfile",
+            "-File",
+            "apps/web/tests/capacity-hidden-windows.ps1",
+            "-NativeProcessId",
+            String(child.pid),
+          ],
+          { stdout: "ignore", stderr: "inherit" }
+        );
+        assert.equal(
+          await visibility.exited,
+          0,
+          "A native surface remains visible"
+        );
+        evidence.nativeSurfacesHidden = true;
+      }
       const processes = await snapshotDesktopProcesses(child.pid);
       const phase = {
         event,
@@ -154,12 +189,23 @@ try {
       process.stdout.write(
         `${JSON.stringify({ phase: event.phase, privateBytes: phase.totalPrivateBytes })}\n`
       );
-      if (event.phase === "hidden") {
+      if (event.phase === "hiding" || event.phase === "hidden") {
         assert.equal(event.completedQueries, 100);
         complete = true;
       }
     }
     await Bun.sleep(100);
+  }
+  if (assertion === "assert-budget") {
+    const hidden = phases.find(
+      (phase) =>
+        phase.event.phase === "hidden" || phase.event.phase === "hiding"
+    );
+    assert.ok(hidden, "Hidden point sample is missing");
+    assert.ok(
+      hidden.totalPrivateBytes <= 314_572_800,
+      `Hidden private commit ${hidden.totalPrivateBytes} exceeds 300 MiB`
+    );
   }
 } catch (error) {
   evidence.failure = String(error);

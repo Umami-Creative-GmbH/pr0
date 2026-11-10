@@ -1,0 +1,39 @@
+{
+  "recordedAt": "2026-11-10T11:37:01.626Z",
+  "classification": "Supporting focused real WebView search after process startup: input dispatch through committed results and two frames, including debounce. Not required-machine, installed-build or complete capacity certification.",
+  "browserDefaultsPreserved": true,
+  "releaseCriteriaMet": false,
+  "results": [
+    {
+      "query": "a",
+      "samples": [
+        419.7999999523163, 429.89999997615814, 438.39999997615814,
+        434.6999999284744, 408.5, 435, 418.40000009536743, 451.39999997615814,
+        419.6999999284744, 437.59999990463257, 420.10000002384186,
+        417.2000000476837, 420.8000000715256, 417, 422, 421.5,
+        423.2999999523163, 420.6999999284744, 423.39999997615814,
+        353.2000000476837
+      ],
+      "p95Ms": 438.39999997615814
+    },
+    {
+      "query": "abcd",
+      "samples": [
+        326, 331, 314.7000000476837, 324.7000000476837, 307.10000002384186,
+        323.10000002384186, 351.60000002384186, 313.2000000476837,
+        328.2999999523163, 305.40000009536743, 313.2000000476837,
+        314.89999997615814, 314.2999999523163, 310.3000000715256,
+        311.2000000476837, 326.60000002384186, 321.59999990463257, 307.5,
+        307.7999999523163, 306.39999997615814
+      ],
+      "p95Ms": 331
+    }
+  ],
+  "failure": "AssertionError [ERR_ASSERTION]: Search p95 exceeds 150 ms",
+  "experimentalConfiguration": {
+    "deferredValidation": true,
+    "sharedOrganizationCache": true,
+    "suspendedHiddenViews": true,
+    "sqliteMemoryStatistics": true
+  }
+}

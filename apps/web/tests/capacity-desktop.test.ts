@@ -22,69 +22,11 @@ import {
 } from "./capacity-desktop-interactions";
 import { profileDesktopPhase } from "./capacity-desktop-profile";
 import type { ProfilePhase } from "./capacity-desktop-profile";
+import { measureSearch } from "./capacity-desktop-search";
 import { capacityIdentity, writeCapacitySnapshot } from "./capacity-snapshot";
 import { capacityP95 } from "./capacity-statistics";
 import { localNativeWorker } from "./local-native-worker";
 import { nativeWebview } from "./native-webview";
-
-const measureSearch = async (page: Page, query: string) => {
-  await page.evaluate(() => {
-    const input = document.querySelector<HTMLInputElement>(
-      'input[type="search"]:not(details input)'
-    );
-    if (!input) {
-      throw new Error("Missing production search field");
-    }
-    Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value"
-    )?.set?.call(input, "");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await page.locator('[data-search-query=""]').waitFor();
-  return await page.evaluate(async (value) => {
-    const input = document.querySelector<HTMLInputElement>(
-      'input[type="search"]:not(details input)'
-    );
-    if (!input) {
-      throw new Error("Missing production search field");
-    }
-    const completed = Promise.withResolvers<undefined>();
-    const observer = new MutationObserver(() => {
-      if (
-        document.querySelector<HTMLElement>("[data-search-query]")?.dataset
-          .searchQuery === value
-      ) {
-        observer.disconnect();
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => completed.resolve())
-        );
-      }
-    });
-    const timeout = setTimeout(() => {
-      observer.disconnect();
-      completed.reject(new Error("Search render timeout"));
-    }, 30_000);
-    observer.observe(document.body, {
-      subtree: true,
-      attributes: true,
-      childList: true,
-    });
-    const start = performance.now();
-    Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value"
-    )?.set?.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    try {
-      await completed.promise;
-      return performance.now() - start;
-    } finally {
-      clearTimeout(timeout);
-      observer.disconnect();
-    }
-  }, query);
-};
 
 const expectedQueryCount = (query: string) => {
   if (query === "abcdbcdabc") {

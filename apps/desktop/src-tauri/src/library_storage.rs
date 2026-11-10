@@ -69,6 +69,19 @@ impl LibraryStore {
             self.search_trusted,
         )?;
         tx.commit().map_err(io)?;
+        // Let the first exact result finish before validation competes for I/O
+        // and SQLite allocation locks with foreground startup.
+        if self.search_validation.is_none() && !self.search_trusted {
+            let data_version = self
+                .db
+                .query_row("PRAGMA data_version", [], |row| row.get(0))
+                .map_err(io)?;
+            let path = self.db.path().ok_or("storage_unavailable")?;
+            self.search_validation = Some(super::search_validation::Validation::start(
+                PathBuf::from(path),
+                data_version,
+            ));
+        }
         Ok(result)
     }
     pub fn open(root: &Path, instance: &str, account: &str) -> Result<Self, String> {
@@ -106,17 +119,11 @@ impl LibraryStore {
         // A single bounded page cache shares the resident process budget with WebView2.
         db.execute_batch("PRAGMA cache_size=-16384; PRAGMA mmap_size=0;")
             .map_err(io)?;
-        let data_version = db
-            .query_row("PRAGMA data_version", [], |row| row.get(0))
-            .map_err(io)?;
-        let search_validation = recovery_error
-            .is_none()
-            .then(|| super::search_validation::Validation::start(path, data_version));
         Ok(Self {
             db,
             recovery_error,
             search_organization: None,
-            search_validation,
+            search_validation: None,
             search_trusted: false,
             instance: instance.into(),
             account: account.into(),

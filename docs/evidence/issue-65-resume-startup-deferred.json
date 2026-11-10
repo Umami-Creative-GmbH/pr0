@@ -1,0 +1,15 @@
+{
+  "recordedAt": "2026-11-10T11:23:08.415Z",
+  "classification": "Supporting three process-cold UI opens on the authorized host, using a retained maximum library, real WebView2 and production assets. OS caches are not flushed; this is not installed-build cold-start p95 certification on the required machine.",
+  "fixtureDirectory": "C:/Users/KAIHEN~1/AppData/Local/Temp/pr0-capacity-65-1B3nQB",
+  "browserDefaultsPreserved": true,
+  "releaseCriteriaMet": false,
+  "samplesMs": [4073.5164, 3564.6387999999997, 4168.866],
+  "failure": "AssertionError [ERR_ASSERTION]: A process-cold UI open exceeds three seconds",
+  "experimentalConfiguration": {
+    "deferredValidation": true,
+    "sharedOrganizationCache": false,
+    "suspendedHiddenViews": false,
+    "sqliteMemoryStatistics": true
+  }
+}

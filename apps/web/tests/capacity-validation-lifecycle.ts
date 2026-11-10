@@ -6,6 +6,7 @@ import path from "node:path";
 
 import { downloadStatusSchema } from "@pr0/api-contract/snapshots";
 
+import { capacityIdentity } from "./capacity-snapshot";
 import { localNativeWorker } from "./local-native-worker";
 
 const [directory, output] = process.argv.slice(2);
@@ -58,6 +59,18 @@ try {
       );
       assert.equal(status.complete, true);
       assert.equal(status.downloaded, 10_000);
+      await native.command("library_search", {
+        request: {
+          ...capacityIdentity,
+          generation: native.generation,
+          requestId: crypto.randomUUID(),
+          query: "",
+          limit: 50,
+          view: "all",
+          sort: "relevance",
+          tagIds: [],
+        },
+      });
       const deadline = performance.now() + 20_000;
       while (!(await Bun.file(path.join(control, "snapshot-ready")).exists())) {
         assert.ok(

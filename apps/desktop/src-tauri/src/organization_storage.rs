@@ -83,16 +83,7 @@ fn organization_byte_delta(db: &Connection) -> Result<i64, String> {
     db.query_row("SELECT (SELECT coalesce(sum(length(cast(name AS BLOB))),0) FROM organization_local)-(SELECT coalesce(sum(length(cast(name AS BLOB))),0) FROM organization WHERE snapshot=(SELECT active FROM state))",[],|r|r.get(0)).map_err(io)
 }
 impl LibraryStore {
-    fn organization_snapshot_entries(&self, kind: &str) -> Result<Vec<OrganizationEntry>, String> {
-        if self.recovery_error.is_none() {
-            if let Ok(entries) = super::search_query::organization_entries(&self.db, kind) {
-                return Ok(entries);
-            }
-        }
-        // Recovery and mutation admission continue to use primary records.
-        organization_entries(&self.db, kind)
-    }
-    pub fn organization_snapshot(&self) -> Result<Value, String> {
+    pub fn organization_snapshot(&mut self) -> Result<Value, String> {
         let effects=organization_rows(&self.db,"SELECT json_object('id',r.id,'effect',json_extract(result,'$.effect'),'accepted',json(CASE WHEN EXISTS(SELECT 1 FROM organization_ack a WHERE a.id=r.id) THEN 'true' ELSE 'false' END)) FROM organization_receipt r WHERE json_extract(result,'$.effect') IS NOT NULL ORDER BY rowid DESC LIMIT 100")?;
         let pending=organization_rows(&self.db,"SELECT json_object('id',id,'operation',json(payload),'error',error,'failure',json(failure),'accepted',json(CASE WHEN receipt IS NULL THEN 'false' ELSE 'true' END)) FROM organization_queue ORDER BY local_revision")?;
         let mut states=organization_rows(&self.db,"SELECT json_object('id',id,'entity',kind,'name',name,'state',CASE WHEN target IS NULL THEN 'deleted' ELSE 'merged' END,'targetId',target,'targetName',NULL) FROM organization_removed")?;
@@ -135,8 +126,24 @@ impl LibraryStore {
             .db
             .query_row("SELECT revision FROM local_state", [], |r| r.get(0))
             .map_err(io)?;
+        // Status and search share one bounded revision-fenced count/name snapshot.
+        let cached = if self.recovery_error.is_none() {
+            super::search_query::cached_organization(
+                &self.db, local_revision, &mut self.search_organization,
+            ).ok()
+        } else {
+            None
+        };
+        let (collections, tags) = if let Some(cached) = cached {
+            (cached.collections.clone(), cached.tags.clone())
+        } else {
+            (
+                organization_entries(&self.db, "collection")?,
+                organization_entries(&self.db, "tag")?,
+            )
+        };
         Ok(
-            json!({"instanceId":self.instance,"accountId":self.account,"revision":organization_base_revision(&self.db)?,"localRevision":local_revision.to_string(),"collections":self.organization_snapshot_entries("collection")?,"tags":self.organization_snapshot_entries("tag")?,"pending":pending,"effects":effects,"states":states,"textBytes":self.known_usage()?.1,"complete":self.status()?.complete}),
+            json!({"instanceId":self.instance,"accountId":self.account,"revision":organization_base_revision(&self.db)?,"localRevision":local_revision.to_string(),"collections":collections,"tags":tags,"pending":pending,"effects":effects,"states":states,"textBytes":self.known_usage()?.1,"complete":self.status()?.complete}),
         )
     }
     pub fn organization_impact(

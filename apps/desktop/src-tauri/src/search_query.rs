@@ -375,8 +375,25 @@ pub(super) fn organization_entries(
 // local revision as result cursors. Never cache prompt bodies or another account.
 pub struct OrganizationCache {
     revision: i64,
-    collections: Vec<super::library_contract::OrganizationEntry>,
-    tags: Vec<super::library_contract::OrganizationEntry>,
+    pub(super) collections: Vec<super::library_contract::OrganizationEntry>,
+    pub(super) tags: Vec<super::library_contract::OrganizationEntry>,
+}
+pub(super) fn cached_organization<'a>(
+    db: &Connection,
+    revision: i64,
+    cache: &'a mut Option<OrganizationCache>,
+) -> rusqlite::Result<&'a OrganizationCache> {
+    if cache
+        .as_ref()
+        .is_none_or(|cached| cached.revision != revision)
+    {
+        *cache = Some(OrganizationCache {
+            revision,
+            collections: organization_entries(db, "collection")?,
+            tags: organization_entries(db, "tag")?,
+        });
+    }
+    cache.as_ref().ok_or(rusqlite::Error::InvalidQuery)
 }
 pub fn search(
     db: &Connection,
@@ -557,19 +574,7 @@ pub fn search(
         }
     }
     check()?;
-    if organization_cache
-        .as_ref()
-        .is_none_or(|cached| cached.revision != revision)
-    {
-        *organization_cache = Some(OrganizationCache {
-            revision,
-            collections: organization_entries(db, "collection").map_err(recovery)?,
-            tags: organization_entries(db, "tag").map_err(recovery)?,
-        });
-    }
-    let organization = organization_cache
-        .as_ref()
-        .ok_or("search_recovery_required")?;
+    let organization = cached_organization(db, revision, organization_cache).map_err(recovery)?;
     Ok(SearchPage {
         collections: organization.collections.clone(),
         tags: organization.tags.clone(),
