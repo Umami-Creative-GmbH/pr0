@@ -22,6 +22,11 @@ export const measureSearch = async (page: Page, query: string) => {
     if (!input) {
       throw new Error("Missing production search field");
     }
+    if (!document.hasFocus()) {
+      throw new Error(
+        "Native library must be foreground while measuring search"
+      );
+    }
     const completed = Promise.withResolvers<undefined>();
     const observer = new MutationObserver(() => {
       if (
@@ -43,11 +48,6 @@ export const measureSearch = async (page: Page, query: string) => {
       attributes: true,
       childList: true,
     });
-    if (!document.hasFocus()) {
-      throw new Error(
-        "Native library must be foreground while measuring search"
-      );
-    }
     const start = performance.now();
     Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
