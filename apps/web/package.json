@@ -21,7 +21,7 @@
     "docs:prepare": "bun scripts/prepare-docs.ts",
     "start": "bun --bun next start",
     "typecheck": "bun --bun next typegen && bun --bun tsc --noEmit",
-    "test": "bun test src",
+    "test": "bun test src scripts",
     "test:design": "bun --env-file=tests/social.env tests/design-runner.ts",
     "test:accessibility": "bun --env-file=tests/social.env tests/accessibility-runner.ts",
     "test:variables": "bun --env-file=tests/social.env tests/variables-runner.ts",
