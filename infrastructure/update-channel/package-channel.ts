@@ -5,6 +5,13 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import {
+  reservedRehearsalVersions,
+  validatePublicVersion,
+  validateRehearsalVersion,
+} from "./release-versions";
+import type { RehearsalReservation } from "./release-versions";
+
 export interface ChannelRelease {
   directory: string;
   notes: string;
@@ -16,10 +23,16 @@ interface PackageOptions {
   previousDirectory?: string;
   publicKey: string;
   releases: ChannelRelease[];
+  reservations?: readonly RehearsalReservation[];
 }
 
-const publicVersionPattern =
-  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u;
+interface RehearsalTargetOptions {
+  directory: string;
+  publicKey: string;
+  reservations?: readonly RehearsalReservation[];
+  version: string;
+}
+
 const signingEvidenceSchema = z.object({
   version: z.string(),
   installer: z.string(),
@@ -29,14 +42,10 @@ const manifestVersionSchema = z.object({ version: z.string() });
 const compareVersions = (left: string, right: string) =>
   left.localeCompare(right, "en", { numeric: true });
 
-export const validatePublicVersion = (version: string): void => {
-  // 0.1.1 is permanently consumed by the MVP rehearsal target (ADR-0001).
-  if (!publicVersionPattern.test(version) || version === "0.1.1") {
-    throw new Error(`Invalid public version: ${version}`);
-  }
-};
-
-const verifyRelease = async (release: ChannelRelease, publicKey: string) => {
+const verifyRelease = async (
+  release: Pick<ChannelRelease, "directory" | "version">,
+  publicKey: string
+) => {
   const installer = `pr0_${release.version}_x64-setup.exe`;
   const installerPath = path.join(release.directory, installer);
   const evidence = signingEvidenceSchema.parse(
@@ -110,14 +119,33 @@ const copyImmutableArtifact = async (source: string, destination: string) => {
   await copyFile(source, destination);
 };
 
+/**
+ * Verifies a private rehearsal target with the same evidence, hash, updater
+ * signature and signed-version checks as public releases. Only reserved
+ * rehearsal versions are accepted.
+ */
+export const verifyRehearsalTarget = async ({
+  directory,
+  publicKey,
+  reservations = reservedRehearsalVersions,
+  version,
+}: RehearsalTargetOptions): Promise<{
+  installer: string;
+  signature: string;
+}> => {
+  validateRehearsalVersion(version, reservations);
+  return await verifyRelease({ directory, version }, publicKey);
+};
+
 export const packageChannel = async ({
   outputDirectory,
   releases,
   publicKey,
   previousDirectory,
+  reservations = reservedRehearsalVersions,
 }: PackageOptions): Promise<void> => {
   for (const release of releases) {
-    validatePublicVersion(release.version);
+    validatePublicVersion(release.version, reservations);
   }
   await mkdir(outputDirectory, { recursive: true });
   const existing = await readdir(outputDirectory);

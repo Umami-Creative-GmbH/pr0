@@ -5,8 +5,9 @@ import path from "node:path";
 
 import { z } from "zod";
 
-import { packageChannel, validatePublicVersion } from "./package-channel";
+import { packageChannel } from "./package-channel";
 import type { ChannelRelease } from "./package-channel";
+import { validatePublicVersion } from "./release-versions";
 
 const run = async (command: string[]) => {
   const child = Bun.spawn(command, { stdout: "pipe", stderr: "inherit" });
