@@ -59,7 +59,6 @@ interface RedeployRecord {
   steps: StepRecord[];
   commands: string[];
 }
-// A type alias, unlike an interface, is assignable to the JSON event shape.
 interface ImageRecord {
   tag: string;
   id: string;
@@ -469,7 +468,12 @@ const redeploy = async (revision: string) => {
     emit({
       event: "redeploy_complete",
       commit: record.commit,
-      images: record.images,
+      images: Object.fromEntries(
+        Object.entries(record.images).map(([name, image]) => [
+          name,
+          { tag: image.tag, id: image.id },
+        ])
+      ),
       record: recordFile,
     });
   } catch (error) {

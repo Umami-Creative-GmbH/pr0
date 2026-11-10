@@ -286,6 +286,10 @@ test("the operator script upgrades a disposable hosted deployment between commit
     const fixed = await git("rev-parse", "HEAD");
     await git("checkout", "--quiet", "--detach", initial);
     commits.push(initial, candidate, broken, fixed);
+    await must(
+      ["bun", "install", "--frozen-lockfile", "--filter", "@pr0/hosted"],
+      checkout
+    );
 
     await mkdir(secrets);
     await mkdir(path.join(directory, "backups"));
