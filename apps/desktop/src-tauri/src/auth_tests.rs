@@ -18,6 +18,7 @@ include!("search_fixture_transport.rs");
 include!("search_webview_tests.rs");
 include!("organization_tests.rs");
 include!("deletion_tests.rs");
+include!("transport_tests.rs");
 
 fn fixtures() -> serde_json::Value {
     let mut data: serde_json::Value = serde_json::from_str(include_str!(

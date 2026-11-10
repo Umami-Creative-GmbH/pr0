@@ -69,6 +69,26 @@
     "retryAfterMs": 0
   },
   {
+    "name": "untrusted certificate is distinct from offline and keeps pending work",
+    "signedIn": true,
+    "offline": false,
+    "pending": 1,
+    "error": "certificate_untrusted",
+    "updating": true,
+    "rejected": false,
+    "summary": "Untrusted certificate · Changes waiting",
+    "details": [
+      "1 pending changes",
+      "doesn&#x27;t trust this server&#x27;s certificate, so nothing was sent",
+      "certificate authority in Windows"
+    ],
+    "awaitingDownload": 0,
+    "attentionError": null,
+    "downloadError": null,
+    "saveFailure": false,
+    "retryAfterMs": 0
+  },
+  {
     "name": "completed check",
     "signedIn": true,
     "offline": false,
