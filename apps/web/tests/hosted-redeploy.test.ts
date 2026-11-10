@@ -280,7 +280,9 @@ test("the operator script upgrades a disposable hosted deployment between commit
     await compose("run", "--rm", "restore", "initialize");
     const email = "operator@example.test";
     await compose("run", "--rm", "accounts", "admit-first", email);
-    await compose("up", "-d", "--no-build", "--wait", "web", "mail", "ingress");
+    await compose("up", "-d", "--no-build", "--wait", "web", "mail");
+    // After web, as the runbook orders it, so the ingress's first lookup finds web.
+    await compose("up", "-d", "--no-build", "--wait", "ingress");
 
     const request = (pathname: string, body?: RequestBody, cookie = "") =>
       fetch(`${origin}${pathname}`, {
