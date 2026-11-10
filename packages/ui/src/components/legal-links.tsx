@@ -1,16 +1,19 @@
 "use client";
+import { legalLinkKinds } from "@pr0/api-contract/legal";
+import type {
+  LegalLinkKind,
+  LegalLinks as InstanceLegalLinks,
+} from "@pr0/api-contract/legal";
 import { ExternalLink } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { useTranslations } from "../hooks/use-translations";
 
-type LegalKind = "impressum" | "privacy" | "terms";
-const order: readonly LegalKind[] = ["impressum", "privacy", "terms"];
 const labels = {
   impressum: "legalNotice",
   privacy: "privacyPolicy",
   terms: "termsOfUse",
-} as const;
+} as const satisfies Record<LegalLinkKind, string>;
 
 /**
  * The selected instance operator's legal pages. Unconfigured links are not
@@ -20,12 +23,12 @@ export const LegalLinks = ({
   links,
   onOpen,
 }: {
-  links?: Partial<Record<LegalKind, string>> | null;
+  links?: InstanceLegalLinks | null;
   /** Native surfaces open the trusted page outside the app window. */
-  onOpen?: (kind: LegalKind) => void;
+  onOpen?: (kind: LegalLinkKind) => void;
 }) => {
   const t = useTranslations();
-  const configured = order.filter((kind) => links?.[kind]);
+  const configured = legalLinkKinds.filter((kind) => links?.[kind]);
   if (!configured.length) {
     return null;
   }

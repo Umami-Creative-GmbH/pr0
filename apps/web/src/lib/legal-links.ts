@@ -1,11 +1,11 @@
 import { legalLinkKinds, legalLinksSchema } from "@pr0/api-contract/legal";
-import type { LegalLinks } from "@pr0/api-contract/legal";
+import type { LegalLinkKind, LegalLinks } from "@pr0/api-contract/legal";
 
 export const legalLinkSettings = {
   impressum: "PR0_IMPRESSUM_URL",
   privacy: "PR0_PRIVACY_URL",
   terms: "PR0_TERMS_URL",
-} as const;
+} as const satisfies Record<LegalLinkKind, string>;
 
 /**
  * Reads the operator's optional legal pages. Empty settings stay unconfigured;

@@ -305,7 +305,7 @@ impl AuthService {
         Ok(state.view())
     }
     /// Opens only a link the selected instance published; the renderer names a kind, never a URL.
-    pub fn open_legal(&self, kind: &str) -> Result<AuthView, String> {
+    pub fn open_legal(&self, kind: LegalKind) -> Result<AuthView, String> {
         let state = self.state.lock().map_err(|_| "state_unavailable")?;
         let link = state
             .trust()

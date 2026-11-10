@@ -73,13 +73,20 @@ pub struct Legal {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terms: Option<String>,
 }
+/// The legal pages an instance may publish; the renderer can name only these.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum LegalKind {
+    Impressum,
+    Privacy,
+    Terms,
+}
 impl Legal {
-    pub fn link(&self, kind: &str) -> Option<&str> {
+    pub fn link(&self, kind: LegalKind) -> Option<&str> {
         match kind {
-            "impressum" => self.impressum.as_deref(),
-            "privacy" => self.privacy.as_deref(),
-            "terms" => self.terms.as_deref(),
-            _ => None,
+            LegalKind::Impressum => self.impressum.as_deref(),
+            LegalKind::Privacy => self.privacy.as_deref(),
+            LegalKind::Terms => self.terms.as_deref(),
         }
     }
     fn valid(&self) -> bool {
