@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-auth-open-legal"
+description = "Enables the auth_open_legal command without any pre-configured scope."
+commands.allow = ["auth_open_legal"]
+
+[[permission]]
+identifier = "deny-auth-open-legal"
+description = "Denies the auth_open_legal command without any pre-configured scope."
+commands.deny = ["auth_open_legal"]

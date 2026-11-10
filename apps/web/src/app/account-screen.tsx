@@ -2,7 +2,9 @@
 import { ApiError } from "@pr0/api-client/client";
 import { useApiClient } from "@pr0/api-client/provider";
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
+import type { LegalLinks as InstanceLegalLinks } from "@pr0/api-contract/legal";
 import { AuthLayout } from "@pr0/ui/components/auth-layout";
+import { LegalLinks } from "@pr0/ui/components/legal-links";
 import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { WayfinderShell } from "@pr0/ui/components/wayfinder-shell";
 import { useTranslations } from "@pr0/ui/hooks/use-translations";
@@ -305,6 +307,8 @@ interface AccountScreenProps {
   verification?: string;
   socialError?: string;
   methodResult?: string;
+  /** Operator legal pages from runtime instance configuration. */
+  legal?: InstanceLegalLinks;
 }
 
 const useAccountSession = ({
@@ -426,6 +430,7 @@ export const AccountScreen = ({
   verification,
   socialError,
   methodResult,
+  legal,
 }: AccountScreenProps) => {
   const t = useTranslations();
   const {
@@ -570,6 +575,7 @@ export const AccountScreen = ({
           }}
         />
       </main>
+      <LegalLinks links={legal} />
     </WayfinderShell>
   );
 };

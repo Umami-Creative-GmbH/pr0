@@ -36,6 +36,7 @@ Secret files must be readable by the actual container identities: Bun services u
 | `PR0_ORIGIN` | One canonical web/API origin, e.g. `https://prompts.example.org`; no path, query, fragment or credentials |
 | `PR0_BIND_ADDRESS`, `PR0_PORT` | Defaults to `127.0.0.1:3000`; publish only to your trusted ingress |
 | `PR0_REGISTRATION` | `closed` by default; also `allowlist` or `open` |
+| `PR0_IMPRESSUM_URL`, `PR0_PRIVACY_URL`, `PR0_TERMS_URL` | Optional absolute HTTPS URLs (no credentials, at most 2048 characters) of your Impressum, privacy policy and terms of use. Configured links appear on web sign-in, sign-up and the app footer, and desktops receive them through negotiated discovery. Empty settings hide the link; pr0 has no built-in defaults. Invalid values stop the web server at startup. Recreate web after changing them. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS`, `SMTP_FROM` | Verified sender and SMTP endpoint; `starttls` requires STARTTLS (usually 587), `tls` uses implicit TLS (usually 465) |
 | `SMTP_USER` | Optional SMTP login name |
 

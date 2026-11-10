@@ -339,6 +339,30 @@
     color: var(--pink-500);
   }
 }
+@utility wf-legal {
+  flex: none;
+  border-top: 1px solid var(--app-line);
+  padding: 10px 16px;
+  & ul {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 18px;
+  }
+  & a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    color: var(--app-ink-3);
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  & a:hover {
+    color: var(--app-ink);
+  }
+}
 @utility wf-icon-btn {
   display: inline-flex;
   flex: none;

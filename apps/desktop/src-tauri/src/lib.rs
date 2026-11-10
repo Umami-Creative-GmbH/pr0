@@ -155,6 +155,14 @@ async fn auth_open_browser(
     dispatch(window, state, AuthService::open_browser).await
 }
 #[tauri::command]
+async fn auth_open_legal(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, ManagedAuth>,
+    kind: String,
+) -> Result<AuthView, String> {
+    dispatch(window, state, move |service| service.open_legal(&kind)).await
+}
+#[tauri::command]
 async fn auth_refresh(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, ManagedAuth>,
@@ -223,6 +231,7 @@ pub fn run() {
             auth_poll,
             auth_cancel,
             auth_open_browser,
+            auth_open_legal,
             auth_refresh,
             auth_sign_out,
             library_status,

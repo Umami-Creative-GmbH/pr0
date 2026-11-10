@@ -1,6 +1,11 @@
 import "server-only";
 import { readFileSync } from "node:fs";
 
+import { readLegalLinks } from "../lib/legal-links";
+
+/** Operator legal pages; validated at startup and published without secrets. */
+export const legalLinks = () => readLegalLinks(process.env);
+
 export const secret = (name: string): string => {
   const file = process.env[`${name}_FILE`];
   const value = file ? readFileSync(file, "utf-8").trim() : process.env[name];

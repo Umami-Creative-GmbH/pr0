@@ -1031,5 +1031,10 @@
   "untrustedCertificateChangesWaiting": "Untrusted certificate · Changes waiting",
   "windowsDoesNotTrustThisServerSCertificateNothingWasSent": "Windows doesn't trust this server's certificate, so nothing was sent. This is not a connection problem. Saved work stays on this device and syncs once Windows trusts the certificate. Ask your administrator to install the server's certificate authority in Windows, then retry.",
   "windowsDoesNotTrustThisServerSCertificateSignIn": "Windows doesn't trust this server's certificate, so pr0 did not connect. Check the server address, or ask your administrator to install the server's certificate authority in Windows, then retry. Local work is preserved.",
-  "windowsDoesNotTrustThisServerSCertificateDownloadPaused": "Windows doesn't trust this server's certificate. Download paused; downloaded prompts remain available. Ask your administrator to install the server's certificate authority in Windows, then retry."
+  "windowsDoesNotTrustThisServerSCertificateDownloadPaused": "Windows doesn't trust this server's certificate. Download paused; downloaded prompts remain available. Ask your administrator to install the server's certificate authority in Windows, then retry.",
+  "legalInformation": "Legal information",
+  "legalNotice": "Legal notice",
+  "privacyPolicy": "Privacy policy",
+  "termsOfUse": "Terms of use",
+  "theLegalPageCouldNotBeOpened": "The legal page could not be opened in your browser. Retry."
 }

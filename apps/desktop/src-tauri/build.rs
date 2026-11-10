@@ -39,6 +39,7 @@ fn main() {
             "auth_poll",
             "auth_cancel",
             "auth_open_browser",
+            "auth_open_legal",
             "auth_refresh",
             "auth_sign_out",
             "library_status",

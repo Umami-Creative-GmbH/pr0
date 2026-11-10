@@ -25,6 +25,7 @@
     "allow-auth-poll",
     "allow-auth-cancel",
     "allow-auth-open-browser",
+    "allow-auth-open-legal",
     "allow-auth-refresh",
     "allow-auth-sign-out",
     "allow-library-status",
