@@ -1,0 +1,10 @@
+# Every 30 minutes, matching the dead-man's switch check pr0-backup (period 30 min, grace 15 min).
+[Unit]
+Description=pr0 verified backup every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

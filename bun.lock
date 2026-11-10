@@ -77,6 +77,16 @@
         "typescript": "^5",
       },
     },
+    "infrastructure/hosted": {
+      "name": "@pr0/hosted",
+      "dependencies": {
+        "zod": "^4.6.5",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "^5",
+      },
+    },
     "infrastructure/probe-host": {
       "name": "@pr0/probe-host",
       "dependencies": {
@@ -563,6 +573,8 @@
     "@pr0/api-contract": ["@pr0/api-contract@workspace:packages/api-contract"],
 
     "@pr0/desktop": ["@pr0/desktop@workspace:apps/desktop"],
+
+    "@pr0/hosted": ["@pr0/hosted@workspace:infrastructure/hosted"],
 
     "@pr0/probe-host": ["@pr0/probe-host@workspace:infrastructure/probe-host"],
 

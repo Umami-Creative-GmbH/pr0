@@ -1,0 +1,15 @@
+{
+  "name": "@pr0/hosted",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^5"
+  }
+}
