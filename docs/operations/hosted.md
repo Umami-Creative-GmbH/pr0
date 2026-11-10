@@ -78,7 +78,7 @@ Run once, as root, on the Coolify server. Ledger hosts, the Storage Box, Brevo, 
 
 6. Admit testers and the canary with `docker compose run --rm accounts allow <email>`. Allowlist mode needs no recreate for new addresses.
 
-7. Set up the canary ([probe host](probe-host.md#canary-account-and-prompt)). Put its prompt UUID in `PR0_CANARY_PROMPT_ID` and a copy of its cookie in the `PR0_CANARY_COOKIE` secret file. Renew this copy whenever you renew the probe host's copy. Then run `docker compose run --rm canary`; it must print `"available":true`.
+7. Set up the canary ([probe host](probe-host.md#canary-account-and-prompt)). Put its prompt UUID in `PR0_CANARY_PROMPT_ID` and a copy of its cookie in the `PR0_CANARY_COOKIE` secret file. Renew this copy whenever you renew the probe host's copy. Then run `docker compose run --rm canary`; it must print `"available":true`. Right after the prompt is created, the first run may fail while search prepares; run it again.
 
 8. Make the first verified backup with `docker compose run --rm backup create`, then install the [backup timer](#backup-timer). Push ledger and backup storage measurements as described in [service health](service-health.md#storage-the-application-host-cannot-mount).
 
@@ -102,8 +102,8 @@ The script refuses a checkout with local changes or a revision that isn't a comm
 | `build` | `git checkout --detach <commit>`, then builds the app, tools and ingress images tagged `pr0:<12 hex>`, `pr0-tools:<12 hex>` and `pr0-ingress:<12 hex>`. Only after all three exist does it rewrite the release lines in `.env`, including `PR0_BACKUP_RELEASE=pr0@<commit>` |
 | `migrate` | One `docker compose run --rm accounts migrate` |
 | `replay-deletions` | `docker compose run --rm deletions replay` |
-| `recreate` | `docker compose up --force-recreate --wait web mail` on the new image; waits for web's readiness health check |
-| `check` | `/api/v1/ready` from inside web, then the authenticated canary check (`canary` service: the availability probe's library and search check, run in web's network namespace with the canary session) |
+| `recreate` | `docker compose up --force-recreate web mail` on the new image |
+| `check` | The authenticated canary check (`canary` service: the availability probe's library and search check, run in web's network namespace with the canary session), then `/api/v1/ready` from inside web. Each is retried every 5 seconds for up to two minutes while web starts and search prepares |
 | `backup` | `docker compose run --rm backup create`, labelled with the new release |
 | `reopen-ingress` | Recreates the ingress on its new image and checks `/api/v1/ready` through it |
 

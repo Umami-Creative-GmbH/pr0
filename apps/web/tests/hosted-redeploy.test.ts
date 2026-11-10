@@ -64,6 +64,20 @@ const must = async (command: string[], cwd: string) => {
   }
   return result.stdout.trim();
 };
+/** Runbook step 7: the canary check passes once its first search has prepared. */
+const canaryPasses = async (checkout: string) => {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    const sample = await execute(
+      ["docker", "compose", "run", "--rm", "canary"],
+      checkout
+    );
+    if (sample.stdout.includes('"available":true')) {
+      return true;
+    }
+    await Bun.sleep(5000);
+  }
+  return false;
+};
 type RequestBody = z.infer<ReturnType<typeof z.json>>;
 const eventSchema = z.looseObject({ event: z.string() });
 const recordSchema = z.object({
@@ -489,6 +503,8 @@ test("the operator script upgrades a disposable hosted deployment between commit
     );
     expect(mutation.status).toBe(200);
     await Bun.write(path.join(secrets, "PR0_CANARY_COOKIE"), cookie);
+    expect(await canaryPasses(checkout)).toBe(true);
+
     await compose("run", "--rm", "backup", "create");
 
     const redeploy = async (commit: string) => {

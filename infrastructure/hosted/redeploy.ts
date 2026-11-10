@@ -14,6 +14,9 @@ const checkout = process.cwd();
 const environmentFile = path.join(checkout, ".env");
 const recordDirectory = path.join(checkout, ".deployments");
 const scratchReserveBytes = 16n * 1024n * 1024n;
+// The post-deploy checks retry for up to two minutes while web starts and search prepares.
+const checkAttempts = 24;
+const checkIntervalMs = 5000;
 const revisionPattern = /^[A-Za-z0-9][\w./-]*$/u;
 const commitPattern = /^[0-9a-f]{40}$/u;
 const imageNamePattern = /^[a-z0-9][a-z0-9._/-]*$/u;
@@ -398,33 +401,66 @@ const redeploy = async (revision: string) => {
         "--no-build",
         "--no-deps",
         "--force-recreate",
-        "--wait",
-        "--wait-timeout",
-        "300",
         "web",
         "mail",
       ]);
-      return { running: await runningServices() };
+      // Readiness is checked in the next step, after the canary search has
+      // prepared its projection, as the documented sequence orders it.
+      const running = await runningServices();
+      if (!(running.includes("web") && running.includes("mail"))) {
+        throw new Error(`web and mail did not start: ${running.join(", ")}`);
+      }
+      return { running };
     });
 
     await step("check", async () => {
-      const readiness = await compose([
-        "exec",
-        "-T",
-        "web",
-        "bun",
-        "--bun",
-        "-e",
-        "const response = await fetch('http://127.0.0.1:3000/api/v1/ready'); console.log(JSON.stringify({ status: response.status, body: await response.json() })); process.exit(response.ok ? 0 : 1);",
-      ]);
-      const canary = await compose(["run", "--rm", "--no-deps", "canary"]);
-      const sample = lastJson(sampleSchema, canary.stdout);
-      if (!sample.available) {
-        throw new Error("The canary library/search check failed");
+      // A first search after an edit can answer search_preparing; retry briefly.
+      let canaryAttempts = 0;
+      let sample: z.infer<typeof sampleSchema> | undefined;
+      while (!sample?.available && canaryAttempts < checkAttempts) {
+        if (canaryAttempts > 0) {
+          await Bun.sleep(checkIntervalMs);
+        }
+        canaryAttempts += 1;
+        const { stdout } = await compose(
+          ["run", "--rm", "--no-deps", "canary"],
+          { allowFailure: true }
+        );
+        sample = lastJson(sampleSchema, stdout);
+      }
+      if (!sample?.available) {
+        throw new Error(
+          `The canary library/search check failed ${canaryAttempts} times`
+        );
+      }
+      let readiness = { attempts: 0, code: 1, stdout: "" };
+      while (readiness.code !== 0 && readiness.attempts < checkAttempts) {
+        if (readiness.attempts > 0) {
+          await Bun.sleep(checkIntervalMs);
+        }
+        const result = await compose(
+          [
+            "exec",
+            "-T",
+            "web",
+            "bun",
+            "--bun",
+            "-e",
+            "const response = await fetch('http://127.0.0.1:3000/api/v1/ready'); console.log(JSON.stringify({ status: response.status, body: await response.json() })); process.exit(response.ok ? 0 : 1);",
+          ],
+          { allowFailure: true }
+        );
+        readiness = { attempts: readiness.attempts + 1, ...result };
+      }
+      if (readiness.code !== 0) {
+        throw new Error(
+          `Readiness stayed unavailable: ${readiness.stdout.trim().slice(-500)}`
+        );
       }
       return {
+        canary: { ...sample, attempts: canaryAttempts },
         readiness: lastJson(readinessSchema, readiness.stdout),
-        canary: sample,
+        readinessAttempts: readiness.attempts,
       };
     });
 
