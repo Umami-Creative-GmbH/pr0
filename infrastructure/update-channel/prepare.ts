@@ -5,8 +5,9 @@ import path from "node:path";
 
 import { z } from "zod";
 
-import { packageChannel, validatePublicVersion } from "./package-channel";
+import { packageChannel } from "./package-channel";
 import type { ChannelRelease } from "./package-channel";
+import { releaseFiles, validatePublicVersion } from "./release-versions";
 
 const run = async (command: string[]) => {
   const child = Bun.spawn(command, { stdout: "pipe", stderr: "inherit" });
@@ -59,7 +60,6 @@ try {
       const version = release.tag_name.slice(1);
       validatePublicVersion(version);
       const directory = path.join(downloads, version);
-      const installer = `pr0_${version}_x64-setup.exe`;
       await run([
         "gh",
         "release",
@@ -69,12 +69,7 @@ try {
         repository,
         "--dir",
         directory,
-        "--pattern",
-        installer,
-        "--pattern",
-        `${installer}.sig`,
-        "--pattern",
-        "signing-evidence.json",
+        ...releaseFiles(version).flatMap((file) => ["--pattern", file]),
       ]);
       releases.push({
         version,

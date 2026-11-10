@@ -1,4 +1,5 @@
 import { AuthLayout } from "@pr0/ui/components/auth-layout";
+import { LegalLinks } from "@pr0/ui/components/legal-links";
 import { LocalizedMessage } from "@pr0/ui/components/localized-message";
 import { WayfinderShell } from "@pr0/ui/components/wayfinder-shell";
 import { useTranslations } from "@pr0/ui/hooks/use-translations";
@@ -233,7 +234,7 @@ const SignedOutView = ({
 export const App = () => {
   const t = useTranslations();
 
-  const { status, busy, error, notice, run } = useAuthSession();
+  const { status, busy, error, notice, run, openLegal } = useAuthSession();
   const [editing, setEditing] = useState(false);
   const [transitionOpen, setTransitionOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -291,6 +292,12 @@ export const App = () => {
             onTransition={setTransitionOpen}
           />
         </main>
+        <LegalLinks
+          links={status?.legal}
+          onOpen={(kind) => {
+            void openLegal(kind);
+          }}
+        />
       </ResidentControls>
     </WayfinderShell>
   );

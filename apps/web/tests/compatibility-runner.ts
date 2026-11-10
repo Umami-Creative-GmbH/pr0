@@ -17,14 +17,23 @@ const server = accountTestServer(
       "initialize",
     ])
 );
+// Operator legal links are runtime configuration; the same build serves both cases.
+const legalLinks = {
+  PR0_IMPRESSUM_URL: "https://operator.example/impressum",
+  PR0_PRIVACY_URL: "https://operator.example/privacy",
+};
+const discovery = [
+  "bun",
+  "test",
+  "apps/web/tests/compatibility-integration.test.ts",
+];
 const sql = new SQL(process.env.DATABASE_URL ?? "");
 try {
   await server.setup();
-  await runAcceptance([
-    "bun",
-    "test",
-    "apps/web/tests/compatibility-integration.test.ts",
-  ]);
+  await runAcceptance(discovery);
+  await server.startServer(legalLinks);
+  await runAcceptance(discovery, legalLinks);
+  await server.startServer();
   // Storage setup simulates a terminated coordinator. Admission is observed at REST.
   await sql`UPDATE migration_control SET phase='migrating' WHERE singleton=1`;
   const stopped = await fetch(`${origin}/api/v1/capabilities`);

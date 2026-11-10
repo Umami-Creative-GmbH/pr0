@@ -1,5 +1,7 @@
 import { methodLinkResultSchema } from "@pr0/api-contract/accounts";
 
+import { legalLinks } from "@/server/config";
+
 import { AccountScreen } from "./account-screen";
 
 const Home = async ({
@@ -31,6 +33,7 @@ const Home = async ({
       verification={verification}
       socialError={socialError}
       methodResult={methodLinkResultSchema.safeParse(params.methods).data}
+      legal={legalLinks()}
     />
   );
 };

@@ -12,7 +12,7 @@ import type { DownloadStatus } from "./library-client";
 import { downloadError } from "./library-client";
 import { RejectedChange } from "./rejected-change";
 import { upgradeRecoveryMessage } from "./upgrade-recovery";
-import { uploadLabel } from "./upload-status";
+import { connectionErrorLabel, uploadLabel } from "./upload-status";
 import { useSyncDetails } from "./use-sync-details";
 
 const downloadLabel = (status?: DownloadStatus) => {
@@ -132,21 +132,23 @@ const admissionLabel = (
   return null;
 };
 
+const incomingConnectionLabel = (error: string | null, pending: boolean) => {
+  if (error === "authentication_required") {
+    return pending
+      ? translate("signInToSyncChangesWaiting")
+      : translate("signInToSync");
+  }
+  return connectionErrorLabel(error, pending);
+};
 const incomingFailureLabel = (
   status: DownloadStatus | undefined,
   changes: ChangeStatus | undefined,
   attentionError?: string | null
 ) => {
   const pending = Boolean(status?.pendingChanges);
-  if (changes?.error === "authentication_required") {
-    return pending
-      ? translate("signInToSyncChangesWaiting")
-      : translate("signInToSync");
-  }
-  if (changes?.error === "network_unavailable") {
-    return pending
-      ? translate("offlineChangesWaitingToSync")
-      : translate("offline");
+  const connection = incomingConnectionLabel(changes?.error ?? null, pending);
+  if (connection) {
+    return connection;
   }
   if (changes?.error === "snapshot_required") {
     return translate("libraryRecoveryRequired");
@@ -218,6 +220,10 @@ const ConnectionDetails = ({
       upload?.error === "network_unavailable" ? (
         <p>{t("offlineDurablySavedWorkRemainsOnThisDeviceAndWill")}</p>
       ) : null}
+      {changes?.error !== "certificate_untrusted" &&
+      upload?.error === "certificate_untrusted" ? (
+        <p>{t("windowsDoesNotTrustThisServerSCertificateNothingWasSent")}</p>
+      ) : null}
       {!signedIn ||
       changes?.error === "authentication_required" ||
       upload?.error === "authentication_required" ? (
@@ -264,6 +270,9 @@ const incomingExplanation = (error: string) => {
   }
   if (error === "snapshot_required") {
     return translate("thisLibraryNeedsARecoveryDownload");
+  }
+  if (error === "certificate_untrusted") {
+    return translate("windowsDoesNotTrustThisServerSCertificateNothingWasSent");
   }
   return translate(
     "synchronizationRetriesWhenTheConnectionAndAccountAreAvailable"

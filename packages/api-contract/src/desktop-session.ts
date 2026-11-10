@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { legalLinksSchema } from "./legal";
+
 // Native command contracts; bearer credentials never enter renderer responses.
 export const desktopStatusSchema = z.strictObject({
   state: z.enum([
@@ -18,6 +20,8 @@ export const desktopStatusSchema = z.strictObject({
   userCode: z.string().nullable(),
   message: z.string(),
   pollAfterMs: z.number().nonnegative(),
+  // The selected instance's operator links, as received from its discovery.
+  legal: legalLinksSchema.nullable().optional(),
 });
 export const signOutRequestSchema = z
   .strictObject({

@@ -1,0 +1,177 @@
+name: Build rehearsal target
+
+# Builds a private rehearsal target (ADR-0001): the reserved version's candidate
+# commit with only the version changed, signed with the official updater key.
+# It never creates a tag, GitHub Release or draft release. Its installer,
+# signature and signing evidence leave the runner only encrypted, because
+# workflow artifacts of this public repository are downloadable by any
+# signed-in GitHub user.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Rehearsal target version listed in infrastructure/update-channel/reserved-rehearsal-versions.json. Its candidate comes from the reserved-versions list.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: rehearsal-target
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    permissions:
+      # GitHub lists draft releases only to tokens with write access. This job
+      # only reads; it never creates tags or releases.
+      contents: write
+      actions: read
+    outputs:
+      version: ${{ steps.policy.outputs.version }}
+      candidate-tag: ${{ steps.policy.outputs.candidate-tag }}
+      candidate-commit: ${{ steps.policy.outputs.candidate-commit }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: infrastructure/update-channel
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Accept only an unused reserved version of a built candidate
+        id: policy
+        run: |
+          candidate=$(bun infrastructure/update-channel/release-versions.ts rehearsal "$VERSION")
+          candidate_tag="v$candidate"
+          target_tag="v$VERSION"
+          releases=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100")
+          if [ "$(jq --arg tag "$target_tag" '[.[][] | select(.tag_name == $tag)] | length' <<< "$releases")" != 0 ]; then
+            echo "::error::$target_tag has a release or draft; rehearsal targets are never released." >&2
+            exit 1
+          fi
+          if [ -n "$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$target_tag" --jq ".[] | select(.ref == \"refs/tags/$target_tag\") | .ref")" ]; then
+            echo "::error::Tag $target_tag exists; rehearsal targets are never tagged." >&2
+            exit 1
+          fi
+          for artifact in "rehearsal-target-$VERSION" "desktop-candidate-$target_tag"; do
+            if [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$artifact&per_page=1" --jq .total_count)" != 0 ]; then
+              echo "::error::$VERSION already has build artifacts ($artifact, expired or not); never rebuild a consumed version." >&2
+              exit 1
+            fi
+          done
+          if [ "$(jq --arg tag "$candidate_tag" '[.[][] | select(.tag_name == $tag)] | length' <<< "$releases")" = 0 ]; then
+            echo "::error::Candidate $candidate_tag has no release; build the candidate with the desktop candidate workflow first." >&2
+            exit 1
+          fi
+          candidate_commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$candidate_tag" --jq .sha)
+          {
+            echo "version=$VERSION"
+            echo "candidate-tag=$candidate_tag"
+            echo "candidate-commit=$candidate_commit"
+          } >> "$GITHUB_OUTPUT"
+          echo "Rehearsal target $VERSION from candidate $candidate_tag at $candidate_commit" >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: preflight
+    runs-on: windows-latest
+    environment: desktop-signing
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
+      CANDIDATE_COMMIT: ${{ needs.preflight.outputs.candidate-commit }}
+      PR0_UPDATE_ENDPOINT: https://pr0.umami-creative.app/update/
+      VITE_API_BASE_URL: https://pr0.umami-creative.app/
+    steps:
+      - name: Require the rehearsal artifact key
+        shell: pwsh
+        env:
+          PR0_REHEARSAL_ARTIFACT_KEY: ${{ secrets.PR0_REHEARSAL_ARTIFACT_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PR0_REHEARSAL_ARTIFACT_KEY)) {
+            throw 'Configure PR0_REHEARSAL_ARTIFACT_KEY in the desktop-signing environment; rehearsal artifacts never leave the runner unencrypted.'
+          }
+      # Rehearsal tooling and the reserved versions come from the default branch,
+      # never from the candidate commit being rebuilt.
+      - name: Read release policy from the default branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: release-policy
+          sparse-checkout: infrastructure/update-channel
+          persist-credentials: false
+      - name: Keep release policy outside the candidate checkout
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse release-policy/infrastructure/update-channel (Join-Path $env:RUNNER_TEMP 'release-policy')
+          Remove-Item -Recurse -Force release-policy
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.candidate-commit }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: dtolnay/rust-toolchain@1.94.0
+      - name: Change only the version
+        shell: pwsh
+        run: |
+          bun (Join-Path $env:RUNNER_TEMP 'release-policy/rehearsal-target.ts') prepare . $env:VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'The candidate commit cannot become this rehearsal target.' }
+          git diff --stat
+      - run: bun install --frozen-lockfile
+      - name: Build and independently verify signed installer
+        env:
+          PR0_UPDATE_PUBLIC_KEY: ${{ secrets.PR0_UPDATE_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bun run --cwd apps/desktop release
+      - name: Seal private artifacts
+        shell: pwsh
+        env:
+          PR0_REHEARSAL_ARTIFACT_KEY: ${{ secrets.PR0_REHEARSAL_ARTIFACT_KEY }}
+        run: |
+          $bundle = 'apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis'
+          bun (Join-Path $env:RUNNER_TEMP 'release-policy/rehearsal-target.ts') seal $bundle (Join-Path $env:RUNNER_TEMP 'sealed') $env:VERSION $env:CANDIDATE_COMMIT
+          if ($LASTEXITCODE -ne 0) { throw 'Sealing the rehearsal target failed.' }
+      # Only sealed files are uploaded; there is deliberately no plaintext
+      # fallback upload on failure.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rehearsal-target-${{ needs.preflight.outputs.version }}
+          path: ${{ runner.temp }}/sealed/
+          if-no-files-found: error
+          retention-days: 90
+
+  verify:
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    environment: desktop-signing
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: sudo apt-get update && sudo apt-get install -y minisign
+      - uses: actions/download-artifact@v7
+        with:
+          name: rehearsal-target-${{ needs.preflight.outputs.version }}
+          path: ${{ runner.temp }}/sealed
+      - name: Verify hash, updater signature and signed version with Minisign
+        env:
+          PR0_REHEARSAL_ARTIFACT_KEY: ${{ secrets.PR0_REHEARSAL_ARTIFACT_KEY }}
+          PR0_UPDATE_PUBLIC_KEY: ${{ secrets.PR0_UPDATE_PUBLIC_KEY }}
+        run: bun infrastructure/update-channel/verify-rehearsal.ts "$RUNNER_TEMP/sealed" | tee -a "$GITHUB_STEP_SUMMARY"

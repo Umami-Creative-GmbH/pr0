@@ -1,0 +1,22 @@
+# One verified encrypted backup of the hosted stack, reported to the dead-man's switch.
+# Install: see docs/operations/hosted.md#backup-timer
+[Unit]
+Description=pr0 verified backup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# The pinned checkout; its .env selects the project name, overlay and release images.
+WorkingDirectory=/opt/pr0
+# The check URL is a secret: a root-owned 0600 file, exposed to this run only under %d.
+LoadCredential=backup-heartbeat-url:/etc/pr0/credentials/backup-heartbeat-url
+Environment=PR0_HEARTBEAT_URL_FILE=%d/backup-heartbeat-url
+# The maintenance lock is shared with redeploy.ts, so a backup never runs during an
+# upgrade. A lock wait that times out exits 1 and is reported like any failed backup.
+# Every run reports backup create's real exit code; the unit exits with the same code.
+ExecStart=/bin/sh -c 'flock --wait 1200 /run/lock/pr0-maintenance.lock docker compose run --rm backup create; code=$?; infrastructure/probe-host/heartbeat.sh "$code" || true; exit "$code"'
+# Shorter than the 30-minute period; a hung run is also caught by the missed heartbeat.
+TimeoutStartSec=25min
+UMask=0077

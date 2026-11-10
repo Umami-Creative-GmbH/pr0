@@ -1,6 +1,6 @@
 # Run an independent pr0 instance
 
-Build the web/API, mail worker and operator tools from one checked-out release. The official Windows desktop can connect to this instance at runtime; its executable updates continue to come from the independent official update channel. No registry images are published for the MVP. Use the annotated `v0.1.0` tag once released; until then pin the exact candidate commit and retain its images. A GitHub source download is also usable if its release/commit identity is recorded.
+Build the web/API, mail worker and operator tools from one checked-out release. The official Windows desktop can connect to this instance at runtime; its executable updates continue to come from the independent official update channel. No registry images are published for the MVP. Use the annotated version tag of a released version, such as `v0.1.0` for the first MVP release (failed candidates use up their versions, so check the [GitHub Releases](https://github.com/Umami-Creative-GmbH/pr0/releases) for the actual number; see the [version policy](update-channel.md#version-policy)). Until then pin the exact candidate commit and retain its images. A GitHub source download is also usable if its release/commit identity is recorded.
 
 You choose the host, domain, trusted HTTPS ingress, SMTP service, backup destination, monitoring and resource allocation. The 2-vCPU/4-GiB/64-GiB workload benchmark is a validation fixture, not a minimum or purchase requirement. Current measured platforms, exact versions and limitations are in [the self-hosting validation report](self-hosting-validation.md). A multi-platform image manifest alone does not establish successful execution.
 
@@ -36,6 +36,7 @@ Secret files must be readable by the actual container identities: Bun services u
 | `PR0_ORIGIN` | One canonical web/API origin, e.g. `https://prompts.example.org`; no path, query, fragment or credentials |
 | `PR0_BIND_ADDRESS`, `PR0_PORT` | Defaults to `127.0.0.1:3000`; publish only to your trusted ingress |
 | `PR0_REGISTRATION` | `closed` by default; also `allowlist` or `open` |
+| `PR0_IMPRESSUM_URL`, `PR0_PRIVACY_URL`, `PR0_TERMS_URL` | Optional absolute HTTPS URLs (no credentials, at most 2048 characters) of your Impressum, privacy policy and terms of use. Configured links appear on web sign-in, sign-up and the app footer, and desktops receive them through negotiated discovery. Empty settings hide the link; pr0 has no built-in defaults. Invalid values stop the web server at startup. Recreate web after changing them. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS`, `SMTP_FROM` | Verified sender and SMTP endpoint; `starttls` requires STARTTLS (usually 587), `tls` uses implicit TLS (usually 465) |
 | `SMTP_USER` | Optional SMTP login name |
 
@@ -78,6 +79,51 @@ A host reverse proxy can target the loopback published port. A container ingress
 
 The server builds authentication/email links from `PR0_ORIGIN`, uses Secure/HttpOnly cookies on HTTPS and verifies browser origins. Only ingress that strips incoming `X-Pr0-Ingress-Secret` and `X-Pr0-Client-IP`, then writes its own configured secret and observed client IP, may provide rate-limit identity. Resolve explicitly trusted proxy chains at that boundary. Arbitrary `X-Forwarded-For`/Host headers are never identity. Without authenticated ingress, requests use a conservative shared IP bucket; configure ingress before admitting many users. Never expose token-bearing query strings, bodies, prompt content or variable values in ingress logs.
 
+### Optional example ingress behind an edge proxy
+
+`infrastructure/ingress` is an optional nginx image that implements these rules between an edge proxy, such as Coolify's Traefik, and `web:3000`. It is an example in the same style as the update-channel image, not a requirement: any ingress that meets the rules above works. It changes nothing in the application; it only supplies the authenticated `X-Pr0-Ingress-Secret`/`X-Pr0-Client-IP` boundary. Build it from the same checkout with `docker build -t pr0-ingress:my-release infrastructure/ingress`.
+
+| Setting | Behavior |
+| --- | --- |
+| `PR0_INGRESS_SECRET_FILE` (or `PR0_INGRESS_SECRET`) | The same value as the web service's `PR0_INGRESS_SECRET`; at least 32 characters of `A-Z a-z 0-9 . _ ~ + / = -`, e.g. `openssl rand -hex 32`. The file wins, as for the application |
+| `PR0_INGRESS_TRUSTED_PROXIES` | Required. Comma- or space-separated addresses/CIDRs of the edge proxy. Only peers in this list may supply `X-Forwarded-For` |
+| `PR0_INGRESS_METRICS_ALLOW` | Optional probe addresses/CIDRs allowed to reach `/api/v1/operations/`. Empty refuses everyone |
+| `PR0_INGRESS_UPSTREAM` | `web:3000` by default |
+| `PR0_INGRESS_RESOLVER` | Docker's embedded DNS `127.0.0.11` by default, so a recreated web container is found again |
+
+The container starts only with a valid secret and trusted-proxy list. It runs as the image's `nginx` user, listens on port 8080 and declares a Docker health check on an internal loopback-only port. Its behavior:
+
+- Real-IP information is accepted only from `PR0_INGRESS_TRUSTED_PROXIES`. `X-Forwarded-For` is walked right to left, skipping trusted proxies, so entries a client prepended are never used. Any other peer is attributed by its socket address.
+- `X-Pr0-Ingress-Secret` and `X-Pr0-Client-IP` are always overwritten with the configured secret and the resolved client. `X-Forwarded-For` is replaced by that client. Incoming `X-Real-IP`, `Forwarded` and the application's internal `X-Pr0-*` headers are dropped. The application then forms IPv4 /32 and IPv6 /64 buckets.
+- Bodies above 4 MiB get 413 and any `Content-Encoding` other than `identity` gets 415, before reaching the application. Upstream reads allow 60 seconds, which covers the 25-second long poll, and response buffering is off.
+- `/api/v1/operations/` answers 404 unless the resolved client is in `PR0_INGRESS_METRICS_ALLOW`. The application still requires the metrics bearer secret.
+- **Redaction:** the access log is one JSON line per request with time, client address, method, path without query string, status, bytes, duration and upstream status. It never contains `Authorization`, cookies, bodies or query strings. nginx's error log embeds request lines, including query strings, so it is limited to process-level alerts; use the access log's status and upstream status to diagnose requests.
+
+Behind Coolify's Traefik, run the ingress as a service of the same Compose project, attach it to the project's default network and to Coolify's proxy network (`coolify` by default), and route the instance's domain to the ingress on port 8080 instead of to `web`. Set `PR0_INGRESS_TRUSTED_PROXIES` to that network's subnet (`docker network inspect coolify --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}'`). Every container on that network can then supply forwarded headers, so attach only trusted services to it, or use Traefik's own address if you pin it. Traefik records the peer it sees in `X-Forwarded-For`, which the ingress resolves. If a CDN or another proxy sits in front of Traefik, also list its published address ranges, otherwise every client is attributed to that proxy. Set `PR0_INGRESS_METRICS_ALLOW` to the probe host's public address as Traefik sees it. Remove the web service's published port, or keep it on loopback, so the ingress is the only public path. Use `/api/v1/health` through the ingress for Coolify's HTTP health check. A minimal overlay:
+
+```yaml
+services:
+  ingress:
+    image: pr0-ingress:my-release
+    build: infrastructure/ingress
+    environment:
+      PR0_INGRESS_SECRET_FILE: /run/secrets/PR0_INGRESS_SECRET
+      PR0_INGRESS_TRUSTED_PROXIES: 10.0.1.0/24
+      PR0_INGRESS_METRICS_ALLOW: 203.0.113.7
+    secrets: [PR0_INGRESS_SECRET]
+    networks: [default, edge]
+    restart: unless-stopped
+    depends_on: [web]
+networks:
+  edge:
+    external: true
+    name: coolify
+```
+
+The hosted service uses a complete version of this arrangement: [`compose.hosted.yaml`](../../compose.hosted.yaml), with Traefik labels, file secrets and a redeploy script. See [the hosted runbook](hosted.md).
+
+Rotate the ingress secret by replacing the file and recreating `ingress` and `web` together; during the gap, clients fall back to the shared `untrusted` bucket. `bun run --cwd apps/web test:ingress` exercises the image through the self-hosting fixture (see [service health](service-health.md#trusted-ingress)).
+
 To enable Google or GitHub, register your own provider application and configure its client ID and secret (or `_FILE`). Exact callbacks are:
 
 ```text
@@ -89,7 +135,7 @@ Keep development and production provider apps separate; request the identity/ema
 
 ## Connect the Windows desktop
 
-Install the official Windows application from the official download channel, then select this instance's **HTTPS** origin in the app before sign-in. The user's Windows certificate store must trust its certificate, including any private CA. Never disable certificate verification. Start sign-in, check the instance and matching code in the opened browser, sign in with verified email and approve that code. Return to the app and let it download the library.
+Install the official Windows application from the official download channel, then select this instance's **HTTPS** origin in the app before sign-in. The user's Windows certificate store must trust its certificate, including any private CA: the desktop validates instance certificates with Windows (certificate store, revocation and enterprise policy), not a bundled root list. For a private CA, install its root in the Windows **Trusted Root Certification Authorities** store (per user, or machine-wide via policy) on each desktop; if the browser on that machine trusts the instance, the desktop does too. If Windows does not trust the certificate, the app shows **Untrusted certificate** (distinct from Offline), sends nothing and keeps local work and pending changes until the certificate is trusted. Never disable certificate verification. Accepting roots that Windows trusts is a compatibility commitment ([ADR-0003](../adr/0003-desktop-trusts-the-windows-certificate-store.md)): later releases will not narrow it to public roots, so a private-CA deployment keeps working across updates. Start sign-in, check the instance and matching code in the opened browser, sign in with verified email and approve that code. Return to the app and let it download the library.
 
 Disconnect the instance/network, reopen a downloaded prompt, edit it and copy a filled template from the library/launcher. Reconnect; verify pending edits and usage synchronize and the web sees the exact retained text. Filled values must not become template text or upload payloads. Before switching accounts/instances, follow sign-out's pending-work safeguards; retain/export work when instructed. Reauthenticate to the retained identity when a session expires.
 

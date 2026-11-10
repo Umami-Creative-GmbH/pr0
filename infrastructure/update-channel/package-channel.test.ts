@@ -1,97 +1,16 @@
 import { afterEach, expect, test } from "bun:test";
-import { copyFile, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { copyFile, rm } from "node:fs/promises";
 import path from "node:path";
 
-import { packageChannel } from "./package-channel";
+import { packageChannel, verifyRehearsalTarget } from "./package-channel";
+import {
+  commandOutput,
+  removeTemporaryDirectories,
+  signedRelease,
+  temporaryDirectory,
+} from "./test-fixtures";
 
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true }))
-  );
-});
-
-const temporaryDirectory = async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "pr0-channel-test-"));
-  temporaryDirectories.push(directory);
-  return directory;
-};
-
-const minisign = (...args: string[]) => {
-  const result = Bun.spawnSync([
-    process.env.MINISIGN_PATH ?? "minisign",
-    ...args,
-  ]);
-  if (result.exitCode !== 0) {
-    throw new Error(result.stderr.toString());
-  }
-};
-
-const commandOutput = async (command: string[]) => {
-  const child = Bun.spawn(command, { stdout: "pipe", stderr: "pipe" });
-  const [output, error, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  if (exitCode !== 0) {
-    throw new Error(error);
-  }
-  return output.trim();
-};
-
-const signedRelease = async (
-  version: string,
-  keyDirectory?: string,
-  signedVersion = version
-) => {
-  const directory = await temporaryDirectory();
-  const installer = `pr0_${version}_x64-setup.exe`;
-  const installerPath = path.join(directory, installer);
-  const publicPath = path.join(keyDirectory ?? directory, "test.pub");
-  const privatePath = path.join(keyDirectory ?? directory, "test.key");
-  const rawSignaturePath = path.join(directory, "test.minisig");
-  await Bun.write(installerPath, "abc");
-  if (!keyDirectory) {
-    minisign("-G", "-W", "-p", publicPath, "-s", privatePath);
-  }
-  minisign(
-    "-Sm",
-    installerPath,
-    "-s",
-    privatePath,
-    "-x",
-    rawSignaturePath,
-    "-t",
-    `timestamp:0\tversion:${signedVersion}`
-  );
-  const signature = Buffer.from(
-    await Bun.file(rawSignaturePath).text()
-  ).toString("base64");
-  await Bun.write(`${installerPath}.sig`, signature);
-  await Bun.write(
-    path.join(directory, "signing-evidence.json"),
-    JSON.stringify({
-      version,
-      installer,
-      sha256:
-        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-    })
-  );
-  return {
-    directory,
-    notes: "A tested release",
-    version,
-    publicKey: Buffer.from(await Bun.file(publicPath).text()).toString(
-      "base64"
-    ),
-    signature,
-  };
-};
+afterEach(removeTemporaryDirectories);
 
 test("an empty release history packages a channel without a live manifest", async () => {
   const outputDirectory = path.join(await temporaryDirectory(), "channel");
@@ -203,6 +122,70 @@ test.each(["../0.1.0", "01.0.0", "0.1.1", "0.2.0-beta.1"])(
         publicKey: "",
       })
     ).rejects.toThrow("Invalid public version");
+  }
+);
+
+test("a newly reserved rehearsal version is refused by live packaging even when validly signed", async () => {
+  const release = await signedRelease("0.1.3");
+  await expect(
+    packageChannel({
+      releases: [release],
+      outputDirectory: path.join(await temporaryDirectory(), "channel"),
+      publicKey: release.publicKey,
+      reservations: [
+        { version: "0.1.1", candidate: "0.1.0" },
+        { version: "0.1.3", candidate: "0.1.2" },
+      ],
+    })
+  ).rejects.toThrow("reserved for a rehearsal target");
+});
+
+test("a signed reserved rehearsal target passes rehearsal verification", async () => {
+  const target = await signedRelease("0.1.1");
+  expect(
+    await verifyRehearsalTarget({
+      directory: target.directory,
+      publicKey: target.publicKey,
+      version: "0.1.1",
+    })
+  ).toEqual({
+    installer: "pr0_0.1.1_x64-setup.exe",
+    signature: target.signature,
+  });
+});
+
+test("the rehearsal path refuses a signed version that is not reserved", async () => {
+  const release = await signedRelease("0.1.0");
+  await expect(
+    verifyRehearsalTarget({
+      directory: release.directory,
+      publicKey: release.publicKey,
+      version: "0.1.0",
+    })
+  ).rejects.toThrow("Not a reserved rehearsal version");
+});
+
+test.each(["hash", "signed version"])(
+  "rehearsal verification refuses %s failures",
+  async (failure) => {
+    const target = await signedRelease(
+      "0.1.1",
+      undefined,
+      failure === "signed version" ? "0.1.0" : "0.1.1"
+    );
+    if (failure === "hash") {
+      await Bun.write(
+        path.join(target.directory, "pr0_0.1.1_x64-setup.exe"),
+        "tampered bytes"
+      );
+    }
+    await expect(
+      verifyRehearsalTarget({
+        directory: target.directory,
+        publicKey: target.publicKey,
+        version: "0.1.1",
+      })
+    ).rejects.toThrow();
   }
 );
 

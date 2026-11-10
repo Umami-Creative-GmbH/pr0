@@ -22,6 +22,8 @@ next-env.d.ts
 /.secrets/
 /backups/
 /compose.override.yaml
+# Hosted redeploy records (infrastructure/hosted/redeploy.ts)
+/.deployments/
 .vercel/
 .DS_Store
 *.pem
@@ -34,4 +36,6 @@ next-env.d.ts
 # Generated update-channel image contents (prepared by the release workflow).
 /infrastructure/update-channel/channel/*
 !/infrastructure/update-channel/channel/.gitkeep
+# Private rehearsal channel contents (decrypted rehearsal target; never commit).
+/infrastructure/update-channel/rehearsal-channel/channel/
 .tauri-keys/

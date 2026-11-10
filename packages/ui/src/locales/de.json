@@ -1026,5 +1026,15 @@
   "validationCheckTheVariableValues": "Prüfe die Variablenwerte.",
   "installUpdateAndRestart": "Update installieren und neu starten",
   "saveAndUpdate": "Speichern und aktualisieren",
-  "discardDraftAndUpdate": "Entwurf verwerfen und aktualisieren"
+  "discardDraftAndUpdate": "Entwurf verwerfen und aktualisieren",
+  "untrustedCertificate": "Nicht vertrauenswürdiges Zertifikat",
+  "untrustedCertificateChangesWaiting": "Nicht vertrauenswürdiges Zertifikat · Änderungen warten",
+  "windowsDoesNotTrustThisServerSCertificateNothingWasSent": "Windows vertraut dem Zertifikat dieses Servers nicht, daher wurde nichts gesendet. Das ist kein Verbindungsproblem. Gespeicherte Arbeit bleibt auf diesem Gerät und wird synchronisiert, sobald Windows dem Zertifikat vertraut. Bitte deine Administration, die Zertifizierungsstelle des Servers in Windows zu installieren, und versuche es dann erneut.",
+  "windowsDoesNotTrustThisServerSCertificateSignIn": "Windows vertraut dem Zertifikat dieses Servers nicht, daher hat pr0 keine Verbindung hergestellt. Prüfe die Serveradresse oder bitte deine Administration, die Zertifizierungsstelle des Servers in Windows zu installieren, und versuche es dann erneut. Lokale Arbeit bleibt erhalten.",
+  "windowsDoesNotTrustThisServerSCertificateDownloadPaused": "Windows vertraut dem Zertifikat dieses Servers nicht. Download pausiert; heruntergeladene Prompts bleiben verfügbar. Bitte deine Administration, die Zertifizierungsstelle des Servers in Windows zu installieren, und versuche es dann erneut.",
+  "legalInformation": "Rechtliche Hinweise",
+  "legalNotice": "Impressum",
+  "privacyPolicy": "Datenschutzerklärung",
+  "termsOfUse": "Nutzungsbedingungen",
+  "theLegalPageCouldNotBeOpened": "Die rechtliche Seite konnte nicht im Browser geöffnet werden. Versuche es erneut."
 }

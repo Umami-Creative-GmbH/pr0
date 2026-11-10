@@ -1,0 +1,21 @@
+{
+  "name": "@pr0/probe-host",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "minute": "bun minute.ts",
+    "test": "bun test",
+    "typecheck": "bun --bun tsc --noEmit"
+  },
+  "dependencies": {
+    "@pr0/api-client": "workspace:*",
+    "@pr0/api-contract": "workspace:*",
+    "nodemailer": "7.0.11",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@types/nodemailer": "7.0.4",
+    "typescript": "^5"
+  }
+}

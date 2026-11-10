@@ -102,7 +102,7 @@ Configure independent deletion storage before initialization and switch to its r
 
 The named PostgreSQL volume retains accounts, sessions, and immutable instance identity across container recreation. `/api/v1/ready` checks schema and worker readiness; `/api/v1/health` remains liveness. The [deployment specification](docs/specs/deployment-self-hosting.md) retains the broader requirements for later MVP slices.
 
-The official desktop [update channel on Coolify](docs/operations/update-channel.md) has a separate image in `infrastructure/update-channel`. GitHub Actions builds signed draft candidates; publishing a validated release packages its assets into GHCR and triggers Coolify automatically. The channel needs no persistent release volume or manual file uploads.
+The official desktop [update channel on Coolify](docs/operations/update-channel.md) has a separate image in `infrastructure/update-channel`. GitHub Actions builds signed draft candidates; publishing a validated release packages its assets into GHCR and triggers Coolify automatically. The channel needs no persistent release volume or manual file uploads. The [release act](docs/operations/release-act.md) runbook takes a candidate from the freeze to public release.
 
 ## Shared UI
 

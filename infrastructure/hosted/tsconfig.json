@@ -1,0 +1,5 @@
+{
+  "extends": "../../packages/typescript-config/base.json",
+  "compilerOptions": { "types": ["bun"], "lib": ["ESNext", "DOM"] },
+  "include": ["*.ts"]
+}

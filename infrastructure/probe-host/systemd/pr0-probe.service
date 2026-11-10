@@ -1,0 +1,45 @@
+# One external availability probe minute: canary probe, private metrics poll,
+# ntfy and email alerts, and a heartbeat to the dead-man's switch.
+# Install: see docs/operations/probe-host.md
+[Unit]
+Description=pr0 external availability probe minute
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=pr0-probe
+Group=pr0-probe
+WorkingDirectory=/opt/pr0
+# Non-secret settings only (origin, prompt id, email addresses).
+EnvironmentFile=/etc/pr0-probe/probe.env
+# Secrets are root-owned 0600 files, exposed to this run only under %d (the credentials directory).
+LoadCredential=canary-cookie:/etc/pr0-probe/credentials/canary-cookie
+LoadCredential=metrics-secret:/etc/pr0-probe/credentials/metrics-secret
+LoadCredential=ntfy-url:/etc/pr0-probe/credentials/ntfy-url
+LoadCredential=ntfy-token:/etc/pr0-probe/credentials/ntfy-token
+LoadCredential=smtp-url:/etc/pr0-probe/credentials/smtp-url
+LoadCredential=heartbeat-url:/etc/pr0-probe/credentials/heartbeat-url
+Environment=PR0_PROBE_COOKIE_FILE=%d/canary-cookie
+Environment=PR0_PROBE_METRICS_SECRET_FILE=%d/metrics-secret
+Environment=PR0_ALERT_NTFY_URL_FILE=%d/ntfy-url
+Environment=PR0_ALERT_NTFY_TOKEN_FILE=%d/ntfy-token
+Environment=PR0_ALERT_SMTP_URL_FILE=%d/smtp-url
+Environment=PR0_ALERT_HEARTBEAT_URL_FILE=%d/heartbeat-url
+Environment=PR0_PROBE_EVIDENCE_DIRECTORY=/var/lib/pr0-probe/evidence
+Environment=PR0_PROBE_STATE_FILE=/var/lib/pr0-probe/alert-state.json
+Environment=BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+ExecStart=/usr/local/bin/bun infrastructure/probe-host/minute.ts
+# A run that overlaps the next minute is stopped; that minute then has no sample and counts unavailable.
+TimeoutStartSec=58
+StateDirectory=pr0-probe
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes

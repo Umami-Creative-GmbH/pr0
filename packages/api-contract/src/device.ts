@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { legalLinksSchema } from "./legal";
+
 export const deviceClientSchema = z.strictObject({
   client_id: z.literal("pr0-desktop"),
 });
@@ -70,6 +72,8 @@ export const capabilitiesSchema = z.strictObject({
         .max(16),
     })
     .optional(),
+  // Negotiated discovery only: legacy strict desktops reject additional fields.
+  legal: legalLinksSchema.optional(),
 });
 
 // Keep protocol 1 and its normalization together throughout the release window.
