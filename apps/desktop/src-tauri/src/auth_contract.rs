@@ -59,6 +59,45 @@ pub struct Capabilities {
     // Negotiation is fresh network evidence, not persisted session metadata.
     #[serde(default, skip_serializing)]
     pub compatibility: Option<Compatibility>,
+    // The instance operator's pages, retained so signed-in chrome can show them offline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legal: Option<Legal>,
+}
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Legal {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impressum: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub privacy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terms: Option<String>,
+}
+impl Legal {
+    pub fn link(&self, kind: &str) -> Option<&str> {
+        match kind {
+            "impressum" => self.impressum.as_deref(),
+            "privacy" => self.privacy.as_deref(),
+            "terms" => self.terms.as_deref(),
+            _ => None,
+        }
+    }
+    fn valid(&self) -> bool {
+        [&self.impressum, &self.privacy, &self.terms]
+            .into_iter()
+            .flatten()
+            .all(|link| valid_legal_link(link))
+    }
+}
+/// Only credential-free HTTPS pages may leave the app for the system browser.
+pub fn valid_legal_link(value: &str) -> bool {
+    value.len() <= 2048
+        && url::Url::parse(value).is_ok_and(|url| {
+            url.scheme() == "https"
+                && url.host_str().is_some_and(|host| !host.is_empty())
+                && url.username().is_empty()
+                && url.password().is_none()
+        })
 }
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -182,6 +221,7 @@ impl Capabilities {
             || !base64_key(&self.deletion_key.x)
             || self.limits.credential_bytes != 2560
             || self.limits.response_bytes != 16384
+            || self.legal.as_ref().is_some_and(|legal| !legal.valid())
         {
             return Err("incompatible_instance".into());
         }

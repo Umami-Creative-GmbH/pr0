@@ -6,6 +6,8 @@ import type {
   DesktopStatus,
   SignOutRequest,
 } from "@pr0/api-contract/desktop-session";
+import { legalLinkKinds } from "@pr0/api-contract/legal";
+import type { LegalLinkKind } from "@pr0/api-contract/legal";
 import { translate } from "@pr0/ui/lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,19 +23,24 @@ export type Command =
   | "auth_poll"
   | "auth_cancel"
   | "auth_open_browser"
+  | "auth_open_legal"
   | "auth_refresh"
   | "auth_sign_out";
 export type AuthRun = (
   name: Command,
   input?: string | SignOutRequest
 ) => Promise<Status | undefined>;
-const command = async (name: Command, input?: string | SignOutRequest) => {
-  const args =
-    name === "auth_sign_out"
-      ? { request: signOutRequestSchema.parse(input) }
-      : { origin: z.string().optional().parse(input) };
-  return desktopStatusSchema.parse(await invoke(name, args));
+const commandArgs = (name: Command, input?: string | SignOutRequest) => {
+  if (name === "auth_sign_out") {
+    return { request: signOutRequestSchema.parse(input) };
+  }
+  if (name === "auth_open_legal") {
+    return { kind: z.enum(legalLinkKinds).parse(input) };
+  }
+  return { origin: z.string().optional().parse(input) };
 };
+const command = async (name: Command, input?: string | SignOutRequest) =>
+  desktopStatusSchema.parse(await invoke(name, commandArgs(name, input)));
 const errorKeys = {
   invalid_deletion_evidence:
     "deletionEvidenceCouldNotBeVerifiedLocalWorkIsPreserved" as const,
@@ -195,5 +202,14 @@ export const useAuthSession = () => {
       clearTimeout(timer);
     };
   }, [status, apply, run]);
-  return { status, busy, error: errorText, notice, run };
+  // Opening a legal page leaves focus and pending work in place.
+  const openLegal = useCallback(async (kind: LegalLinkKind) => {
+    try {
+      await command("auth_open_legal", kind);
+    } catch {
+      setErrorText(translate("theLegalPageCouldNotBeOpened"));
+      notice.current?.focus();
+    }
+  }, []);
+  return { status, busy, error: errorText, notice, run, openLegal };
 };

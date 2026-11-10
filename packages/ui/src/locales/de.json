@@ -1026,5 +1026,10 @@
   "validationCheckTheVariableValues": "Prüfe die Variablenwerte.",
   "installUpdateAndRestart": "Update installieren und neu starten",
   "saveAndUpdate": "Speichern und aktualisieren",
-  "discardDraftAndUpdate": "Entwurf verwerfen und aktualisieren"
+  "discardDraftAndUpdate": "Entwurf verwerfen und aktualisieren",
+  "legalInformation": "Rechtliche Hinweise",
+  "legalNotice": "Impressum",
+  "privacyPolicy": "Datenschutzerklärung",
+  "termsOfUse": "Nutzungsbedingungen",
+  "theLegalPageCouldNotBeOpened": "Die rechtliche Seite konnte nicht im Browser geöffnet werden. Versuche es erneut."
 }

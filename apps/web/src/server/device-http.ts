@@ -16,6 +16,7 @@ import {
 } from "@pr0/api-contract/device";
 import { z } from "zod";
 
+import { hasLegalLinks } from "../lib/legal-links";
 import { failure, readBody } from "./account-http";
 import {
   AccountFailureError,
@@ -26,7 +27,7 @@ import {
   clientBucket,
 } from "./admission";
 import { authentication } from "./auth";
-import { configuration } from "./config";
+import { configuration, legalLinks } from "./config";
 import { database } from "./database";
 import { deletionInstance } from "./deletion-coordinator";
 import { signingKeys } from "./deletion-signing";
@@ -213,6 +214,9 @@ export const handleCapabilities = async (request: Request) => {
       await admitAnonymous(request);
       const instanceId = await deletionInstance();
       const keys = await signingKeys(instanceId);
+      const negotiated =
+        new URL(request.url).searchParams.get("negotiation") === "1";
+      const legal = legalLinks();
       return response(
         capabilitiesSchema.parse({
           instanceId,
@@ -224,10 +228,8 @@ export const handleCapabilities = async (request: Request) => {
           limits: { credentialBytes: 2560, responseBytes: 16_384 },
           // Legacy desktops reject additional fields. Discovery is opt-in until
           // the last strict legacy release leaves the support window.
-          compatibility:
-            new URL(request.url).searchParams.get("negotiation") === "1"
-              ? compatibilityPolicy
-              : undefined,
+          compatibility: negotiated ? compatibilityPolicy : undefined,
+          legal: negotiated && hasLegalLinks(legal) ? legal : undefined,
         })
       );
     });

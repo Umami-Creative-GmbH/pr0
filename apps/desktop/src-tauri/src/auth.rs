@@ -23,6 +23,7 @@ pub struct AuthView {
     user_code: Option<String>,
     message: String,
     poll_after_ms: u64,
+    legal: Option<Legal>,
 }
 struct Attempt {
     trust: Capabilities,
@@ -110,7 +111,15 @@ impl State {
                         .as_millis() as u64
                 })
                 .unwrap_or(0),
+            legal: self.trust().and_then(|trust| trust.legal.clone()),
         }
+    }
+    /// The selected instance: a pending approval's server, else the retained one.
+    fn trust(&self) -> Option<&Capabilities> {
+        self.attempt
+            .as_ref()
+            .map(|a| &a.trust)
+            .or_else(|| self.retained.as_ref().map(|r| &r.trust))
     }
 }
 impl AuthService {
@@ -293,6 +302,19 @@ impl AuthService {
         let attempt = state.attempt.as_ref().ok_or("approval_required")?;
         self.transport
             .open_browser(&attempt.code.verification_uri_complete)?;
+        Ok(state.view())
+    }
+    /// Opens only a link the selected instance published; the renderer names a kind, never a URL.
+    pub fn open_legal(&self, kind: &str) -> Result<AuthView, String> {
+        let state = self.state.lock().map_err(|_| "state_unavailable")?;
+        let link = state
+            .trust()
+            .and_then(|trust| trust.legal.as_ref())
+            .and_then(|legal| legal.link(kind))
+            .filter(|link| valid_legal_link(link))
+            .ok_or("legal_link_unavailable")?
+            .to_owned();
+        self.transport.open_browser(&link)?;
         Ok(state.view())
     }
     pub fn poll(&self) -> Result<AuthView, String> {
