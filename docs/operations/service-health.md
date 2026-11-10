@@ -49,6 +49,18 @@ Next.js Request does not expose its peer socket. Production ingress must therefo
 
 Configure HTTPS, decoded body limits and timeouts at the ingress too. Allow at least 35 seconds for the 25-second long poll. Never log authorization, cookies, bodies, email links or query strings at the proxy.
 
+The optional [example ingress](self-hosting.md#optional-example-ingress-behind-an-edge-proxy) in `infrastructure/ingress` applies these rules behind an edge proxy such as Coolify's Traefik. It trusts `X-Forwarded-For` only from `PR0_INGRESS_TRUSTED_PROXIES` and resolves it right to left. It overwrites both pr0 headers, rejects bodies above 4 MiB (413) and compressed bodies (415), allows 60 seconds for upstream reads and disables response buffering. It answers 404 on `/api/v1/operations/` unless the client is in `PR0_INGRESS_METRICS_ALLOW`, so keep the bearer secret _and_ list only the probe host there. Its access log records time, client address, method, path without query string, status, bytes, duration and upstream status, and never `Authorization`, cookies, bodies or query strings. Its error log is limited to process-level alerts, because nginx error entries embed the full request line.
+
+Verify the example through the self-hosting fixture (Docker required):
+
+```sh
+docker build --target runtime -t pr0-self-host-62 .
+docker build --target migration-runtime -t pr0-self-host-tools-62 .
+bun run --cwd apps/web test:ingress
+```
+
+The test builds the ingress image and adds it to a disposable self-hosting project, with a stand-in edge proxy that appends the observed peer to any client-supplied `X-Forwarded-For` (a worse case than Traefik, which discards untrusted forwarded headers). Containers with fixed IPv4 and IPv6 addresses act as real clients, the probe and a peer outside the trusted network. It lowers `PR0_LIMIT_AUTH_MINUTE` to 10 for that project and checks the following. Forged pr0 and forwarded headers, even with the real ingress secret, stay in the sender's bucket. Separate IPv4 addresses and separate IPv6 /64s get separate buckets, while addresses within one /64 share a bucket. Oversized and compressed bodies are rejected before the application. The 25-second long poll completes. Metrics are refused for other addresses and for forged forwarding. The image runs as non-root and reports healthy. Its logs contain no query, credential or cookie values. `PR0_SELF_HOST_IMAGE`/`PR0_SELF_HOST_TOOLS_IMAGE` select other test tags.
+
 ## Readiness, metrics and alerts
 
 `GET /api/v1/health` reports process liveness. `GET /api/v1/ready` separately reports usable schema, deletion replay/ledger access, mail heartbeat and known search projection readiness. Projection checkpoints must match the current local file identity, modification time, size and index format, as well as the database epoch/revision. Missing, replaced or stale projections report `search_preparing`, HTTP 503 and a retry delay. Search catches up on demand; liveness alone is not availability. Failed readiness also produces the `readiness_unavailable` operational alert.

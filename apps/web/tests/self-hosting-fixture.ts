@@ -37,7 +37,8 @@ const availablePort = async () => {
   await reservation.stop(true);
   return port;
 };
-export const selfHostingFixture = async () => {
+// Extra Compose files layered after the disposable override, e.g. an ingress.
+export const selfHostingFixture = async (composeFiles: string[] = []) => {
   await mkdir(path.join(root, ".scratch"), { recursive: true });
   const directory = await mkdtemp(path.join(root, ".scratch/self-hosting-"));
   const project = `pr0-self-host-${crypto.randomUUID().slice(0, 8)}`;
@@ -163,6 +164,7 @@ export const selfHostingFixture = async () => {
         path.join(root, "compose.yaml"),
         "-f",
         override,
+        ...composeFiles.flatMap((file) => ["-f", file]),
         ...args,
       ],
       {

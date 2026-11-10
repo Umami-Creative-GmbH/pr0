@@ -9,6 +9,7 @@
     "ops:build": "bun build scripts/accounts.ts scripts/deletions.ts scripts/restore.ts scripts/backup.ts scripts/operations.ts scripts/availability.ts scripts/mail-worker.ts scripts/search-worker.ts --target=bun --conditions=react-server --outdir=.operations",
     "test:operations": "bun --env-file=tests/operations.env tests/operations-runner.ts",
     "test:self-hosting": "bun tests/self-hosting-runner.ts",
+    "test:ingress": "bun test ./tests/ingress.test.ts",
     "operations": "bun --conditions=react-server scripts/operations.ts",
     "availability": "bun scripts/availability.ts",
     "deletions": "bun --conditions=react-server scripts/deletions.ts",
