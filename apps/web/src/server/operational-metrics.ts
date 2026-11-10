@@ -16,7 +16,9 @@ const storageAlerts = (
   for (const name of ["database", "search", "ledger-a", "ledger-b", "backup"]) {
     const volume = volumes.find((entry) => entry.name === name && !entry.stale);
     if (!volume) {
+      // The aggregate alert stays for existing monitors; the named one shows which host to fix.
       alerts.add("storage_coverage_missing");
+      alerts.add(`storage_coverage_missing:${name}`);
     } else if (volume.usedPercent >= 80) {
       alerts.add(`storage_critical:${name}`);
     } else if (volume.usedPercent >= 70) {

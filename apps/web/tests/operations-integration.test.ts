@@ -5,6 +5,7 @@ import { mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { createChangeClient } from "@pr0/api-client/changes";
+import { operationalMetricsSchema } from "@pr0/api-contract/operations";
 import { SQL } from "bun";
 
 import serviceFailures from "../../../packages/api-contract/src/service-failure-fixtures.json";
@@ -162,6 +163,84 @@ test("storage alerts start at seventy percent and escalate at eighty including m
     expect(metrics.alerts).toContain("storage_expand:database");
     expect(metrics.alerts).toContain("storage_critical:ledger-a");
     expect(metrics.alerts).toContain("storage_coverage_missing");
+    expect(metrics.alerts).toContain("storage_coverage_missing:search");
+  } finally {
+    await sql`DELETE FROM storage_observation`;
+    await sql.close();
+  }
+});
+
+const recordStorage = async (...args: string[]) => {
+  const child = Bun.spawn(
+    [
+      "bun",
+      "--conditions=react-server",
+      "apps/web/scripts/operations.ts",
+      "record-storage",
+      ...args,
+    ],
+    { env: process.env, stdout: "pipe", stderr: "pipe" }
+  );
+  const output = await new Response(child.stdout).text();
+  return { exitCode: await child.exited, output };
+};
+const storageMetrics = async () => {
+  const response = await fetch(`${origin}/api/v1/operations/metrics`, {
+    headers: { Authorization: "Bearer local-operations-metrics-secret" },
+  });
+  return operationalMetricsSchema.parse(await response.json());
+};
+
+test("externally recorded storage rejects invalid measurements without writing", async () => {
+  const sql = new SQL(process.env.DATABASE_URL ?? "");
+  try {
+    for (const args of [
+      ["ledger-c", "1000", "10"],
+      ["ledger-a", "1000.5", "10"],
+      ["ledger-a", "1000", "-1"],
+      ["ledger-a", "1e3", "10"],
+      ["ledger-a", "0", "0"],
+      ["ledger-a", "1000", "1001"],
+      ["ledger-a", "1000"],
+      ["ledger-a", "1000", "10", "extra"],
+    ]) {
+      // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each rejected command must finish before checking for writes.
+      expect((await recordStorage(...args)).exitCode).not.toBe(0);
+    }
+    expect(await sql`SELECT name FROM storage_observation`).toHaveLength(0);
+  } finally {
+    await sql`DELETE FROM storage_observation`;
+    await sql.close();
+  }
+});
+
+test("recording both ledgers clears their missing coverage until it becomes stale", async () => {
+  const sql = new SQL(process.env.DATABASE_URL ?? "");
+  try {
+    let metrics = await storageMetrics();
+    expect(metrics.alerts).toContain("storage_coverage_missing:ledger-a");
+    expect(metrics.alerts).toContain("storage_coverage_missing:ledger-b");
+    const recorded = await recordStorage("ledger-a", "1000", "100");
+    expect(recorded.exitCode).toBe(0);
+    expect(recorded.output).toContain('"event":"storage_recorded"');
+    expect((await recordStorage("ledger-b", "1000", "100")).exitCode).toBe(0);
+    metrics = await storageMetrics();
+    expect(metrics.alerts).not.toContain("storage_coverage_missing:ledger-a");
+    expect(metrics.alerts).not.toContain("storage_coverage_missing:ledger-b");
+    expect(metrics.alerts).toContain("storage_coverage_missing:database");
+    expect(metrics.storage.volumes).toContainEqual(
+      expect.objectContaining({ name: "ledger-b", usedBytes: 100 })
+    );
+    expect((await recordStorage("ledger-a", "1000", "700")).exitCode).toBe(0);
+    expect((await recordStorage("ledger-b", "1000", "800")).exitCode).toBe(0);
+    metrics = await storageMetrics();
+    expect(metrics.alerts).toContain("storage_expand:ledger-a");
+    expect(metrics.alerts).toContain("storage_critical:ledger-b");
+    await sql`UPDATE storage_observation SET sampled_at=clock_timestamp()-interval '6 minutes' WHERE name='ledger-a'`;
+    metrics = await storageMetrics();
+    expect(metrics.alerts).toContain("storage_coverage_missing:ledger-a");
+    expect(metrics.alerts).not.toContain("storage_expand:ledger-a");
+    expect(metrics.alerts).not.toContain("storage_coverage_missing:ledger-b");
   } finally {
     await sql`DELETE FROM storage_observation`;
     await sql.close();

@@ -67,7 +67,59 @@ bun run --cwd apps/web operations sample-storage ledger-b /mounted/ledger-b-volu
 bun run --cwd apps/web operations sample-storage backup /mounted/backup-volume
 ```
 
-These commands measure filesystem capacity, including WAL, indexes, retained receipts/history, journals and other overhead. Do not report the web container's root filesystem as a remote database disk. Coverage older than five minutes is missing. `storage_expand:<name>` fires at 70%; arrange expansion immediately and complete it **before 80%**. At 80%, `storage_critical:<name>` requires urgent operator action. Preflight measured staging/scratch space before rebuilds, snapshots or restores. An alert is not an automatic volume expansion.
+These commands measure filesystem capacity, including WAL, indexes, retained receipts/history, journals and other overhead. Do not report the web container's root filesystem as a remote database disk. Coverage older than five minutes is missing and raises `storage_coverage_missing:<name>` (plus the aggregate `storage_coverage_missing`).
+
+### Storage the application host cannot mount
+
+Deletion ledger A and ledger B run on independent hosts, so the application host cannot sample their volumes. Each ledger host measures its own filesystem and pushes the result to the application host's operations tooling, which records it with:
+
+```sh
+bun run --cwd apps/web operations record-storage <database|search|ledger-a|ledger-b|backup> <total-bytes> <used-bytes>
+```
+
+This writes the same storage observation as `sample-storage`. The values must be non-negative decimal integers, total must be positive, and used cannot exceed total. Unknown names and invalid values exit nonzero without writing anything. The ledger hosts never receive application database credentials; they can only run this one command over SSH.
+
+On the **application host**, install a wrapper that pins the storage name and accepts only two numbers, for example `/usr/local/bin/pr0-record-storage`:
+
+```sh
+#!/bin/sh
+set -euf
+name="$1"
+# Word-split the pushed "<total> <used>" without globbing; record-storage validates both values.
+set -- ${SSH_ORIGINAL_COMMAND:-}
+[ "$#" -eq 2 ] || exit 64
+cd /srv/pr0
+exec bun run --cwd apps/web operations record-storage "$name" "$1" "$2"
+```
+
+Run it as the operations user that already holds the server-only database configuration. In Compose deployments, replace the last two lines with `exec docker compose run --rm -T operations record-storage "$name" "$1" "$2"` from the deployment directory. Give each ledger host its own dedicated key, restricted in that user's `~/.ssh/authorized_keys` to this command and its own storage name:
+
+```text
+restrict,command="/usr/local/bin/pr0-record-storage ledger-a",from="<ledger-a-address>" ssh-ed25519 AAAA... pr0-ledger-a-storage
+restrict,command="/usr/local/bin/pr0-record-storage ledger-b",from="<ledger-b-address>" ssh-ed25519 AAAA... pr0-ledger-b-storage
+```
+
+`restrict` disables port, agent and X11 forwarding and terminals; the forced command ignores whatever the client asks to run, so a compromised ledger host can report only its own capacity.
+
+On **each ledger host**, measure the filesystem that holds the ledger's PostgreSQL data with the same arithmetic as `sample-storage` (used = blocks minus blocks available to unprivileged users) and push it, for example `/usr/local/bin/pr0-push-storage`:
+
+```sh
+#!/bin/sh
+set -eu
+set -- $(stat -f -c '%b %a %S' /var/lib/postgresql)
+total=$(($1 * $3))
+used=$((($1 - $2) * $3))
+exec ssh -i /etc/pr0/storage-key -o BatchMode=yes -o ConnectTimeout=10 \
+  pr0-ops@app-host.example "$total $used"
+```
+
+Keep the private key readable only by the cron user, and pin the application host key in that user's `known_hosts`. Run the push **every minute** from cron, the same cadence as local sampling:
+
+```text
+* * * * * pr0-storage /usr/local/bin/pr0-push-storage
+```
+
+One or two missed pushes are tolerated; after five minutes without a successful push, `storage_coverage_missing:ledger-a` (or `ledger-b`) fires again. Investigate that alert as a broken host, key or network path rather than silencing it. The 70% and 80% `storage_expand:<name>` and `storage_critical:<name>` alerts apply to pushed measurements exactly as to sampled ones. `storage_expand:<name>` fires at 70%; arrange expansion immediately and complete it **before 80%**. At 80%, `storage_critical:<name>` requires urgent operator action. Preflight measured staging/scratch space before rebuilds, snapshots or restores. An alert is not an automatic volume expansion.
 
 After the backup system has **verified** an independently recoverable checkpoint and checked every ordinary object version against the 30-day retention policy, report its checkpoint:
 
