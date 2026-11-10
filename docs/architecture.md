@@ -10,6 +10,7 @@
 - Prefer Bun-native APIs where appropriate. Future PostgreSQL clients use `SQL`/`sql` from `bun`, parameterized tagged templates, connection pooling and transactions. Use `RedisClient`/`redis` from `bun` if Redis becomes necessary. Keep both behind server-only modules; never expose connections or credentials to the shared UI or desktop frontend. No database/cache infrastructure is introduced before a feature needs it.
 - Root tooling uses Bun and Turborepo. Install workspace dependencies in the workspace that uses them. Keep reusable code in packages and application entry points in apps. Node-compatible imports/types may be used under Bun; they do not require a Node.js runtime.
 - `infrastructure/update-channel` owns release-image packaging under Bun and the independent static Nginx update host. Release files live in the image; the channel does not consume instance credentials or data services.
+- `infrastructure/ingress` is an optional example nginx ingress that supplies the authenticated client-attribution headers behind an edge proxy. It holds only nginx configuration, has no package or build step, and is never required by the application.
 - Test HTTP failures, invalid payloads and cancellation when adding API client methods. Document and validate request inputs at the server boundary. CORS is not authentication.
 
 See the root README for commands, environment variables and build prerequisites.
