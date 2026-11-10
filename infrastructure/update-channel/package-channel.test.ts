@@ -3,7 +3,7 @@ import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { packageChannel } from "./package-channel";
+import { packageChannel, verifyRehearsalTarget } from "./package-channel";
 
 const temporaryDirectories: string[] = [];
 
@@ -203,6 +203,70 @@ test.each(["../0.1.0", "01.0.0", "0.1.1", "0.2.0-beta.1"])(
         publicKey: "",
       })
     ).rejects.toThrow("Invalid public version");
+  }
+);
+
+test("a newly reserved rehearsal version is refused by live packaging even when validly signed", async () => {
+  const release = await signedRelease("0.1.3");
+  await expect(
+    packageChannel({
+      releases: [release],
+      outputDirectory: path.join(await temporaryDirectory(), "channel"),
+      publicKey: release.publicKey,
+      reservations: [
+        { version: "0.1.1", candidate: "0.1.0" },
+        { version: "0.1.3", candidate: "0.1.2" },
+      ],
+    })
+  ).rejects.toThrow("reserved for a rehearsal target");
+});
+
+test("a signed reserved rehearsal target passes rehearsal verification", async () => {
+  const target = await signedRelease("0.1.1");
+  expect(
+    await verifyRehearsalTarget({
+      directory: target.directory,
+      publicKey: target.publicKey,
+      version: "0.1.1",
+    })
+  ).toEqual({
+    installer: "pr0_0.1.1_x64-setup.exe",
+    signature: target.signature,
+  });
+});
+
+test("the rehearsal path refuses a signed version that is not reserved", async () => {
+  const release = await signedRelease("0.1.0");
+  await expect(
+    verifyRehearsalTarget({
+      directory: release.directory,
+      publicKey: release.publicKey,
+      version: "0.1.0",
+    })
+  ).rejects.toThrow("Not a reserved rehearsal version");
+});
+
+test.each(["hash", "signed version"])(
+  "rehearsal verification refuses %s failures",
+  async (failure) => {
+    const target = await signedRelease(
+      "0.1.1",
+      undefined,
+      failure === "signed version" ? "0.1.0" : "0.1.1"
+    );
+    if (failure === "hash") {
+      await Bun.write(
+        path.join(target.directory, "pr0_0.1.1_x64-setup.exe"),
+        "tampered bytes"
+      );
+    }
+    await expect(
+      verifyRehearsalTarget({
+        directory: target.directory,
+        publicKey: target.publicKey,
+        version: "0.1.1",
+      })
+    ).rejects.toThrow();
   }
 );
 
