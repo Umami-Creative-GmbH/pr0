@@ -10,6 +10,7 @@ import path from "node:path";
 
 import {
   availabilitySampleSchema,
+  instanceConfigurationPattern,
   parseLastJsonLine,
 } from "@pr0/api-contract/operator-output";
 import { z } from "zod";
@@ -29,9 +30,6 @@ const commitPattern = /^[0-9a-f]{40}$/u;
 const imageNamePattern = /^[a-z0-9][a-z0-9._/-]*$/u;
 const settingPattern = /^(?<name>[A-Z][A-Z0-9_]*)=(?<value>.*)$/u;
 const wholeSecondsPattern = /^\d+$/u;
-/** Configuration comes only from the checkout's .env; these names are dropped from the operator's shell. */
-export const inheritedConfiguration =
-  /^(?:PR0_|SMTP_|COMPOSE_|DATABASE_URL|BETTER_AUTH_|POSTGRES_)/u;
 // The script never runs initialization, admission or recovery commands.
 const forbiddenArguments = new Set([
   "restore",
@@ -120,7 +118,8 @@ const emit = (event: Record<string, JsonValue>) => {
 const childEnvironment = (overrides: Record<string, string> = {}) => ({
   ...Object.fromEntries(
     Object.entries(process.env).filter(
-      ([name]) => !inheritedConfiguration.test(name)
+      // Configuration comes only from the checkout's .env, never from the operator's shell.
+      ([name]) => !instanceConfigurationPattern.test(name)
     )
   ),
   ...overrides,

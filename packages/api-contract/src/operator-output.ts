@@ -14,6 +14,13 @@ export const availabilitySampleSchema = z.strictObject({
 });
 export type AvailabilitySample = z.infer<typeof availabilitySampleSchema>;
 
+/**
+ * Instance configuration settings. Operator tools take them only from the
+ * deployment's own .env and drop them from the shell they run in.
+ */
+export const instanceConfigurationPattern =
+  /^(?:PR0_|SMTP_|COMPOSE_|DATABASE_URL|BETTER_AUTH_|POSTGRES_)/u;
+
 const maximumQuotedOutput = 200;
 
 /**

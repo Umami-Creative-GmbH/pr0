@@ -4,9 +4,9 @@ import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { librarySchema } from "@pr0/api-contract/accounts";
+import { instanceConfigurationPattern } from "@pr0/api-contract/operator-output";
 import { z } from "zod";
 
-import { inheritedConfiguration } from "../../../infrastructure/hosted/redeploy";
 import { availablePort, randomOctet } from "./test-network";
 
 const root = path.resolve(import.meta.dir, "../../..");
@@ -31,7 +31,7 @@ const steps = [
 const cleanEnvironment = () =>
   Object.fromEntries(
     Object.entries(process.env).filter(
-      ([name]) => !inheritedConfiguration.test(name)
+      ([name]) => !instanceConfigurationPattern.test(name)
     )
   );
 const slash = (value: string) => value.replaceAll("\\", "/");
