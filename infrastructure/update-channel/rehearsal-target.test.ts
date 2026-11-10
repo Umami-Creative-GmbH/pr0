@@ -1,32 +1,22 @@
 import { afterEach, expect, test } from "bun:test";
-import { copyFile, mkdtemp, readdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { copyFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 import { openRehearsalTarget } from "./open-rehearsal-target";
 import { sealRehearsalTarget, setRehearsalVersion } from "./rehearsal-target";
 import {
   parseReservations,
+  releaseFiles,
   reservedRehearsalVersions,
   validatePublicVersion,
   validateRehearsalVersion,
 } from "./release-versions";
+import {
+  removeTemporaryDirectories,
+  temporaryDirectory,
+} from "./test-fixtures";
 
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true }))
-  );
-});
-
-const temporaryDirectory = async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "pr0-rehearsal-test-"));
-  temporaryDirectories.push(directory);
-  return directory;
-};
+afterEach(removeTemporaryDirectories);
 
 // These tests spawn git and bun, which can be slow on Windows hosts.
 const processTestTimeout = 30_000;
@@ -74,11 +64,11 @@ const candidateCheckout = async (version = "0.1.0") => {
 
 const builtTarget = async (version = "0.1.1") => {
   const directory = await temporaryDirectory();
-  const installer = `pr0_${version}_x64-setup.exe`;
+  const [installer, signature, evidence] = releaseFiles(version);
   await Bun.write(path.join(directory, installer), "abc");
-  await Bun.write(path.join(directory, `${installer}.sig`), "signature");
+  await Bun.write(path.join(directory, signature), "signature");
   await Bun.write(
-    path.join(directory, "signing-evidence.json"),
+    path.join(directory, evidence),
     JSON.stringify({ version, installer })
   );
   return directory;

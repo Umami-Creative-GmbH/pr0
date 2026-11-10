@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { verifyRehearsalTarget } from "./package-channel";
 import {
   importRehearsalArtifactKey,
   rehearsalManifestFile,
@@ -14,11 +15,11 @@ import {
   sealedSuffix,
   sha256File,
 } from "./rehearsal-target";
-import type { RehearsalTargetManifest } from "./rehearsal-target";
 import { validateRehearsalVersion } from "./release-versions";
 import type { RehearsalReservation } from "./release-versions";
 
-const manifestSchema = z.object({
+/** The plaintext manifest beside a sealed rehearsal target. */
+export const rehearsalTargetManifestSchema = z.object({
   version: z.string(),
   candidate: z.string(),
   candidateCommit: z.string(),
@@ -26,6 +27,9 @@ const manifestSchema = z.object({
   sha256: z.string(),
   files: z.array(z.string()),
 });
+export type RehearsalTargetManifest = z.infer<
+  typeof rehearsalTargetManifestSchema
+>;
 
 interface OpenOptions {
   key: string;
@@ -65,7 +69,7 @@ export const openRehearsalTarget = async ({
   reservations,
   sealedDirectory,
 }: OpenOptions): Promise<RehearsalTargetManifest> => {
-  const manifest = manifestSchema.parse(
+  const manifest = rehearsalTargetManifestSchema.parse(
     await Bun.file(path.join(sealedDirectory, rehearsalManifestFile)).json()
   );
   validateRehearsalVersion(manifest.version, reservations);
@@ -97,6 +101,34 @@ export const openRehearsalTarget = async ({
     throw new Error("Opened installer does not match the recorded hash");
   }
   return manifest;
+};
+
+/**
+ * Opens a sealed rehearsal target and verifies its hash, signing evidence,
+ * updater signature and signed version exactly as the live channel verifies
+ * public releases.
+ */
+export const openVerifiedRehearsalTarget = async (
+  options: OpenOptions & { publicKey: string }
+) => {
+  const target = await openRehearsalTarget(options);
+  const { installer, signature } = await verifyRehearsalTarget({
+    directory: options.outputDirectory,
+    publicKey: options.publicKey,
+    reservations: options.reservations,
+    version: target.version,
+  });
+  return { installer, signature, target };
+};
+
+/** The keys every rehearsal CLI that opens and verifies a target reads from its environment. */
+export const requireRehearsalVerificationKeys = () => {
+  const key = requireRehearsalArtifactKey();
+  const publicKey = process.env.PR0_UPDATE_PUBLIC_KEY;
+  if (!publicKey) {
+    throw new Error("PR0_UPDATE_PUBLIC_KEY is required");
+  }
+  return { key, publicKey };
 };
 
 if (import.meta.main) {

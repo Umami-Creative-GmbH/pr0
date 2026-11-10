@@ -4,31 +4,27 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { openRehearsalTarget } from "./open-rehearsal-target";
-import { verifyRehearsalTarget } from "./package-channel";
+import {
+  openVerifiedRehearsalTarget,
+  requireRehearsalVerificationKeys,
+} from "./open-rehearsal-target";
 
 const [sealedDirectory] = process.argv.slice(2);
-const key = process.env.PR0_REHEARSAL_ARTIFACT_KEY;
-const publicKey = process.env.PR0_UPDATE_PUBLIC_KEY;
-if (!(sealedDirectory && key && publicKey)) {
+if (!sealedDirectory) {
   throw new Error(
     "Usage: bun verify-rehearsal.ts <sealed directory> with PR0_REHEARSAL_ARTIFACT_KEY and PR0_UPDATE_PUBLIC_KEY set"
   );
 }
+const keys = requireRehearsalVerificationKeys();
 const directory = await mkdtemp(path.join(tmpdir(), "pr0-rehearsal-"));
 try {
-  const manifest = await openRehearsalTarget({
+  const { target } = await openVerifiedRehearsalTarget({
+    ...keys,
     sealedDirectory,
     outputDirectory: directory,
-    key,
-  });
-  await verifyRehearsalTarget({
-    directory,
-    publicKey,
-    version: manifest.version,
   });
   process.stdout.write(
-    `Rehearsal target ${manifest.version} (candidate ${manifest.candidate} at ${manifest.candidateCommit}) verified: sha256 ${manifest.sha256}\n`
+    `Rehearsal target ${target.version} (candidate ${target.candidate} at ${target.candidateCommit}) verified: sha256 ${target.sha256}\n`
   );
 } finally {
   await rm(directory, { recursive: true, force: true });
