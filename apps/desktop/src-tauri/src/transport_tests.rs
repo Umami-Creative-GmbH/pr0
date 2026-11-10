@@ -1,8 +1,8 @@
 // Real instance HTTPS against a local TLS server, with the trust source injected (ADR-0003).
 // Fixtures: a private test CA, a leaf for localhost/127.0.0.1 and a leaf for another name.
-const TEST_CA: &[u8] = include_bytes!("../fixtures/instance-tls/ca.pem");
-const INSTANCE_CERTIFICATE: &[u8] = include_bytes!("../fixtures/instance-tls/instance.pem");
-const OTHER_NAME_CERTIFICATE: &[u8] = include_bytes!("../fixtures/instance-tls/other-name.pem");
+const TEST_CA: &[u8] = include_bytes!("../fixtures/instance-tls/ca.crt");
+const INSTANCE_CERTIFICATE: &[u8] = include_bytes!("../fixtures/instance-tls/instance.crt");
+const OTHER_NAME_CERTIFICATE: &[u8] = include_bytes!("../fixtures/instance-tls/other-name.crt");
 const INSTANCE_KEY: &[u8] = include_bytes!("../fixtures/instance-tls/instance.key");
 
 struct TlsInstance {
