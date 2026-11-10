@@ -12,7 +12,7 @@ import type { DownloadStatus } from "./library-client";
 import { downloadError } from "./library-client";
 import { RejectedChange } from "./rejected-change";
 import { upgradeRecoveryMessage } from "./upgrade-recovery";
-import { uploadLabel } from "./upload-status";
+import { connectionErrorLabel, uploadLabel } from "./upload-status";
 import { useSyncDetails } from "./use-sync-details";
 
 const downloadLabel = (status?: DownloadStatus) => {
@@ -132,23 +132,13 @@ const admissionLabel = (
   return null;
 };
 
-/** An untrusted certificate is not an outage, so it is never labelled offline. */
 const incomingConnectionLabel = (error: string | null, pending: boolean) => {
   if (error === "authentication_required") {
     return pending
       ? translate("signInToSyncChangesWaiting")
       : translate("signInToSync");
   }
-  if (error === "certificate_untrusted") {
-    return pending
-      ? translate("untrustedCertificateChangesWaiting")
-      : translate("untrustedCertificate");
-  }
-  if (error === "network_unavailable") {
-    return pending
-      ? translate("offlineChangesWaitingToSync")
-      : translate("offline");
-  }
+  return connectionErrorLabel(error, pending);
 };
 const incomingFailureLabel = (
   status: DownloadStatus | undefined,

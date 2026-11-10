@@ -14,23 +14,34 @@ const serviceFailureLabel = (upload?: UploadStatus) => {
     ]);
   }
 };
-/** An untrusted certificate is not an outage, so it is never labelled offline. */
-const connectionLabel = (
-  offline: boolean,
-  pending: number,
-  upload?: UploadStatus
+/**
+ * Labels a transport failure for both sync directions. An untrusted
+ * certificate is not an outage, so it is never labelled offline.
+ */
+export const connectionErrorLabel = (
+  error: string | null | undefined,
+  pending: boolean
 ) => {
-  if (upload?.error === "certificate_untrusted") {
+  if (error === "certificate_untrusted") {
     return pending
       ? translate("untrustedCertificateChangesWaiting")
       : translate("untrustedCertificate");
   }
-  if (offline || upload?.error === "network_unavailable") {
+  if (error === "network_unavailable") {
     return pending
       ? translate("offlineChangesWaitingToSync")
       : translate("offline");
   }
 };
+const connectionLabel = (
+  offline: boolean,
+  pending: number,
+  upload?: UploadStatus
+) =>
+  connectionErrorLabel(upload?.error, pending > 0) ??
+  (offline
+    ? connectionErrorLabel("network_unavailable", pending > 0)
+    : undefined);
 export const uploadLabel = (
   signedIn: boolean,
   offline: boolean,
