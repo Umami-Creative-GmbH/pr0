@@ -48,7 +48,7 @@ The language of a personal library of reusable prompts, shared across a user's d
 
 **Rehearsal manifest**: Update metadata the official update channel offers only to designated test installations, used to prove that installed predecessors accept a release candidate before the live manifest offers it. _Avoid_: Beta channel, staging feed.
 
-**Release candidate**: One specific signed desktop build, identified by version and installer hash, together with the server build it is validated against, proposed for release and subject to every release gate. A rebuild is a new release candidate.
+**Release candidate**: One specific signed desktop build, identified by version and installer hash, together with the server build from the same commit that it is validated against, proposed for release and subject to every release gate. A rebuild is a new release candidate.
 
 **Candidate freeze**: The period after a release candidate's commit is chosen, during which only fixes for failed release gates may change it. Each such fix produces a new release candidate. _Avoid_: Code freeze (unrelated work may continue outside the candidate).
 
@@ -56,6 +56,10 @@ The language of a personal library of reusable prompts, shared across a user's d
 
 **Hosted launch**: Making the hosted service fit for the public: reachable over trusted HTTPS, running a verified release candidate's server, with working email and social sign-in, recoverable backups and external availability monitoring. _Avoid_: Go-live, deployment (which also describe any instance update).
 
-**Release act**: The irreversible human step that makes a verified release candidate public: the live manifest names its version and its public download exists. _Avoid_: Deploy, ship.
+**Hosted launch gate**: The release gate that a hosted launch passes, independent of the release candidate gate. Until the release act, the hosted service admits only allowlisted accounts.
+
+**Burn-in**: Seven consecutive days of externally measured availability of at least 99.5% on the launched hosted service, ending shortly before the release act, with the final release candidate's server running during its last day. Deploying a new release candidate counts as maintenance, not a restart. _Avoid_: Soak test, monitoring period.
+
+**Release act**: The irreversible human step that makes a verified release candidate public: the live manifest names its version, its public download exists and the hosted service opens public registration. _Avoid_: Deploy, ship.
 
 **Released version**: A desktop version the live manifest has named. Only released versions count as supported predecessors. _Avoid_: Published (artifacts can be uploaded without being released).
