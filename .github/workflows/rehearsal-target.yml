@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Reserved rehearsal target version, for example 0.1.1. Its candidate comes from the reserved-versions list.
+        description: Rehearsal target version listed in infrastructure/update-channel/reserved-rehearsal-versions.json. Its candidate comes from the reserved-versions list.
         required: true
         type: string
 

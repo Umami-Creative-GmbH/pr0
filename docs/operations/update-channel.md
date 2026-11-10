@@ -54,7 +54,7 @@ When you choose a new candidate version, add its rehearsal target to the list in
 
 1. Update the desktop package, Tauri and Cargo versions consistently to the next unused version (see [Version policy](#version-policy)), reserve its rehearsal target, and create the matching version tag, for example `v0.1.0`. The tag must contain both workflows' required release tooling. Run **Build desktop candidate** with that tag. It refuses reserved versions, runs repository checks and native tests, signs the Windows x64 NSIS installer, verifies its updater signature, and creates a draft release containing the installer, its `.sig` and `signing-evidence.json`. It refuses a tag that already has a release. Never rebuild a consumed version with different bytes.
 2. Download and validate that exact draft candidate on supported Windows, retaining evidence for #112 and the release gates in [ADR-0002](../adr/0002-mvp-release-requires-verified-candidate-and-hosted-launch.md). A successful runner build does not satisfy installed validation. Finish the release notes on the draft.
-3. **Publish the draft release.** This is the human release action. The update workflow excludes drafts and prereleases, downloads published assets, checks evidence hashes, independently verifies updater signatures and signed versions using Minisign, and makes the highest public version live. It retains earlier files and refuses an accidental manifest downgrade. GitHub's public download and Coolify activation are asynchronous; inspect both workflow and deployment results.
+3. **Publish the draft release** only as part of the [release act](release-act.md), which also covers the go/no-go record, the checks after publication and opening registration. The update workflow excludes drafts and prereleases, downloads published assets, checks evidence hashes, independently verifies updater signatures and signed versions using Minisign, and makes the highest public version live. It retains earlier files and refuses an accidental manifest downgrade. GitHub's public download and Coolify activation are asynchronous; inspect both workflow and deployment results.
 
 The generated public layout is unchanged:
 
@@ -67,7 +67,7 @@ https://pr0.umami-creative.app/update/releases/0.1.0/signing-evidence.json
 
 The manifest responds with `application/json` and `Cache-Control: no-store`. It embeds the actual signature file contents. No signing secrets, source checkout, draft assets or dependency toolchains are copied into the final image. Only the Nginx config and prepared channel files are included. The service remains independent of the hosted web app and its database.
 
-If image publication succeeds but Coolify deployment fails, fix the deployment issue and redeploy `latest` in Coolify; do not rebuild the Windows candidate. To iterate on the channel image/configuration, merge the change and rerun **Publish update channel** with bootstrap disabled. Existing release assets are reused and reverified. Withdrawal of a live release needs a separate reviewed manifest operation; this workflow will not silently downgrade or erase a feed when a GitHub release disappears.
+If image publication succeeds but Coolify deployment fails, fix the deployment issue and redeploy `latest` in Coolify; do not rebuild the Windows candidate. To iterate on the channel image/configuration, merge the change and rerun **Publish update channel** with bootstrap disabled. Existing release assets are reused and reverified. A published release is never withdrawn: failures are fixed forward ([Fix forward](release-act.md#fix-forward)). This workflow will not silently downgrade or erase a feed when a GitHub release disappears.
 
 Rehearsal targets must remain private. They are built by their own workflow and served to allowlisted testers only by the separate [rehearsal channel](#rehearsal-channel), never as a draft or published release. Never publish a rehearsal target or a draft to work around this requirement.
 
@@ -81,7 +81,7 @@ One-time setup: generate a 32-byte key and store it as `PR0_REHEARSAL_ARTIFACT_K
 bun -e "console.log(Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64'))"
 ```
 
-Run **Build rehearsal target** from Actions with the reserved version, for example `0.1.1`. The workflow:
+Run **Build rehearsal target** from Actions with the version that the reserved-versions list assigns to the candidate. The workflow:
 
 1. **Preflight** (no secrets) reads the reserved-versions list from the default branch, looks up the target's candidate, and refuses the run unless the version is reserved, has no tag, no release or draft, and no earlier build artifacts (expired ones included), and its candidate tag already has a release from **Build desktop candidate**. It resolves the candidate tag to its commit.
 2. **Build** (`desktop-signing` environment, needs approval) checks out that exact candidate commit and changes only the desktop version in `tauri.conf.json`, `apps/desktop/package.json`, `Cargo.toml` and `Cargo.lock`; it fails if git shows any other difference. The rehearsal tooling and list come from the default branch, not from the candidate commit. It then runs the same signed release build as candidates with the official updater key, which independently verifies the updater signature and signed version. It encrypts the installer, `.sig` and `signing-evidence.json` with `PR0_REHEARSAL_ARTIFACT_KEY` (AES-256-GCM, each file bound to its name and version) and uploads only the sealed files as the workflow artifact `rehearsal-target-<version>`, kept for 90 days.
@@ -128,7 +128,7 @@ To package locally instead, set both keys and run `bun infrastructure/update-cha
 
 In Coolify, in the same project and server as the live channel:
 
-1. Create a **Docker Image** application: image `ghcr.io/umami-creative-gmbh/pr0-rehearsal`, tag the target version (for example `0.1.1`), exposed port `8080`. Name it `pr0-rehearsal-<version>`.
+1. Create a **Docker Image** application: image `ghcr.io/umami-creative-gmbh/pr0-rehearsal`, tag the reserved target version, exposed port `8080`. Name it `pr0-rehearsal-<version>`.
 2. Leave **Domains** empty so Coolify generates no router of its own. Add no storage.
 3. Set the health check to port `8080`, path `/healthz`.
 4. Under **Container Labels**, turn off **Readonly labels** and add exactly these labels. Replace the addresses with the testers', and keep Coolify's other generated labels:

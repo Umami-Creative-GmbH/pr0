@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Reserved rehearsal target version, for example 0.1.1 (ignored for bootstrap)
+        description: Rehearsal target version listed in infrastructure/update-channel/reserved-rehearsal-versions.json (ignored for bootstrap)
         type: string
         default: ""
       target-run:

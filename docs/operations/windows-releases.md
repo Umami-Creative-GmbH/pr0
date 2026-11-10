@@ -26,13 +26,13 @@ Choose the endpoint before shipping the first release and preserve access to it 
 
 ## Build and verification
 
-The operator decisions in [#106](https://github.com/Umami-Creative-GmbH/pr0/issues/106) and [#107](https://github.com/Umami-Creative-GmbH/pr0/issues/107) are complete. Use the existing backed-up signing pair. The official manifest endpoint is `https://pr0.umami-creative.app/update/`; immutable artifacts belong at `https://pr0.umami-creative.app/update/releases/<version>/<filename>`. Kai Hentschel approves each release and uploads it manually over SSH using protected operator access. No CI upload credential or automated publication job is required.
+The operator decisions in [#106](https://github.com/Umami-Creative-GmbH/pr0/issues/106) and [#107](https://github.com/Umami-Creative-GmbH/pr0/issues/107) are complete. Use the existing backed-up signing pair. The official manifest endpoint is `https://pr0.umami-creative.app/update/`; immutable artifacts belong at `https://pr0.umami-creative.app/update/releases/<version>/<filename>`. GitHub Actions builds signed candidates into draft releases and publishes the update channel automatically, as [the update channel runbook](update-channel.md) describes. Kai Hentschel approves each signing run and performs the [release act](release-act.md).
 
 The Bun release entry point loads `apps/desktop/.env` before starting PowerShell and passes configuration through the environment without printing secrets. Keep that file ignored. The PowerShell script can also run directly when the process environment is already configured. A file in another checkout is not loaded automatically; explicitly supply its path with Bun's `--env-file` option when invoking the entry point.
 
 The confirmed default library URL is `VITE_API_BASE_URL=https://pr0.umami-creative.app/`. Set it in the release environment alongside the separate `PR0_UPDATE_ENDPOINT=https://pr0.umami-creative.app/update/`.
 
-Update application versions consistently in the desktop package, Cargo manifest/lockfile and Tauri configuration. Run repository checks, typechecking, Bun tests and native tests. From the repository root run:
+Update application versions consistently in the desktop package, Cargo manifest/lockfile and Tauri configuration, to the next unused version under the [version policy](update-channel.md#version-policy). Versions listed in `infrastructure/update-channel/reserved-rehearsal-versions.json` are reserved for rehearsal targets and are refused for release. Run repository checks, typechecking, Bun tests and native tests. From the repository root run:
 
 ```powershell
 bun run --cwd apps/desktop release
@@ -46,26 +46,13 @@ The installer refuses to force-close a running application. The NSIS hook replac
 
 ## Publish direct downloads and update metadata
 
-After the installed validation below, upload the exact verified installer and `.sig` to immutable HTTPS URLs. Offer that installer on the official download page. Prepare the following manifest with the actual release version, installer URL and **contents** of its `.sig` file:
+Publication is automated. Never upload release files or edit the manifest by hand. The official download page is the GitHub Release, and the [update channel](update-channel.md) serves the same installer, `.sig` and `signing-evidence.json`, verified and packaged by its workflow when the draft release is published. The channel image retains every published version's files, which covers the 90-day predecessor window.
 
-```json
-{
-  "version": "0.2.0",
-  "notes": "Release notes for this version.",
-  "platforms": {
-    "windows-x86_64": {
-      "url": "https://downloads.example.invalid/pr0/0.2.0/pr0_0.2.0_x64-setup.exe",
-      "signature": "REPLACE_WITH_THE_VERIFIED_SIG_FILE_CONTENTS"
-    }
-  }
-}
-```
-
-The example domain is not configured in the application. Verify the uploaded bytes against `signing-evidence.json` and repeat the independent signature check on the downloaded artifact. Publish the manifest at `PR0_UPDATE_ENDPOINT` only after the immutable files are available and installed checks pass. Retain artifacts and evidence for every supported predecessor from the preceding 90 days. A failed release should be withdrawn from the feed; never roll back library schemas or reuse a version for different bytes.
+Publish a draft only as part of the [release act](release-act.md), after the installed validation below and both release gates have passed. The release act also checks that the published bytes match `signing-evidence.json` and repeats the independent signature check on the downloaded artifacts. A release is never unpublished or withdrawn: failures are fixed forward. Never roll back library schemas or reuse a version for different bytes.
 
 ## Installed release gate
 
-Use updater-signed current/prior-version builds on supported Windows 11 x64 with current WebView2. Retain OS, WebView2, application and hardware versions, installer hashes, Authenticode status (and certificate/thumbprint/timestamp results when enabled), source commit, logs and screenshots for each journey:
+Use the draft release candidate itself on supported Windows 11 x64 with current WebView2. For update journeys, the predecessors are the released versions from the preceding 90 days. Before the first release there are none, so the candidate is the predecessor and its rehearsal target, served through the [rehearsal channel](update-channel.md#rehearsal-channel), is the update. Retain OS, WebView2, application and hardware versions, installer hashes, Authenticode status (and certificate/thumbprint/timestamp results when enabled), source commit, logs and screenshots for each journey:
 
 1. Install as a standard user without elevation; verify the per-user path, library, tray, launcher and one resident owner. Repeat with another Windows user to establish isolation.
 2. With startup enabled, externally disabled, and disabled, update each supported predecessor. Verify the exact preference and one resident with working entry points after restart.
