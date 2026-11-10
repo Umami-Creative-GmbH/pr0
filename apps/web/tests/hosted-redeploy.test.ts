@@ -209,6 +209,13 @@ test("the hosted overlay and example name every secret as a file and route the o
   const { web, backup } = services;
   expect(web.environment.PR0_REGISTRATION).toBe("allowlist");
   expect(web.environment.PR0_ORIGIN).toBe("https://pr0.umami-creative.app");
+  for (const legalLink of [
+    "PR0_IMPRESSUM_URL",
+    "PR0_PRIVACY_URL",
+    "PR0_TERMS_URL",
+  ]) {
+    expect(web.environment[legalLink]).toStartWith("REPLACE_WITH_");
+  }
   expect(web.ports).toBeUndefined();
   expect(backup.environment.PR0_BACKUP_RELEASE).toStartWith("pr0@");
   expect(new Set(Object.keys(services.ingress.networks))).toEqual(
