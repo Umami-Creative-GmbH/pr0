@@ -145,6 +145,8 @@ Each 15-second bounded sample validates the authenticated library and a search t
 
 Reports divide successful minutes by all elapsed UTC minutes in the month (including the current partial minute), or all minutes for a finished month. Missing/malformed observations count unavailable; a failed duplicate makes that minute unavailable. Rotate evidence monthly. The target is 99.5%, including maintenance. An application integration test is not a production availability measurement; preserve the actual external evidence and reports.
 
+`availability burn-in <start-minute> <samples.jsonl>...` applies the same rules to the 7 × 1440-minute burn-in window across monthly files. The hosted probe host, its alert rules (ntfy, email and a dead-man's switch), the canary procedures and the deliberate-failure test are described in [External probe host and alerting](probe-host.md).
+
 ## Verification commands
 
 ```sh

@@ -77,6 +77,19 @@
         "typescript": "^5",
       },
     },
+    "infrastructure/probe-host": {
+      "name": "@pr0/probe-host",
+      "dependencies": {
+        "@pr0/api-client": "workspace:*",
+        "nodemailer": "7.0.11",
+        "zod": "^4.6.5",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "@types/nodemailer": "7.0.4",
+        "typescript": "^5",
+      },
+    },
     "infrastructure/update-channel": {
       "name": "@pr0/update-channel",
       "dependencies": {
@@ -550,6 +563,8 @@
     "@pr0/api-contract": ["@pr0/api-contract@workspace:packages/api-contract"],
 
     "@pr0/desktop": ["@pr0/desktop@workspace:apps/desktop"],
+
+    "@pr0/probe-host": ["@pr0/probe-host@workspace:infrastructure/probe-host"],
 
     "@pr0/typescript-config": ["@pr0/typescript-config@workspace:packages/typescript-config"],
 

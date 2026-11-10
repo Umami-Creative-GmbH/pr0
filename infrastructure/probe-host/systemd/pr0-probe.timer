@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the pr0 availability probe at the start of every UTC minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00 UTC
+AccuracySec=1s
+# Missed minutes are never back-filled: they count unavailable.
+Persistent=false
+Unit=pr0-probe.service
+
+[Install]
+WantedBy=timers.target
