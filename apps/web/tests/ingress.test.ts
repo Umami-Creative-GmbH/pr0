@@ -10,24 +10,27 @@ import {
   selfHostingFixture,
   selfHostingPassword,
 } from "./self-hosting-fixture";
+import { availablePort, randomOctet } from "./test-network";
 
 const root = path.resolve(import.meta.dir, "../../..");
-const nginx =
-  "nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311";
+const pinnedBaseImage = /^FROM (?<image>nginx:\S+@sha256:[0-9a-f]{64})$/mu;
+// The edge stand-in uses the ingress's own pinned nginx, so there is one pin to update.
+const nginx = z
+  .string()
+  .parse(
+    pinnedBaseImage.exec(
+      await Bun.file(
+        path.join(root, "infrastructure/ingress/Dockerfile")
+      ).text()
+    )?.groups?.image
+  );
 // A 10-request minute window gives each step a minute, not the 10-second burst window.
 const minuteLimit = 10;
 const filled = [...Array.from({ length: minuteLimit }, () => 200), 429];
-const randomOctet = () => Math.floor(Math.random() * 250) + 1;
 const statusOf = async (request: Promise<Response>) => {
   const response = await request;
   await response.arrayBuffer();
   return response.status;
-};
-const availablePort = async () => {
-  const reservation = Bun.serve({ port: 0, fetch: () => new Response() });
-  const { port } = reservation;
-  await reservation.stop(true);
-  return port;
 };
 
 // Stands in for Coolify's Traefik as the worst case: it appends the observed

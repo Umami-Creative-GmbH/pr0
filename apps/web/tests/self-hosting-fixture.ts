@@ -6,6 +6,8 @@ import path from "node:path";
 import { librarySchema } from "@pr0/api-contract/accounts";
 import { z } from "zod";
 
+import { availablePort } from "./test-network";
+
 const root = path.resolve(import.meta.dir, "../../..");
 const postgres =
   "postgres@sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca";
@@ -31,12 +33,6 @@ interface ComposeService {
   };
 }
 type RequestBody = z.infer<ReturnType<typeof z.json>>;
-const availablePort = async () => {
-  const reservation = Bun.serve({ port: 0, fetch: () => new Response() });
-  const { port } = reservation;
-  await reservation.stop(true);
-  return port;
-};
 // Extra Compose files layered after the disposable override, e.g. an ingress.
 export const selfHostingFixture = async (composeFiles: string[] = []) => {
   await mkdir(path.join(root, ".scratch"), { recursive: true });
