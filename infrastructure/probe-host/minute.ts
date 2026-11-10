@@ -3,6 +3,11 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { createApiClient } from "@pr0/api-client/client";
+import {
+  availabilityBoundMs,
+  availabilitySampleSchema,
+  parseLastJsonLine,
+} from "@pr0/api-contract/operator-output";
 import { createTransport } from "nodemailer";
 import { z } from "zod";
 
@@ -14,9 +19,9 @@ import {
 import type { AlertNotification } from "./alert-rules";
 
 const minuteMs = 60_000;
-/** The probe bounds itself to 15 s; this only stops a hung process. */
-const probeTimeoutMs = 25_000;
-const requestTimeoutMs = 15_000;
+/** The probe bounds itself to the availability bound; this only stops a hung process. */
+const probeTimeoutMs = availabilityBoundMs + 10_000;
+const requestTimeoutMs = availabilityBoundMs;
 const deliveryTimeoutMs = 10_000;
 /** Leave the rest of the minute for the heartbeat; the next run retries undelivered alerts. */
 const deliveryDeadlineMs = 45_000;
@@ -27,11 +32,6 @@ const availabilityScript = path.resolve(
   "../../apps/web/scripts/availability.ts"
 );
 
-const sampleSchema = z.strictObject({
-  at: z.iso.datetime(),
-  available: z.boolean(),
-  durationMs: z.number().nonnegative(),
-});
 const channelSchema = z.enum(["ntfy", "email"]);
 type Channel = z.infer<typeof channelSchema>;
 const pendingSchema = z.strictObject({
@@ -95,17 +95,10 @@ const probe = async (evidenceFile: string) => {
   );
   const output = await new Response(child.stdout).text();
   await child.exited;
-  const reported = sampleSchema.safeParse(
-    (() => {
-      try {
-        return JSON.parse(output.trim().split("\n").at(-1) ?? "");
-      } catch {
-        return null;
-      }
-    })()
-  );
-  if (reported.success) {
-    return reported.data;
+  try {
+    return parseLastJsonLine(availabilitySampleSchema, output);
+  } catch {
+    /* A probe that reports nothing valid is recorded below as a failed sample. */
   }
   const failed = {
     at: new Date(started).toISOString(),

@@ -2,18 +2,19 @@ import { appendFileSync, readFileSync } from "node:fs";
 
 import { createApiClient } from "@pr0/api-client/client";
 import { createPromptClient } from "@pr0/api-client/prompts";
+import {
+  availabilityBoundMs,
+  availabilitySampleSchema,
+} from "@pr0/api-contract/operator-output";
 import { z } from "zod";
 
-const sampleSchema = z.strictObject({
-  at: z.iso.datetime(),
-  available: z.boolean(),
-  durationMs: z.number().nonnegative(),
-});
 const minuteMs = 60_000;
 const targetPercent = 99.5;
 const burnInMinutes = 7 * 1440;
-const [command, filename, month, ...rest] = process.argv.slice(2);
-if (!filename) {
+/** Evidence is rotated monthly; a larger file means rotation stopped. */
+const maximumEvidenceBytes = 32 * 1024 * 1024;
+const [command, ...args] = process.argv.slice(2);
+if (!args[0]) {
   throw new Error(
     "Use probe <samples.jsonl>, report <samples.jsonl> <YYYY-MM> or burn-in <start> <samples.jsonl>..."
   );
@@ -28,14 +29,14 @@ const minuteSlots = async (files: string[], start: number, end: number) => {
     if (!(await file.exists())) {
       continue;
     }
-    if (file.size > 32 * 1024 * 1024) {
+    if (file.size > maximumEvidenceBytes) {
       throw new Error("Rotate probe evidence monthly (maximum 32 MiB)");
     }
     // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Evidence files are read one at a time to bound memory.
     const evidence = await file.text();
     for (const line of evidence.split("\n")) {
       try {
-        const sample = sampleSchema.parse(JSON.parse(line));
+        const sample = availabilitySampleSchema.parse(JSON.parse(line));
         const time = Date.parse(sample.at);
         if (time >= start && time < end) {
           const slot = Math.floor((time - start) / minuteMs);
@@ -43,7 +44,7 @@ const minuteSlots = async (files: string[], start: number, end: number) => {
             slot,
             (slots.get(slot) ?? true) &&
               sample.available &&
-              sample.durationMs <= 15_000
+              sample.durationMs <= availabilityBoundMs
           );
         }
       } catch {
@@ -62,6 +63,7 @@ const elapsedEnd = (end: number) =>
   Math.min(end, Math.ceil(Date.now() / minuteMs) * minuteMs);
 
 if (command === "probe") {
+  const [filename = ""] = args;
   const at = new Date().toISOString();
   const started = performance.now();
   let available = false;
@@ -93,7 +95,7 @@ if (command === "probe") {
       throw new Error("Probe credential required");
     }
     const promptId = z.uuid().parse(process.env.PR0_PROBE_PROMPT_ID);
-    const signal = AbortSignal.timeout(15_000);
+    const signal = AbortSignal.timeout(availabilityBoundMs);
     const fetcher = (input: string, init: RequestInit) =>
       fetch(input, {
         ...init,
@@ -119,7 +121,7 @@ if (command === "probe") {
   } catch {
     /* An unavailable credential, network, library or search is one failed sample; never log the cause or payload. */
   }
-  const sample = sampleSchema.parse({
+  const sample = availabilitySampleSchema.parse({
     at,
     available,
     durationMs: Math.round(performance.now() - started),
@@ -130,6 +132,7 @@ if (command === "probe") {
     process.exitCode = 1;
   }
 } else if (command === "report") {
+  const [filename = "", month] = args;
   const selected = z
     .string()
     .regex(/^\d{4}-(?:0[1-9]|1[0-2])$/u)
@@ -160,15 +163,16 @@ if (command === "probe") {
     })}\n`
   );
 } else if (command === "burn-in") {
+  const [startMinute, ...monthFiles] = args;
   const start = z.iso
     .datetime()
     .transform((value) => Date.parse(value))
     .refine((time) => time % minuteMs === 0, "Start on a whole UTC minute")
-    .parse(filename);
+    .parse(startMinute);
   const files = z
     .array(z.string().min(1))
     .min(1, "Name every monthly evidence file the window spans")
-    .parse([month, ...rest].filter(Boolean));
+    .parse(monthFiles.filter(Boolean));
   const windowEnd = start + burnInMinutes * minuteMs;
   const end = elapsedEnd(windowEnd);
   const elapsedMinutes = Math.max(0, Math.ceil((end - start) / minuteMs));
