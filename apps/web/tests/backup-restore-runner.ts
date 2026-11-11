@@ -79,12 +79,15 @@ try {
   const deletedResult = deletionResultSchema.parse(await deletion.json());
   // The deletion log is the served app's stdout: account ID and time only.
   const deletionLog = server.serverLog();
-  assert.match(
-    deletionLog,
-    new RegExp(
-      `{"event":"account_deleted","accountId":"${deletedResult.accountId}","deletedAt":"${deletedResult.deletedAt}"}`,
-      "u"
-    )
+  assert.ok(
+    deletionLog.includes(
+      JSON.stringify({
+        event: "account_deleted",
+        accountId: deletedResult.accountId,
+        deletedAt: deletedResult.deletedAt,
+      })
+    ),
+    "the deletion is in the log"
   );
   assert.ok(!deletionLog.includes(deleted.email), "no email in the log");
   const lossSeconds = (Date.now() - Date.parse(ordinary.checkpoint)) / 1000;
