@@ -1,0 +1,313 @@
+# The hosted pr0 stack as a Coolify "Docker Compose" application (ADR-0004).
+# Coolify builds this file from the repository and runs it with docker compose.
+# Every value comes from the application's environment variables, which Phase
+# syncs; this file holds no secrets and reads no secret files. Every variable
+# that holds a secret must be runtime-only in Coolify (not "Available during
+# build"); no Dockerfile declares an ARG for one. See docs/operations/hosted.md
+# and the variable inventory in docs/operations/hosted-variables.md.
+#
+# Every deploy runs the upgrade sequence as one-shot jobs, each starting only
+# after the previous one completed successfully:
+#   backup-before -> migrate -> replay-deletions -> web, mail, backup -> ingress
+# Every image is tagged with the deployed commit, so a new commit changes web,
+# mail, ingress and backup. Docker Compose replaces those containers before it
+# runs the jobs: the previous release stops serving first, as the upgrade
+# sequence requires. A failed job stops the sequence and the new containers
+# never start, so the service stays closed with the database running and the
+# data intact until a fixed commit is deployed. Initialization and restore are
+# never part of a deploy; run them by hand (operations profile).
+#
+# `exclude_from_hc` is Coolify's own key: it keeps the exited jobs out of the
+# application's health status. Plain docker compose rejects it, so remove those
+# lines to run this file outside Coolify.
+x-release: &release "pr0@${SOURCE_COMMIT:?Coolify sets SOURCE_COMMIT to the deployed commit}"
+x-app-build: &app-build
+  context: .
+  target: runtime
+x-tools-build: &tools-build
+  context: .
+  target: migration-runtime
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+x-account-environment: &account-environment
+  PR0_ORIGIN: "${PR0_ORIGIN:?Set the public origin}"
+  DATABASE_URL: "${DATABASE_URL:?Set DATABASE_URL}"
+  PR0_LEDGER_A_URL: "${PR0_LEDGER_A_URL:?Set PR0_LEDGER_A_URL}"
+  PR0_LEDGER_B_URL: "${PR0_LEDGER_B_URL:?Set PR0_LEDGER_B_URL}"
+  BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}"
+  PR0_MAIL_SECRET: "${PR0_MAIL_SECRET:?Set PR0_MAIL_SECRET}"
+  PR0_REGISTRATION: "${PR0_REGISTRATION:?Set allowlist until the release act}"
+  PR0_IMPRESSUM_URL: "${PR0_IMPRESSUM_URL:?Set the Impressum URL}"
+  PR0_PRIVACY_URL: "${PR0_PRIVACY_URL:?Set the privacy policy URL}"
+  PR0_TERMS_URL: "${PR0_TERMS_URL:?Set the terms URL}"
+  PR0_GOOGLE_CLIENT_ID: "${PR0_GOOGLE_CLIENT_ID:-}"
+  PR0_GOOGLE_CLIENT_SECRET: "${PR0_GOOGLE_CLIENT_SECRET:-}"
+  PR0_GITHUB_CLIENT_ID: "${PR0_GITHUB_CLIENT_ID:-}"
+  PR0_GITHUB_CLIENT_SECRET: "${PR0_GITHUB_CLIENT_SECRET:-}"
+  PR0_INGRESS_SECRET: "${PR0_INGRESS_SECRET:?Set PR0_INGRESS_SECRET}"
+  PR0_METRICS_SECRET: "${PR0_METRICS_SECRET:?Set PR0_METRICS_SECRET}"
+  SMTP_HOST: "${SMTP_HOST:?Set SMTP_HOST}"
+  SMTP_PORT: "${SMTP_PORT:-587}"
+  SMTP_TLS: "${SMTP_TLS:-starttls}"
+  SMTP_USER: "${SMTP_USER:-}"
+  SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+  SMTP_FROM: "${SMTP_FROM:?Set SMTP_FROM}"
+  PR0_RECOVERY_STATE_FILE: /var/lib/pr0-recovery/admission.json
+x-backup-environment: &backup-environment
+  <<: *account-environment
+  PR0_BACKUP_DIRECTORY: /var/lib/pr0-backups
+  PR0_BACKUP_KEY: "${PR0_BACKUP_KEY:?Set PR0_BACKUP_KEY}"
+  PR0_BACKUP_RELEASE: *release
+  PR0_BACKUP_RELEASE_FILE: /var/lib/pr0-release/release
+x-backup-volumes: &backup-volumes
+  - type: bind
+    source: "${PR0_BACKUP_MOUNT:?Set the mounted Storage Box directory}"
+    target: /var/lib/pr0-backups
+    bind:
+      create_host_path: false
+  - recovery-state:/var/lib/pr0-recovery:ro
+  - release-state:/var/lib/pr0-release:ro
+
+services:
+  database:
+    image: postgres@sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca
+    environment:
+      POSTGRES_USER: pr0
+      POSTGRES_DB: pr0
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks: [database]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pr0 -d pr0"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # Upgrade job 1: a verified, encrypted backup on the Storage Box before
+  # anything changes, labelled with the release that last completed the
+  # schema. Skipped only for a database no migration has touched.
+  backup-before:
+    image: "${PR0_IMAGE_NAME:-pr0}-tools:${SOURCE_COMMIT}"
+    build: *tools-build
+    exclude_from_hc: true
+    restart: "no"
+    user: "1000:1000"
+    networks: [database]
+    environment: *backup-environment
+    volumes: *backup-volumes
+    entrypoint: ["bun", "--bun", "apps/web/.operations/backup.js"]
+    command: ["before-upgrade"]
+    depends_on:
+      database:
+        condition: service_healthy
+    logging: *logging
+
+  # Upgrade job 2: the single migration coordinator, which also records this
+  # release as the one that completed the schema.
+  migrate:
+    image: "${PR0_IMAGE_NAME:-pr0}-tools:${SOURCE_COMMIT}"
+    build: *tools-build
+    exclude_from_hc: true
+    restart: "no"
+    networks: [database]
+    environment:
+      <<: *account-environment
+      PR0_MIGRATION_BACKUPS: /var/lib/pr0-backups
+      PR0_DATABASE_VOLUME: /var/lib/postgresql/data
+      PR0_BACKUP_RELEASE: *release
+      PR0_BACKUP_RELEASE_FILE: /var/lib/pr0-release/release
+    volumes:
+      - migration-backups:/var/lib/pr0-backups
+      - postgres-data:/var/lib/postgresql/data:ro
+      - release-state:/var/lib/pr0-release
+    entrypoint: ["sh", "/app/hosted/migrate.sh"]
+    depends_on:
+      backup-before:
+        condition: service_completed_successfully
+    logging: *logging
+
+  # Upgrade job 3: deletion-evidence replay from both external ledgers.
+  replay-deletions:
+    image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
+    build: *app-build
+    exclude_from_hc: true
+    restart: "no"
+    networks: [default, database]
+    environment:
+      <<: *account-environment
+      PR0_SEARCH_DIRECTORY: /var/lib/pr0-search
+    volumes:
+      - search-data:/var/lib/pr0-search
+    entrypoint: ["bun", "--bun", "apps/web/.operations/deletions.js"]
+    command: ["replay"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging: *logging
+
+  web:
+    image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
+    build: *app-build
+    # No published port: Coolify's proxy reaches only the ingress.
+    networks:
+      default:
+        # The ingress targets this alias, because a container of another
+        # resource on a shared Coolify network could answer to "web".
+        aliases: [pr0-web]
+      database: {}
+    environment:
+      <<: *account-environment
+      API_ALLOWED_ORIGINS: "${API_ALLOWED_ORIGINS:-}"
+    volumes:
+      - search-data:/var/lib/pr0-search
+      - recovery-state:/var/lib/pr0-recovery:ro
+    depends_on:
+      database:
+        condition: service_healthy
+      replay-deletions:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - --bun
+        - -e
+        - "const response = await fetch('http://127.0.0.1:3000/api/v1/ready'); process.exit(response.ok ? 0 : 1);"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging: *logging
+
+  mail:
+    image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
+    build: *app-build
+    networks: [default, database]
+    environment: *account-environment
+    volumes:
+      - recovery-state:/var/lib/pr0-recovery:ro
+    command: ["bun", "--bun", "apps/web/.operations/mail-worker.js"]
+    restart: unless-stopped
+    init: true
+    depends_on:
+      database:
+        condition: service_healthy
+      replay-deletions:
+        condition: service_completed_successfully
+    logging: *logging
+
+  # The authenticated client-attribution ingress (#126). Set the application's
+  # domain in Coolify on this service, port 8080:
+  # https://pr0.umami-creative.app:8080
+  ingress:
+    image: "${PR0_IMAGE_NAME:-pr0}-ingress:${SOURCE_COMMIT}"
+    build: infrastructure/ingress
+    environment:
+      PR0_INGRESS_SECRET: "${PR0_INGRESS_SECRET}"
+      PR0_INGRESS_TRUSTED_PROXIES: "${PR0_INGRESS_TRUSTED_PROXIES:?Set the Coolify proxy network subnet}"
+      PR0_INGRESS_METRICS_ALLOW: "${PR0_INGRESS_METRICS_ALLOW:-}"
+      PR0_INGRESS_UPSTREAM: pr0-web:3000
+    networks: [default]
+    # Started after web's container, so its first lookup finds web; it answers
+    # 502 only while the new web is still starting. Not gated on web's health:
+    # readiness can stay at search_preparing until every account has searched,
+    # which must not keep the whole service unreachable.
+    depends_on:
+      web:
+        condition: service_started
+    restart: unless-stopped
+    logging: *logging
+
+  # Idle tools container for Coolify's scheduled backup task, which runs
+  # `sh /app/hosted/scheduled-backup.sh` in it every 30 minutes. Recreated on a
+  # new release only after the upgrade sequence passed.
+  backup:
+    image: "${PR0_IMAGE_NAME:-pr0}-tools:${SOURCE_COMMIT}"
+    build: *tools-build
+    user: "1000:1000"
+    # database for pg_dump; default for the dead-man's switch.
+    networks: [default, database]
+    environment:
+      <<: *backup-environment
+      PR0_BACKUP_HEARTBEAT_URL: "${PR0_BACKUP_HEARTBEAT_URL:?Set the pr0-backup check URL}"
+    volumes: *backup-volumes
+    entrypoint: ["sleep", "infinity"]
+    init: true
+    restart: unless-stopped
+    depends_on:
+      replay-deletions:
+        condition: service_completed_successfully
+    logging: *logging
+
+  # Manual operator commands, never started by a deploy. Run them on the host
+  # with `docker compose ... --profile operations run --rm <service> <command>`
+  # (docs/operations/hosted.md). None has a default command.
+  accounts:
+    image: "${PR0_IMAGE_NAME:-pr0}-tools:${SOURCE_COMMIT}"
+    build: *tools-build
+    profiles: ["operations"]
+    networks: [default, database]
+    environment:
+      <<: *account-environment
+      PR0_MIGRATION_BACKUPS: /var/lib/pr0-backups
+      PR0_DATABASE_VOLUME: /var/lib/postgresql/data
+    volumes:
+      - migration-backups:/var/lib/pr0-backups
+      - postgres-data:/var/lib/postgresql/data:ro
+    entrypoint: ["bun", "--bun", "apps/web/.operations/accounts.js"]
+  deletions:
+    image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
+    build: *app-build
+    profiles: ["operations"]
+    networks: [default, database]
+    environment:
+      <<: *account-environment
+      PR0_SEARCH_DIRECTORY: /var/lib/pr0-search
+    volumes:
+      - search-data:/var/lib/pr0-search
+    entrypoint: ["bun", "--bun", "apps/web/.operations/deletions.js"]
+  restore:
+    image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
+    build: *app-build
+    profiles: ["operations"]
+    networks: [default, database]
+    environment:
+      <<: *account-environment
+      PR0_SEARCH_DIRECTORY: /var/lib/pr0-search
+    volumes:
+      - recovery-state:/var/lib/pr0-recovery
+      - search-data:/var/lib/pr0-search
+    entrypoint: ["bun", "--bun", "apps/web/.operations/restore.js"]
+  operations:
+    image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
+    build: *app-build
+    profiles: ["operations"]
+    networks: [default, database]
+    environment: *account-environment
+    volumes:
+      - postgres-data:/var/lib/postgresql/data:ro
+      - search-data:/var/lib/pr0-search:ro
+      - recovery-state:/var/lib/pr0-recovery:ro
+    entrypoint: ["bun", "--bun", "apps/web/.operations/operations.js"]
+    command: ["metrics"]
+
+volumes:
+  migration-backups:
+  postgres-data:
+  search-data:
+  recovery-state:
+  # The release that last completed the schema (infrastructure/hosted/migrate.sh).
+  release-state:
+
+networks:
+  database:
+    internal: true

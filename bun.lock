@@ -79,10 +79,6 @@
     },
     "infrastructure/hosted": {
       "name": "@pr0/hosted",
-      "dependencies": {
-        "@pr0/api-contract": "workspace:*",
-        "zod": "^4.6.5",
-      },
       "devDependencies": {
         "@types/bun": "^1.4.2",
         "typescript": "^5",

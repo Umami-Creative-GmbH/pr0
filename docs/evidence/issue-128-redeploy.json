@@ -1,457 +1,353 @@
 {
-  "recordedAt": "2026-11-10T14:34:37.098Z",
-  "runs": [
+  "recordedAt": "2026-11-11T10:27:25.928Z",
+  "composeFile": "compose.coolify.yaml",
+  "commits": {
+    "initial": "95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+    "candidate": "aa312146a27671d5d281707f88c07a753d01b4a7",
+    "brokenMigration": "60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
+    "fixForward": "7bd022674d93749e139fa58d0539db8d0bbd852d"
+  },
+  "passed": true,
+  "deploys": [
     {
-      "commit": "57f6937b0a4d3e0904cc47a0b76a51b1415faa12",
-      "exitCode": 0,
-      "events": [
+      "label": "first deploy (before initialization)",
+      "commit": "95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+      "upExitCode": 1,
+      "upError": "service \"replay-deletions\" didn't complete successfully: exit 1",
+      "jobs": [
         {
-          "event": "redeploy_started",
-          "commit": "57f6937b0a4d3e0904cc47a0b76a51b1415faa12",
-          "previousCommit": "a83bca941f480a1be61947730fe87e4ec9f7f96a",
-          "record": "X:\\t3-code\\worktrees\\pr0\\t3-76a528fd-18aab4655da4a206\\.scratch\\hosted-mj6Vl0\\checkout\\.deployments\\2026-11-10T143327.019Z-57f6937b0a4d.json"
-        },
-        {
-          "event": "redeploy_step",
-          "step": "preflight",
-          "status": "ok",
-          "durationMs": 2399
-        },
-        {
-          "event": "redeploy_step",
-          "step": "close-ingress",
-          "status": "ok",
-          "durationMs": 3330
-        },
-        {
-          "event": "redeploy_step",
-          "step": "build",
-          "status": "ok",
-          "durationMs": 5186
-        },
-        {
-          "event": "redeploy_step",
-          "step": "migrate",
-          "status": "ok",
-          "durationMs": 1103
-        },
-        {
-          "event": "redeploy_step",
-          "step": "replay-deletions",
-          "status": "ok",
-          "durationMs": 1028
-        },
-        {
-          "event": "redeploy_step",
-          "step": "recreate",
-          "status": "ok",
-          "durationMs": 1349
-        },
-        {
-          "event": "redeploy_step",
-          "step": "check",
-          "status": "ok",
-          "durationMs": 1082
-        },
-        {
-          "event": "redeploy_step",
-          "step": "backup",
-          "status": "ok",
-          "durationMs": 1294
-        },
-        {
-          "event": "redeploy_step",
-          "step": "reopen-ingress",
-          "status": "ok",
-          "durationMs": 5769
-        },
-        {
-          "event": "redeploy_complete",
-          "commit": "57f6937b0a4d3e0904cc47a0b76a51b1415faa12",
-          "images": {
-            "app": {
-              "tag": "pr0-hosted-f4f6a95e:57f6937b0a4d",
-              "id": "sha256:d899a3ec0a0f752028ff28d5f1353849d035b9732cc4f6acfd6cf722e8edb845"
-            },
-            "tools": {
-              "tag": "pr0-hosted-f4f6a95e-tools:57f6937b0a4d",
-              "id": "sha256:92f7141b46c2ec1d26a88fc66d65f5d5f6eeb8e4ccb01db0955f857409c79462"
-            },
-            "ingress": {
-              "tag": "pr0-hosted-f4f6a95e-ingress:57f6937b0a4d",
-              "id": "sha256:3f1bc90857810f9ab5bd1db1b56a996125d0b881b4a273043c5a5b9c9671287b"
-            }
+          "service": "backup-before",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:26:28.929231816Z",
+          "finishedAt": "2026-11-11T10:26:29.093601886Z",
+          "result": {
+            "event": "backup_skipped",
+            "reason": "empty_database"
           },
-          "record": "X:\\t3-code\\worktrees\\pr0\\t3-76a528fd-18aab4655da4a206\\.scratch\\hosted-mj6Vl0\\checkout\\.deployments\\2026-11-10T143327.019Z-57f6937b0a4d.json"
+          "output": "{\"event\":\"backup_skipped\",\"reason\":\"empty_database\"}"
+        },
+        {
+          "service": "migrate",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:26:29.59373564Z",
+          "finishedAt": "2026-11-11T10:26:29.891434056Z",
+          "result": {
+            "event": "release_recorded",
+            "release": "pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb"
+          },
+          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb\"}"
+        },
+        {
+          "service": "replay-deletions",
+          "ran": true,
+          "exitCode": 1,
+          "startedAt": "2026-11-11T10:26:30.228684287Z",
+          "finishedAt": "2026-11-11T10:26:30.411149311Z",
+          "result": null,
+          "output": "Deletion evidence unavailable or inconsistent; keep service closed and retry."
         }
       ],
-      "record": {
-        "status": "complete",
-        "previousCommit": "a83bca941f480a1be61947730fe87e4ec9f7f96a",
-        "commit": "57f6937b0a4d3e0904cc47a0b76a51b1415faa12",
-        "durationMs": 23667,
-        "images": {
-          "app": {
-            "tag": "pr0-hosted-f4f6a95e:57f6937b0a4d",
-            "id": "sha256:d899a3ec0a0f752028ff28d5f1353849d035b9732cc4f6acfd6cf722e8edb845"
-          },
-          "tools": {
-            "tag": "pr0-hosted-f4f6a95e-tools:57f6937b0a4d",
-            "id": "sha256:92f7141b46c2ec1d26a88fc66d65f5d5f6eeb8e4ccb01db0955f857409c79462"
-          },
-          "ingress": {
-            "tag": "pr0-hosted-f4f6a95e-ingress:57f6937b0a4d",
-            "id": "sha256:3f1bc90857810f9ab5bd1db1b56a996125d0b881b4a273043c5a5b9c9671287b"
-          }
-        },
-        "steps": [
-          {
-            "step": "preflight",
-            "status": "ok",
-            "durationMs": 2399
-          },
-          {
-            "step": "close-ingress",
-            "status": "ok",
-            "durationMs": 3330
-          },
-          {
-            "step": "build",
-            "status": "ok",
-            "durationMs": 5186
-          },
-          {
-            "step": "migrate",
-            "status": "ok",
-            "durationMs": 1103
-          },
-          {
-            "step": "replay-deletions",
-            "status": "ok",
-            "durationMs": 1028
-          },
-          {
-            "step": "recreate",
-            "status": "ok",
-            "durationMs": 1349
-          },
-          {
-            "step": "check",
-            "status": "ok",
-            "durationMs": 1082
-          },
-          {
-            "step": "backup",
-            "status": "ok",
-            "durationMs": 1294
-          },
-          {
-            "step": "reopen-ingress",
-            "status": "ok",
-            "durationMs": 5769
-          }
-        ],
-        "commands": [
-          "git status --porcelain",
-          "git rev-parse HEAD",
-          "git rev-parse --verify 57f6937b0a4d3e0904cc47a0b76a51b1415faa12^{commit}",
-          "docker compose run --rm --no-deps operations metrics",
-          "docker compose run --rm --no-deps --entrypoint bun accounts --bun -e const { statfsSync } = require(\"node:fs\"); const free = (p) => { const s = statfsSync(p, { bigint: true }); return String(s.bavail * s.bsize); }; console.log(JSON.stringify({ migrationBackups: free(\"/var/lib/pr0-backups\"), scratch: free(require(\"node:os\").tmpdir()) }));",
-          "docker compose stop ingress web mail",
-          "docker compose ps --status running --services",
-          "git checkout --quiet --detach 57f6937b0a4d3e0904cc47a0b76a51b1415faa12",
-          "docker compose config --quiet",
-          "docker compose build web accounts ingress",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e:57f6937b0a4d",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e-tools:57f6937b0a4d",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e-ingress:57f6937b0a4d",
-          "docker compose run --rm accounts migrate",
-          "docker compose run --rm deletions replay",
-          "docker compose up --detach --no-build --no-deps --force-recreate web mail",
-          "docker compose ps --status running --services",
-          "docker compose run --rm --no-deps canary",
-          "docker compose exec -T web bun --bun -e const response = await fetch('http://127.0.0.1:3000/api/v1/ready'); console.log(JSON.stringify({ status: response.status, body: await response.json() })); process.exit(response.ok ? 0 : 1);",
-          "docker compose run --rm backup create",
-          "docker compose up --detach --no-build --no-deps --force-recreate --wait --wait-timeout 120 ingress",
-          "docker compose exec -T ingress wget -q -O - http://127.0.0.1:8080/api/v1/ready"
-        ]
+      "running": [
+        "database",
+        "heartbeat",
+        "ledger-a",
+        "ledger-b",
+        "smtp"
+      ],
+      "serving": {
+        "backup": "created pr0-hosted-74d68526-tools:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+        "ingress": "created pr0-hosted-74d68526-ingress:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+        "mail": "created pr0-hosted-74d68526:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+        "web": "created pr0-hosted-74d68526:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb"
+      },
+      "created": {
+        "backup": "2026-11-11T10:26:22.705966299Z",
+        "ingress": "2026-11-11T10:26:22.779332007Z",
+        "mail": "2026-11-11T10:26:22.698277251Z",
+        "web": "2026-11-11T10:26:22.699160816Z"
       }
     },
     {
-      "commit": "56674eea7ea74ffe08eae41bb34dc596fb9c2893",
-      "exitCode": 1,
-      "events": [
+      "label": "first deploy (after initialization)",
+      "commit": "95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+      "upExitCode": 0,
+      "upError": null,
+      "jobs": [
         {
-          "event": "redeploy_started",
-          "commit": "56674eea7ea74ffe08eae41bb34dc596fb9c2893",
-          "previousCommit": "57f6937b0a4d3e0904cc47a0b76a51b1415faa12",
-          "record": "X:\\t3-code\\worktrees\\pr0\\t3-76a528fd-18aab4655da4a206\\.scratch\\hosted-mj6Vl0\\checkout\\.deployments\\2026-11-10T143351.421Z-56674eea7ea7.json"
+          "service": "backup-before",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:26:38.125607451Z",
+          "finishedAt": "2026-11-11T10:26:38.711982071Z",
+          "result": {
+            "event": "backup_verified",
+            "archive": "1794392798265-2fbbad91-8e57-4ebd-b1f6-54419b60b679",
+            "checkpoint": "2026-11-11T10:26:38.265Z"
+          },
+          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794392798265-2fbbad91-8e57-4ebd-b1f6-54419b60b679\",\"checkpoint\":\"2026-11-11T10:26:38.265Z\"}"
         },
         {
-          "event": "redeploy_step",
-          "step": "preflight",
-          "status": "ok",
-          "durationMs": 1780
+          "service": "migrate",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:26:38.861215463Z",
+          "finishedAt": "2026-11-11T10:26:39.003376957Z",
+          "result": {
+            "event": "release_recorded",
+            "release": "pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb"
+          },
+          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb\"}"
         },
         {
-          "event": "redeploy_step",
-          "step": "close-ingress",
-          "status": "ok",
-          "durationMs": 1983
-        },
-        {
-          "event": "redeploy_step",
-          "step": "build",
-          "status": "ok",
-          "durationMs": 20000
-        },
-        {
-          "event": "redeploy_step",
-          "step": "migrate",
-          "status": "failed",
-          "durationMs": 1568
-        },
-        {
-          "event": "redeploy_failed",
-          "step": "migrate",
-          "error": "docker compose run --rm exited 1: Container pr0-hosted-f4f6a95e-database-1 Running \n Container pr0-hosted-f4f6a95e-database-1 Waiting \n Container pr0-hosted-f4f6a95e-database-1 Healthy \n Container pr0-hosted-f4f6a95e-accounts-run-1bce18b0a8f7 Creating \n Container pr0-hosted-f4f6a95e-accounts-run-1bce18b0a8f7 Created \ndivision by zero",
-          "record": "X:\\t3-code\\worktrees\\pr0\\t3-76a528fd-18aab4655da4a206\\.scratch\\hosted-mj6Vl0\\checkout\\.deployments\\2026-11-10T143351.421Z-56674eea7ea7.json",
-          "action": "Ingress stays closed and data is intact. Inspect the record, fix forward with a new commit, or roll back only to a binary compatible with the current schema."
+          "service": "replay-deletions",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:26:39.495643692Z",
+          "finishedAt": "2026-11-11T10:26:39.687099935Z",
+          "result": null,
+          "output": "Deletion evidence operation completed."
         }
       ],
-      "record": {
-        "status": "failed",
-        "previousCommit": "57f6937b0a4d3e0904cc47a0b76a51b1415faa12",
-        "commit": "56674eea7ea74ffe08eae41bb34dc596fb9c2893",
-        "durationMs": 25543,
-        "images": {
-          "app": {
-            "tag": "pr0-hosted-f4f6a95e:56674eea7ea7",
-            "id": "sha256:50253a021b1c582b27c11a7e8449874fabda66032f75c599d8437dff2b223466"
-          },
-          "tools": {
-            "tag": "pr0-hosted-f4f6a95e-tools:56674eea7ea7",
-            "id": "sha256:68cc9a96ca6d5808cd51658a1735f14b5663a4e2ad8e44fcfe29612e8a9ce549"
-          },
-          "ingress": {
-            "tag": "pr0-hosted-f4f6a95e-ingress:56674eea7ea7",
-            "id": "sha256:5657db18de771a18b772e79537741f5f1a7682ce5aa9bda99cbb196e95189e26"
-          }
-        },
-        "steps": [
-          {
-            "step": "preflight",
-            "status": "ok",
-            "durationMs": 1780
-          },
-          {
-            "step": "close-ingress",
-            "status": "ok",
-            "durationMs": 1983
-          },
-          {
-            "step": "build",
-            "status": "ok",
-            "durationMs": 20000
-          },
-          {
-            "step": "migrate",
-            "status": "failed",
-            "durationMs": 1568
-          }
-        ],
-        "commands": [
-          "git status --porcelain",
-          "git rev-parse HEAD",
-          "git rev-parse --verify 56674eea7ea74ffe08eae41bb34dc596fb9c2893^{commit}",
-          "docker compose run --rm --no-deps operations metrics",
-          "docker compose run --rm --no-deps --entrypoint bun accounts --bun -e const { statfsSync } = require(\"node:fs\"); const free = (p) => { const s = statfsSync(p, { bigint: true }); return String(s.bavail * s.bsize); }; console.log(JSON.stringify({ migrationBackups: free(\"/var/lib/pr0-backups\"), scratch: free(require(\"node:os\").tmpdir()) }));",
-          "docker compose stop ingress web mail",
-          "docker compose ps --status running --services",
-          "git checkout --quiet --detach 56674eea7ea74ffe08eae41bb34dc596fb9c2893",
-          "docker compose config --quiet",
-          "docker compose build web accounts ingress",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e:56674eea7ea7",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e-tools:56674eea7ea7",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e-ingress:56674eea7ea7",
-          "docker compose run --rm accounts migrate"
-        ]
+      "running": [
+        "backup",
+        "database",
+        "heartbeat",
+        "ingress",
+        "ledger-a",
+        "ledger-b",
+        "mail",
+        "smtp",
+        "web"
+      ],
+      "serving": {
+        "backup": "running pr0-hosted-74d68526-tools:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+        "ingress": "running pr0-hosted-74d68526-ingress:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+        "mail": "running pr0-hosted-74d68526:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+        "web": "running pr0-hosted-74d68526:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb"
+      },
+      "created": {
+        "backup": "2026-11-11T10:26:38.024381079Z",
+        "ingress": "2026-11-11T10:26:22.779332007Z",
+        "mail": "2026-11-11T10:26:37.867832924Z",
+        "web": "2026-11-11T10:26:37.902636834Z"
       }
     },
     {
-      "commit": "2a7f9db0ab4b54115fe865e0b69e6c7fcdd0ebf1",
-      "exitCode": 0,
-      "events": [
+      "label": "scheduled backup task",
+      "runs": [
         {
-          "event": "redeploy_started",
-          "commit": "2a7f9db0ab4b54115fe865e0b69e6c7fcdd0ebf1",
-          "previousCommit": "56674eea7ea74ffe08eae41bb34dc596fb9c2893",
-          "record": "X:\\t3-code\\worktrees\\pr0\\t3-76a528fd-18aab4655da4a206\\.scratch\\hosted-mj6Vl0\\checkout\\.deployments\\2026-11-10T143417.448Z-2a7f9db0ab4b.json"
+          "exitCode": 0,
+          "heartbeat": "0"
         },
         {
-          "event": "redeploy_step",
-          "step": "preflight",
-          "status": "ok",
-          "durationMs": 1838
-        },
+          "exitCode": 1,
+          "heartbeat": "1"
+        }
+      ]
+    },
+    {
+      "label": "upgrade",
+      "commit": "aa312146a27671d5d281707f88c07a753d01b4a7",
+      "upExitCode": 0,
+      "upError": null,
+      "jobs": [
         {
-          "event": "redeploy_step",
-          "step": "close-ingress",
-          "status": "ok",
-          "durationMs": 433
-        },
-        {
-          "event": "redeploy_step",
-          "step": "build",
-          "status": "ok",
-          "durationMs": 2502
-        },
-        {
-          "event": "redeploy_step",
-          "step": "migrate",
-          "status": "ok",
-          "durationMs": 1075
-        },
-        {
-          "event": "redeploy_step",
-          "step": "replay-deletions",
-          "status": "ok",
-          "durationMs": 1049
-        },
-        {
-          "event": "redeploy_step",
-          "step": "recreate",
-          "status": "ok",
-          "durationMs": 1686
-        },
-        {
-          "event": "redeploy_step",
-          "step": "check",
-          "status": "ok",
-          "durationMs": 1059
-        },
-        {
-          "event": "redeploy_step",
-          "step": "backup",
-          "status": "ok",
-          "durationMs": 1249
-        },
-        {
-          "event": "redeploy_step",
-          "step": "reopen-ingress",
-          "status": "ok",
-          "durationMs": 6358
-        },
-        {
-          "event": "redeploy_complete",
-          "commit": "2a7f9db0ab4b54115fe865e0b69e6c7fcdd0ebf1",
-          "images": {
-            "app": {
-              "tag": "pr0-hosted-f4f6a95e:2a7f9db0ab4b",
-              "id": "sha256:df2b77c018dbe51c5bccc09a8d2807db1a7e97d0fc676922cd387d11be03771d"
-            },
-            "tools": {
-              "tag": "pr0-hosted-f4f6a95e-tools:2a7f9db0ab4b",
-              "id": "sha256:8bb4cc08dfb3d4b5e6e8ea05e76e422ac49fb2c1b03d740818b8447763238d02"
-            },
-            "ingress": {
-              "tag": "pr0-hosted-f4f6a95e-ingress:2a7f9db0ab4b",
-              "id": "sha256:fb5a7b064735df5cc41ed1f916d02da27b1bbd21f9930eb6d0ab4194dac0a600"
-            }
+          "service": "backup-before",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:26:50.026194149Z",
+          "finishedAt": "2026-11-11T10:26:50.573119928Z",
+          "result": {
+            "event": "backup_verified",
+            "archive": "1794392810180-0e7898e0-447e-498d-beac-aaf5dac728d5",
+            "checkpoint": "2026-11-11T10:26:50.180Z"
           },
-          "record": "X:\\t3-code\\worktrees\\pr0\\t3-76a528fd-18aab4655da4a206\\.scratch\\hosted-mj6Vl0\\checkout\\.deployments\\2026-11-10T143417.448Z-2a7f9db0ab4b.json"
+          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794392810180-0e7898e0-447e-498d-beac-aaf5dac728d5\",\"checkpoint\":\"2026-11-11T10:26:50.180Z\"}"
+        },
+        {
+          "service": "migrate",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:26:50.721520038Z",
+          "finishedAt": "2026-11-11T10:26:50.865983915Z",
+          "result": {
+            "event": "release_recorded",
+            "release": "pr0@aa312146a27671d5d281707f88c07a753d01b4a7"
+          },
+          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@aa312146a27671d5d281707f88c07a753d01b4a7\"}"
+        },
+        {
+          "service": "replay-deletions",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:26:51.356402845Z",
+          "finishedAt": "2026-11-11T10:26:51.54240682Z",
+          "result": null,
+          "output": "Deletion evidence operation completed."
         }
       ],
-      "record": {
-        "status": "complete",
-        "previousCommit": "56674eea7ea74ffe08eae41bb34dc596fb9c2893",
-        "commit": "2a7f9db0ab4b54115fe865e0b69e6c7fcdd0ebf1",
-        "durationMs": 17465,
-        "images": {
-          "app": {
-            "tag": "pr0-hosted-f4f6a95e:2a7f9db0ab4b",
-            "id": "sha256:df2b77c018dbe51c5bccc09a8d2807db1a7e97d0fc676922cd387d11be03771d"
+      "running": [
+        "backup",
+        "database",
+        "heartbeat",
+        "ingress",
+        "ledger-a",
+        "ledger-b",
+        "mail",
+        "smtp",
+        "web"
+      ],
+      "serving": {
+        "backup": "running pr0-hosted-74d68526-tools:aa312146a27671d5d281707f88c07a753d01b4a7",
+        "ingress": "running pr0-hosted-74d68526-ingress:aa312146a27671d5d281707f88c07a753d01b4a7",
+        "mail": "running pr0-hosted-74d68526:aa312146a27671d5d281707f88c07a753d01b4a7",
+        "web": "running pr0-hosted-74d68526:aa312146a27671d5d281707f88c07a753d01b4a7"
+      },
+      "created": {
+        "backup": "2026-11-11T10:26:48.742506657Z",
+        "ingress": "2026-11-11T10:26:49.102785074Z",
+        "mail": "2026-11-11T10:26:48.595930681Z",
+        "web": "2026-11-11T10:26:48.628221558Z"
+      },
+      "backupBeforeRelease": "pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+      "readiness": {
+        "status": "ready",
+        "checks": {
+          "schema": "ready",
+          "deletionReplay": "ready",
+          "email": "ready",
+          "search": "ready"
+        }
+      }
+    },
+    {
+      "label": "failing migration",
+      "commit": "60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
+      "upExitCode": 1,
+      "upError": "service \"migrate\" didn't complete successfully: exit 1",
+      "jobs": [
+        {
+          "service": "backup-before",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:27:14.721560832Z",
+          "finishedAt": "2026-11-11T10:27:15.273505009Z",
+          "result": {
+            "event": "backup_verified",
+            "archive": "1794392834859-8500eb44-7ac5-480a-a2d0-7199dab83ab2",
+            "checkpoint": "2026-11-11T10:27:14.859Z"
           },
-          "tools": {
-            "tag": "pr0-hosted-f4f6a95e-tools:2a7f9db0ab4b",
-            "id": "sha256:8bb4cc08dfb3d4b5e6e8ea05e76e422ac49fb2c1b03d740818b8447763238d02"
-          },
-          "ingress": {
-            "tag": "pr0-hosted-f4f6a95e-ingress:2a7f9db0ab4b",
-            "id": "sha256:fb5a7b064735df5cc41ed1f916d02da27b1bbd21f9930eb6d0ab4194dac0a600"
-          }
+          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794392834859-8500eb44-7ac5-480a-a2d0-7199dab83ab2\",\"checkpoint\":\"2026-11-11T10:27:14.859Z\"}"
         },
-        "steps": [
-          {
-            "step": "preflight",
-            "status": "ok",
-            "durationMs": 1838
+        {
+          "service": "migrate",
+          "ran": true,
+          "exitCode": 1,
+          "startedAt": "2026-11-11T10:27:15.452188971Z",
+          "finishedAt": "2026-11-11T10:27:15.737060007Z",
+          "result": null,
+          "output": "division by zero"
+        },
+        {
+          "service": "replay-deletions",
+          "ran": false
+        }
+      ],
+      "running": [
+        "database",
+        "heartbeat",
+        "ledger-a",
+        "ledger-b",
+        "smtp"
+      ],
+      "serving": {
+        "backup": "created pr0-hosted-74d68526-tools:60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
+        "ingress": "created pr0-hosted-74d68526-ingress:60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
+        "mail": "created pr0-hosted-74d68526:60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
+        "web": "created pr0-hosted-74d68526:60f64c92a9c3e1a9d669a3779b2580fe0e61de73"
+      },
+      "created": {
+        "backup": "2026-11-11T10:27:13.736829639Z",
+        "ingress": "2026-11-11T10:27:14.211818586Z",
+        "mail": "2026-11-11T10:27:13.586751263Z",
+        "web": "2026-11-11T10:27:13.619058465Z"
+      },
+      "reachable": false
+    },
+    {
+      "label": "fix forward",
+      "commit": "7bd022674d93749e139fa58d0539db8d0bbd852d",
+      "upExitCode": 0,
+      "upError": null,
+      "jobs": [
+        {
+          "service": "backup-before",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:27:21.6555023Z",
+          "finishedAt": "2026-11-11T10:27:22.189442368Z",
+          "result": {
+            "event": "backup_verified",
+            "archive": "1794392841807-0db7cbf5-3897-4441-bbe8-7ddf7a1a2889",
+            "checkpoint": "2026-11-11T10:27:21.807Z"
           },
-          {
-            "step": "close-ingress",
-            "status": "ok",
-            "durationMs": 433
+          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794392841807-0db7cbf5-3897-4441-bbe8-7ddf7a1a2889\",\"checkpoint\":\"2026-11-11T10:27:21.807Z\"}"
+        },
+        {
+          "service": "migrate",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:27:22.342503786Z",
+          "finishedAt": "2026-11-11T10:27:22.506033338Z",
+          "result": {
+            "event": "release_recorded",
+            "release": "pr0@7bd022674d93749e139fa58d0539db8d0bbd852d"
           },
-          {
-            "step": "build",
-            "status": "ok",
-            "durationMs": 2502
-          },
-          {
-            "step": "migrate",
-            "status": "ok",
-            "durationMs": 1075
-          },
-          {
-            "step": "replay-deletions",
-            "status": "ok",
-            "durationMs": 1049
-          },
-          {
-            "step": "recreate",
-            "status": "ok",
-            "durationMs": 1686
-          },
-          {
-            "step": "check",
-            "status": "ok",
-            "durationMs": 1059
-          },
-          {
-            "step": "backup",
-            "status": "ok",
-            "durationMs": 1249
-          },
-          {
-            "step": "reopen-ingress",
-            "status": "ok",
-            "durationMs": 6358
-          }
-        ],
-        "commands": [
-          "git status --porcelain",
-          "git rev-parse HEAD",
-          "git rev-parse --verify 2a7f9db0ab4b54115fe865e0b69e6c7fcdd0ebf1^{commit}",
-          "docker compose run --rm --no-deps operations metrics",
-          "docker compose run --rm --no-deps --entrypoint bun accounts --bun -e const { statfsSync } = require(\"node:fs\"); const free = (p) => { const s = statfsSync(p, { bigint: true }); return String(s.bavail * s.bsize); }; console.log(JSON.stringify({ migrationBackups: free(\"/var/lib/pr0-backups\"), scratch: free(require(\"node:os\").tmpdir()) }));",
-          "docker compose stop ingress web mail",
-          "docker compose ps --status running --services",
-          "git checkout --quiet --detach 2a7f9db0ab4b54115fe865e0b69e6c7fcdd0ebf1",
-          "docker compose config --quiet",
-          "docker compose build web accounts ingress",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e:2a7f9db0ab4b",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e-tools:2a7f9db0ab4b",
-          "docker image inspect --format {{.Id}} pr0-hosted-f4f6a95e-ingress:2a7f9db0ab4b",
-          "docker compose run --rm accounts migrate",
-          "docker compose run --rm deletions replay",
-          "docker compose up --detach --no-build --no-deps --force-recreate web mail",
-          "docker compose ps --status running --services",
-          "docker compose run --rm --no-deps canary",
-          "docker compose exec -T web bun --bun -e const response = await fetch('http://127.0.0.1:3000/api/v1/ready'); console.log(JSON.stringify({ status: response.status, body: await response.json() })); process.exit(response.ok ? 0 : 1);",
-          "docker compose run --rm backup create",
-          "docker compose up --detach --no-build --no-deps --force-recreate --wait --wait-timeout 120 ingress",
-          "docker compose exec -T ingress wget -q -O - http://127.0.0.1:8080/api/v1/ready"
-        ]
+          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@7bd022674d93749e139fa58d0539db8d0bbd852d\"}"
+        },
+        {
+          "service": "replay-deletions",
+          "ran": true,
+          "exitCode": 0,
+          "startedAt": "2026-11-11T10:27:22.985784415Z",
+          "finishedAt": "2026-11-11T10:27:23.169710767Z",
+          "result": null,
+          "output": "Deletion evidence operation completed."
+        }
+      ],
+      "running": [
+        "backup",
+        "database",
+        "heartbeat",
+        "ingress",
+        "ledger-a",
+        "ledger-b",
+        "mail",
+        "smtp",
+        "web"
+      ],
+      "serving": {
+        "backup": "running pr0-hosted-74d68526-tools:7bd022674d93749e139fa58d0539db8d0bbd852d",
+        "ingress": "running pr0-hosted-74d68526-ingress:7bd022674d93749e139fa58d0539db8d0bbd852d",
+        "mail": "running pr0-hosted-74d68526:7bd022674d93749e139fa58d0539db8d0bbd852d",
+        "web": "running pr0-hosted-74d68526:7bd022674d93749e139fa58d0539db8d0bbd852d"
+      },
+      "created": {
+        "backup": "2026-11-11T10:27:21.50746612Z",
+        "ingress": "2026-11-11T10:27:21.511783237Z",
+        "mail": "2026-11-11T10:27:21.357451279Z",
+        "web": "2026-11-11T10:27:21.385997883Z"
+      },
+      "readiness": {
+        "status": "ready",
+        "checks": {
+          "schema": "ready",
+          "deletionReplay": "ready",
+          "email": "ready",
+          "search": "ready"
+        }
       }
     }
   ]

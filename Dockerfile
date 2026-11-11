@@ -29,7 +29,11 @@ WORKDIR /app
 COPY --from=base /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=build --chown=postgres:postgres /app/apps/web/.operations ./apps/web/.operations
 COPY --from=build --chown=postgres:postgres /app/apps/web/migrations ./apps/web/migrations
-RUN mkdir -p /var/lib/pr0-backups && chown postgres:postgres /var/lib/pr0-backups
+# The hosted upgrade and scheduled backup jobs (compose.coolify.yaml).
+COPY --chmod=0755 infrastructure/hosted/migrate.sh infrastructure/hosted/scheduled-backup.sh infrastructure/hosted/heartbeat.ts ./hosted/
+# /var/lib/pr0-release holds the hosted release record; a new named volume
+# mounted there inherits this ownership.
+RUN mkdir -p /var/lib/pr0-backups /var/lib/pr0-release && chown postgres:postgres /var/lib/pr0-backups /var/lib/pr0-release
 USER postgres
 ENTRYPOINT ["bun", "--bun", "apps/web/.operations/accounts.js"]
 CMD ["migrate"]
