@@ -9,6 +9,80 @@ import { accountErrorMessage } from "./account-errors";
 import { useDeletionRecovery } from "./use-deletion-recovery";
 
 const buttonClass = "wf-btn";
+
+type DeletionView = "deleted" | "pending" | "confirm" | "start";
+
+const deletionView = (
+  deleted: boolean,
+  pending: boolean,
+  hasIdentity: boolean
+): DeletionView => {
+  if (deleted) {
+    return "deleted";
+  }
+  if (pending) {
+    return "pending";
+  }
+  return hasIdentity ? "confirm" : "start";
+};
+
+// A 4xx response means the server refused the request before deleting anything.
+const isRefusalStatus = (status: number) => status >= 400 && status < 500;
+
+const ConfirmDeletion = ({
+  busy,
+  confirmed,
+  onConfirmedChange,
+  onDelete,
+  onCancel,
+}: {
+  busy: boolean;
+  confirmed: boolean;
+  onConfirmedChange: (confirmed: boolean) => void;
+  onDelete: () => void;
+  onCancel: () => void;
+}) => {
+  const t = useTranslations();
+  return (
+    <section aria-labelledby="confirm-deletion-title" className="space-y-3">
+      <h3 id="confirm-deletion-title" className="font-semibold">
+        {t("confirmAccountDeletion")}
+      </h3>
+      <p>
+        {t(
+          "thisPermanentlyRemovesYourAccountPromptsOrganizationSessionsAndUnsaved"
+        )}
+      </p>
+      <label className="flex gap-2">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(event) => onConfirmedChange(event.target.checked)}
+        />
+        {t("iUnderstandThatMyAccountAndEntireLibraryWillBe")}
+      </label>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={busy || !confirmed}
+          onClick={onDelete}
+        >
+          {t("permanentlyDeleteAccountAndLibrary")}
+        </button>
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={busy}
+          onClick={onCancel}
+        >
+          {t("cancel")}
+        </button>
+      </div>
+    </section>
+  );
+};
+
 export const AccountDeletionSettings = ({
   accountId,
   onDeleted,
@@ -93,11 +167,7 @@ export const AccountDeletionSettings = ({
         });
         deletedAccount = result.accountId;
       } catch (error) {
-        if (
-          error instanceof ApiError &&
-          error.status >= 400 &&
-          error.status < 500
-        ) {
+        if (error instanceof ApiError && isRefusalStatus(error.status)) {
           // Refused before deletion: nothing changed.
           recovery.persist(null);
           setPrepared(null);
@@ -131,6 +201,7 @@ export const AccountDeletionSettings = ({
   if (!accountId && !pending && !deleted) {
     return null;
   }
+  const view = deletionView(deleted, pending, Boolean(identity));
   return (
     <section
       aria-labelledby="delete-account-title"
@@ -143,7 +214,7 @@ export const AccountDeletionSettings = ({
         {message ||
           (pending ? t("theDeletionResultWasNotReceivedCheckItsStatus") : "")}
       </p>
-      {deleted ? (
+      {view === "deleted" ? (
         <button
           type="button"
           className={buttonClass}
@@ -155,7 +226,7 @@ export const AccountDeletionSettings = ({
           {t("finish")}
         </button>
       ) : null}
-      {pending && !deleted ? (
+      {view === "pending" ? (
         <button
           type="button"
           className={buttonClass}
@@ -167,7 +238,7 @@ export const AccountDeletionSettings = ({
           {t("checkDeletionStatus")}
         </button>
       ) : null}
-      {!pending && !deleted && !identity ? (
+      {view === "start" ? (
         <button
           ref={opener}
           type="button"
@@ -180,49 +251,20 @@ export const AccountDeletionSettings = ({
           {t("deleteAccount")}
         </button>
       ) : null}
-      {!pending && !deleted && identity ? (
-        <section aria-labelledby="confirm-deletion-title" className="space-y-3">
-          <h3 id="confirm-deletion-title" className="font-semibold">
-            {t("confirmAccountDeletion")}
-          </h3>
-          <p>
-            {t(
-              "thisPermanentlyRemovesYourAccountPromptsOrganizationSessionsAndUnsaved"
-            )}
-          </p>
-          <label className="flex gap-2">
-            <input
-              type="checkbox"
-              checked={confirmed}
-              onChange={(event) => setConfirmed(event.target.checked)}
-            />
-            {t("iUnderstandThatMyAccountAndEntireLibraryWillBe")}
-          </label>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              className={buttonClass}
-              disabled={busy || !confirmed}
-              onClick={() => {
-                void remove();
-              }}
-            >
-              {t("permanentlyDeleteAccountAndLibrary")}
-            </button>
-            <button
-              type="button"
-              className={buttonClass}
-              disabled={busy}
-              onClick={() => {
-                setPrepared(null);
-                setConfirmed(false);
-                requestAnimationFrame(() => opener.current?.focus());
-              }}
-            >
-              {t("cancel")}
-            </button>
-          </div>
-        </section>
+      {view === "confirm" ? (
+        <ConfirmDeletion
+          busy={busy}
+          confirmed={confirmed}
+          onConfirmedChange={setConfirmed}
+          onDelete={() => {
+            void remove();
+          }}
+          onCancel={() => {
+            setPrepared(null);
+            setConfirmed(false);
+            requestAnimationFrame(() => opener.current?.focus());
+          }}
+        />
       ) : null}
     </section>
   );
