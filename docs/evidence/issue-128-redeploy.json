@@ -1,17 +1,23 @@
 {
-  "recordedAt": "2026-11-11T10:27:25.928Z",
+  "recordedAt": "2026-11-11T11:12:27.362Z",
   "composeFile": "compose.coolify.yaml",
+  "database": {
+    "resource": "separate PostgreSQL 17 Compose project (stand-in for the Coolify database)",
+    "image": "postgres@sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca",
+    "role": "pr0 (LOGIN CREATEDB, not superuser)",
+    "joinedBy": "external network database, external volume database-data"
+  },
   "commits": {
-    "initial": "95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
-    "candidate": "aa312146a27671d5d281707f88c07a753d01b4a7",
-    "brokenMigration": "60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
-    "fixForward": "7bd022674d93749e139fa58d0539db8d0bbd852d"
+    "initial": "ed28634d3dff2939910eef57349e90c178affab2",
+    "candidate": "41541314fcef51589f45d9d15e5a256d4b7af8a9",
+    "brokenMigration": "42057b4a2d4fbe5fa5e0e20cccdfb916e8bb6067",
+    "fixForward": "ca048890b83b554cdf02af93f8311c68de41d6eb"
   },
   "passed": true,
   "deploys": [
     {
       "label": "first deploy (before initialization)",
-      "commit": "95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+      "commit": "ed28634d3dff2939910eef57349e90c178affab2",
       "upExitCode": 1,
       "upError": "service \"replay-deletions\" didn't complete successfully: exit 1",
       "jobs": [
@@ -19,8 +25,8 @@
           "service": "backup-before",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:26:28.929231816Z",
-          "finishedAt": "2026-11-11T10:26:29.093601886Z",
+          "startedAt": "2026-11-11T11:11:29.073990182Z",
+          "finishedAt": "2026-11-11T11:11:29.267233848Z",
           "result": {
             "event": "backup_skipped",
             "reason": "empty_database"
@@ -31,41 +37,41 @@
           "service": "migrate",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:26:29.59373564Z",
-          "finishedAt": "2026-11-11T10:26:29.891434056Z",
+          "startedAt": "2026-11-11T11:11:29.711563951Z",
+          "finishedAt": "2026-11-11T11:11:30.03825088Z",
           "result": {
             "event": "release_recorded",
-            "release": "pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb"
+            "release": "pr0@ed28634d3dff2939910eef57349e90c178affab2"
           },
-          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb\"}"
+          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@ed28634d3dff2939910eef57349e90c178affab2\"}"
         },
         {
           "service": "replay-deletions",
           "ran": true,
           "exitCode": 1,
-          "startedAt": "2026-11-11T10:26:30.228684287Z",
-          "finishedAt": "2026-11-11T10:26:30.411149311Z",
+          "startedAt": "2026-11-11T11:11:30.355523156Z",
+          "finishedAt": "2026-11-11T11:11:30.588335569Z",
           "result": null,
           "output": "Deletion evidence unavailable or inconsistent; keep service closed and retry."
         }
       ],
-      "running": ["database", "heartbeat", "ledger-a", "ledger-b", "smtp"],
+      "running": ["heartbeat", "ledger-a", "ledger-b", "smtp"],
       "serving": {
-        "backup": "created pr0-hosted-74d68526-tools:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
-        "ingress": "created pr0-hosted-74d68526-ingress:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
-        "mail": "created pr0-hosted-74d68526:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
-        "web": "created pr0-hosted-74d68526:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb"
+        "backup": "created pr0-hosted-1b575110-tools:ed28634d3dff2939910eef57349e90c178affab2",
+        "ingress": "created pr0-hosted-1b575110-ingress:ed28634d3dff2939910eef57349e90c178affab2",
+        "mail": "created pr0-hosted-1b575110:ed28634d3dff2939910eef57349e90c178affab2",
+        "web": "created pr0-hosted-1b575110:ed28634d3dff2939910eef57349e90c178affab2"
       },
       "created": {
-        "backup": "2026-11-11T10:26:22.705966299Z",
-        "ingress": "2026-11-11T10:26:22.779332007Z",
-        "mail": "2026-11-11T10:26:22.698277251Z",
-        "web": "2026-11-11T10:26:22.699160816Z"
+        "backup": "2026-11-11T11:11:28.479888871Z",
+        "ingress": "2026-11-11T11:11:28.548823423Z",
+        "mail": "2026-11-11T11:11:28.471855136Z",
+        "web": "2026-11-11T11:11:28.472363275Z"
       }
     },
     {
       "label": "first deploy (after initialization)",
-      "commit": "95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+      "commit": "ed28634d3dff2939910eef57349e90c178affab2",
       "upExitCode": 0,
       "upError": null,
       "jobs": [
@@ -73,40 +79,39 @@
           "service": "backup-before",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:26:38.125607451Z",
-          "finishedAt": "2026-11-11T10:26:38.711982071Z",
+          "startedAt": "2026-11-11T11:11:38.611158423Z",
+          "finishedAt": "2026-11-11T11:11:39.274653425Z",
           "result": {
             "event": "backup_verified",
-            "archive": "1794392798265-2fbbad91-8e57-4ebd-b1f6-54419b60b679",
-            "checkpoint": "2026-11-11T10:26:38.265Z"
+            "archive": "1794395498747-d10fc4eb-47bc-4e58-82fb-e1076c85f513",
+            "checkpoint": "2026-11-11T11:11:38.747Z"
           },
-          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794392798265-2fbbad91-8e57-4ebd-b1f6-54419b60b679\",\"checkpoint\":\"2026-11-11T10:26:38.265Z\"}"
+          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794395498747-d10fc4eb-47bc-4e58-82fb-e1076c85f513\",\"checkpoint\":\"2026-11-11T11:11:38.747Z\"}"
         },
         {
           "service": "migrate",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:26:38.861215463Z",
-          "finishedAt": "2026-11-11T10:26:39.003376957Z",
+          "startedAt": "2026-11-11T11:11:39.745672742Z",
+          "finishedAt": "2026-11-11T11:11:39.896393401Z",
           "result": {
             "event": "release_recorded",
-            "release": "pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb"
+            "release": "pr0@ed28634d3dff2939910eef57349e90c178affab2"
           },
-          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb\"}"
+          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@ed28634d3dff2939910eef57349e90c178affab2\"}"
         },
         {
           "service": "replay-deletions",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:26:39.495643692Z",
-          "finishedAt": "2026-11-11T10:26:39.687099935Z",
+          "startedAt": "2026-11-11T11:11:40.386598351Z",
+          "finishedAt": "2026-11-11T11:11:40.576725354Z",
           "result": null,
           "output": "Deletion evidence operation completed."
         }
       ],
       "running": [
         "backup",
-        "database",
         "heartbeat",
         "ingress",
         "ledger-a",
@@ -116,16 +121,16 @@
         "web"
       ],
       "serving": {
-        "backup": "running pr0-hosted-74d68526-tools:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
-        "ingress": "running pr0-hosted-74d68526-ingress:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
-        "mail": "running pr0-hosted-74d68526:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
-        "web": "running pr0-hosted-74d68526:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb"
+        "backup": "running pr0-hosted-1b575110-tools:ed28634d3dff2939910eef57349e90c178affab2",
+        "ingress": "running pr0-hosted-1b575110-ingress:ed28634d3dff2939910eef57349e90c178affab2",
+        "mail": "running pr0-hosted-1b575110:ed28634d3dff2939910eef57349e90c178affab2",
+        "web": "running pr0-hosted-1b575110:ed28634d3dff2939910eef57349e90c178affab2"
       },
       "created": {
-        "backup": "2026-11-11T10:26:38.024381079Z",
-        "ingress": "2026-11-11T10:26:22.779332007Z",
-        "mail": "2026-11-11T10:26:37.867832924Z",
-        "web": "2026-11-11T10:26:37.902636834Z"
+        "backup": "2026-11-11T11:11:38.50521217Z",
+        "ingress": "2026-11-11T11:11:28.548823423Z",
+        "mail": "2026-11-11T11:11:38.34451164Z",
+        "web": "2026-11-11T11:11:38.375511069Z"
       }
     },
     {
@@ -143,7 +148,7 @@
     },
     {
       "label": "upgrade",
-      "commit": "aa312146a27671d5d281707f88c07a753d01b4a7",
+      "commit": "41541314fcef51589f45d9d15e5a256d4b7af8a9",
       "upExitCode": 0,
       "upError": null,
       "jobs": [
@@ -151,40 +156,39 @@
           "service": "backup-before",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:26:50.026194149Z",
-          "finishedAt": "2026-11-11T10:26:50.573119928Z",
+          "startedAt": "2026-11-11T11:11:50.302898159Z",
+          "finishedAt": "2026-11-11T11:11:50.828899381Z",
           "result": {
             "event": "backup_verified",
-            "archive": "1794392810180-0e7898e0-447e-498d-beac-aaf5dac728d5",
-            "checkpoint": "2026-11-11T10:26:50.180Z"
+            "archive": "1794395510453-2f298898-8619-4fe5-8cab-4a9e183b007f",
+            "checkpoint": "2026-11-11T11:11:50.453Z"
           },
-          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794392810180-0e7898e0-447e-498d-beac-aaf5dac728d5\",\"checkpoint\":\"2026-11-11T10:26:50.180Z\"}"
+          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794395510453-2f298898-8619-4fe5-8cab-4a9e183b007f\",\"checkpoint\":\"2026-11-11T11:11:50.453Z\"}"
         },
         {
           "service": "migrate",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:26:50.721520038Z",
-          "finishedAt": "2026-11-11T10:26:50.865983915Z",
+          "startedAt": "2026-11-11T11:11:51.007599152Z",
+          "finishedAt": "2026-11-11T11:11:51.149894878Z",
           "result": {
             "event": "release_recorded",
-            "release": "pr0@aa312146a27671d5d281707f88c07a753d01b4a7"
+            "release": "pr0@41541314fcef51589f45d9d15e5a256d4b7af8a9"
           },
-          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@aa312146a27671d5d281707f88c07a753d01b4a7\"}"
+          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@41541314fcef51589f45d9d15e5a256d4b7af8a9\"}"
         },
         {
           "service": "replay-deletions",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:26:51.356402845Z",
-          "finishedAt": "2026-11-11T10:26:51.54240682Z",
+          "startedAt": "2026-11-11T11:11:51.642144514Z",
+          "finishedAt": "2026-11-11T11:11:51.862219383Z",
           "result": null,
           "output": "Deletion evidence operation completed."
         }
       ],
       "running": [
         "backup",
-        "database",
         "heartbeat",
         "ingress",
         "ledger-a",
@@ -194,18 +198,18 @@
         "web"
       ],
       "serving": {
-        "backup": "running pr0-hosted-74d68526-tools:aa312146a27671d5d281707f88c07a753d01b4a7",
-        "ingress": "running pr0-hosted-74d68526-ingress:aa312146a27671d5d281707f88c07a753d01b4a7",
-        "mail": "running pr0-hosted-74d68526:aa312146a27671d5d281707f88c07a753d01b4a7",
-        "web": "running pr0-hosted-74d68526:aa312146a27671d5d281707f88c07a753d01b4a7"
+        "backup": "running pr0-hosted-1b575110-tools:41541314fcef51589f45d9d15e5a256d4b7af8a9",
+        "ingress": "running pr0-hosted-1b575110-ingress:41541314fcef51589f45d9d15e5a256d4b7af8a9",
+        "mail": "running pr0-hosted-1b575110:41541314fcef51589f45d9d15e5a256d4b7af8a9",
+        "web": "running pr0-hosted-1b575110:41541314fcef51589f45d9d15e5a256d4b7af8a9"
       },
       "created": {
-        "backup": "2026-11-11T10:26:48.742506657Z",
-        "ingress": "2026-11-11T10:26:49.102785074Z",
-        "mail": "2026-11-11T10:26:48.595930681Z",
-        "web": "2026-11-11T10:26:48.628221558Z"
+        "backup": "2026-11-11T11:11:49.019830549Z",
+        "ingress": "2026-11-11T11:11:49.509513381Z",
+        "mail": "2026-11-11T11:11:48.877292044Z",
+        "web": "2026-11-11T11:11:48.908508823Z"
       },
-      "backupBeforeRelease": "pr0@95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
+      "backupBeforeRelease": "pr0@ed28634d3dff2939910eef57349e90c178affab2",
       "readiness": {
         "status": "ready",
         "checks": {
@@ -218,7 +222,7 @@
     },
     {
       "label": "failing migration",
-      "commit": "60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
+      "commit": "42057b4a2d4fbe5fa5e0e20cccdfb916e8bb6067",
       "upExitCode": 1,
       "upError": "service \"migrate\" didn't complete successfully: exit 1",
       "jobs": [
@@ -226,21 +230,21 @@
           "service": "backup-before",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:27:14.721560832Z",
-          "finishedAt": "2026-11-11T10:27:15.273505009Z",
+          "startedAt": "2026-11-11T11:12:14.835127926Z",
+          "finishedAt": "2026-11-11T11:12:15.3883402Z",
           "result": {
             "event": "backup_verified",
-            "archive": "1794392834859-8500eb44-7ac5-480a-a2d0-7199dab83ab2",
-            "checkpoint": "2026-11-11T10:27:14.859Z"
+            "archive": "1794395534997-5dee0241-ec6b-4e98-a815-2eb85954332c",
+            "checkpoint": "2026-11-11T11:12:14.997Z"
           },
-          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794392834859-8500eb44-7ac5-480a-a2d0-7199dab83ab2\",\"checkpoint\":\"2026-11-11T10:27:14.859Z\"}"
+          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794395534997-5dee0241-ec6b-4e98-a815-2eb85954332c\",\"checkpoint\":\"2026-11-11T11:12:14.997Z\"}"
         },
         {
           "service": "migrate",
           "ran": true,
           "exitCode": 1,
-          "startedAt": "2026-11-11T10:27:15.452188971Z",
-          "finishedAt": "2026-11-11T10:27:15.737060007Z",
+          "startedAt": "2026-11-11T11:12:15.578693906Z",
+          "finishedAt": "2026-11-11T11:12:15.893866042Z",
           "result": null,
           "output": "division by zero"
         },
@@ -249,24 +253,24 @@
           "ran": false
         }
       ],
-      "running": ["database", "heartbeat", "ledger-a", "ledger-b", "smtp"],
+      "running": ["heartbeat", "ledger-a", "ledger-b", "smtp"],
       "serving": {
-        "backup": "created pr0-hosted-74d68526-tools:60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
-        "ingress": "created pr0-hosted-74d68526-ingress:60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
-        "mail": "created pr0-hosted-74d68526:60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
-        "web": "created pr0-hosted-74d68526:60f64c92a9c3e1a9d669a3779b2580fe0e61de73"
+        "backup": "created pr0-hosted-1b575110-tools:42057b4a2d4fbe5fa5e0e20cccdfb916e8bb6067",
+        "ingress": "created pr0-hosted-1b575110-ingress:42057b4a2d4fbe5fa5e0e20cccdfb916e8bb6067",
+        "mail": "created pr0-hosted-1b575110:42057b4a2d4fbe5fa5e0e20cccdfb916e8bb6067",
+        "web": "created pr0-hosted-1b575110:42057b4a2d4fbe5fa5e0e20cccdfb916e8bb6067"
       },
       "created": {
-        "backup": "2026-11-11T10:27:13.736829639Z",
-        "ingress": "2026-11-11T10:27:14.211818586Z",
-        "mail": "2026-11-11T10:27:13.586751263Z",
-        "web": "2026-11-11T10:27:13.619058465Z"
+        "backup": "2026-11-11T11:12:13.814012298Z",
+        "ingress": "2026-11-11T11:12:14.302068292Z",
+        "mail": "2026-11-11T11:12:13.671589829Z",
+        "web": "2026-11-11T11:12:13.704019376Z"
       },
       "reachable": false
     },
     {
       "label": "fix forward",
-      "commit": "7bd022674d93749e139fa58d0539db8d0bbd852d",
+      "commit": "ca048890b83b554cdf02af93f8311c68de41d6eb",
       "upExitCode": 0,
       "upError": null,
       "jobs": [
@@ -274,40 +278,39 @@
           "service": "backup-before",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:27:21.6555023Z",
-          "finishedAt": "2026-11-11T10:27:22.189442368Z",
+          "startedAt": "2026-11-11T11:12:22.642375873Z",
+          "finishedAt": "2026-11-11T11:12:23.198998995Z",
           "result": {
             "event": "backup_verified",
-            "archive": "1794392841807-0db7cbf5-3897-4441-bbe8-7ddf7a1a2889",
-            "checkpoint": "2026-11-11T10:27:21.807Z"
+            "archive": "1794395542806-5e21aa48-8248-4085-a025-348313aac568",
+            "checkpoint": "2026-11-11T11:12:22.806Z"
           },
-          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794392841807-0db7cbf5-3897-4441-bbe8-7ddf7a1a2889\",\"checkpoint\":\"2026-11-11T10:27:21.807Z\"}"
+          "output": "{\"event\":\"backup_verified\",\"archive\":\"1794395542806-5e21aa48-8248-4085-a025-348313aac568\",\"checkpoint\":\"2026-11-11T11:12:22.806Z\"}"
         },
         {
           "service": "migrate",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:27:22.342503786Z",
-          "finishedAt": "2026-11-11T10:27:22.506033338Z",
+          "startedAt": "2026-11-11T11:12:23.396418653Z",
+          "finishedAt": "2026-11-11T11:12:23.556531729Z",
           "result": {
             "event": "release_recorded",
-            "release": "pr0@7bd022674d93749e139fa58d0539db8d0bbd852d"
+            "release": "pr0@ca048890b83b554cdf02af93f8311c68de41d6eb"
           },
-          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@7bd022674d93749e139fa58d0539db8d0bbd852d\"}"
+          "output": "{\"event\":\"release_recorded\",\"release\":\"pr0@ca048890b83b554cdf02af93f8311c68de41d6eb\"}"
         },
         {
           "service": "replay-deletions",
           "ran": true,
           "exitCode": 0,
-          "startedAt": "2026-11-11T10:27:22.985784415Z",
-          "finishedAt": "2026-11-11T10:27:23.169710767Z",
+          "startedAt": "2026-11-11T11:12:24.038429854Z",
+          "finishedAt": "2026-11-11T11:12:24.244951207Z",
           "result": null,
           "output": "Deletion evidence operation completed."
         }
       ],
       "running": [
         "backup",
-        "database",
         "heartbeat",
         "ingress",
         "ledger-a",
@@ -317,16 +320,16 @@
         "web"
       ],
       "serving": {
-        "backup": "running pr0-hosted-74d68526-tools:7bd022674d93749e139fa58d0539db8d0bbd852d",
-        "ingress": "running pr0-hosted-74d68526-ingress:7bd022674d93749e139fa58d0539db8d0bbd852d",
-        "mail": "running pr0-hosted-74d68526:7bd022674d93749e139fa58d0539db8d0bbd852d",
-        "web": "running pr0-hosted-74d68526:7bd022674d93749e139fa58d0539db8d0bbd852d"
+        "backup": "running pr0-hosted-1b575110-tools:ca048890b83b554cdf02af93f8311c68de41d6eb",
+        "ingress": "running pr0-hosted-1b575110-ingress:ca048890b83b554cdf02af93f8311c68de41d6eb",
+        "mail": "running pr0-hosted-1b575110:ca048890b83b554cdf02af93f8311c68de41d6eb",
+        "web": "running pr0-hosted-1b575110:ca048890b83b554cdf02af93f8311c68de41d6eb"
       },
       "created": {
-        "backup": "2026-11-11T10:27:21.50746612Z",
-        "ingress": "2026-11-11T10:27:21.511783237Z",
-        "mail": "2026-11-11T10:27:21.357451279Z",
-        "web": "2026-11-11T10:27:21.385997883Z"
+        "backup": "2026-11-11T11:12:22.496595227Z",
+        "ingress": "2026-11-11T11:12:22.5028307Z",
+        "mail": "2026-11-11T11:12:22.330526398Z",
+        "web": "2026-11-11T11:12:22.365345487Z"
       },
       "readiness": {
         "status": "ready",
