@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 
 import {
   deletionIdentitySchema,
@@ -11,6 +12,7 @@ import type { accountTestServer } from "./account-test-server";
 import { freshSocialBrowser } from "./email-change-fixture";
 import { origin, post } from "./http-fixture";
 
+const root = path.resolve(import.meta.dir, "../../..");
 const container = "pr0-deletion-56-database-1";
 const snapshot = async () => {
   const child = Bun.spawn(
@@ -65,7 +67,7 @@ const reapply = async (log: string) => {
       "apps/web/scripts/deletions.ts",
       "reapply",
     ],
-    { stdin: new Blob([log]), stdout: "pipe", stderr: "inherit" }
+    { cwd: root, stdin: new Blob([log]), stdout: "pipe", stderr: "inherit" }
   );
   const output = await new Response(child.stdout).text();
   if ((await child.exited) !== 0) {

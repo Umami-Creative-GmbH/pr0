@@ -30,7 +30,8 @@ const removeSearchFiles = (instanceId: string, accountId: string) => {
   const root = searchDirectory();
   for (const suffix of searchSuffixes) {
     const target = path.resolve(
-      `${searchFilename(instanceId, accountId)}${suffix}`
+      // oxlint-disable-next-line eslint/no-inline-comments -- Turbopack requires its directive inside the filesystem call.
+      /* turbopackIgnore: true */ `${searchFilename(instanceId, accountId)}${suffix}`
     );
     if (path.dirname(target) !== root) {
       throw new Error("Invalid deletion path");
