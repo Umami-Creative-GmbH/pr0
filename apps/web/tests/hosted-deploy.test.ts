@@ -871,6 +871,9 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       }
       throw new Error("The ingress never reached web");
     };
+    // The redeploy restarted web (its migrate dependency ran again); the
+    // ingress answers 502 until the new web is listening.
+    await readiness();
     const signUp = await request("/api/auth/sign-up/email", {
       email,
       password,
@@ -1068,7 +1071,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       });
     }
     expect(await databaseRunning()).toContain("postgres");
-    expect(await migrationVersion()).toBe("20");
+    expect(await migrationVersion()).toBe("21");
     let reachable = true;
     try {
       await fetch(`${origin}/api/v1/health`, {
@@ -1104,7 +1107,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       migrate: 0,
     });
     expectServing(recovery, fixed);
-    expect(await migrationVersion()).toBe("20");
+    expect(await migrationVersion()).toBe("21");
     expect(await releaseRecord()).toBe(`pr0@${fixed}`);
     Object.assign(recovery, { readiness: await expectIntact() });
     passed = true;
