@@ -13,9 +13,17 @@
 # mail, ingress and backup. Docker Compose replaces those containers before it
 # runs the jobs: the previous release stops serving first, as the upgrade
 # sequence requires. A failed job stops the sequence and the new containers
-# never start, so the service stays closed with the database running and the
-# data intact until a fixed commit is deployed. Initialization and restore are
-# never part of a deploy; run them by hand (operations profile).
+# never start, so the service stays closed with the data intact until a fixed
+# commit is deployed. Initialization and restore are never part of a deploy;
+# run them by hand (operations profile).
+#
+# PostgreSQL is not part of this file. It is a Coolify-managed PostgreSQL 17
+# database resource on the same server (docs/operations/hosted.md#coolify-database).
+# Services that use it join that resource's Docker network (external network
+# `database`, named by PR0_DATABASE_NETWORK) and connect with DATABASE_URL as
+# pr0's own non-superuser role. The migration job and the operator commands
+# mount the database's data volume (PR0_DATABASE_VOLUME_NAME) read-only, only
+# to measure its free space.
 #
 # `exclude_from_hc` is Coolify's own key: it keeps the exited jobs out of the
 # application's health status. Plain docker compose rejects it, so remove those
@@ -72,23 +80,6 @@ x-backup-volumes: &backup-volumes
   - release-state:/var/lib/pr0-release:ro
 
 services:
-  database:
-    image: postgres@sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca
-    environment:
-      POSTGRES_USER: pr0
-      POSTGRES_DB: pr0
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks: [database]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pr0 -d pr0"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    logging: *logging
-
   # Upgrade job 1: a verified, encrypted backup on the Storage Box before
   # anything changes, labelled with the release that last completed the
   # schema. Skipped only for a database no migration has touched.
@@ -103,9 +94,6 @@ services:
     volumes: *backup-volumes
     entrypoint: ["bun", "--bun", "apps/web/.operations/backup.js"]
     command: ["before-upgrade"]
-    depends_on:
-      database:
-        condition: service_healthy
     logging: *logging
 
   # Upgrade job 2: the single migration coordinator, which also records this
@@ -124,7 +112,7 @@ services:
       PR0_BACKUP_RELEASE_FILE: /var/lib/pr0-release/release
     volumes:
       - migration-backups:/var/lib/pr0-backups
-      - postgres-data:/var/lib/postgresql/data:ro
+      - database-data:/var/lib/postgresql/data:ro
       - release-state:/var/lib/pr0-release
     entrypoint: ["sh", "/app/hosted/migrate.sh"]
     depends_on:
@@ -168,8 +156,6 @@ services:
       - search-data:/var/lib/pr0-search
       - recovery-state:/var/lib/pr0-recovery:ro
     depends_on:
-      database:
-        condition: service_healthy
       replay-deletions:
         condition: service_completed_successfully
     restart: unless-stopped
@@ -199,8 +185,6 @@ services:
     restart: unless-stopped
     init: true
     depends_on:
-      database:
-        condition: service_healthy
       replay-deletions:
         condition: service_completed_successfully
     logging: *logging
@@ -262,7 +246,7 @@ services:
       PR0_DATABASE_VOLUME: /var/lib/postgresql/data
     volumes:
       - migration-backups:/var/lib/pr0-backups
-      - postgres-data:/var/lib/postgresql/data:ro
+      - database-data:/var/lib/postgresql/data:ro
     entrypoint: ["bun", "--bun", "apps/web/.operations/accounts.js"]
   deletions:
     image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
@@ -294,7 +278,7 @@ services:
     networks: [default, database]
     environment: *account-environment
     volumes:
-      - postgres-data:/var/lib/postgresql/data:ro
+      - database-data:/var/lib/postgresql/data:ro
       - search-data:/var/lib/pr0-search:ro
       - recovery-state:/var/lib/pr0-recovery:ro
     entrypoint: ["bun", "--bun", "apps/web/.operations/operations.js"]
@@ -302,12 +286,19 @@ services:
 
 volumes:
   migration-backups:
-  postgres-data:
+  # The Coolify database's data volume, mounted read-only for free-space checks
+  # only. External: this application never creates or removes it.
+  database-data:
+    external: true
+    name: "${PR0_DATABASE_VOLUME_NAME:?Set the Coolify database's data volume name}"
   search-data:
   recovery-state:
   # The release that last completed the schema (infrastructure/hosted/migrate.sh).
   release-state:
 
 networks:
+  # The Docker network of the Coolify database resource (the server's
+  # destination network). External: this application never creates it.
   database:
-    internal: true
+    external: true
+    name: "${PR0_DATABASE_NETWORK:?Set the Coolify database's network}"
