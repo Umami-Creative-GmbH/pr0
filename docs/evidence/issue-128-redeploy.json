@@ -49,13 +49,7 @@
           "output": "Deletion evidence unavailable or inconsistent; keep service closed and retry."
         }
       ],
-      "running": [
-        "database",
-        "heartbeat",
-        "ledger-a",
-        "ledger-b",
-        "smtp"
-      ],
+      "running": ["database", "heartbeat", "ledger-a", "ledger-b", "smtp"],
       "serving": {
         "backup": "created pr0-hosted-74d68526-tools:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
         "ingress": "created pr0-hosted-74d68526-ingress:95d3b6b48ac2c02cf4daf65657b920e7cd42daeb",
@@ -255,13 +249,7 @@
           "ran": false
         }
       ],
-      "running": [
-        "database",
-        "heartbeat",
-        "ledger-a",
-        "ledger-b",
-        "smtp"
-      ],
+      "running": ["database", "heartbeat", "ledger-a", "ledger-b", "smtp"],
       "serving": {
         "backup": "created pr0-hosted-74d68526-tools:60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
         "ingress": "created pr0-hosted-74d68526-ingress:60f64c92a9c3e1a9d669a3779b2580fe0e61de73",
