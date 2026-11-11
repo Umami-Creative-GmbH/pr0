@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, rmdirSync } from "node:fs";
+import { mkdirSync, readFileSync, rmdirSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -8,6 +8,10 @@ import {
 } from "@pr0/api-contract/deletions";
 import { SQL } from "bun";
 
+import {
+  deletionLogFilename,
+  deletionLogLine,
+} from "../src/lib/deletion-log-files";
 import { accountTestServer, runAcceptance } from "./account-test-server";
 import {
   assertHttpStatus,
@@ -34,6 +38,10 @@ const directory = path.resolve(
 process.env.PR0_REHEARSAL_DIRECTORY = directory;
 process.env.PR0_RECOVERY_STATE_FILE = path.join(directory, "recovery.json");
 process.env.PR0_SEARCH_DIRECTORY = path.join(directory, "search");
+// The durable deletion log, a directory beside (never inside) the backups.
+const deletionLogDirectory = path.join(directory, "deletion-log");
+mkdirSync(deletionLogDirectory, { recursive: true });
+process.env.PR0_DELETION_LOG_DIRECTORY = deletionLogDirectory;
 const server = accountTestServer(
   "pr0-restore-61",
   "apps/web/tests/backup-restore-compose.yaml",
@@ -77,19 +85,26 @@ try {
   );
   assert.equal(deletion.status, 200);
   const deletedResult = deletionResultSchema.parse(await deletion.json());
-  // The deletion log is the served app's stdout: account ID and time only.
-  const deletionLog = server.serverLog();
-  assert.ok(
-    deletionLog.includes(
-      JSON.stringify({
-        event: "account_deleted",
-        accountId: deletedResult.accountId,
-        deletedAt: deletedResult.deletedAt,
-      })
-    ),
-    "the deletion is in the log"
+  // The durable deletion log file and stdout carry the same line: account ID
+  // and time only.
+  const line = deletionLogLine(
+    "account_deleted",
+    deletedResult.accountId,
+    deletedResult.deletedAt
   );
-  assert.ok(!deletionLog.includes(deleted.email), "no email in the log");
+  const deletionLog = readFileSync(
+    path.join(
+      deletionLogDirectory,
+      deletionLogFilename(deletedResult.deletedAt)
+    ),
+    "utf-8"
+  );
+  assert.ok(
+    deletionLog.split("\n").includes(line),
+    "the deletion is in the file"
+  );
+  assert.ok(server.serverLog().includes(line), "and on stdout");
+  assert.ok(!deletionLog.includes(deleted.email), "no email in the log file");
   const lossSeconds = (Date.now() - Date.parse(ordinary.checkpoint)) / 1000;
   const recoveryStarted = Date.now();
   await restoreCommand("close");
@@ -119,10 +134,10 @@ try {
       `${trust.instanceId}-${trust.accountId}.sqlite`
     );
     mkdirSync(purgeObstacle, { recursive: true });
-    await refusedReapply(deletionLog, /EISDIR|directory/iu);
+    await refusedReapply(deletionLogDirectory, /EISDIR|directory/iu);
     assert.equal(await owners(), 1, "a failed re-delete rolls back");
     rmdirSync(purgeObstacle);
-    assert.match(await reapply(deletionLog), /"read":1,"purged":1/u);
+    assert.match(await reapply(deletionLogDirectory), /"read":1,"purged":1/u);
     assert.equal(await owners(), 0);
   } finally {
     await app.close();

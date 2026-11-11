@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -8,6 +9,7 @@ import {
 } from "@pr0/api-contract/deletions";
 import { SQL } from "bun";
 
+import { deletionLogLine } from "../src/lib/deletion-log-files";
 import type { accountTestServer } from "./account-test-server";
 import { freshSocialBrowser } from "./email-change-fixture";
 import { origin, post } from "./http-fixture";
@@ -59,15 +61,17 @@ const restore = async (dump: string) => {
     throw new Error("Disposable database restore failed");
   }
 };
-const reapply = async (log: string) => {
+/** Re-applies the given log files or directories, or `stdin` when none are given. */
+const reapply = async (inputs: string[], stdin = "") => {
   const child = Bun.spawn(
     [
       "bun",
       "--conditions=react-server",
       "apps/web/scripts/deletions.ts",
       "reapply",
+      ...inputs,
     ],
-    { cwd: root, stdin: new Blob([log]), stdout: "pipe", stderr: "inherit" }
+    { cwd: root, stdin: new Blob([stdin]), stdout: "pipe", stderr: "inherit" }
   );
   const output = await new Response(child.stdout).text();
   if ((await child.exited) !== 0) {
@@ -97,13 +101,18 @@ export const deletionRestoreScenario = async (
   );
   assert.equal(deletion.status, 200);
   const result = deletionResultSchema.parse(await deletion.json());
-  // The exact structured line the server writes for this deletion.
-  const logLine = JSON.stringify({
-    event: "account_deleted",
-    accountId: result.accountId,
-    deletedAt: result.deletedAt,
-  });
-  assert.doesNotMatch(logLine, /@/u);
+  // The durable deletion log holds this deletion's line and never an email.
+  const directory = process.env.PR0_DELETION_LOG_DIRECTORY ?? "";
+  const logLine = deletionLogLine(
+    "account_deleted",
+    result.accountId,
+    result.deletedAt
+  );
+  const recorded = readdirSync(directory)
+    .map((name) => readFileSync(path.join(directory, name), "utf-8"))
+    .join("");
+  assert.ok(recorded.split("\n").includes(logLine));
+  assert.ok(!recorded.includes(account.email), "no email in the log file");
   await server.stopServer();
   await server.stopMail();
   // These are exclusively the disposable containers owned by this runner.
@@ -113,11 +122,15 @@ export const deletionRestoreScenario = async (
     const [restored] =
       await app`SELECT count(*)::int AS count FROM "user" WHERE id=${identity.accountId}`;
     assert.equal(restored.count, 1, "an older copy brings the account back");
-    const output = await reapply(`unrelated line\n${logLine}\n`);
+    // Runbook step: re-apply the whole log directory (earlier deletions too).
+    const output = await reapply([directory]);
     assert.match(output, /"event":"account_redeleted"/u);
-    assert.match(output, /"read":1,"purged":1/u);
-    // Idempotent: a second pass finds nothing left to purge.
-    assert.match(await reapply(logLine), /"read":1,"purged":0/u);
+    assert.match(output, /"purged":1\}/u);
+    // Idempotent, and stdin works too: a second pass finds nothing to purge.
+    assert.match(
+      await reapply([], `unrelated line\n${logLine}\n`),
+      /"read":1,"purged":0/u
+    );
     const [gone] =
       await app`SELECT count(*)::int AS count FROM "user" WHERE id=${identity.accountId}`;
     assert.equal(gone.count, 0);

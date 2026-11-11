@@ -8,7 +8,11 @@ import {
 } from "@pr0/api-contract/deletions";
 
 import { failure, readBody } from "./account-http";
-import { logAccountDeletion, purgeAccount } from "./account-purge";
+import {
+  logAccountDeletion,
+  purgeAccount,
+  recordAccountDeletion,
+} from "./account-purge";
 import { AccountFailureError, admitApi, assertOrigin } from "./admission";
 import { authentication } from "./auth";
 import { assertIdentity, lockAccount, requireProof } from "./browser-proof";
@@ -67,7 +71,9 @@ export const handleAccountDeletion = async (request: Request) => {
         const owner = await lockAccount(tx, browser);
         assertIdentity(browser, owner, input.data);
         await requireProof(tx, browser, owner);
-        return purgeAccount(tx, browser.accountId);
+        const purged = await purgeAccount(tx, browser.accountId);
+        recordAccountDeletion(purged);
+        return purged;
       });
       logAccountDeletion(deletion);
       return Response.json(

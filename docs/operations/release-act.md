@@ -93,7 +93,7 @@ Decision: GO / NO-GO, by <name>, <UTC time>
 - [ ] 3. Production email delivered: verification, recovery, email change, notice to the old address: <link>
 - [ ] 4. Google and GitHub sign-up, sign-in, linking and desktop device approval on the hosted origin: <link>
 - [ ] 5. Encrypted off-server backups running and verified; key retrieved from a second machine: <link>
-- [ ] 6. Deletion log shipped off the server and kept at least 31 days, and the restore runbook's re-delete step rehearsed ([ADR-0005](../adr/0005-account-deletion-is-a-hard-delete-in-the-application-database.md)): <link>
+- [ ] 6. Deletion log shipped and kept off the server, re-delete step rehearsed: the Storage Box deletion log directory (`PR0_DELETION_LOG_MOUNT`) is writable by web and holds a test deletion's line, and the restore rehearsal re-applied it ([ADR-0005](../adr/0005-account-deletion-is-a-hard-delete-in-the-application-database.md), [hosted](hosted.md#deletion-log)): <link>
 - [ ] 7. Pre-release restore rehearsal passed in place with measured timings; test accounts deleted: <link>
 - [ ] 8. Update metadata served statically; live manifest answers 204 (fresh check below)
 - [ ] 9. External probe and alert delivery from a separate host; deliberate-failure test; dead-man's switch active: <link>

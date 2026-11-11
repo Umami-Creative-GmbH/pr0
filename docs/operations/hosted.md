@@ -8,7 +8,7 @@ Phase ──sync──> Coolify application variables ──> containers (runtim
 client ─HTTPS─> Traefik (Coolify) ─┬─ /update ──> update-channel resource
                                    └─ /       ──> ingress:8080 ──> web:3000 ──> Coolify PostgreSQL 17
                                                                                (separate resource)
-web stdout ──> deletion log (kept off the host)    backup jobs ──> Storage Box (PR0_BACKUP_MOUNT)
+web ──> deletion log ──> Storage Box (PR0_DELETION_LOG_MOUNT)   backup jobs ──> Storage Box (PR0_BACKUP_MOUNT)
 ```
 
 PostgreSQL is a **Coolify-managed PostgreSQL 17 database resource** on the same server, not part of the Compose file ([Coolify database](#coolify-database)). pr0 still makes its own encrypted, verified backups to the off-server Storage Box; Coolify's own database backups stay off.
@@ -92,7 +92,7 @@ Put `postgres://pr0:<URL-encoded password>@<database uuid>:5432/pr0` into Phase 
 3. Under **Advanced → Deployment → Auto deploy**, choose **Manual deployments only**. Pushes must never deploy. **Deploy**, **Redeploy** and the deploy webhook still work.
 4. Domains: set `https://pr0.umami-creative.app:8080` on the **ingress** service only. Leave every other service without a domain. Coolify generates the Traefik labels. Its router for the bare host has a shorter rule than the `/update` router, so `/update` still wins.
 5. Run the first Phase sync. Then check that every inventory key appears under **Environment Variables**. For every `secret` key, clear **Available during build** so the variable is **runtime only**; Coolify enables it by default for new variables. No Dockerfile declares an `ARG`, so a secret can't reach an image layer, but a build-time variable still shows up in the build environment. Check the flags again after any sync that adds a key.
-6. On the server, mount the Storage Box at `/mnt/pr0-backups` (`PR0_BACKUP_MOUNT`), owned by UID 1000.
+6. On the server, mount the Storage Box's backup directory at `/mnt/pr0-backups` (`PR0_BACKUP_MOUNT`) and its separate deletion log directory at `/mnt/pr0-deletion-log` (`PR0_DELETION_LOG_MOUNT`, [deletion log](#deletion-log)), both owned by UID 1000. Neither is inside the other.
 
 ### Routing and the ingress
 
@@ -129,7 +129,7 @@ Expect `<app-uuid>_search-data`, `_recovery-state`, `_release-state` and `_migra
 
 ## First deployment
 
-Run once. The Storage Box, Brevo, the OAuth apps, the vault entries and the [deletion log](#deletion-log) store must already exist (#130).
+Run once. The Storage Box with its backup and [deletion log](#deletion-log) directories, Brevo, the OAuth apps and the vault entries must already exist (#130).
 
 0. Create the [Coolify database](#coolify-database) and go through its checklist: PostgreSQL 17, the `pr0` role and database, Coolify's backups off, and the network and volume names. Then set up [Phase](#phase) and the [Coolify application](#coolify-application) with `DATABASE_URL`, `PR0_DATABASE_NETWORK` and `PR0_DATABASE_VOLUME_NAME`.
 1. Pin the candidate commit ([Deploy a specific commit](#deploy-a-specific-commit)) and click **Deploy**. `backup-before` reports `backup_skipped` (empty database), `migrate` creates the schema and records the release, and web, mail, backup and the ingress start. The service stays **closed** (every account route and `/api/v1/ready` answer 503) until step 2, because there is no restore state yet.
@@ -145,7 +145,7 @@ Run once. The Storage Box, Brevo, the OAuth apps, the vault entries and the [del
 3. Click **Redeploy**. `backup-before` now makes the first verified backup. Go through [Verify on the first Coolify deploy](#verify-on-the-first-coolify-deploy).
 4. Open `https://pr0.umami-creative.app`, sign up with the admitted address, verify by email and sign in. Check that `https://pr0.umami-creative.app/update/` is still served by the update channel.
 5. Admit testers and the canary with `pr0c run --rm --no-deps accounts allow <email>`. Allowlist mode needs no redeploy for new addresses. Set up the canary on the probe host ([probe host](probe-host.md#canary-account-and-prompt)).
-6. Create the [scheduled backup](#scheduled-backup) and run it once. Push the backup storage measurement as described in [service health](service-health.md#storage-the-application-host-cannot-mount). Check that the first deletion log lines reach the [deletion log](#deletion-log) store (`request_failed` and other web lines prove the shipping works before any account is deleted).
+6. Create the [scheduled backup](#scheduled-backup) and run it once. Push the backup storage measurement as described in [service health](service-health.md#storage-the-application-host-cannot-mount). Check that web can write the [deletion log](#deletion-log): `pr0c exec web test -w /var/lib/pr0-deletion-log`.
 
 ## Deploy a specific commit
 
@@ -205,18 +205,16 @@ The registration switch at the release act uses exactly this path ([release act]
 
 ## Deletion log
 
-Each account deletion writes one line to the web container's standard output, `{"event":"account_deleted","accountId":"…","deletedAt":"…"}`, with no email ([account deletion](account-deletion.md#the-deletion-log)). After a restore it is the only record of the deletions the restored backup predates, and the operator re-applies them from it ([ADR-0005](../adr/0005-account-deletion-is-a-hard-delete-in-the-application-database.md)).
+Each account deletion writes one line, `{"event":"account_deleted","accountId":"…","deletedAt":"…"}`, with no email ([account deletion](account-deletion.md#the-deletion-log)). After a restore it is the only record of the deletions the restored backup predates, and the operator re-applies them from it ([ADR-0005](../adr/0005-account-deletion-is-a-hard-delete-in-the-application-database.md)).
 
-The web container's own log (`json-file`, 3 × 10 MB) is rotated and is deleted whenever a deploy replaces the container, so it is **not** the deletion log. Keep the `account_deleted` and `account_redeleted` lines:
+On the hosted service the log is a **directory on the Storage Box**, beside the backups and never inside them:
 
-- for at least **31 days** (longer than the 30-day backup retention), and
-- **off this server**, so that losing the server doesn't lose them.
+- **Mount.** Mount the Storage Box directory `deletion-log` on the server at `/mnt/pr0-deletion-log` (`PR0_DELETION_LOG_MOUNT`, required), owned by UID 1000, with the same mount options as the backup mount. It must not be inside `/mnt/pr0-backups`: backup retention refuses unexpected objects in the backup directory and refuses a deletion log directory inside it.
+- **Writes.** The Compose file mounts it at `/var/lib/pr0-deletion-log` into web, which appends each deletion's line to `deletions-YYYY-MM.jsonl` and flushes it to the Storage Box **before the deletion commits**. If the append fails (Storage Box unmounted or full), the deletion rolls back and the user gets a retryable error; nothing is deleted without its line. The same line also goes to web's standard output, which is rotated and lost on redeploy and is not the log.
+- **Expiry.** The [scheduled backup](#scheduled-backup) (`backup create`) removes each month's file 31 days after the month ends. It never touches other files.
+- **Read.** `restore` and `deletions` mount it too; `deletions` read-only.
 
-The store is an operator decision (#139): a Coolify log drain to an external log service, or a host job that appends the lines to a dedicated directory on the Storage Box. Never put them in the backup directory itself: backup retention refuses unexpected objects there. Whatever the store, record it in the recovery inventory and check after the first deploy that web lines arrive in it. To collect the lines for a restore:
-
-```sh
-grep -h '"event":"account_\(re\)\{0,1\}deleted"' <exported log files> > deletion.log
-```
+Record the Storage Box directory in the recovery inventory. After the first deploy, check that web can write there: `pr0c exec web test -w /var/lib/pr0-deletion-log`.
 
 ## Restore and fencing
 
@@ -237,7 +235,7 @@ Restore and initialization are manual. The generic sequence is in [backup and re
 
 - **The replacement database is a new Coolify database resource** (generic step 3, "provision an empty replacement database"). Create it with the [Coolify database](#coolify-database) checklist, including Coolify's backups off, and create the `pr0` role with a **new** password and an empty `pr0` database. In Phase, set `DATABASE_URL` to the new resource's hostname and password and `PR0_DATABASE_VOLUME_NAME` to its volume, let the sync run and check the values. `backup restore` refuses a non-empty database. The old database is never restored into or reused as the replacement.
 - Run every restore command on the host with `pr0c run --rm --no-deps …`, for example `pr0c run --rm --no-deps restore close`. For `backup restore`, set the archive's release (see `backup configuration`): `pr0c run --rm --no-deps -e PR0_BACKUP_RELEASE=pr0@<commit> --entrypoint bun backup --bun apps/web/.operations/backup.js restore <archive>`. Use the tools image of that same commit, which may need a deploy of that commit first, and stop the application again after it.
-- For generic step 4, re-apply the deletion log from the [deletion log](#deletion-log) store: `pr0c run --rm --no-deps -T deletions reapply < deletion.log`.
+- For generic step 4, re-apply the [deletion log](#deletion-log) directory from the Storage Box: `pr0c run --rm --no-deps deletions reapply /var/lib/pr0-deletion-log`. If the server was lost, mount the Storage Box's `deletion-log` directory at `/mnt/pr0-deletion-log` on the replacement first.
 - For step 6 of the generic sequence, start web and mail privately with `pr0c up -d --no-deps web mail` (no ingress). After `restore open`, if the restored archive's release differs from `pr0c run --rm --no-deps --entrypoint cat backup /var/lib/pr0-release/release`, write it into the release record, so the next `backup-before` labels the restored data correctly: `pr0c run --rm --no-deps -e PR0_BACKUP_RELEASE=pr0@<restored commit> --entrypoint sh migrate -c 'printf "%s\n" "$PR0_BACKUP_RELEASE" > /var/lib/pr0-release/release'`. Then **Deploy** the matching commit in Coolify, which starts the ingress through the normal sequence. Re-enable the scheduled task and resume the check.
 
 ## Verify on the first Coolify deploy
@@ -254,6 +252,7 @@ These behaviours are documented but not proven on this server. The local rehears
 - [ ] Profile `operations` services (`accounts`, `deletions`, `restore`, `operations`) are not started by a deploy.
 - [ ] Coolify's generated Compose file and `.env` are where [Host commands](#host-commands) expects them, and `pr0c ps --all` lists the application.
 - [ ] The volume names, recorded in the recovery inventory.
+- [ ] The deletion log directory is on the Storage Box, outside the backup directory, and web can write it (`pr0c exec web test -w /var/lib/pr0-deletion-log`). After the first test account deletion, its line is in `deletions-YYYY-MM.jsonl` there and contains no email.
 - [ ] The ingress sees Traefik's address inside `PR0_INGRESS_TRUSTED_PROXIES`, and client addresses are attributed ([service health](service-health.md#trusted-ingress)).
 - [ ] The scheduled task runs in the `backup` container, its history shows the exit code, and the dead-man's switch receives `0`. A deliberate failure (`heartbeat.ts 1` in the container) alerts.
 - [ ] The Coolify database resource accepts the pinned PostgreSQL 17 image (or `postgres:17-bookworm`), its volume is named as recorded in `PR0_DATABASE_VOLUME_NAME`, and it sits on the network in `PR0_DATABASE_NETWORK`.
@@ -269,6 +268,6 @@ These behaviours are documented but not proven on this server. The local rehears
 1. Checks the file: no Compose secrets, `NAME_FILE` settings or build arguments; the job chain and what waits for it; required variables; no `ARG` in any Dockerfile; and the [variable inventory](hosted-variables.md) against the variables the file reads.
 2. Starts PostgreSQL 17 as a **separate** Compose project with its own network and data volume, as a stand-in for the Coolify database, and creates the non-superuser `pr0` role and database as [Coolify database](#coolify-database) describes. The application joins that network and mounts that volume as external resources.
 3. Clones `HEAD` (or `PR0_HOSTED_FROM`) into `.scratch/` and adds three disposable commits: an ordinary candidate, a candidate with a failing migration, and its revert. For each deploy it removes Coolify's `exclude_from_hc` lines, as Coolify does, sets `SOURCE_COMMIT`, builds and runs `up -d` in one fixed project. Local stand-ins replace SMTP, the dead-man's switch and Coolify's proxy.
-4. Runs the first deploy, which starts but stays closed (503) before initialization, then initializes and redeploys. It runs the scheduled backup task with a success and a failure, and checks the heartbeat codes `0` and `1`. Then it upgrades to the candidate and checks that the backup taken before the upgrade names the previous release. It deploys the broken candidate: the sequence stops at `migrate`, and web, mail, ingress and backup stay created but not started. Finally it fixes forward and checks that the account, instance and canary prompt are intact.
+4. Runs the first deploy, which starts but stays closed (503) before initialization, then initializes and redeploys. It checks that web can write the mounted deletion log directory, and that the scheduled backup task removes an expired month's file while keeping the current month and unrelated files. It runs the scheduled backup task with a success and a failure, and checks the heartbeat codes `0` and `1`. Then it upgrades to the candidate and checks that the backup taken before the upgrade names the previous release. It deploys the broken candidate: the sequence stops at `migrate`, and web, mail, ingress and backup stay created but not started. Finally it fixes forward and checks that the account, instance and canary prompt are intact.
 
 Set `PR0_HOSTED_EVIDENCE=<file>` to keep each deploy's job results, order and container images. The recorded run is [docs/evidence/issue-128-redeploy.json](../evidence/issue-128-redeploy.json). Cleanup removes only the test's two randomly named projects, their volumes and network, and its image tags.

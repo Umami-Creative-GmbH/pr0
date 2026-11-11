@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
 
 import {
   deletionIdentitySchema,
@@ -7,11 +9,15 @@ import {
 } from "@pr0/api-contract/deletions";
 import { SQL } from "bun";
 
+import {
+  deletionLogFilename,
+  deletionLogLine,
+} from "../src/lib/deletion-log-files";
 import { freshSocialBrowser } from "./email-change-fixture";
 import { origin, post } from "./http-fixture";
 
-const json = async (path: string, Cookie?: string) => {
-  const response = await fetch(`${origin}${path}`, {
+const json = async (route: string, Cookie?: string) => {
+  const response = await fetch(`${origin}${route}`, {
     headers: Cookie ? { Cookie } : {},
   });
   return response.json();
@@ -64,6 +70,29 @@ export const deletionRestartScenarios = async (server: {
       await app`SELECT count(*)::int AS count FROM session WHERE user_id=${identity.accountId}`;
     assert.ok(kept.count > 0, "sessions survive a rolled-back deletion");
 
+    // A deletion whose log line can't be appended rolls back and is retryable:
+    // put a plain file where the deletion log directory should be.
+    const directory = process.env.PR0_DELETION_LOG_DIRECTORY ?? "";
+    const moved = `${directory}.moved`;
+    renameSync(directory, moved);
+    writeFileSync(directory, "not a directory");
+    let unrecorded: Response;
+    try {
+      unrecorded = await post(
+        "/api/v1/account/deletion",
+        { ...account.identity, confirmation: "delete-account" },
+        { Cookie: account.Cookie }
+      );
+    } finally {
+      rmSync(directory, { force: true });
+      renameSync(moved, directory);
+    }
+    assert.equal(unrecorded.status, 503);
+    assert.ok(unrecorded.headers.get("retry-after"), "retryable");
+    const notRecorded = await lookup(identity.handle);
+    assert.equal(notRecorded.status, "absent");
+    assert.equal(await libraryStatus(account.Cookie), 200);
+
     const retried = await post(
       "/api/v1/account/deletion",
       { ...account.identity, confirmation: "delete-account" },
@@ -74,7 +103,18 @@ export const deletionRestartScenarios = async (server: {
     assert.equal(result.accountId, identity.accountId);
     assert.deepEqual(await lookup(identity.handle), result);
     assert.equal(await libraryStatus(account.Cookie), 401);
-
+    // Exactly one durable line for this account, in its month's file, no email.
+    const recorded = readFileSync(
+      path.join(directory, deletionLogFilename(result.deletedAt)),
+      "utf-8"
+    );
+    const lines = recorded
+      .split("\n")
+      .filter((line) => line.includes(identity.accountId));
+    assert.deepEqual(lines, [
+      deletionLogLine("account_deleted", result.accountId, result.deletedAt),
+    ]);
+    assert.ok(!recorded.includes(account.email), "no email in the log file");
     // Simulate a deletion that was still pending when migration 21 ran.
     const carried = await freshSocialBrowser();
     const carriedIdentity = await identityOf(carried.Cookie);
@@ -88,6 +128,13 @@ export const deletionRestartScenarios = async (server: {
     const [left] =
       await app`SELECT count(*)::int AS count FROM "user" WHERE id=${carriedIdentity.accountId}`;
     assert.equal(left.count, 0);
+    // The carried-over deletion is recorded in the durable log too.
+    assert.ok(
+      readFileSync(
+        path.join(directory, deletionLogFilename(new Date().toISOString())),
+        "utf-8"
+      ).includes(carriedIdentity.accountId)
+    );
     const carriedStatus = await lookup(carriedIdentity.handle);
     assert.equal(carriedStatus.status, "deleted");
     assert.equal(await libraryStatus(carried.Cookie), 401);

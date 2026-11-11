@@ -1,6 +1,10 @@
 // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each leftover account is purged in its own transaction.
 import "server-only";
-import { logAccountDeletion, purgeAccount } from "./account-purge";
+import {
+  logAccountDeletion,
+  purgeAccount,
+  recordAccountDeletion,
+} from "./account-purge";
 import { database } from "./database";
 import { assertRestoreAdmission } from "./restore-state";
 
@@ -14,9 +18,15 @@ export const purgeTombstonedAccounts = async () => {
   const leftovers = await sql<{ account_id: string; deleted_at: Date }[]>`
     SELECT d.account_id,d.deleted_at FROM deleted_accounts d JOIN "user" u ON u.id=d.account_id ORDER BY d.account_id`;
   for (const row of leftovers) {
-    const deletion = await sql.begin((tx) =>
-      purgeAccount(tx, row.account_id, row.deleted_at.toISOString())
-    );
+    const deletion = await sql.begin(async (tx) => {
+      const purged = await purgeAccount(
+        tx,
+        row.account_id,
+        row.deleted_at.toISOString()
+      );
+      recordAccountDeletion(purged);
+      return purged;
+    });
     logAccountDeletion(deletion);
   }
   return leftovers.length;

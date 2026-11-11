@@ -68,6 +68,15 @@ x-backup-environment: &backup-environment
   PR0_BACKUP_KEY: "${PR0_BACKUP_KEY:?Set PR0_BACKUP_KEY}"
   PR0_BACKUP_RELEASE: *release
   PR0_BACKUP_RELEASE_FILE: /var/lib/pr0-release/release
+  PR0_DELETION_LOG_DIRECTORY: /var/lib/pr0-deletion-log
+# The deletion log (ADR-0005): a directory on the Storage Box beside, never
+# inside, the backup directory. web appends to it; backup expires old months.
+x-deletion-log-volume: &deletion-log-volume
+  type: bind
+  source: "${PR0_DELETION_LOG_MOUNT:?Set the Storage Box deletion log directory}"
+  target: /var/lib/pr0-deletion-log
+  bind:
+    create_host_path: false
 x-backup-volumes: &backup-volumes
   - type: bind
     source: "${PR0_BACKUP_MOUNT:?Set the mounted Storage Box directory}"
@@ -76,6 +85,7 @@ x-backup-volumes: &backup-volumes
       create_host_path: false
   - recovery-state:/var/lib/pr0-recovery:ro
   - release-state:/var/lib/pr0-release:ro
+  - *deletion-log-volume
 
 services:
   # Upgrade job 1: a verified, encrypted backup on the Storage Box before
@@ -131,9 +141,12 @@ services:
     environment:
       <<: *account-environment
       API_ALLOWED_ORIGINS: "${API_ALLOWED_ORIGINS:-}"
+      # Every deletion is appended and flushed here before it commits.
+      PR0_DELETION_LOG_DIRECTORY: /var/lib/pr0-deletion-log
     volumes:
       - search-data:/var/lib/pr0-search
       - recovery-state:/var/lib/pr0-recovery:ro
+      - *deletion-log-volume
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -238,6 +251,13 @@ services:
       PR0_SEARCH_DIRECTORY: /var/lib/pr0-search
     volumes:
       - search-data:/var/lib/pr0-search
+      # Read-only input: `deletions reapply /var/lib/pr0-deletion-log`
+      - type: bind
+        source: "${PR0_DELETION_LOG_MOUNT:?Set the Storage Box deletion log directory}"
+        target: /var/lib/pr0-deletion-log
+        read_only: true
+        bind:
+          create_host_path: false
     entrypoint: ["bun", "--bun", "apps/web/.operations/deletions.js"]
   restore:
     image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
@@ -247,9 +267,11 @@ services:
     environment:
       <<: *account-environment
       PR0_SEARCH_DIRECTORY: /var/lib/pr0-search
+      PR0_DELETION_LOG_DIRECTORY: /var/lib/pr0-deletion-log
     volumes:
       - recovery-state:/var/lib/pr0-recovery
       - search-data:/var/lib/pr0-search
+      - *deletion-log-volume
     entrypoint: ["bun", "--bun", "apps/web/.operations/restore.js"]
   operations:
     image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"

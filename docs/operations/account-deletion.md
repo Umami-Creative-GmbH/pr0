@@ -20,7 +20,7 @@ A returning desktop looks up its retained handle on the instance it is signed in
 
 ## The deletion log
 
-For each deletion the web service writes one line to standard output:
+For each deletion the web service writes one line:
 
 ```json
 {
@@ -30,24 +30,39 @@ For each deletion the web service writes one line to standard output:
 }
 ```
 
-It contains the opaque account ID and the time only, never the email. It is the only record of a deletion once an older backup has been restored, so keep it:
+It contains the opaque account ID and the time only, never the email. It is the only record of a deletion once an older backup has been restored.
 
-- for longer than the oldest backup you could restore (backups expire within 30 days), and
-- somewhere that survives the loss of the application host and the removal of the web container. Docker's own container log is rotated and deleted with the container, so ship the web service's log to a log store, or copy the `account_deleted` lines out regularly.
+**The durable log file.** Set `PR0_DELETION_LOG_DIRECTORY` to a directory on off-server storage, for example a directory on the same storage as your backups, but never the backup directory or a directory inside it (backup retention refuses that). The web service then appends each line to the monthly file `deletions-YYYY-MM.jsonl` (UTC month of the deletion) and flushes it to storage **inside the deletion's transaction, before it commits**. If the append fails, for example because the directory is missing or not writable, the deletion rolls back and the request returns a retryable `503 unavailable`: a deletion is never committed without its line. The same line also goes to standard output.
 
-Re-deletions write `account_redeleted` lines in the same format.
+Mount the directory at the same path into **web** (appends), **restore** (`restore prepare` records deletions carried over by migration 21), **backup** (expiry) and **deletions** (reads it for re-applying), for example in `compose.override.yaml`:
+
+```yaml
+services:
+  web: { volumes: ["/srv/pr0-deletion-log:/var/lib/pr0-deletion-log"] }
+  restore: { volumes: ["/srv/pr0-deletion-log:/var/lib/pr0-deletion-log"] }
+  backup: { volumes: ["/srv/pr0-deletion-log:/var/lib/pr0-deletion-log"] }
+  deletions: { volumes: ["/srv/pr0-deletion-log:/var/lib/pr0-deletion-log:ro"] }
+```
+
+and set `PR0_DELETION_LOG_DIRECTORY=/var/lib/pr0-deletion-log` in `.env`. The directory must exist and be writable by UID 1000.
+
+**Expiry.** Every `backup create` (the scheduled backup) and `backup retention` removes a month's file 31 days after that month ends, so the log always covers more than the 30-day backup retention. It never touches other files in the directory.
+
+> **Warning (self-hosting):** `PR0_DELETION_LOG_DIRECTORY` is optional. When it is unset, the deletion log is **standard output only**. Docker's container log is rotated and deleted with the container, so a restore can then bring back deleted accounts that no surviving log names. Either set the directory or ship the web service's standard output to a log store that keeps it longer than 31 days and off the host. The hosted service always sets it ([hosted](hosted.md#deletion-log)).
+
+Re-deletions print `account_redeleted` lines in the same format on standard output; they are not appended to the file, which already holds the original lines.
+
+A transaction that fails at its very last step, the commit, after the line was flushed leaves a line for a deletion that did not happen. The account owner had confirmed the deletion, so re-applying it after a restore carries out what they asked for.
 
 ## Re-applying deletions after a restore
 
 Restoring a backup brings back every account deleted after that backup was taken. Before reopening, re-apply the deletion log:
 
 ```sh
-docker compose run --rm -T deletions reapply < deletion.log
+docker compose run --rm deletions reapply /var/lib/pr0-deletion-log
 ```
 
-The command reads the log on standard input, ignores every line that is not an `account_deleted` or `account_redeleted` event (including log-collector prefixes before the JSON), and deletes each listed account again in its own transaction with its original deletion time. It is idempotent: an account that is already gone keeps (or gets) its tombstone and nothing else. It prints `{"event":"deletions_reapplied","read":…,"purged":…}` and exits nonzero on any failure, after which you fix the cause and run it again. The [restore sequence](backup-restore.md#restore-sequence) says where this step belongs.
-
-If the database you are replacing is still readable, its tombstones are a second source. Export them as log lines and append them to the input:
+`reapply` takes log files or directories (each directory's `deletions-YYYY-MM.jsonl` files in name order), or reads standard input when given none (`docker compose run --rm -T deletions reapply < deletion.log`, for a log kept elsewhere). It ignores every line that is not an `account_deleted` or `account_redeleted` event, including log-collector prefixes before the JSON, and deletes each listed account again in its own transaction with its original deletion time. It is idempotent: an account that is already gone keeps (or gets) its tombstone and nothing else. It prints `{"event":"deletions_reapplied","read":…,"purged":…}` and exits nonzero on any failure, after which you fix the cause and run it again. Re-applying the whole retained log is safe and simplest. The [restore sequence](backup-restore.md#restore-sequence) says where this step belongs. If the database you are replacing is still readable, its tombstones are a second source. Export them as log lines and append them to the input:
 
 ```sh
 psql "$OLD_DATABASE_URL" -tAc "SELECT json_build_object('event','account_deleted','accountId',account_id,'deletedAt',to_char(deleted_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')) FROM deleted_accounts"
@@ -61,6 +76,6 @@ Migration 21 creates `deleted_accounts`, turns every deletion still pending unde
 
 ## Validation
 
-Run `bun run --cwd apps/web test:account-deletion` for the real-PostgreSQL and served-browser checks. The suite uses ports 30456, 55456, 11456 and 18456 and owns only the `pr0-deletion-56` Compose project. It checks confirmation, freshness, provenance and identity, concurrent mutations, same-email recreation, a rolled-back deletion, the tombstone and status lookup, a tombstone carried over by migration 21, and restoring an older database copy followed by `deletions reapply`. The [backup and restore rehearsal](backup-restore.md#pre-release-and-quarterly-rehearsal) exercises the re-delete step from the served app's real log.
+Run `bun run --cwd apps/web test:account-deletion` for the real-PostgreSQL and served-browser checks. The suite uses ports 30456, 55456, 11456 and 18456 and owns only the `pr0-deletion-56` Compose project. It checks confirmation, freshness, provenance and identity, concurrent mutations, same-email recreation, a rolled-back deletion, a deletion refused and rolled back because its log line could not be appended, the log file's content (no email), the tombstone and status lookup, a tombstone carried over by migration 21, and restoring an older database copy followed by `deletions reapply` of the log directory. The [backup and restore rehearsal](backup-restore.md#pre-release-and-quarterly-rehearsal) exercises the re-delete step from the served app's real log.
 
 Earlier evidence for the ledger design is in [issue 56 validation evidence](../evidence/issue-56-account-deletion.md); it is historical.

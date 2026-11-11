@@ -1,16 +1,22 @@
 // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each re-deletion commits in its own transaction, in log order.
 import { logAccountDeletion, purgeAccount } from "../src/server/account-purge";
 import { database } from "../src/server/database";
-import { deletionsFromLog } from "./deletion-log";
+import { deletionsFromLog, readDeletionLogInputs } from "./deletion-log";
 
 if (import.meta.main) {
-  const [command] = process.argv.slice(2);
+  const [command, ...inputs] = process.argv.slice(2);
   const sql = database();
   try {
     if (command !== "reapply") {
-      throw new Error("Use reapply < deletion-log");
+      throw new Error(
+        "Use reapply <deletion-log files or directory>, or reapply < deletion-log"
+      );
     }
-    const deletions = deletionsFromLog(await Bun.stdin.text());
+    // Files and directories (their monthly files in name order), else stdin.
+    const log = inputs.length
+      ? await readDeletionLogInputs(inputs)
+      : await Bun.stdin.text();
+    const deletions = deletionsFromLog(log);
     let purged = 0;
     for (const { accountId, deletedAt } of deletions) {
       const deletion = await sql.begin((tx) =>

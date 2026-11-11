@@ -26,6 +26,7 @@ Every variable that [`compose.coolify.yaml`](../../compose.coolify.yaml) reads i
 | `PR0_INGRESS_TRUSTED_PROXIES` | config | yes | Subnet of the network that Coolify's proxy shares with the ingress ([hosted runbook](hosted.md#routing-and-the-ingress)) |
 | `PR0_INGRESS_METRICS_ALLOW` | config | no | The probe host's public address as Traefik sees it ([probe host](probe-host.md)) |
 | `PR0_BACKUP_MOUNT` | config | yes | `/mnt/pr0-backups`, the Storage Box mount on the Coolify server, owned by UID 1000 |
+| `PR0_DELETION_LOG_MOUNT` | config | yes | `/mnt/pr0-deletion-log`, the Storage Box's deletion log directory on the Coolify server, owned by UID 1000: a separate Storage Box directory, never inside `PR0_BACKUP_MOUNT`. web appends each deletion to a monthly `deletions-YYYY-MM.jsonl` there ([account deletion](account-deletion.md#the-deletion-log)) |
 | `PR0_IMAGE_NAME` | config | no | Leave unset (image names `pr0`, `pr0-tools`, `pr0-ingress`). The local deploy test sets it |
 | `PR0_DATABASE_NETWORK` | config | yes | The Docker network of the Coolify database resource: the server destination's network, `coolify` by default ([Coolify database](hosted.md#coolify-database)) |
 | `PR0_DATABASE_VOLUME_NAME` | config | yes | The Coolify database's data volume, for example `postgres-data-<database uuid>` ([Coolify database](hosted.md#coolify-database)). Mounted read-only for free-space checks only |

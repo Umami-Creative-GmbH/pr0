@@ -42,6 +42,8 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
   const mailPort = await availablePort();
   const origin = `http://localhost:${port}`;
   await mkdir(path.join(directory, "backups"));
+  // The optional durable deletion log, mounted beside the backups.
+  await mkdir(path.join(directory, "deletion-log"));
   const password = crypto.randomUUID();
   const secretValues = {
     POSTGRES_PASSWORD: password,
@@ -66,6 +68,7 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
       .join(directory, "backup-key")
       .replaceAll("\\", "/"),
     PR0_BACKUP_RELEASE: "self-hosting-rehearsal-62",
+    PR0_DELETION_LOG_DIRECTORY: "/var/lib/pr0-deletion-log",
   };
   const secrets: Record<string, { file: string }> = {};
   for (const [name, value] of Object.entries(secretValues)) {
@@ -92,6 +95,10 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
     "operations",
   ]) {
     services[name] = { secrets: mounts };
+  }
+  const deletionLogMount = `${path.join(directory, "deletion-log").replaceAll("\\", "/")}:/var/lib/pr0-deletion-log`;
+  for (const name of ["web", "restore", "deletions", "backup"]) {
+    services[name] = { ...services[name], volumes: [deletionLogMount] };
   }
   services.database = { secrets: ["POSTGRES_PASSWORD"] };
   services.smtp = {
@@ -160,8 +167,6 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
     return stdout;
   };
   const compose = (...args: string[]) => run(args);
-  /** Runs a Compose command with `input` on stdin (use `run -T`). */
-  const composeInput = (input: string, ...args: string[]) => run(args, input);
   const request = (pathname: string, body?: RequestBody, cookie = "") =>
     fetch(`${origin}${pathname}`, {
       method: body === undefined ? "GET" : "POST",
@@ -196,7 +201,6 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
     mailOrigin: `http://localhost:${mailPort}`,
     settings,
     compose,
-    composeInput,
     configure,
     request,
     ready,

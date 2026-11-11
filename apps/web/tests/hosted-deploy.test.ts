@@ -3,7 +3,7 @@
 // docker compose, the way Coolify runs it: build, then `up -d` with the
 // application's variables, for one commit after another in the same project.
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { createPromptClient } from "@pr0/api-client/prompts";
@@ -116,6 +116,7 @@ const exampleVariables = {
   SMTP_FROM: "pr0@example.test",
   PR0_INGRESS_TRUSTED_PROXIES: "10.0.1.0/24",
   PR0_BACKUP_MOUNT: "/mnt/pr0-backups",
+  PR0_DELETION_LOG_MOUNT: "/mnt/pr0-deletion-log",
   PR0_DATABASE_NETWORK: "coolify",
   PR0_DATABASE_VOLUME_NAME: "postgres-data-exampledatabaseuuid",
   DATABASE_URL: "postgres://pr0:example@exampledatabaseuuid:5432/pr0",
@@ -421,6 +422,23 @@ const event = (record: DeployRecord, service: string) => {
   return job?.result?.event ?? job?.output;
 };
 
+/** Polls a URL until it answers anything but 502 or a refused connection. */
+const settledStatus = async (url: string) => {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    try {
+      // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Poll until the new web answers through the ingress.
+      const response = await fetch(url);
+      if (response.status !== 502) {
+        return response.status;
+      }
+    } catch {
+      // The ingress may refuse while it starts.
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Bounded polling interval.
+    await Bun.sleep(500);
+  }
+  return 0;
+};
 test("Coolify's compose deploys run the upgrade jobs in order, upgrade between commits and stop a failed migration before web and mail", async () => {
   await mkdir(path.join(root, ".scratch"), { recursive: true });
   const directory = await mkdtemp(path.join(root, ".scratch/hosted-"));
@@ -545,6 +563,8 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
 
     // The application's variables, as Phase would sync them to Coolify.
     await mkdir(path.join(directory, "backups"));
+    const deletionLog = path.join(directory, "deletion-log");
+    await mkdir(deletionLog);
     const databasePassword = crypto.randomUUID();
     const adminPassword = crypto.randomUUID();
 
@@ -603,6 +623,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       SMTP_FROM: "pr0@example.test",
       PR0_INGRESS_TRUSTED_PROXIES: "10.255.255.0/24",
       PR0_BACKUP_MOUNT: path.join(directory, "backups").replaceAll("\\", "/"),
+      PR0_DELETION_LOG_MOUNT: deletionLog.replaceAll("\\", "/"),
       PR0_DATABASE_NETWORK: databaseNetwork,
       PR0_DATABASE_VOLUME_NAME: databaseVolume,
       DATABASE_URL: `postgres://pr0:${databasePassword}@${databaseHost}:5432/pr0`,
@@ -790,21 +811,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     expect(event(first, "backup-before")).toBe("backup_skipped");
     expect(event(first, "migrate")).toBe("release_recorded");
     expectServing(first, initial);
-    let closedStatus = 0;
-    for (let attempt = 0; attempt < 120 && closedStatus !== 503; attempt += 1) {
-      try {
-        // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Poll until the new web answers through the ingress.
-        const response = await fetch(`${origin}/api/v1/capabilities`);
-        closedStatus = response.status;
-      } catch {
-        closedStatus = 0;
-      }
-      if (closedStatus !== 503) {
-        // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Bounded polling interval.
-        await Bun.sleep(500);
-      }
-    }
-    expect(closedStatus).toBe(503);
+    expect(await settledStatus(`${origin}/api/v1/capabilities`)).toBe(503);
 
     // The one-time manual initialization, then Coolify's "Redeploy", whose
     // backup-before job now takes the first verified backup.
@@ -989,6 +996,21 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     };
     await expectIntact();
 
+    // web can append to the Storage Box deletion log it mounts.
+    await compose(
+      "exec",
+      "-T",
+      "web",
+      "test",
+      "-w",
+      "/var/lib/pr0-deletion-log"
+    );
+    // The scheduled backup task also expires deletion log months 31 days after
+    // they end, and touches nothing else in that directory.
+    const currentMonth = `deletions-${new Date().toISOString().slice(0, 7)}.jsonl`;
+    for (const name of ["deletions-2020-01.jsonl", currentMonth, "notes.txt"]) {
+      await Bun.write(path.join(deletionLog, name), "kept\n");
+    }
     // The scheduled backup task, as Coolify runs it in the backup container:
     // success and failure each reach the dead-man's switch with the real code.
     const scheduled = await composeResult(
@@ -999,6 +1021,9 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       "/app/hosted/scheduled-backup.sh"
     );
     expect(scheduled.code).toBe(0);
+    const remaining = await readdir(deletionLog);
+    // oxlint-disable-next-line unicorn/no-array-sort -- Newly allocated; ES2022 types.
+    expect(remaining.sort()).toEqual([currentMonth, "notes.txt"]);
     const failedScheduled = await composeResult(
       "exec",
       "-T",

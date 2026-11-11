@@ -83,11 +83,10 @@ const deletionsCommand = [
   "apps/web/scripts/deletions.ts",
   "reapply",
 ];
-/** The restore runbook's manual step: re-apply deletions from the deletion log. */
-export const reapply = async (log: string) => {
-  const child = Bun.spawn(deletionsCommand, {
+/** The restore runbook's manual step: re-apply the deletion log files or directory. */
+export const reapply = async (...inputs: string[]) => {
+  const child = Bun.spawn([...deletionsCommand, ...inputs], {
     env: process.env,
-    stdin: new Blob([log]),
     stdout: "pipe",
     stderr: "inherit",
   });
@@ -95,10 +94,9 @@ export const reapply = async (log: string) => {
   assert.equal(await child.exited, 0, "Re-deletion failed");
   return output;
 };
-export const refusedReapply = async (log: string, reason: RegExp) => {
-  const child = Bun.spawn(deletionsCommand, {
+export const refusedReapply = async (input: string, reason: RegExp) => {
+  const child = Bun.spawn([...deletionsCommand, input], {
     env: process.env,
-    stdin: new Blob([log]),
     stdout: "ignore",
     stderr: "pipe",
   });

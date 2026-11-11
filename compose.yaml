@@ -28,6 +28,9 @@ x-account-environment: &account-environment
   SMTP_PASSWORD_FILE: "${SMTP_PASSWORD_FILE:-}"
   SMTP_FROM: "${SMTP_FROM:-}"
   PR0_RECOVERY_STATE_FILE: /var/lib/pr0-recovery/admission.json
+  # Optional durable deletion log directory (docs/operations/account-deletion.md).
+  # Mount it at this path into web, deletions, restore and backup when set.
+  PR0_DELETION_LOG_DIRECTORY: "${PR0_DELETION_LOG_DIRECTORY:-}"
 
 services:
   database:

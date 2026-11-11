@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { accountSettingsSchema } from "@pr0/api-contract/accounts";
@@ -9,6 +10,10 @@ import {
 } from "@pr0/api-contract/deletions";
 import { z } from "zod";
 
+import {
+  deletionLogFilename,
+  deletionLogLine,
+} from "../src/lib/deletion-log-files";
 import { selfHostingClient } from "./self-hosting-client";
 import { selfHostingPassword } from "./self-hosting-fixture";
 import type { SelfHostingInstance } from "./self-hosting-fixture";
@@ -106,9 +111,22 @@ export const verifySelfHostingRestore = async (
   );
   assert.equal(deletion.status, 200);
   const deleted = deletionResultSchema.parse(await deletion.json());
-  // The deletion log: the web container's structured stdout lines.
-  const deletionLog = await instance.compose("logs", "--no-log-prefix", "web");
-  assert.ok(deletionLog.includes(`"accountId":"${trust.accountId}"`));
+  // The durable deletion log: web appended the line to its mounted directory.
+  const deletionLog = await readFile(
+    path.join(
+      instance.directory,
+      "deletion-log",
+      deletionLogFilename(deleted.deletedAt)
+    ),
+    "utf-8"
+  );
+  assert.ok(
+    deletionLog
+      .split("\n")
+      .includes(
+        deletionLogLine("account_deleted", deleted.accountId, deleted.deletedAt)
+      )
+  );
   assert.ok(
     !deletionLog.includes(deletedEmail),
     "no email in the deletion log"
@@ -119,7 +137,7 @@ export const verifySelfHostingRestore = async (
   assert.equal(closed.status, 503);
   await instance.compose("stop", "web", "mail");
   // Explicitly replace only this randomly named fixture's application database.
-  // The recovery volume and the web container's log survive the ordinary-data loss.
+  // The recovery volume and the deletion log directory survive the ordinary-data loss.
   await instance.compose(
     "exec",
     "-T",
@@ -162,13 +180,12 @@ export const verifySelfHostingRestore = async (
     "the older archive brings the account back"
   );
   // Runbook step: re-delete every account in the deletion log before reopening.
-  const reapplied = await instance.composeInput(
-    deletionLog,
+  const reapplied = await instance.compose(
     "run",
     "--rm",
-    "-T",
     "deletions",
-    "reapply"
+    "reapply",
+    "/var/lib/pr0-deletion-log"
   );
   assert.match(reapplied, /"read":1,"purged":1/u);
   await instance.compose("run", "--rm", "restore", "prepare");

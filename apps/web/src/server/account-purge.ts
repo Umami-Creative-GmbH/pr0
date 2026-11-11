@@ -5,6 +5,10 @@ import path from "node:path";
 
 import type { TransactionSQL } from "bun";
 
+import { deletionLogLine } from "../lib/deletion-log-files";
+import type { DeletionLogEvent } from "../lib/deletion-log-files";
+import { AccountFailureError } from "./admission";
+import { appendDeletionLog } from "./deletion-log";
 import { purgeAccountMail } from "./mail";
 import { searchDirectory, searchFilename } from "./search-location";
 
@@ -85,12 +89,31 @@ export const purgeAccount = async (
   };
 };
 
-/** The deletion log: opaque account ID and time only, never an email. */
+/**
+ * Records a deletion in the durable deletion log inside its transaction, before
+ * commit. A failed append throws, so the deletion rolls back and is retried.
+ */
+export const recordAccountDeletion = (deletion: AccountDeletion) => {
+  try {
+    appendDeletionLog(
+      deletionLogLine(
+        "account_deleted",
+        deletion.accountId,
+        deletion.deletedAt
+      ),
+      deletion.deletedAt
+    );
+  } catch {
+    throw new AccountFailureError("unavailable", 503, 5);
+  }
+};
+
+/** The deletion log on stdout: opaque account ID and time only, never an email. */
 export const logAccountDeletion = (
   deletion: AccountDeletion,
-  event: "account_deleted" | "account_redeleted" = "account_deleted"
+  event: DeletionLogEvent = "account_deleted"
 ) => {
   process.stdout.write(
-    `${JSON.stringify({ event, accountId: deletion.accountId, deletedAt: deletion.deletedAt })}\n`
+    `${deletionLogLine(event, deletion.accountId, deletion.deletedAt)}\n`
   );
 };
