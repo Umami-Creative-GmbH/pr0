@@ -21,9 +21,11 @@
 # database resource on the same server (docs/operations/hosted.md#coolify-database).
 # Services that use it join that resource's Docker network (external network
 # `database`, named by PR0_DATABASE_NETWORK) and connect with DATABASE_URL as
-# pr0's own non-superuser role. The migration job and the operator commands
-# mount the database's data volume (PR0_DATABASE_VOLUME_NAME) read-only, only
-# to measure its free space.
+# pr0's own non-superuser role. pr0 never mounts the database's data volume:
+# the database shares the server's disk, which Coolify's server disk-usage
+# notifications watch. So the migration job checks free space only on its own
+# backup volume, and the metrics expect no `database` storage measurement
+# (PR0_DATABASE_VOLUME_MOUNTED=false).
 #
 # `exclude_from_hc` is Coolify's own key: it keeps the exited jobs out of the
 # application's health status. Plain docker compose rejects it, so remove those
@@ -107,12 +109,10 @@ services:
     environment:
       <<: *account-environment
       PR0_MIGRATION_BACKUPS: /var/lib/pr0-backups
-      PR0_DATABASE_VOLUME: /var/lib/postgresql/data
       PR0_BACKUP_RELEASE: *release
       PR0_BACKUP_RELEASE_FILE: /var/lib/pr0-release/release
     volumes:
       - migration-backups:/var/lib/pr0-backups
-      - database-data:/var/lib/postgresql/data:ro
       - release-state:/var/lib/pr0-release
     entrypoint: ["sh", "/app/hosted/migrate.sh"]
     depends_on:
@@ -152,6 +152,8 @@ services:
     environment:
       <<: *account-environment
       API_ALLOWED_ORIGINS: "${API_ALLOWED_ORIGINS:-}"
+      # Serves the metrics route; see the PostgreSQL note at the top.
+      PR0_DATABASE_VOLUME_MOUNTED: "false"
     volumes:
       - search-data:/var/lib/pr0-search
       - recovery-state:/var/lib/pr0-recovery:ro
@@ -243,10 +245,8 @@ services:
     environment:
       <<: *account-environment
       PR0_MIGRATION_BACKUPS: /var/lib/pr0-backups
-      PR0_DATABASE_VOLUME: /var/lib/postgresql/data
     volumes:
       - migration-backups:/var/lib/pr0-backups
-      - database-data:/var/lib/postgresql/data:ro
     entrypoint: ["bun", "--bun", "apps/web/.operations/accounts.js"]
   deletions:
     image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
@@ -276,9 +276,10 @@ services:
     build: *app-build
     profiles: ["operations"]
     networks: [default, database]
-    environment: *account-environment
+    environment:
+      <<: *account-environment
+      PR0_DATABASE_VOLUME_MOUNTED: "false"
     volumes:
-      - database-data:/var/lib/postgresql/data:ro
       - search-data:/var/lib/pr0-search:ro
       - recovery-state:/var/lib/pr0-recovery:ro
     entrypoint: ["bun", "--bun", "apps/web/.operations/operations.js"]
@@ -286,11 +287,6 @@ services:
 
 volumes:
   migration-backups:
-  # The Coolify database's data volume, mounted read-only for free-space checks
-  # only. External: this application never creates or removes it.
-  database-data:
-    external: true
-    name: "${PR0_DATABASE_VOLUME_NAME:?Set the Coolify database's data volume name}"
   search-data:
   recovery-state:
   # The release that last completed the schema (infrastructure/hosted/migrate.sh).

@@ -28,7 +28,6 @@ Every variable that [`compose.coolify.yaml`](../../compose.coolify.yaml) reads i
 | `PR0_BACKUP_MOUNT` | config | yes | `/mnt/pr0-backups`, the Storage Box mount on the Coolify server, owned by UID 1000 |
 | `PR0_IMAGE_NAME` | config | no | Leave unset (image names `pr0`, `pr0-tools`, `pr0-ingress`). The local deploy test sets it |
 | `PR0_DATABASE_NETWORK` | config | yes | The Docker network of the Coolify database resource: the server destination's network, `coolify` by default ([Coolify database](hosted.md#coolify-database)) |
-| `PR0_DATABASE_VOLUME_NAME` | config | yes | The Coolify database's data volume, for example `postgres-data-<database uuid>` ([Coolify database](hosted.md#coolify-database)). Mounted read-only for free-space checks only |
 | `DATABASE_URL` | secret | yes | `postgres://pr0:<URL-encoded password of the pr0 role>@<database uuid>:5432/pr0`: pr0's own non-superuser role and database in the Coolify database, at the internal hostname Coolify shows. Never Coolify's `postgres` superuser. The administrative password stays in the vault and in Coolify's database resource, never in Phase |
 | `BETTER_AUTH_SECRET` | secret | yes | Random, at least 32 characters. Never rotate it casually: rotation is part of [restore](backup-restore.md#restore-sequence) |
 | `PR0_MAIL_SECRET` | secret | yes | Random, at least 32 characters, independent of the above |
@@ -45,5 +44,6 @@ Every variable that [`compose.coolify.yaml`](../../compose.coolify.yaml) reads i
 Not in Phase:
 
 - `SOURCE_COMMIT` is set by Coolify to the deployed commit when **Include Source Commit in Build** is on. The Compose file requires it: it names the images (`pr0:<commit>`) and the release label (`pr0@<commit>`).
+- `PR0_DATABASE_VOLUME_MOUNTED` is fixed to `false` in the Compose file for `web` and `operations`: pr0 doesn't mount the Coolify database's volume, so the metrics expect no `database` storage measurement ([Coolify database](hosted.md#coolify-database)).
 - Coolify's own generated variables (`SERVICE_FQDN_*`, `COOLIFY_*`) aren't used.
 - The probe host's variables and the canary cookie stay on the probe host ([probe host](probe-host.md)).

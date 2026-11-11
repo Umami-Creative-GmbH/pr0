@@ -43,3 +43,14 @@ The hosted service runs on the existing Coolify server. #128 first ran it as pla
 - Restore provisions a **new** Coolify database resource as the empty replacement database, with a new `pr0` password. The old one is fenced through its administrative connection.
 - The database's image, locale (the Debian image's `en_US.utf8`), durability settings and `pgcrypto` extension are now operator settings in Coolify, checked on setup, instead of being pinned in the Compose file.
 - Not yet proven on the server: that Coolify keeps the Compose file's external network and volume, the database resource's volume and network names, and that it accepts the pinned image. The hosted runbook lists them as first-deploy checks. The local rehearsal (`test:hosted-deploy`) runs the database as a separate Compose project and creates the role as the runbook describes.
+
+## Amendment 2026-11-11 (later): pr0 doesn't mount the database's data volume
+
+**Decision.** By the release operator's decision, no pr0 container mounts the Coolify database resource's data volume. This replaces the read-only `database-data` mount and the `PR0_DATABASE_VOLUME_NAME` key from the amendment above. The external volume, its mounts and `PR0_DATABASE_VOLUME` are gone from `compose.coolify.yaml`.
+
+**Consequences.**
+
+- One Phase `config` key fewer: only `PR0_DATABASE_NETWORK` remains of the two keys the previous amendment added.
+- The migration preflight still requires `PR0_MIGRATION_BACKUPS` and checks three times the database size plus 16 MiB free on it. `PR0_DATABASE_VOLUME` is now optional: where it is set (the bundled `compose.yaml`, self-hosted installs), the same check also runs on the database volume, as before. On the hosted service it isn't set, so that check doesn't run.
+- `operations metrics` no longer expects a `database` storage measurement where `PR0_DATABASE_VOLUME_MOUNTED=false` (set for `web` and `operations` in `compose.coolify.yaml`), so that target raises no permanent `storage_coverage_missing:database`. A measurement that is still recorded keeps its 70 % and 80 % alerts. Everywhere else the database target stays expected.
+- The database shares the Coolify server's disk. The operator turns on Coolify's server disk-usage notifications, which replace pr0's free-space measurement of that disk ([hosted runbook](../operations/hosted.md#coolify-database)).

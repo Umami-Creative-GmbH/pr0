@@ -62,7 +62,7 @@ pr0's canonical data lives in a Coolify **PostgreSQL** database resource in the 
 - [ ] **Public access:** off (**Make it publicly available** unchecked, no port mapping). Only containers on the destination network reach it.
 - [ ] **SSL:** not needed. The connection stays on the server's Docker network, as the bundled database's did. If Coolify's SSL option is on, add `?sslmode=require` to `DATABASE_URL`. pr0's backups and migrations take `sslmode` from the URL, and the backup manifest records it. Certificate verification (`verify-full`) would need the CA file in every container, which this Compose file doesn't mount.
 - [ ] **Coolify's own database backups: off.** They can't replace pr0's backups: restoring a plain dump directly skips the restore barrier, writer fencing, the sealed deletion ledger, deletion replay and the session and token reset ([restore sequence](backup-restore.md#restore-sequence)), and the release gate needs pr0's encrypted backups (ADR-0002). If an operator turns them on anyway, their retention must be 30 days at most, including every version and snapshot at the destination, and they must **never be restored directly**: only through `backup restore` of a pr0 archive.
-- [ ] **Persistent storage:** note the data volume's name (shown under the resource's **Persistent Storage**, typically `postgres-data-<database uuid>`). Phase's `PR0_DATABASE_VOLUME_NAME` holds it: the migration job and the operator commands mount it read-only to check free space before a migration ([backup and restore](backup-restore.md#initialize-and-schedule) needs three times the database size plus 16 MiB on the PostgreSQL host).
+- [ ] **Disk:** turn on Coolify's server disk-usage notifications (the server's **Notifications** settings, with a disk-usage threshold); the database shares that server's disk. pr0 never mounts the database's data volume, so it can't measure that disk itself: before a migration it checks free space only on its own backup volume, and `operations metrics` expects no `database` storage measurement. A migration needs three times the database size plus 16 MiB free ([backup and restore](backup-restore.md#initialize-and-schedule)); keep the server's disk well below the notification threshold before every deploy.
 - [ ] **Network and hostname:** note the destination's network (`coolify` by default; `docker inspect <database container> --format '{{range $name, $net := .NetworkSettings.Networks}}{{$name}} {{end}}'`) and the internal hostname from the resource's internal URL (the database UUID). Phase's `PR0_DATABASE_NETWORK` holds the network. The Compose file joins it as the external network `database` for every service that uses the database (not the ingress). Leave **Connect to Predefined Network** off on the application: the file already joins the network, and that option renames the application's containers.
 - [ ] **Start** the database and keep it running. Never delete or recreate the resource: that removes its volume.
 
@@ -84,7 +84,7 @@ SELECT datcollate, datctype FROM pg_database WHERE datname = 'pr0';             
 SHOW server_version; SHOW fsync; SHOW full_page_writes; SHOW synchronous_commit;  -- 17.x, on, on, on
 ```
 
-Put `postgres://pr0:<URL-encoded password>@<database uuid>:5432/pr0` into Phase as `DATABASE_URL`, and the network and volume names as `PR0_DATABASE_NETWORK` and `PR0_DATABASE_VOLUME_NAME` ([variable inventory](hosted-variables.md)).
+Put `postgres://pr0:<URL-encoded password>@<database uuid>:5432/pr0` into Phase as `DATABASE_URL`, and the network name as `PR0_DATABASE_NETWORK` ([variable inventory](hosted-variables.md)).
 
 ### Coolify application
 
@@ -126,13 +126,13 @@ Coolify names the volumes. Record their real names in the recovery inventory, an
 docker volume ls --filter "label=com.docker.compose.project=$APP"
 ```
 
-Expect `<app-uuid>_search-data`, `_recovery-state`, `_release-state` and `_migration-backups`. The canonical data is in the Coolify database's own volume (`PR0_DATABASE_VOLUME_NAME`), which belongs to the database resource; the application only mounts it read-only. Record it too. Never delete or recreate the Coolify application or the database resource: that can remove these volumes. Exclude them from any Coolify or Docker cleanup.
+Expect `<app-uuid>_search-data`, `_recovery-state`, `_release-state` and `_migration-backups`. The canonical data is in the Coolify database's own volume (the resource's **Persistent Storage**, typically `postgres-data-<database uuid>`), which belongs to the database resource; the application never mounts it. Record it too. Never delete or recreate the Coolify application or the database resource: that can remove these volumes. Exclude them from any Coolify or Docker cleanup.
 
 ## First deployment
 
 Run once. The ledger hosts, the Storage Box, Brevo, the OAuth apps and the vault entries must already exist (#130). Phase holds the **runtime** ledger URLs. The administrative URLs stay in the vault.
 
-0. Create the [Coolify database](#coolify-database) and go through its checklist: PostgreSQL 17, the `pr0` role and database, Coolify's backups off, and the network and volume names. Then set up [Phase](#phase) and the [Coolify application](#coolify-application) with `DATABASE_URL`, `PR0_DATABASE_NETWORK` and `PR0_DATABASE_VOLUME_NAME`.
+0. Create the [Coolify database](#coolify-database) and go through its checklist: PostgreSQL 17, the `pr0` role and database, Coolify's backups off, the server's disk-usage notifications on, and the network name. Then set up [Phase](#phase) and the [Coolify application](#coolify-application) with `DATABASE_URL` and `PR0_DATABASE_NETWORK`.
 1. Pin the candidate commit ([Deploy a specific commit](#deploy-a-specific-commit)) and click **Deploy**. `backup-before` reports `backup_skipped` (empty database), `migrate` creates the schema and records the release, and **`replay-deletions` fails as expected**, because the ledgers aren't initialized yet. web and mail don't start.
 2. Initialize the ledgers with the administrative URLs, which you export in the shell from the vault and never put on a command line or in Phase:
 
@@ -156,7 +156,7 @@ Run once. The ledger hosts, the Storage Box, Brevo, the OAuth apps and the vault
 4. Click **Redeploy**. All three jobs now pass: `backup-before` makes the first verified backup, and web, mail, backup and the ingress start. Go through [Verify on the first Coolify deploy](#verify-on-the-first-coolify-deploy).
 5. Open `https://pr0.umami-creative.app`, sign up with the admitted address, verify by email and sign in. Check that `https://pr0.umami-creative.app/update/` is still served by the update channel.
 6. Admit testers and the canary with `pr0c run --rm --no-deps accounts allow <email>`. Allowlist mode needs no redeploy for new addresses. Set up the canary on the probe host ([probe host](probe-host.md#canary-account-and-prompt)).
-7. Create the [scheduled backup](#scheduled-backup) and run it once. Push ledger and backup storage measurements as described in [service health](service-health.md#storage-the-application-host-cannot-mount).
+7. Create the [scheduled backup](#scheduled-backup) and run it once. Push ledger and backup storage measurements as described in [service health](service-health.md#storage-the-application-host-cannot-mount). The `database` measurement isn't expected here (`PR0_DATABASE_VOLUME_MOUNTED=false` in the Compose file): Coolify's server disk-usage notifications cover that disk.
 
 ## Deploy a specific commit
 
@@ -231,7 +231,7 @@ Restore and initialization are manual. The generic sequence is in [backup and re
 
   If the server is lost, the database is lost with it; fence the ledgers and SMTP as the generic sequence describes. Leave the old database resource stopped but don't delete it until the incident is closed.
 
-- **The replacement database is a new Coolify database resource** (generic step 3, "provision an empty replacement database"). Create it with the [Coolify database](#coolify-database) checklist, including Coolify's backups off, and create the `pr0` role with a **new** password and an empty `pr0` database. In Phase, set `DATABASE_URL` to the new resource's hostname and password and `PR0_DATABASE_VOLUME_NAME` to its volume, let the sync run and check the values. `backup restore` refuses a non-empty database. The old database is never restored into or reused as the replacement.
+- **The replacement database is a new Coolify database resource** (generic step 3, "provision an empty replacement database"). Create it with the [Coolify database](#coolify-database) checklist, including Coolify's backups off, and create the `pr0` role with a **new** password and an empty `pr0` database. In Phase, set `DATABASE_URL` to the new resource's hostname and password, let the sync run and check the value. Record the new resource's volume in the recovery inventory. `backup restore` refuses a non-empty database. The old database is never restored into or reused as the replacement.
 - Run every restore command on the host with `pr0c run --rm --no-deps …`, for example `pr0c run --rm --no-deps restore close`. For `backup restore`, set the archive's release (see `backup configuration`): `pr0c run --rm --no-deps -e PR0_BACKUP_RELEASE=pr0@<commit> --entrypoint bun backup --bun apps/web/.operations/backup.js restore <archive>`. Use the tools image of that same commit, which may need a deploy of that commit first, and stop the application again after it.
 - For step 5 of the generic sequence, start web and mail privately with `pr0c up -d --no-deps web mail` (no ingress). After `restore open`, if the restored archive's release differs from `pr0c run --rm --no-deps --entrypoint cat backup /var/lib/pr0-release/release`, write it into the release record, so the next `backup-before` labels the restored data correctly: `pr0c run --rm --no-deps -e PR0_BACKUP_RELEASE=pr0@<restored commit> --entrypoint sh migrate -c 'printf "%s\n" "$PR0_BACKUP_RELEASE" > /var/lib/pr0-release/release'`. Then **Deploy** the matching commit in Coolify, which starts the ingress through the normal sequence. Re-enable the scheduled task and resume the check.
 
@@ -251,8 +251,8 @@ These behaviours are documented but not proven on this server. The local rehears
 - [ ] The volume names, recorded in the recovery inventory.
 - [ ] The ingress sees Traefik's address inside `PR0_INGRESS_TRUSTED_PROXIES`, and client addresses are attributed ([service health](service-health.md#trusted-ingress)).
 - [ ] The scheduled task runs in the `backup` container, its history shows the exit code, and the dead-man's switch receives `0`. A deliberate failure (`heartbeat.ts 1` in the container) alerts.
-- [ ] The Coolify database resource accepts the pinned PostgreSQL 17 image (or `postgres:17-bookworm`), its volume is named as recorded in `PR0_DATABASE_VOLUME_NAME`, and it sits on the network in `PR0_DATABASE_NETWORK`.
-- [ ] Coolify keeps the Compose file's external network `database` and external volume `database-data`: web, mail, backup and the jobs reach the database at its internal hostname, the migrate job sees the database volume read-only, and the ingress is not on that network.
+- [ ] The Coolify database resource accepts the pinned PostgreSQL 17 image (or `postgres:17-bookworm`), it sits on the network in `PR0_DATABASE_NETWORK`, and the server's disk-usage notifications are on.
+- [ ] Coolify keeps the Compose file's external network `database`: web, mail, backup and the jobs reach the database at its internal hostname, and the ingress is not on that network. No pr0 container mounts the database's volume.
 - [ ] `SELECT DISTINCT usename FROM pg_stat_activity WHERE datname = 'pr0'` shows only `pr0` (plus your own `postgres` session), and the schema's tables belong to `pr0`.
 - [ ] Coolify's scheduled backups for the database resource are off.
 - [ ] A deliberately failing deploy (for example a commit whose migration fails, on a disposable copy, or a missing required variable) leaves web and mail stopped and the data intact.
