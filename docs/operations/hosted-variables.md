@@ -27,8 +27,9 @@ Every variable that [`compose.coolify.yaml`](../../compose.coolify.yaml) reads i
 | `PR0_INGRESS_METRICS_ALLOW` | config | no | The probe host's public address as Traefik sees it ([probe host](probe-host.md)) |
 | `PR0_BACKUP_MOUNT` | config | yes | `/mnt/pr0-backups`, the Storage Box mount on the Coolify server, owned by UID 1000 |
 | `PR0_IMAGE_NAME` | config | no | Leave unset (image names `pr0`, `pr0-tools`, `pr0-ingress`). The local deploy test sets it |
-| `POSTGRES_PASSWORD` | secret | yes | Strong application database password |
-| `DATABASE_URL` | secret | yes | `postgres://pr0:<URL-encoded POSTGRES_PASSWORD>@database:5432/pr0` |
+| `PR0_DATABASE_NETWORK` | config | yes | The Docker network of the Coolify database resource: the server destination's network, `coolify` by default ([Coolify database](hosted.md#coolify-database)) |
+| `PR0_DATABASE_VOLUME_NAME` | config | yes | The Coolify database's data volume, for example `postgres-data-<database uuid>` ([Coolify database](hosted.md#coolify-database)). Mounted read-only for free-space checks only |
+| `DATABASE_URL` | secret | yes | `postgres://pr0:<URL-encoded password of the pr0 role>@<database uuid>:5432/pr0`: pr0's own non-superuser role and database in the Coolify database, at the internal hostname Coolify shows. Never Coolify's `postgres` superuser. The administrative password stays in the vault and in Coolify's database resource, never in Phase |
 | `BETTER_AUTH_SECRET` | secret | yes | Random, at least 32 characters. Never rotate it casually: rotation is part of [restore](backup-restore.md#restore-sequence) |
 | `PR0_MAIL_SECRET` | secret | yes | Random, at least 32 characters, independent of the above |
 | `PR0_LEDGER_A_URL` | secret | yes | Ledger A **runtime** (append-only) role, `postgres://<role>:<password>@<host>:5432/<db>?sslmode=verify-full`. The administrative URL never goes into Phase ([first deployment](hosted.md#first-deployment)) |

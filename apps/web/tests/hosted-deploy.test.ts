@@ -46,7 +46,6 @@ const linkPattern = /http[^\s]+/u;
 /** Variables Coolify itself provides; never in Phase. */
 const coolifyProvided = new Set(["SOURCE_COMMIT"]);
 const expectedSecrets = new Set([
-  "POSTGRES_PASSWORD",
   "DATABASE_URL",
   "BETTER_AUTH_SECRET",
   "PR0_MAIL_SECRET",
@@ -119,8 +118,9 @@ const exampleVariables = {
   SMTP_FROM: "pr0@example.test",
   PR0_INGRESS_TRUSTED_PROXIES: "10.0.1.0/24",
   PR0_BACKUP_MOUNT: "/mnt/pr0-backups",
-  POSTGRES_PASSWORD: "example-secret-postgres",
-  DATABASE_URL: "postgres://pr0:example@database:5432/pr0",
+  PR0_DATABASE_NETWORK: "coolify",
+  PR0_DATABASE_VOLUME_NAME: "postgres-data-exampledatabaseuuid",
+  DATABASE_URL: "postgres://pr0:example@exampledatabaseuuid:5432/pr0",
   BETTER_AUTH_SECRET: "example-secret-auth",
   PR0_MAIL_SECRET: "example-secret-mail",
   PR0_LEDGER_A_URL: "postgres://a",
@@ -147,9 +147,15 @@ const configuredService = z.object({
   profiles: z.array(z.string()).optional(),
   command: z.array(z.string()).nullable().optional(),
 });
+const externalResource = z.object({
+  name: z.string(),
+  external: z.boolean().optional(),
+});
 const configuredProject = z.object({
   services: z.record(z.string(), configuredService),
   secrets: z.json().optional(),
+  networks: z.record(z.string(), externalResource).default({}),
+  volumes: z.record(z.string(), externalResource).default({}),
 });
 const writeEnvironment = (file: string, variables: Record<string, string>) =>
   Bun.write(
@@ -197,7 +203,8 @@ const expectUpgradeGate = (services: Services) => {
         ([name, { condition }]) => [name, condition]
       )
     );
-  expect(dependsOn("backup-before")).toEqual({ database: "service_healthy" });
+  // The database is a separate Coolify resource: nothing here waits for it.
+  expect(dependsOn("backup-before")).toEqual({});
   expect(dependsOn("migrate")).toEqual({
     "backup-before": "service_completed_successfully",
   });
@@ -206,7 +213,6 @@ const expectUpgradeGate = (services: Services) => {
   });
   for (const service of ["web", "mail"]) {
     expect(dependsOn(service)).toEqual({
-      database: "service_healthy",
       "replay-deletions": "service_completed_successfully",
     });
   }
@@ -304,10 +310,18 @@ test("the Coolify file takes every secret from runtime variables and gates web a
     );
     expect(rendered.stderr).not.toContain("variable is not set");
     expect(rendered.code).toBe(0);
-    const { services, secrets } = configuredProject.parse(
+    const { services, secrets, networks, volumes } = configuredProject.parse(
       JSON.parse(rendered.stdout)
     );
     expect(secrets).toBeUndefined();
+    // PostgreSQL is the Coolify database resource, reached over its network.
+    // Its data volume belongs to that resource and is never created here.
+    expect(services.database).toBeUndefined();
+    expect(networks.database).toEqual({ name: "coolify", external: true });
+    expect(volumes["database-data"]).toEqual({
+      name: exampleVariables.PR0_DATABASE_VOLUME_NAME,
+      external: true,
+    });
     expectRuntimeSecrets(services);
     expectUpgradeGate(services);
 
@@ -461,6 +475,43 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     must([...composeArgs(), ...args], checkout);
   const composeResult = (...args: string[]) =>
     execute([...composeArgs(), ...args], checkout);
+  // The Coolify database resource: a separate Compose project with its own
+  // network and data volume, which the application joins and mounts as
+  // external resources.
+  const databaseProject = `pr0-hosted-db-${id}`;
+  const databaseNetwork = databaseProject;
+  const databaseVolume = `${databaseProject}-data`;
+  const databaseHost = `coolify-db-${id}`;
+  const databaseFile = path.join(directory, "database.json");
+  let databaseStarted = false;
+  const databaseArgs = () => [
+    "docker",
+    "compose",
+    "-p",
+    databaseProject,
+    "--project-directory",
+    directory,
+    "-f",
+    databaseFile,
+  ];
+  const databaseCompose = (...args: string[]) =>
+    must([...databaseArgs(), ...args], directory);
+  /** psql as the database resource's administrator, as the operator runs it. */
+  const adminSql = (database: string, statement: string) =>
+    databaseCompose(
+      "exec",
+      "-T",
+      "postgres",
+      "psql",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-U",
+      "postgres",
+      "-d",
+      database,
+      "-tAc",
+      statement
+    );
   try {
     // The commit under test plus three disposable candidates.
     const initial = await must(
@@ -502,6 +553,50 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     // The application's variables, as Phase would sync them to Coolify.
     await mkdir(path.join(directory, "backups"));
     const databasePassword = crypto.randomUUID();
+    const adminPassword = crypto.randomUUID();
+
+    // The Coolify-managed PostgreSQL 17 resource, created before the first
+    // deploy: Coolify's administrator is the superuser `postgres`; pr0 runs as
+    // its own non-superuser role and database, set up as hosted.md describes.
+    await Bun.write(
+      databaseFile,
+      JSON.stringify({
+        services: {
+          postgres: {
+            image: postgres,
+            environment: { POSTGRES_PASSWORD: adminPassword },
+            volumes: ["data:/var/lib/postgresql/data"],
+            networks: { database: { aliases: [databaseHost] } },
+            healthcheck: {
+              test: ["CMD", "pg_isready", "-U", "postgres"],
+              interval: "1s",
+              timeout: "2s",
+              retries: 60,
+            },
+          },
+        },
+        networks: { database: { name: databaseNetwork } },
+        volumes: { data: { name: databaseVolume } },
+      })
+    );
+    databaseStarted = true;
+    await databaseCompose("up", "--detach", "--wait");
+    await adminSql(
+      "postgres",
+      `CREATE ROLE pr0 LOGIN CREATEDB PASSWORD '${databasePassword}'`
+    );
+    await adminSql(
+      "postgres",
+      "CREATE DATABASE pr0 OWNER pr0 TEMPLATE template0 ENCODING 'UTF8'"
+    );
+    await adminSql("pr0", "CREATE EXTENSION IF NOT EXISTS pgcrypto");
+    expect(
+      await adminSql(
+        "postgres",
+        "SELECT rolsuper, rolcreatedb FROM pg_roles WHERE rolname = 'pr0'"
+      )
+    ).toBe("f|t");
+
     const variables = {
       PR0_IMAGE_NAME: imageName,
       PR0_ORIGIN: origin,
@@ -515,8 +610,9 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       SMTP_FROM: "pr0@example.test",
       PR0_INGRESS_TRUSTED_PROXIES: "10.255.255.0/24",
       PR0_BACKUP_MOUNT: path.join(directory, "backups").replaceAll("\\", "/"),
-      POSTGRES_PASSWORD: databasePassword,
-      DATABASE_URL: `postgres://pr0:${databasePassword}@database:5432/pr0`,
+      PR0_DATABASE_NETWORK: databaseNetwork,
+      PR0_DATABASE_VOLUME_NAME: databaseVolume,
+      DATABASE_URL: `postgres://pr0:${databasePassword}@${databaseHost}:5432/pr0`,
       BETTER_AUTH_SECRET: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
       PR0_MAIL_SECRET: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
       PR0_LEDGER_A_URL: `postgres://pr0:${databasePassword}@ledger-a:5432/ledger`,
@@ -700,18 +796,16 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     const releaseRecord = () =>
       compose("exec", "-T", "backup", "cat", "/var/lib/pr0-release/release");
     const migrationVersion = () =>
-      compose(
-        "exec",
-        "-T",
-        "database",
-        "psql",
-        "-U",
-        "pr0",
-        "-d",
-        "pr0",
-        "-tAc",
-        "SELECT max(version) FROM migration"
+      adminSql("pr0", "SELECT max(version) FROM migration");
+    const databaseRunning = async () => {
+      const running = await databaseCompose(
+        "ps",
+        "--status",
+        "running",
+        "--services"
       );
+      return running.split("\n");
+    };
 
     // First deploy. With an empty database the backup is skipped and the
     // schema migrated; replay then stops the sequence, because the ledgers
@@ -751,6 +845,13 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     expect(event(initialized, "backup-before")).toBe("backup_verified");
     expectServing(initialized, initial);
     expect(await releaseRecord()).toBe(`pr0@${initial}`);
+    // The schema belongs to pr0's own role, never to Coolify's superuser.
+    expect(
+      await adminSql(
+        "pr0",
+        "SELECT tableowner FROM pg_tables WHERE tablename = 'migration'"
+      )
+    ).toBe("pr0");
 
     const request = async (
       pathname: string,
@@ -986,7 +1087,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
         state: `created ${brokenImages[service]}`,
       });
     }
-    expect(failure.running).toContain("database");
+    expect(await databaseRunning()).toContain("postgres");
     expect(await migrationVersion()).toBe("20");
     let reachable = true;
     try {
@@ -1036,6 +1137,14 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
           {
             recordedAt: new Date().toISOString(),
             composeFile: coolifyFile,
+            database: {
+              resource:
+                "separate PostgreSQL 17 Compose project (stand-in for the Coolify database)",
+              image: postgres,
+              role: "pr0 (LOGIN CREATEDB, not superuser)",
+              joinedBy:
+                "external network database, external volume database-data",
+            },
             commits: {
               initial: commits[0],
               candidate: commits[1],
@@ -1072,6 +1181,10 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       ]);
       if (tags.length) {
         await execute(["docker", "image", "rm", ...tags], root);
+      }
+      if (databaseStarted) {
+        // After the application released its network and volume.
+        await execute([...databaseArgs(), "down", "--volumes"], directory);
       }
     } finally {
       await rm(directory, { recursive: true, force: true });
