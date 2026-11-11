@@ -1,14 +1,12 @@
 {
-  "measuredAt": "2026-09-21T14:08:52.987Z",
-  "ordinaryLossWindowSeconds": 1.18,
-  "recoverySeconds": 6.764,
+  "measuredAt": "2026-11-11T13:25:39.366Z",
+  "ordinaryLossWindowSeconds": 0.639,
+  "recoverySeconds": 4.287,
   "acknowledgedDeletionsLost": 0,
   "encryptedRoundTrip": true,
-  "unavailableLedgerRefused": true,
-  "bothLedgersBehindRefused": true,
-  "oneCurrentLedgerRepairedOther": true,
-  "failedPurgeRefused": true,
+  "restoredArchiveBroughtDeletedAccountBack": true,
+  "deletionReappliedFromLog": true,
+  "failedReapplyRolledBack": true,
   "interruptedRestoreStayedClosed": true,
-  "restoredSessionAndActionTokenRefused": true,
-  "signingKeyRotationReplayed": true
+  "restoredSessionAndActionTokenRefused": true
 }

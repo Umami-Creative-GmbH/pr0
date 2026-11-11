@@ -38,7 +38,7 @@ try {
     const used = (space.blocks - space.bavail) * space.bsize;
     await recordStorage(volume, total, used, "storage_sampled");
   } else if (command === "record-storage") {
-    // Hosts the app cannot mount, such as the deletion ledgers, push their own measurement.
+    // Hosts the app cannot mount, such as a remote backup store, push their own measurement.
     const [volume, total, used] = externalStorage.parse(args.slice(1));
     await recordStorage(volume, total, used, "storage_recorded");
   } else if (command === "record-backup") {
@@ -58,7 +58,7 @@ try {
     }
   } else {
     throw new Error(
-      "Use sample-storage <database|search|ledger-a|ledger-b|backup> <mounted-path>, record-storage <database|search|ledger-a|ledger-b|backup> <total-bytes> <used-bytes>, record-backup <verified-checkpoint-UTC> <retention-ok|retention-failed>, or metrics"
+      "Use sample-storage <database|search|backup> <mounted-path>, record-storage <database|search|backup> <total-bytes> <used-bytes>, record-backup <verified-checkpoint-UTC> <retention-ok|retention-failed>, or metrics"
     );
   }
 } catch {
@@ -66,6 +66,6 @@ try {
   process.exitCode = 1;
 } finally {
   await sql.close();
-  // The command may open independent ledger and monitoring pools.
+  // The command may open monitoring pools.
   process.exit(process.exitCode ?? 0);
 }

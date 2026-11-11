@@ -9,8 +9,6 @@ import { z } from "zod";
 import { availablePort } from "./test-network";
 
 const root = path.resolve(import.meta.dir, "../../..");
-const postgres =
-  "postgres@sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca";
 export const selfHostingPassword = "disposable-self-host-password";
 interface SelfHostingSettings extends Record<string, string> {
   PR0_IMAGE: string;
@@ -44,14 +42,14 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
   const mailPort = await availablePort();
   const origin = `http://localhost:${port}`;
   await mkdir(path.join(directory, "backups"));
+  // The optional durable deletion log, mounted beside the backups.
+  await mkdir(path.join(directory, "deletion-log"));
   const password = crypto.randomUUID();
   const secretValues = {
     POSTGRES_PASSWORD: password,
     DATABASE_URL: `postgres://pr0:${password}@database:5432/pr0`,
     BETTER_AUTH_SECRET: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
     PR0_MAIL_SECRET: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
-    PR0_LEDGER_A_URL: `postgres://pr0:${password}@ledger-a:5432/ledger`,
-    PR0_LEDGER_B_URL: `postgres://pr0:${password}@ledger-b:5432/ledger`,
   };
   const settings: SelfHostingSettings = {
     PR0_IMAGE: process.env.PR0_SELF_HOST_IMAGE ?? "pr0-self-host-62",
@@ -70,6 +68,7 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
       .join(directory, "backup-key")
       .replaceAll("\\", "/"),
     PR0_BACKUP_RELEASE: "self-hosting-rehearsal-62",
+    PR0_DELETION_LOG_DIRECTORY: "/var/lib/pr0-deletion-log",
   };
   const secrets: Record<string, { file: string }> = {};
   for (const [name, value] of Object.entries(secretValues)) {
@@ -97,25 +96,11 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
   ]) {
     services[name] = { secrets: mounts };
   }
-  services.database = { secrets: ["POSTGRES_PASSWORD"] };
-  for (const name of ["ledger-a", "ledger-b"]) {
-    services[name] = {
-      image: postgres,
-      environment: {
-        POSTGRES_USER: "pr0",
-        POSTGRES_DB: "ledger",
-        POSTGRES_PASSWORD_FILE: "/run/secrets/POSTGRES_PASSWORD",
-      },
-      secrets: ["POSTGRES_PASSWORD"],
-      volumes: [`${name}:/var/lib/postgresql/data`],
-      healthcheck: {
-        test: ["CMD", "pg_isready", "-U", "pr0", "-d", "ledger"],
-        interval: "1s",
-        timeout: "2s",
-        retries: 60,
-      },
-    };
+  const deletionLogMount = `${path.join(directory, "deletion-log").replaceAll("\\", "/")}:/var/lib/pr0-deletion-log`;
+  for (const name of ["web", "restore", "deletions", "backup"]) {
+    services[name] = { ...services[name], volumes: [deletionLogMount] };
   }
+  services.database = { secrets: ["POSTGRES_PASSWORD"] };
   services.smtp = {
     image:
       "axllent/mailpit@sha256:030f06031ce5c60913ac9363da1ab0d4be6fd2a78147dd0e1ca0fcac665d6b34",
@@ -126,14 +111,7 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
       service.platform = process.env.PR0_SELF_HOST_PLATFORM;
     }
   }
-  await Bun.write(
-    override,
-    JSON.stringify({
-      services,
-      secrets,
-      volumes: { "ledger-a": {}, "ledger-b": {} },
-    })
-  );
+  await Bun.write(override, JSON.stringify({ services, secrets }));
   const configure = async (extra: Record<string, string> = {}) => {
     Object.assign(settings, extra);
     await Bun.write(
@@ -145,7 +123,7 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
   };
   await configure();
   let started = false;
-  const compose = async (...args: string[]) => {
+  const run = async (args: string[], input?: string) => {
     const child = Bun.spawn(
       [
         "docker",
@@ -165,6 +143,7 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
       ],
       {
         cwd: root,
+        stdin: input === undefined ? "ignore" : new Blob([input]),
         stdout: "pipe",
         stderr: "pipe",
         env: Object.fromEntries(
@@ -187,6 +166,7 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
     }
     return stdout;
   };
+  const compose = (...args: string[]) => run(args);
   const request = (pathname: string, body?: RequestBody, cookie = "") =>
     fetch(`${origin}${pathname}`, {
       method: body === undefined ? "GET" : "POST",
@@ -226,17 +206,8 @@ export const selfHostingFixture = async (composeFiles: string[] = []) => {
     ready,
     async initialize(email: string) {
       started = true;
-      await compose(
-        "up",
-        "-d",
-        "--wait",
-        "database",
-        "ledger-a",
-        "ledger-b",
-        "smtp"
-      );
+      await compose("up", "-d", "--wait", "database", "smtp");
       await compose("run", "--rm", "accounts", "migrate");
-      await compose("run", "--rm", "deletions", "initialize");
       await compose("run", "--rm", "restore", "initialize");
       await compose("run", "--rm", "accounts", "admit-first", email);
       await compose("up", "-d", "--no-build", "web", "mail");

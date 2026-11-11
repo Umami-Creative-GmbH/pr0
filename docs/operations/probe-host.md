@@ -122,7 +122,7 @@ bun run --cwd apps/web availability burn-in 2026-11-27T09:00:00.000Z \
   /var/lib/pr0-probe/evidence/2026-11.jsonl /var/lib/pr0-probe/evidence/2026-12.jsonl
 ```
 
-The output uses the monthly report's semantics: a minute is available only if it has at least one sample and every sample in it succeeded within 15 seconds, a sample belongs to the minute it started in, and the window end is exclusive. `complete` is false until all 10 080 minutes have elapsed; until then, the elapsed minutes (including the current partial one) are reported and `targetMet` stays false. The command exits 0 only when `targetMet` is true. The window must start on a whole minute, at or after the minute the full stack, ledgers, backups and canary all ran on a `main` commit. It must end no more than 24 hours before the release act, and the final candidate's server must have run for at least its last 24 hours.
+The output uses the monthly report's semantics: a minute is available only if it has at least one sample and every sample in it succeeded within 15 seconds, a sample belongs to the minute it started in, and the window end is exclusive. `complete` is false until all 10 080 minutes have elapsed; until then, the elapsed minutes (including the current partial one) are reported and `targetMet` stays false. The command exits 0 only when `targetMet` is true. The window must start on a whole minute, at or after the minute the full stack, backups and canary all ran on a `main` commit. It must end no more than 24 hours before the release act, and the final candidate's server must have run for at least its last 24 hours.
 
 Record for the go/no-go record: the command, its JSON output, the evidence files' SHA-256 hashes and the deployment times of each candidate within the window.
 

@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { verifyDeletionReceipt } from "@pr0/api-client/deletions";
 import { accountSettingsSchema } from "@pr0/api-contract/accounts";
 import {
-  deletionTrustSchema,
+  deletionIdentitySchema,
   deletionLookupSchema,
-  deletionVerificationSchema,
+  deletionResultSchema,
 } from "@pr0/api-contract/deletions";
 import { z } from "zod";
 
+import {
+  deletionLogFilename,
+  deletionLogLine,
+} from "../src/lib/deletion-log-files";
 import { selfHostingClient } from "./self-hosting-client";
 import { selfHostingPassword } from "./self-hosting-fixture";
 import type { SelfHostingInstance } from "./self-hosting-fixture";
@@ -74,7 +78,7 @@ export const verifySelfHostingRestore = async (
     undefined,
     deletedCookie
   );
-  const trust = deletionTrustSchema.parse(await trustResponse.json());
+  const trust = deletionIdentitySchema.parse(await trustResponse.json());
   const settingsResponse = await instance.request(
     "/api/v1/account",
     undefined,
@@ -86,7 +90,6 @@ export const verifySelfHostingRestore = async (
     .parse(
       JSON.parse(await instance.compose("run", "--rm", "backup", "create"))
     );
-  await instance.compose("run", "--rm", "deletions", "rotate");
   const fresh = await instance.request(
     "/api/v1/account/reauth/verify",
     {
@@ -106,15 +109,35 @@ export const verifySelfHostingRestore = async (
     },
     deletedCookie
   );
-  assert.equal(deletion.status, 200, await deletion.text());
+  assert.equal(deletion.status, 200);
+  const deleted = deletionResultSchema.parse(await deletion.json());
+  // The durable deletion log: web appended the line to its mounted directory.
+  const deletionLog = await readFile(
+    path.join(
+      instance.directory,
+      "deletion-log",
+      deletionLogFilename(deleted.deletedAt)
+    ),
+    "utf-8"
+  );
+  assert.ok(
+    deletionLog
+      .split("\n")
+      .includes(
+        deletionLogLine("account_deleted", deleted.accountId, deleted.deletedAt)
+      )
+  );
+  assert.ok(
+    !deletionLog.includes(deletedEmail),
+    "no email in the deletion log"
+  );
   const started = Date.now();
   await instance.compose("run", "--rm", "restore", "close");
   const closed = await instance.request("/api/v1/library", undefined, cookie);
   assert.equal(closed.status, 503);
   await instance.compose("stop", "web", "mail");
-  await instance.compose("run", "--rm", "restore", "seal");
   // Explicitly replace only this randomly named fixture's application database.
-  // Independent ledger and recovery volumes survive the ordinary-data loss.
+  // The recovery volume and the deletion log directory survive the ordinary-data loss.
   await instance.compose(
     "exec",
     "-T",
@@ -139,9 +162,32 @@ export const verifySelfHostingRestore = async (
     path.join(instance.directory, "BETTER_AUTH_SECRET"),
     `${crypto.randomUUID()}-${crypto.randomUUID()}`
   );
-  await instance.compose("stop", "ledger-b");
-  await assert.rejects(instance.compose("run", "--rm", "restore", "prepare"));
-  await instance.compose("up", "-d", "--wait", "ledger-b");
+  const restoredOwner = await instance.compose(
+    "exec",
+    "-T",
+    "database",
+    "psql",
+    "-U",
+    "pr0",
+    "-d",
+    "pr0",
+    "-tAc",
+    `SELECT count(*) FROM "user" WHERE id='${trust.accountId}'`
+  );
+  assert.equal(
+    restoredOwner.trim(),
+    "1",
+    "the older archive brings the account back"
+  );
+  // Runbook step: re-delete every account in the deletion log before reopening.
+  const reapplied = await instance.compose(
+    "run",
+    "--rm",
+    "deletions",
+    "reapply",
+    "/var/lib/pr0-deletion-log"
+  );
+  assert.match(reapplied, /"read":1,"purged":1/u);
   await instance.compose("run", "--rm", "restore", "prepare");
   await instance.compose(
     "up",
@@ -171,19 +217,7 @@ export const verifySelfHostingRestore = async (
   );
   const lookup = deletionLookupSchema.parse(await lookupResponse.json());
   assert.equal(lookup.status, "deleted");
-  if (lookup.status !== "deleted") {
-    throw new Error("Deleted account lacks its completed receipt");
-  }
-  const verification = await instance.request(
-    "/api/v1/account-deletions/verification"
-  );
-  const keys = deletionVerificationSchema.parse(await verification.json());
-  assert.deepEqual(keys.anchor, trust.anchor);
-  const receipt = await verifyDeletionReceipt(lookup.receipt, {
-    ...trust,
-    rotations: keys.rotations,
-  });
-  assert.equal(receipt.accountId, trust.accountId);
+  assert.deepEqual(lookup, deleted);
   const revivedLogin = await instance.request("/api/auth/sign-in/email", {
     email: deletedEmail,
     password: selfHostingPassword,
@@ -206,6 +240,6 @@ export const verifySelfHostingRestore = async (
     recoverySeconds,
     lossWindowSeconds,
     deletedAccountRevived: false,
-    unavailableLedgerRefused: true,
+    deletionReappliedFromLog: true,
   };
 };

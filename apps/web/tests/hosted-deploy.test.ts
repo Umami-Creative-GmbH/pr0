@@ -3,7 +3,7 @@
 // docker compose, the way Coolify runs it: build, then `up -d` with the
 // application's variables, for one commit after another in the same project.
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { createPromptClient } from "@pr0/api-client/prompts";
@@ -33,7 +33,7 @@ const nginx = z
 const password = "disposable-hosted-deploy-password";
 const canaryTitle = "pr0-availability-canary";
 /** The upgrade sequence, in the order every deploy must run it. */
-const jobs = ["backup-before", "migrate", "replay-deletions"] as const;
+const jobs = ["backup-before", "migrate"] as const;
 const servingServices = ["web", "mail", "ingress", "backup"] as const;
 // Coolify's own keys, which it removes before running the file.
 const coolifyKeyLine = /^\s+exclude_from_hc: true\r?\n/gmu;
@@ -49,8 +49,6 @@ const expectedSecrets = new Set([
   "DATABASE_URL",
   "BETTER_AUTH_SECRET",
   "PR0_MAIL_SECRET",
-  "PR0_LEDGER_A_URL",
-  "PR0_LEDGER_B_URL",
   "PR0_INGRESS_SECRET",
   "PR0_METRICS_SECRET",
   "PR0_GOOGLE_CLIENT_SECRET",
@@ -118,12 +116,11 @@ const exampleVariables = {
   SMTP_FROM: "pr0@example.test",
   PR0_INGRESS_TRUSTED_PROXIES: "10.0.1.0/24",
   PR0_BACKUP_MOUNT: "/mnt/pr0-backups",
+  PR0_DELETION_LOG_MOUNT: "/mnt/pr0-deletion-log",
   PR0_DATABASE_NETWORK: "coolify",
   DATABASE_URL: "postgres://pr0:example@exampledatabaseuuid:5432/pr0",
   BETTER_AUTH_SECRET: "example-secret-auth",
   PR0_MAIL_SECRET: "example-secret-mail",
-  PR0_LEDGER_A_URL: "postgres://a",
-  PR0_LEDGER_B_URL: "postgres://b",
   PR0_INGRESS_SECRET: "example-secret-ingress",
   PR0_METRICS_SECRET: "example-secret-metrics",
   PR0_BACKUP_KEY: "example-secret-backup-key",
@@ -210,16 +207,13 @@ const expectUpgradeGate = (services: Services) => {
   expect(dependsOn("migrate")).toEqual({
     "backup-before": "service_completed_successfully",
   });
-  expect(dependsOn("replay-deletions")).toEqual({
-    migrate: "service_completed_successfully",
-  });
   for (const service of ["web", "mail"]) {
     expect(dependsOn(service)).toEqual({
-      "replay-deletions": "service_completed_successfully",
+      migrate: "service_completed_successfully",
     });
   }
   expect(dependsOn("backup")).toEqual({
-    "replay-deletions": "service_completed_successfully",
+    migrate: "service_completed_successfully",
   });
   expect(dependsOn("ingress")).toEqual({ web: "service_started" });
   for (const job of jobs) {
@@ -446,6 +440,23 @@ const event = (record: DeployRecord, service: string) => {
   return job?.result?.event ?? job?.output;
 };
 
+/** Polls a URL until it answers anything but 502 or a refused connection. */
+const settledStatus = async (url: string) => {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    try {
+      // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Poll until the new web answers through the ingress.
+      const response = await fetch(url);
+      if (response.status !== 502) {
+        return response.status;
+      }
+    } catch {
+      // The ingress may refuse while it starts.
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Bounded polling interval.
+    await Bun.sleep(500);
+  }
+  return 0;
+};
 test("Coolify's compose deploys run the upgrade jobs in order, upgrade between commits and stop a failed migration before web and mail", async () => {
   await mkdir(path.join(root, ".scratch"), { recursive: true });
   const directory = await mkdtemp(path.join(root, ".scratch/hosted-"));
@@ -548,12 +559,12 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     await Bun.write(
       migrate,
       migrateSource.replace(
-        '  "020-compatible-upgrades.sql",\n',
-        '  "020-compatible-upgrades.sql",\n  "021-rehearsal-failure.sql",\n'
+        '  "021-deletion-tombstone.sql",\n',
+        '  "021-deletion-tombstone.sql",\n  "022-rehearsal-failure.sql",\n'
       )
     );
     await Bun.write(
-      path.join(checkout, "apps/web/migrations/021-rehearsal-failure.sql"),
+      path.join(checkout, "apps/web/migrations/022-rehearsal-failure.sql"),
       "SELECT 1/0;\n"
     );
     await git("add", "--all");
@@ -570,6 +581,8 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
 
     // The application's variables, as Phase would sync them to Coolify.
     await mkdir(path.join(directory, "backups"));
+    const deletionLog = path.join(directory, "deletion-log");
+    await mkdir(deletionLog);
     const databasePassword = crypto.randomUUID();
     const adminPassword = crypto.randomUUID();
 
@@ -628,12 +641,11 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       SMTP_FROM: "pr0@example.test",
       PR0_INGRESS_TRUSTED_PROXIES: "10.255.255.0/24",
       PR0_BACKUP_MOUNT: path.join(directory, "backups").replaceAll("\\", "/"),
+      PR0_DELETION_LOG_MOUNT: deletionLog.replaceAll("\\", "/"),
       PR0_DATABASE_NETWORK: databaseNetwork,
       DATABASE_URL: `postgres://pr0:${databasePassword}@${databaseHost}:5432/pr0`,
       BETTER_AUTH_SECRET: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
       PR0_MAIL_SECRET: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
-      PR0_LEDGER_A_URL: `postgres://pr0:${databasePassword}@ledger-a:5432/ledger`,
-      PR0_LEDGER_B_URL: `postgres://pr0:${databasePassword}@ledger-b:5432/ledger`,
       PR0_INGRESS_SECRET: crypto.randomUUID().replaceAll("-", "").repeat(2),
       PR0_METRICS_SECRET: crypto.randomUUID().replaceAll("-", "").repeat(2),
       PR0_BACKUP_KEY: new Bun.CryptoHasher("sha256")
@@ -641,29 +653,12 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
         .digest("hex"),
       PR0_BACKUP_HEARTBEAT_URL: `http://heartbeat:8080${heartbeatPath}`,
     };
-    // Stand-ins for the external ledgers, SMTP, the dead-man's switch and
+    // Stand-ins for SMTP, the dead-man's switch and
     // Coolify's proxy (the ingress port, published on loopback).
-    const ledger = (name: string) => ({
-      image: postgres,
-      environment: {
-        POSTGRES_USER: "pr0",
-        POSTGRES_DB: "ledger",
-        POSTGRES_PASSWORD: databasePassword,
-      },
-      volumes: [`${name}:/var/lib/postgresql/data`],
-      healthcheck: {
-        test: ["CMD", "pg_isready", "-U", "pr0", "-d", "ledger"],
-        interval: "1s",
-        timeout: "2s",
-        retries: 60,
-      },
-    });
     await Bun.write(
       local,
       JSON.stringify({
         services: {
-          "ledger-a": ledger("ledger-a"),
-          "ledger-b": ledger("ledger-b"),
           smtp: { image: mailpit, ports: [`127.0.0.1:${mailPort}:8025`] },
           heartbeat: {
             image: nginx,
@@ -677,7 +672,6 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
               'events {}\nhttp {\n  access_log /dev/stdout;\n  server {\n    listen 8080;\n    location / { return 200 "ok"; }\n  }\n}\n',
           },
         },
-        volumes: { "ledger-a": {}, "ledger-b": {} },
       })
     );
 
@@ -825,27 +819,22 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     };
 
     // First deploy. With an empty database the backup is skipped and the
-    // schema migrated; replay then stops the sequence, because the ledgers
-    // are not initialized yet. web and mail never start.
+    // schema migrated. The stack starts, but stays closed (503) until the
+    // restore barrier is initialized: no recovery state means no admission.
     const first = await deploy("first deploy (before initialization)", initial);
-    expect(first.upExitCode).not.toBe(0);
+    expect(first.upExitCode).toBe(0);
     expectJobsInOrder(first, jobs);
-    expect(exitCodes(first)).toEqual({
-      "backup-before": 0,
-      migrate: 0,
-      "replay-deletions": 1,
-    });
+    expect(exitCodes(first)).toEqual({ "backup-before": 0, migrate: 0 });
     expect(event(first, "backup-before")).toBe("backup_skipped");
     expect(event(first, "migrate")).toBe("release_recorded");
-    for (const service of servingServices) {
-      expect(first.running).not.toContain(service);
-    }
+    expectServing(first, initial);
+    expect(await settledStatus(`${origin}/api/v1/capabilities`)).toBe(503);
 
-    // The one-time manual initialization, then Coolify's "Redeploy".
+    // The one-time manual initialization, then Coolify's "Redeploy", whose
+    // backup-before job now takes the first verified backup.
     const email = "operator@example.test";
     const operation = (...args: string[]) =>
       compose("--profile", "operations", "run", "--rm", ...args);
-    await operation("deletions", "initialize");
     await operation("restore", "initialize");
     await operation("accounts", "admit-first", email);
     const initialized = await deploy(
@@ -857,7 +846,6 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     expect(exitCodes(initialized)).toEqual({
       "backup-before": 0,
       migrate: 0,
-      "replay-deletions": 0,
     });
     expect(event(initialized, "backup-before")).toBe("backup_verified");
     expectServing(initialized, initial);
@@ -907,6 +895,9 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       }
       throw new Error("The ingress never reached web");
     };
+    // The redeploy restarted web (its migrate dependency ran again); the
+    // ingress answers 502 until the new web is listening.
+    await readiness();
     const signUp = await request("/api/auth/sign-up/email", {
       email,
       password,
@@ -1022,6 +1013,21 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     };
     await expectIntact();
 
+    // web can append to the Storage Box deletion log it mounts.
+    await compose(
+      "exec",
+      "-T",
+      "web",
+      "test",
+      "-w",
+      "/var/lib/pr0-deletion-log"
+    );
+    // The scheduled backup task also expires deletion log months 31 days after
+    // they end, and touches nothing else in that directory.
+    const currentMonth = `deletions-${new Date().toISOString().slice(0, 7)}.jsonl`;
+    for (const name of ["deletions-2020-01.jsonl", currentMonth, "notes.txt"]) {
+      await Bun.write(path.join(deletionLog, name), "kept\n");
+    }
     // The scheduled backup task, as Coolify runs it in the backup container:
     // success and failure each reach the dead-man's switch with the real code.
     const scheduled = await composeResult(
@@ -1032,6 +1038,9 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       "/app/hosted/scheduled-backup.sh"
     );
     expect(scheduled.code).toBe(0);
+    const remaining = await readdir(deletionLog);
+    // oxlint-disable-next-line unicorn/no-array-sort -- Newly allocated; ES2022 types.
+    expect(remaining.sort()).toEqual([currentMonth, "notes.txt"]);
     const failedScheduled = await composeResult(
       "exec",
       "-T",
@@ -1065,7 +1074,6 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     expect(exitCodes(upgrade)).toEqual({
       "backup-before": 0,
       migrate: 0,
-      "replay-deletions": 0,
     });
     expectServing(upgrade, candidate);
     expect(await releaseRecord()).toBe(`pr0@${candidate}`);
@@ -1105,7 +1113,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       });
     }
     expect(await databaseRunning()).toContain("postgres");
-    expect(await migrationVersion()).toBe("20");
+    expect(await migrationVersion()).toBe("21");
     let reachable = true;
     try {
       await fetch(`${origin}/api/v1/health`, {
@@ -1139,10 +1147,9 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     expect(exitCodes(recovery)).toEqual({
       "backup-before": 0,
       migrate: 0,
-      "replay-deletions": 0,
     });
     expectServing(recovery, fixed);
-    expect(await migrationVersion()).toBe("20");
+    expect(await migrationVersion()).toBe("21");
     expect(await releaseRecord()).toBe(`pr0@${fixed}`);
     Object.assign(recovery, { readiness: await expectIntact() });
     passed = true;

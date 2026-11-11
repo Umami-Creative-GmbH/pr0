@@ -6,7 +6,6 @@ import { operationalMetricsSchema } from "@pr0/api-contract/operations";
 
 import { secret } from "./config";
 import { database } from "./database";
-import { ledgerConnections, readEvidence } from "./deletion-ledger";
 import { readReadiness } from "./readiness";
 
 // A deployment whose database volume the application cannot mount (the hosted
@@ -19,7 +18,7 @@ const storageAlerts = (
   volumes: { name: string; stale: boolean; usedPercent: number }[]
 ) => {
   const alerts = new Set<string>();
-  for (const name of ["database", "search", "ledger-a", "ledger-b", "backup"]) {
+  for (const name of ["database", "search", "backup"]) {
     const volume = volumes.find((entry) => entry.name === name && !entry.stale);
     if (!volume) {
       if (coverageOptional(name)) {
@@ -48,7 +47,6 @@ export const readOperationalMetrics = async () => {
     volumes,
     backup,
     errors,
-    pending,
     readiness,
   ] = await Promise.all([
     sql`SELECT count(*) FILTER(WHERE active)::int AS active,count(*) FILTER(WHERE NOT active)::int AS queued,
@@ -77,7 +75,6 @@ export const readOperationalMetrics = async () => {
       100.0*used_bytes/total_bytes AS percent,sampled_at, sampled_at<clock_timestamp()-interval '5 minutes' AS stale FROM storage_observation ORDER BY name`,
     sql`SELECT checkpoint,retention_ok, checkpoint>clock_timestamp()-interval '1 hour' AND verified_at>clock_timestamp()-interval '1 hour' AND retention_ok AS ready FROM backup_observation`,
     sql`SELECT boundary,code,sum(count)::float AS count FROM operational_counter WHERE day>=CURRENT_DATE-30 GROUP BY boundary,code ORDER BY boundary,code`,
-    sql`SELECT count(*)::int AS count FROM account_deletion_pending`,
     readReadiness(),
   ]);
   const [lag] =
@@ -91,21 +88,6 @@ export const readOperationalMetrics = async () => {
     walBytes = wal.bytes;
   } catch {
     /* Missing monitoring permissions are reported as missing coverage. */
-  }
-  let ledgerBytes: number | null = null;
-  try {
-    const [instance] = await sql`SELECT id FROM instance`;
-    await readEvidence(instance.id, "health");
-    const sizes = await Promise.all(
-      ledgerConnections().map(async (ledger) => {
-        const [size] =
-          await ledger`SELECT pg_database_size(current_database())::float AS bytes`;
-        return Number(size.bytes);
-      })
-    );
-    ledgerBytes = sizes.reduce((total, value) => total + value, 0);
-  } catch {
-    /* A failed ledger probe is never reported healthy. */
   }
   const measured = volumes.map((volume) => ({
     name: volume.name,
@@ -125,12 +107,6 @@ export const readOperationalMetrics = async () => {
   if (walBytes === null) {
     alerts.push("wal_coverage_missing");
   }
-  if (ledgerBytes === null) {
-    alerts.push("ledger_unavailable");
-  }
-  if (pending[0].count) {
-    alerts.push("deletion_pending");
-  }
   if (email[0].failed || readiness.checks.email !== "ready") {
     alerts.push("email_unavailable");
   }
@@ -146,11 +122,6 @@ export const readOperationalMetrics = async () => {
       status: backup[0]?.ready ? "ready" : "unavailable",
       checkpoint: backup[0]?.checkpoint.toISOString() ?? null,
       retentionOk: backup[0]?.retention_ok ?? false,
-    },
-    ledger: {
-      status: ledgerBytes === null ? "unavailable" : "ready",
-      bytes: ledgerBytes,
-      pendingDeletions: pending[0].count,
     },
     errors,
     alerts,

@@ -5,7 +5,11 @@ import { searchNormalizationVersion } from "@pr0/api-contract/prompts";
 
 export const indexVersion = `5:${searchNormalizationVersion}`;
 export const searchDirectory = () =>
-  path.resolve(process.env.PR0_SEARCH_DIRECTORY ?? ".data/search");
+  path.resolve(
+    // oxlint-disable-next-line eslint/no-inline-comments -- Turbopack requires its directive inside the filesystem call.
+    /* turbopackIgnore: true */ process.env.PR0_SEARCH_DIRECTORY ??
+      ".data/search"
+  );
 export const searchFilename = (instance: string, account: string) =>
   path.join(searchDirectory(), `${instance}-${account}.sqlite`);
 

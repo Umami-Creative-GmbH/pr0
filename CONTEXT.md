@@ -18,7 +18,11 @@ The language of a personal library of reusable prompts, shared across a user's d
 
 **Account**: A user's identity within one instance, owning one personal library. Using the same email on another instance does not make the accounts or libraries the same.
 
-**Collection**: An optional, named, flat grouping within a user's library. A prompt belongs to at most one collection; the collection is distinct from the prompts grouped under it. _Avoid_: Folder (which may imply nesting).
+**Account deletion**: The permanent removal of an account and its whole library at the account owner's confirmed request. It removes all of the account's live data at once and leaves only a deletion tombstone. _Avoid_: Deactivation, closing (which suggest the account can return).
+
+**Deletion tombstone**: What remains of a deleted account in its instance: the opaque account ID, the opaque deletion handle and the deletion time, with no email, profile or prompt text. Devices use it to learn that their account was deleted.
+
+**Deletion log**: The structured log line an instance writes for each account deletion, holding only the opaque account ID and the time. After restoring a backup, the operator re-applies every deletion in it that the backup predates. _Avoid_: Deletion ledger, receipt (the former signed, separately stored design). **Collection**: An optional, named, flat grouping within a user's library. A prompt belongs to at most one collection; the collection is distinct from the prompts grouped under it. _Avoid_: Folder (which may imply nesting).
 
 **Tag**: A lightweight label belonging to a user's library, used to organize prompts across collections. A prompt can have multiple tags; capitalization alone does not distinguish tags within a library.
 

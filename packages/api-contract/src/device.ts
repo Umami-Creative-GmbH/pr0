@@ -41,19 +41,12 @@ export const deviceFailureSchema = z.object({
     "server_error",
   ]),
 });
-export const deletionKeySchema = z.strictObject({
-  kid: z.uuid(),
-  kty: z.literal("OKP"),
-  crv: z.literal("Ed25519"),
-  x: z.string().regex(/^[A-Za-z0-9_-]{43}$/u),
-});
 export const capabilitiesSchema = z.strictObject({
   instanceId: z.uuid(),
   origin: z.url(),
   protocols: z.array(z.number().int().positive().max(65_535)).min(1).max(16),
   normalization: z.string().min(1).max(80),
   deviceAuthorization: z.literal(true),
-  deletionKey: deletionKeySchema,
   limits: z.strictObject({
     credentialBytes: z.literal(2560),
     responseBytes: z.literal(16_384),

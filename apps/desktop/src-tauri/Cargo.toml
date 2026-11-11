@@ -21,7 +21,6 @@ tauri = { version = "2", features = ["tray-icon"] }
 serde_json = "1"
 sha2 = "0.10"
 dirs = "6"
-ring = "0.17.14"
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 # Instance HTTPS bundles no public roots; trust comes from the platform verifier (ADR-0003).

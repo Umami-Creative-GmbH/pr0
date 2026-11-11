@@ -18,7 +18,6 @@ const accountServicesReady = async (response: Response) => {
   // Recovery fixtures drive on-demand search preparation after restarting with retained data.
   return (
     readiness.checks.schema === "ready" &&
-    readiness.checks.deletionReplay === "ready" &&
     readiness.checks.email === "ready" &&
     readiness.checks.search === "search_preparing"
   );
@@ -47,6 +46,20 @@ export const accountTestServer = (
   const compose = ["docker", "compose", "-p", project, "-f", composeFile];
   let server: ReturnType<typeof Bun.spawn> | undefined;
   let mail: ReturnType<typeof Bun.spawn> | undefined;
+  // Everything the served app writes to stdout, across restarts (the deletion log).
+  const log: string[] = [];
+  const tee = async (stream: ReadableStream<Uint8Array>) => {
+    const decoder = new TextDecoder();
+    const reader = stream.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        return;
+      }
+      process.stdout.write(value);
+      log.push(decoder.decode(value, { stream: true }));
+    }
+  };
   const stopMail = async () => {
     mail?.kill();
     if (mail) {
@@ -92,10 +105,13 @@ export const accountTestServer = (
           BUN_OPTIONS: `--preload "${path.join(import.meta.dir, "social-provider-preload.ts").replaceAll("\\", "/")}"`,
           ...extra,
         },
-        stdout: "inherit",
+        stdout: "pipe",
         stderr: "inherit",
       }
     );
+    if (server.stdout instanceof ReadableStream) {
+      void tee(server.stdout);
+    }
     for (let attempt = 0; attempt < 60; attempt += 1) {
       try {
         const response = await fetch(`${origin}/api/v1/ready`, {
@@ -131,5 +147,13 @@ export const accountTestServer = (
     await stopMail();
     await runAcceptance([...compose, "down", "--volumes"]);
   };
-  return { setup, cleanup, startServer, stopServer, startMail, stopMail };
+  return {
+    setup,
+    cleanup,
+    startServer,
+    stopServer,
+    startMail,
+    stopMail,
+    serverLog: () => log.join(""),
+  };
 };

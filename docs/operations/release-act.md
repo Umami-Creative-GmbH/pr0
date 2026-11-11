@@ -37,7 +37,7 @@ Any later failure in #64, #112 or #66 spends this version. Start again at step 1
 
 ## 2. Redeploy the candidate's server
 
-**[H]** In Coolify, pin the pr0 application to the candidate commit and deploy it, as the hosted runbook's [Redeploy a candidate](hosted.md#redeploy-a-candidate) section describes. ADR-0002 is strict: every new candidate is redeployed, even one with only desktop changes. The deploy builds the app, tools and ingress images tagged with the commit. It replaces web, mail and the ingress, then runs the one-shot upgrade jobs in order: a verified backup, one migration and deletion replay ([ADR-0004](../adr/0004-coolify-runs-the-hosted-stack-with-phase-as-config-source.md)). web and mail start only after the last job succeeds. A failed job leaves the service closed with the data intact. Then run the backup task once for the verified backup after the deploy, and check readiness.
+**[H]** In Coolify, pin the pr0 application to the candidate commit and deploy it, as the hosted runbook's [Redeploy a candidate](hosted.md#redeploy-a-candidate) section describes. ADR-0002 is strict: every new candidate is redeployed, even one with only desktop changes. The deploy builds the app, tools and ingress images tagged with the commit. It replaces web, mail and the ingress, then runs the one-shot upgrade jobs in order: a verified backup and one migration ([ADR-0004](../adr/0004-coolify-runs-the-hosted-stack-with-phase-as-config-source.md)). web and mail start only after the last job succeeds. A failed job leaves the service closed with the data intact. Then run the backup task once for the verified backup after the deploy, and check readiness.
 
 Keep the deployment record: the Coolify deployment log, the container images (`pr0:<commit>`), the release record and the deploy time ([Deploy a specific commit](hosted.md#deploy-a-specific-commit)). The redeploy counts as maintenance in the **burn-in** and doesn't restart it. The final candidate's server must run for at least the last 24 hours of the burn-in window, so redeploy it at least 24 hours before the window ends.
 
@@ -93,7 +93,7 @@ Decision: GO / NO-GO, by <name>, <UTC time>
 - [ ] 3. Production email delivered: verification, recovery, email change, notice to the old address: <link>
 - [ ] 4. Google and GitHub sign-up, sign-in, linking and desktop device approval on the hosted origin: <link>
 - [ ] 5. Encrypted off-server backups running and verified; key retrieved from a second machine: <link>
-- [ ] 6. Both independent deletion ledgers in operation and reporting capacity: <link>
+- [ ] 6. Deletion log shipped and kept off the server, re-delete step rehearsed: the Storage Box deletion log directory (`PR0_DELETION_LOG_MOUNT`) is writable by web and holds a test deletion's line, and the restore rehearsal re-applied it ([ADR-0005](../adr/0005-account-deletion-is-a-hard-delete-in-the-application-database.md), [hosted](hosted.md#deletion-log)): <link>
 - [ ] 7. Pre-release restore rehearsal passed in place with measured timings; test accounts deleted: <link>
 - [ ] 8. Update metadata served statically; live manifest answers 204 (fresh check below)
 - [ ] 9. External probe and alert delivery from a separate host; deliberate-failure test; dead-man's switch active: <link>

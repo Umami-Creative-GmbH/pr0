@@ -16,6 +16,10 @@ import path from "node:path";
 
 import { secret } from "../src/server/config";
 import { database } from "../src/server/database";
+import {
+  deletionLogDirectory,
+  removeExpiredDeletionLogs,
+} from "../src/server/deletion-log";
 import { readRestoreState } from "../src/server/restore-state";
 import { decryptBackup, encryptBackup, flushDirectory } from "./backup-crypto";
 import {
@@ -147,6 +151,18 @@ const cleanupRetention = () => {
     }
     rmdirSync(directory);
   }
+  // The deletion log lives beside the backups on the same off-server storage,
+  // never inside the backup directory, and shares this retention run.
+  const deletionLog = deletionLogDirectory();
+  if (
+    deletionLog &&
+    path.relative(root(), deletionLog).split(path.sep)[0] !== ".."
+  ) {
+    throw new Error(
+      "The deletion log directory must not be inside the backup directory"
+    );
+  }
+  removeExpiredDeletionLogs();
 };
 
 const createBackup = async () => {

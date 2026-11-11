@@ -1,16 +1,11 @@
 import assert from "node:assert/strict";
 import { readdir } from "node:fs/promises";
 
-import {
-  deletionVerificationPageSchema,
-  deletionVerificationSchema,
-} from "@pr0/api-contract/deletions";
 import { desktopStatusSchema } from "@pr0/api-contract/desktop-session";
 import { localPromptSchema } from "@pr0/api-contract/local-prompts";
 import type { Page } from "playwright";
 import { z } from "zod";
 
-import { runAcceptance } from "./account-test-server";
 import { browseKeepingDraft } from "./app-menus";
 import { openAccountView } from "./desktop-menus";
 import type { worker } from "./device-native";
@@ -108,42 +103,10 @@ export const verifyReturningDeletion = async ({
   await desktop
     .getByLabel("Content", { exact: true })
     .fill("Transient unsaved account text");
-  // This desktop remains on its initial pinned key while the real service rotates twice.
-  await runAcceptance([
-    "bun",
-    "--conditions=react-server",
-    "apps/web/scripts/deletions.ts",
-    "rotate",
-  ]);
-  await runAcceptance([
-    "bun",
-    "--conditions=react-server",
-    "apps/web/scripts/deletions.ts",
-    "rotate",
-  ]);
   const post = (path: string, data: NativeArgs) =>
     page
       .context()
       .request.post(`${origin}${path}`, { data, headers: { Origin: origin } });
-  const verification = await page
-    .context()
-    .request.get(`${origin}/api/v1/account-deletions/verification?page=0`);
-  const continuity = deletionVerificationPageSchema.parse(
-    await verification.json()
-  );
-  assert.equal(continuity.rotations.length, 2);
-  assert.equal(continuity.nextPage, null);
-  const legacy = await page
-    .context()
-    .request.get(`${origin}/api/v1/account-deletions/verification`);
-  assert.equal(
-    deletionVerificationSchema.parse(await legacy.json()).rotations.length,
-    2
-  );
-  const invalidPage = await page
-    .context()
-    .request.get(`${origin}/api/v1/account-deletions/verification?page=-1`);
-  assert.equal(invalidPage.status(), 400);
   const fresh = await post("/api/v1/account/reauth/verify", {
     accountId: identity.accountId,
     emailVersion: 0,
@@ -156,7 +119,7 @@ export const verifyReturningDeletion = async ({
     confirmation: "delete-account",
   });
   assert.equal(deleted.status(), 200, await deleted.text());
-  // The UI drives the real Rust HTTPS receipt lookup, signature verification and cleanup.
+  // The UI drives the real Rust HTTPS deletion-status lookup and cleanup.
   // The editor is modal and "Check connection" lives in the account view.
   await browseKeepingDraft(desktop);
   await openAccountView(desktop);
@@ -190,6 +153,6 @@ export const verifyReturningDeletion = async ({
   });
   await desktop.close();
   process.stdout.write(
-    "PASS Returning desktop: two rotations → real signed receipt → Rust verification → exact cleanup → draft invalidation → zero uploads\n"
+    "PASS Returning desktop: deletion status by retained handle → exact cleanup → draft invalidation → zero uploads\n"
   );
 };

@@ -32,14 +32,6 @@ impl SignOutRequest {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct DeletionKey {
-    pub kid: String,
-    pub kty: String,
-    pub crv: String,
-    pub x: String,
-}
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Limits {
@@ -54,7 +46,11 @@ pub struct Capabilities {
     pub protocols: Vec<u32>,
     pub normalization: String,
     pub device_authorization: bool,
-    pub deletion_key: DeletionKey,
+    // The signing anchor of retired deletion receipts (ADR-0005). Older servers still
+    // send it and older builds retained it; both are accepted and ignored.
+    #[allow(dead_code)]
+    #[serde(default, rename = "deletionKey", skip_serializing)]
+    pub legacy_deletion_key: Option<serde::de::IgnoredAny>,
     pub limits: Limits,
     // Negotiation is fresh network evidence, not persisted session metadata.
     #[serde(default, skip_serializing)]
@@ -172,8 +168,12 @@ pub struct Success {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Retained {
-    #[serde(default)]
-    pub deletion_proof: Option<super::deletion_proof::Proof>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deletion: Option<super::deletion_status::Confirmed>,
+    // A signed receipt retained by builds before ADR-0005: it was verified before it was
+    // stored, so it still marks a confirmed deletion whose cleanup must finish.
+    #[serde(default, rename = "deletionProof", skip_serializing)]
+    pub legacy_deletion_proof: Option<serde::de::IgnoredAny>,
     pub version: u32,
     pub identity: Identity,
     pub trust: Capabilities,
@@ -222,10 +222,6 @@ impl Capabilities {
             || self.normalization.is_empty()
             || self.normalization.len() > 80
             || !self.device_authorization
-            || self.deletion_key.kty != "OKP"
-            || self.deletion_key.crv != "Ed25519"
-            || !valid_id(&self.deletion_key.kid)
-            || !base64_key(&self.deletion_key.x)
             || self.limits.credential_bytes != 2560
             || self.limits.response_bytes != 16384
             || self.legal.as_ref().is_some_and(|legal| !legal.valid())
@@ -255,6 +251,11 @@ impl Capabilities {
             return Err("compatibility_update_required".into());
         }
         Ok(())
+    }
+}
+impl Retained {
+    pub fn deletion_confirmed(&self) -> bool {
+        self.deletion.is_some() || self.legacy_deletion_proof.is_some()
     }
 }
 impl Identity {

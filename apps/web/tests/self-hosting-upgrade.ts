@@ -27,7 +27,7 @@ export const verifySelfHostingUpgrade = async (
     "-v",
     "ON_ERROR_STOP=1",
     "-c",
-    "ALTER TABLE instance DROP COLUMN minimum_server_migration; DELETE FROM migration WHERE version=20; UPDATE migration_control SET completed=19,phase='ready' WHERE singleton=1;"
+    "DROP TABLE deleted_accounts; CREATE TABLE account_deletion_pending (account_id text PRIMARY KEY, instance_id uuid NOT NULL, handle text NOT NULL UNIQUE, deletion_id uuid NOT NULL UNIQUE, deleted_at timestamptz(3) NOT NULL); ALTER TABLE instance ADD COLUMN deletion_anchor text; UPDATE instance SET minimum_server_migration=20; DELETE FROM migration WHERE version=21; UPDATE migration_control SET completed=20,phase='ready' WHERE singleton=1;"
   );
   await assert.rejects(
     instance.compose(
@@ -45,7 +45,6 @@ export const verifySelfHostingUpgrade = async (
   assert.equal(refused.status, 503);
   await instance.compose("stop", "web", "mail");
   await instance.compose("run", "--rm", "accounts", "migrate");
-  await instance.compose("run", "--rm", "deletions", "replay");
   await instance.compose(
     "up",
     "-d",
