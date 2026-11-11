@@ -11,7 +11,7 @@ Every variable that [`compose.coolify.yaml`](../../compose.coolify.yaml) reads i
 | Key | Phase type | Required | Value |
 | --- | --- | --- | --- |
 | `PR0_ORIGIN` | config | yes | `https://pr0.umami-creative.app` |
-| `PR0_REGISTRATION` | config | yes | `allowlist` until the [release act](release-act.md#open-registration), then `open` |
+| `PR0_REGISTRATION` | config | yes | `allowlist` until the [release act](release-act.md#55-open-registration), then `open` |
 | `PR0_IMPRESSUM_URL` | config | yes | The operator's Impressum (absolute HTTPS URL) |
 | `PR0_PRIVACY_URL` | config | yes | The privacy policy (absolute HTTPS URL) |
 | `PR0_TERMS_URL` | config | yes | The terms (absolute HTTPS URL) |

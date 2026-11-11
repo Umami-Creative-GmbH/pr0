@@ -37,9 +37,9 @@ Any later failure in #64, #112 or #66 spends this version. Start again at step 1
 
 ## 2. Redeploy the candidate's server
 
-**[H]** On the app host, redeploy the candidate commit with the operator script, as the hosted runbook's [Redeploy a candidate](hosted.md#redeploy-a-candidate) section describes. ADR-0002 is strict: every new candidate is redeployed, even one with only desktop changes. The script checks that a fresh verified backup and enough scratch space exist, closes ingress, builds the app and tools images with matching tags, runs one migration, replays deletions, recreates web and mail, runs the authenticated checks and readiness, makes a verified backup and reopens ingress. It stops at the first failed step with ingress closed and data intact.
+**[H]** In Coolify, pin the pr0 application to the candidate commit and deploy it, as the hosted runbook's [Redeploy a candidate](hosted.md#redeploy-a-candidate) section describes. ADR-0002 is strict: every new candidate is redeployed, even one with only desktop changes. The deploy builds the app, tools and ingress images tagged with the commit. It replaces web, mail and the ingress, then runs the one-shot upgrade jobs in order: a verified backup, one migration and deletion replay ([ADR-0004](../adr/0004-coolify-runs-the-hosted-stack-with-phase-as-config-source.md)). web and mail start only after the last job succeeds. A failed job leaves the service closed with the data intact. Then run the backup task once for the verified backup after the deploy, and check readiness.
 
-Keep the deployment record the script writes (deployed commit, image identities and step timings) and the deploy time. The redeploy counts as maintenance in the **burn-in** and doesn't restart it. The final candidate's server must run for at least the last 24 hours of the burn-in window, so redeploy it at least 24 hours before the window ends.
+Keep the deployment record: the Coolify deployment log, the container images (`pr0:<commit>`), the release record and the deploy time ([Deploy a specific commit](hosted.md#deploy-a-specific-commit)). The redeploy counts as maintenance in the **burn-in** and doesn't restart it. The final candidate's server must run for at least the last 24 hours of the burn-in window, so redeploy it at least 24 hours before the window ends.
 
 ## 3. Rehearse the update and tear the rehearsal down
 
@@ -88,7 +88,7 @@ Decision: GO / NO-GO, by <name>, <UTC time>
 
 ### Hosted launch gate (#120, record on #135)
 
-- [ ] 1. The hosted service runs exactly this server commit behind trusted TLS; redeployed with the operator script at <UTC time>: <deployment record>
+- [ ] 1. The hosted service runs exactly this server commit behind trusted TLS; deployed by Coolify at <UTC time>: <deployment record>
 - [ ] 2. Authenticated ingress attributes clients and forged headers can't create buckets: <link>
 - [ ] 3. Production email delivered: verification, recovery, email change, notice to the old address: <link>
 - [ ] 4. Google and GitHub sign-up, sign-in, linking and desktop device approval on the hosted origin: <link>
@@ -187,19 +187,20 @@ Expect `Updater signature and release version verified`. Keep every command's ou
 
 ### 5.5 Open registration
 
-**[H]** Only after 5.2 to 5.4 have passed, switch registration to `open` on the app host. Use the maintenance lock that the backup timer and the operator script share:
+**[H]** Only after 5.2 to 5.4 have passed, switch registration to `open` ([Change configuration](hosted.md#change-configuration)):
 
-```sh
-cd /opt/pr0
-sed -i 's/^PR0_REGISTRATION=allowlist$/PR0_REGISTRATION=open/' .env
-grep '^PR0_REGISTRATION=' .env
-flock --wait 1800 /run/lock/pr0-maintenance.lock docker compose up -d --force-recreate --wait web mail
-docker compose exec web printenv PR0_REGISTRATION
-docker compose exec mail printenv PR0_REGISTRATION
-curl --silent --show-error --output /dev/null --write-out '%{http_code}\n' https://pr0.umami-creative.app/api/v1/ready
-```
+1. In Phase, set `PR0_REGISTRATION` to `open` in the hosted environment.
+2. Let the Coolify sync run, then check in the pr0 application's **Environment Variables** that `PR0_REGISTRATION` is `open`. The sync doesn't redeploy.
+3. In Coolify, **Redeploy** the application on the same pinned commit. The upgrade jobs run again, and web and mail are replaced with the new value.
+4. On the app host (`pr0c` as in [Host commands](hosted.md#host-commands)):
 
-`grep` and both `printenv` commands must print `open`, and readiness must print `200`. Then, in a browser, sign up with a new email address that was never allowlisted, complete the verification email and sign in. Delete that account afterwards through the app. The release act is complete now: the download is public, the live manifest names the version with matching hashes, and registration is open.
+   ```sh
+   pr0c exec web printenv PR0_REGISTRATION
+   pr0c exec mail printenv PR0_REGISTRATION
+   curl --silent --show-error --output /dev/null --write-out '%{http_code}\n' https://pr0.umami-creative.app/api/v1/ready
+   ```
+
+Both `printenv` commands must print `open`, and readiness must print `200`. Then, in a browser, sign up with a new email address that was never allowlisted, complete the verification email and sign in. Delete that account afterwards through the app. The release act is complete now: the download is public, the live manifest names the version with matching hashes, and registration is open.
 
 ## Fix forward
 

@@ -340,6 +340,7 @@ const containerStateSchema = z.object({
   FinishedAt: z.string(),
 });
 const psSchema = z.object({
+  ID: z.string(),
   Service: z.string(),
   Image: z.string(),
   State: z.string(),
@@ -363,9 +364,29 @@ interface DeployRecord {
   upExitCode: number;
   upError: string | null;
   jobs: JobRun[];
-  running: Record<string, string>;
+  /** Services with a running container after the deploy. */
+  running: string[];
+  /** Each serving service's container state and the image it was created from. */
   serving: Record<string, string>;
+  /** When each serving service's current container was created. */
+  created: Record<string, string>;
 }
+/**
+ * A new release's containers replaced the old ones before the upgrade
+ * sequence started, so the previous release stopped serving first.
+ */
+const expectReplacedBeforeJobs = (record: DeployRecord) => {
+  const firstJob = record.jobs.find((job) => job.service === jobs[0]);
+  expect(firstJob?.ran).toBe(true);
+  for (const service of servingServices) {
+    expect({
+      service,
+      replacedFirst:
+        nanoseconds(record.created[service] ?? "") <
+        nanoseconds(firstJob?.startedAt ?? ""),
+    }).toEqual({ service, replacedFirst: true });
+  }
+};
 /** The jobs that ran in this deploy ran in the documented order, one after another. */
 const expectJobsInOrder = (
   record: DeployRecord,
@@ -624,6 +645,27 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
         runs.push(await jobRun(job));
       }
       const listed = await containers();
+      // The image reference each container was created from. Identical builds
+      // share one image ID across commits, so the ID can't tell releases apart.
+      const serving: Record<string, string> = {};
+      const created: Record<string, string> = {};
+      for (const entry of listed) {
+        if (servingServiceNames.has(entry.Service)) {
+          const inspected = await must(
+            [
+              "docker",
+              "inspect",
+              "--format",
+              "{{.Config.Image}} {{.Created}}",
+              entry.ID,
+            ],
+            root
+          );
+          const [reference = "", createdAt = ""] = inspected.split(" ");
+          serving[entry.Service] = `${entry.State} ${reference}`;
+          created[entry.Service] = createdAt;
+        }
+      }
       const record: DeployRecord = {
         label,
         commit,
@@ -631,16 +673,11 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
         upError:
           up.code === 0 ? null : (up.stderr.trim().split("\n").at(-1) ?? ""),
         jobs: runs,
-        running: Object.fromEntries(
-          listed
-            .filter((entry) => entry.State === "running")
-            .map((entry) => [entry.Service, entry.Image])
-        ),
-        serving: Object.fromEntries(
-          listed
-            .filter((entry) => servingServiceNames.has(entry.Service))
-            .map((entry) => [entry.Service, `${entry.State} ${entry.Image}`])
-        ),
+        running: listed
+          .filter((entry) => entry.State === "running")
+          .map((entry) => entry.Service),
+        serving,
+        created,
       };
       evidence.push(record);
       return record;
@@ -654,9 +691,9 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     const expectServing = (record: DeployRecord, commit: string) => {
       const images = imagesOf(commit);
       for (const service of servingServices) {
-        expect({ service, image: record.running[service] }).toEqual({
+        expect({ service, state: record.serving[service] }).toEqual({
           service,
-          image: images[service],
+          state: `running ${images[service]}`,
         });
       }
     };
@@ -690,7 +727,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     expect(event(first, "backup-before")).toBe("backup_skipped");
     expect(event(first, "migrate")).toBe("release_recorded");
     for (const service of servingServices) {
-      expect(first.running[service]).toBeUndefined();
+      expect(first.running).not.toContain(service);
     }
 
     // The one-time manual initialization, then Coolify's "Redeploy".
@@ -906,6 +943,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     const upgrade = await deploy("upgrade", candidate);
     expect(upgrade.upExitCode).toBe(0);
     expectJobsInOrder(upgrade, jobs);
+    expectReplacedBeforeJobs(upgrade);
     expect(exitCodes(upgrade)).toEqual({
       "backup-before": 0,
       migrate: 0,
@@ -939,6 +977,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     const failure = await deploy("failing migration", broken);
     expect(failure.upExitCode).not.toBe(0);
     expectJobsInOrder(failure, ["backup-before", "migrate"]);
+    expectReplacedBeforeJobs(failure);
     expect(exitCodes(failure)).toEqual({ "backup-before": 0, migrate: 1 });
     const brokenImages = imagesOf(broken);
     for (const service of servingServices) {
@@ -947,7 +986,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
         state: `created ${brokenImages[service]}`,
       });
     }
-    expect(Object.keys(failure.running)).toContain("database");
+    expect(failure.running).toContain("database");
     expect(await migrationVersion()).toBe("20");
     let reachable = true;
     try {
@@ -978,6 +1017,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
     const recovery = await deploy("fix forward", fixed);
     expect(recovery.upExitCode).toBe(0);
     expectJobsInOrder(recovery, jobs);
+    expectReplacedBeforeJobs(recovery);
     expect(exitCodes(recovery)).toEqual({
       "backup-before": 0,
       migrate: 0,

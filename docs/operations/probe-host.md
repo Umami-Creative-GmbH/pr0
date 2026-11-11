@@ -15,7 +15,7 @@ The repository contents are in `infrastructure/probe-host/`:
 | `alert-rules.ts` | The alert rules (tested in `alert-rules.test.ts`) |
 | `systemd/pr0-probe.service`, `systemd/pr0-probe.timer` | Oneshot unit and the every-UTC-minute timer |
 | `systemd/probe.env.example` | Non-secret settings |
-| `heartbeat.sh` | Sends an exit code to the dead-man's switch. The app host's backup timer uses it too |
+| `heartbeat.sh` | Sends an exit code to the dead-man's switch. The app host's scheduled backup uses the same protocol through `infrastructure/hosted/heartbeat.ts` |
 
 ## Alert rules
 
@@ -72,7 +72,7 @@ Use an EU-hosted, Healthchecks-compatible service: one that accepts `POST <ping-
 | Check | Period | Grace | Pinged by |
 | --- | --- | --- | --- |
 | `pr0-probe` | 1 minute | 3 minutes | `minute.ts`, every run: `0` when every alert was delivered, otherwise `1` |
-| `pr0-backup` | 30 minutes | 15 minutes | the app host's backup timer (#128), with `backup create`'s exit code, through `heartbeat.sh` |
+| `pr0-backup` | 30 minutes | 15 minutes | the hosted application's Coolify scheduled backup task ([hosted](hosted.md#scheduled-backup)), with `backup create`'s exit code |
 
 A nonzero exit code marks the check down immediately. A missing ping marks it down after the grace time.
 
@@ -134,7 +134,7 @@ Run this before the burn-in starts, and again after changing alert channels. It 
 2. **Metrics alert:** on the app host, record a stale backup observation with `bun run --cwd apps/web operations record-backup <a timestamp more than one hour ago> retention-ok`. Confirm that "pr0 metrics alert … backup_unavailable" arrives within one minute. Then run a verified backup and confirm the "cleared" notice.
 3. **Undelivered alert:** temporarily write an invalid `ntfy-url` during step 1. Confirm that the email still arrives, the `pr0-probe` check turns down through the dead-man's switch's own channels, and the push arrives once the file is restored.
 4. **Silent probe host:** `sudo systemctl stop pr0-probe.timer`. Confirm that the dead-man's switch alerts after the grace time, then restart the timer. These minutes are missing and count as unavailable.
-5. **Silent or failing backup:** on the app host, ping the backup check with `heartbeat.sh 1` (or stop the backup timer for longer than the grace time). Confirm the alert, then let the next scheduled backup report `0`.
+5. **Silent or failing backup:** on the app host, ping the backup check with `pr0c exec backup bun /app/hosted/heartbeat.ts 1` (or disable the Coolify scheduled task for longer than the grace time). Confirm the alert, then let the next scheduled backup report `0`.
 
 For each step, record the start time (UTC), the time each alert arrived on each channel (screenshots of the push and email with addresses redacted), the matching `journalctl -u pr0-probe.service` lines and the dead-man's switch event log. Keep redacted copies in `docs/evidence/` and link them from the hosted-launch tracking issue.
 
