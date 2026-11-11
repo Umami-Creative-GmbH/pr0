@@ -1,7 +1,7 @@
 {
-  "measuredAt": "2026-11-11T12:55:58.705Z",
-  "ordinaryLossWindowSeconds": 0.554,
-  "recoverySeconds": 4.331,
+  "measuredAt": "2026-11-11T13:25:39.366Z",
+  "ordinaryLossWindowSeconds": 0.639,
+  "recoverySeconds": 4.287,
   "acknowledgedDeletionsLost": 0,
   "encryptedRoundTrip": true,
   "restoredArchiveBroughtDeletedAccountBack": true,
