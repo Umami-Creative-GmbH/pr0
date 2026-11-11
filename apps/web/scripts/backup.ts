@@ -1,9 +1,11 @@
 // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop, react-doctor/server-sequential-independent-await -- Backup verification, retention and publication are ordered durability boundaries.
 import {
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   rmdirSync,
   statfsSync,
   unlinkSync,
@@ -29,6 +31,21 @@ const configPattern =
   /^(?:PR0_|SMTP_|BETTER_AUTH_|DATABASE_URL$|API_ALLOWED_ORIGINS$|PGSSL)/u;
 const excludedPattern =
   /^PR0_(?:BACKUP_|TEST_|RECOVERY_STATE_FILE|MIGRATION_BACKUPS|DATABASE_VOLUME)/u;
+
+/**
+ * The release that can serve the backed-up schema. A deployment that records
+ * the release of its last completed migration in PR0_BACKUP_RELEASE_FILE labels
+ * backups with it, so a backup taken before an upgrade names the release that
+ * wrote the data, not the one about to migrate it. Until that file exists, the
+ * configured PR0_BACKUP_RELEASE applies.
+ */
+const backupRelease = () => {
+  const file = process.env.PR0_BACKUP_RELEASE_FILE;
+  if (file && existsSync(file)) {
+    return readFileSync(file, "utf-8").trim();
+  }
+  return process.env.PR0_BACKUP_RELEASE;
+};
 
 const recoverableConfiguration = () => {
   const result: Record<string, string> = {};
@@ -144,7 +161,7 @@ const createBackup = async () => {
     version: 1,
     id: crypto.randomUUID(),
     checkpoint: new Date().toISOString(),
-    release: process.env.PR0_BACKUP_RELEASE,
+    release: backupRelease(),
     instanceId: instance.id,
     epoch: instance.recovery_epoch,
     databaseBytes: size.bytes,
@@ -205,6 +222,20 @@ const createBackup = async () => {
   };
 };
 
+/**
+ * The first step of a deployment's upgrade sequence. Only a database without
+ * the instance table, which no migration has touched yet, has nothing to back
+ * up; every other database gets a verified backup or the upgrade stops.
+ */
+const backupBeforeUpgrade = async () => {
+  const [schema] =
+    await database()`SELECT to_regclass('public.instance') IS NOT NULL AS initialized`;
+  if (!schema?.initialized) {
+    return { event: "backup_skipped", reason: "empty_database" };
+  }
+  return await createBackup();
+};
+
 const consumeBackup = (command: string, name: string, destination?: string) =>
   inScratch(async (scratch) => {
     const { manifest, dump } = await readArchive(name, scratch);
@@ -215,7 +246,7 @@ const consumeBackup = (command: string, name: string, destination?: string) =>
         !state ||
         state.phase !== "closed" ||
         state.instanceId !== manifest.instanceId ||
-        process.env.PR0_BACKUP_RELEASE !== manifest.release
+        backupRelease() !== manifest.release
       ) {
         throw new Error(
           "A closed recovery barrier and matching application release are required"
@@ -258,6 +289,8 @@ try {
   const [command, name, destination] = process.argv.slice(2);
   if (command === "create") {
     process.stdout.write(`${JSON.stringify(await createBackup())}\n`);
+  } else if (command === "before-upgrade") {
+    process.stdout.write(`${JSON.stringify(await backupBeforeUpgrade())}\n`);
   } else if (
     ["verify", "restore", "configuration"].includes(command ?? "") &&
     name
@@ -270,7 +303,7 @@ try {
     process.stdout.write('{"event":"backup_retention_complete"}\n');
   } else {
     throw new Error(
-      "Use create, verify <archive>, restore <archive>, configuration <archive> <new-file>, or retention"
+      "Use create, before-upgrade, verify <archive>, restore <archive>, configuration <archive> <new-file>, or retention"
     );
   }
 } catch {
