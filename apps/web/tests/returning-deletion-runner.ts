@@ -1,17 +1,10 @@
-import { accountTestServer, runAcceptance } from "./account-test-server";
+import { accountTestServer } from "./account-test-server";
 import { verifyNativeHttps } from "./device-native";
 import { verifyReturningDeletion } from "./returning-deletion-native";
 
 const server = accountTestServer(
   "pr0-returning-57",
-  "apps/web/tests/account-deletion-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/account-deletion-compose.yaml"
 );
 const desktop = Bun.spawn(["bun", "run", "--cwd", "apps/desktop", "dev"], {
   stdout: "inherit",

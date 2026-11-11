@@ -2,10 +2,6 @@ x-account-environment: &account-environment
   PR0_ORIGIN: "${PR0_ORIGIN:-http://localhost:3000}"
   DATABASE_URL: "${DATABASE_URL:-}"
   DATABASE_URL_FILE: "${DATABASE_URL_FILE:-}"
-  PR0_LEDGER_A_URL: "${PR0_LEDGER_A_URL:-}"
-  PR0_LEDGER_A_URL_FILE: "${PR0_LEDGER_A_URL_FILE:-}"
-  PR0_LEDGER_B_URL: "${PR0_LEDGER_B_URL:-}"
-  PR0_LEDGER_B_URL_FILE: "${PR0_LEDGER_B_URL_FILE:-}"
   BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:-}"
   BETTER_AUTH_SECRET_FILE: "${BETTER_AUTH_SECRET_FILE:-}"
   PR0_MAIL_SECRET: "${PR0_MAIL_SECRET:-}"
@@ -83,6 +79,7 @@ services:
     depends_on:
       database:
         condition: service_healthy
+  # Manual restore step: docker compose run --rm -T deletions reapply < deletion.log
   deletions:
     image: "${PR0_IMAGE:-pr0-local}"
     build:
@@ -95,7 +92,6 @@ services:
     volumes:
       - search-data:/var/lib/pr0-search
     entrypoint: ["bun", "--bun", "apps/web/.operations/deletions.js"]
-    command: ["replay"]
     depends_on:
       database:
         condition: service_healthy

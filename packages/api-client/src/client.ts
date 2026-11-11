@@ -41,9 +41,8 @@ import type {
 import {
   deletionHandleSchema,
   deletionLookupSchema,
+  deletionIdentitySchema,
   deletionResultSchema,
-  deletionTrustSchema,
-  deletionVerificationSchema,
 } from "@pr0/api-contract/deletions";
 import {
   capabilitiesSchema,
@@ -146,17 +145,8 @@ export const createApiClient = ({
           )
         );
     },
-    async getDeletionVerification(signal?: AbortSignal) {
-      return deletionVerificationSchema.parse(
-        await accountRequest(
-          "/api/v1/account-deletions/verification",
-          undefined,
-          signal
-        )
-      );
-    },
-    async getDeletionTrust(signal?: AbortSignal) {
-      return deletionTrustSchema.parse(
+    async getDeletionIdentity(signal?: AbortSignal) {
+      return deletionIdentitySchema.parse(
         await accountRequest("/api/v1/account/deletion", undefined, signal)
       );
     },
@@ -172,7 +162,7 @@ export const createApiClient = ({
         )
       );
     },
-    async getDeletionReceipt(handle: string, signal?: AbortSignal) {
+    async getDeletionStatus(handle: string, signal?: AbortSignal) {
       return deletionLookupSchema.parse(
         await accountRequest(
           `/api/v1/account-deletions/${deletionHandleSchema.parse(handle)}`,

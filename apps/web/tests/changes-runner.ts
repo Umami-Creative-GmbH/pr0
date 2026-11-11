@@ -3,14 +3,7 @@ import { verifyNativeHttps } from "./device-native";
 
 const server = accountTestServer(
   "pr0-live-43",
-  "apps/web/tests/changes-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/changes-compose.yaml"
 );
 try {
   const selected = process.argv.at(2);

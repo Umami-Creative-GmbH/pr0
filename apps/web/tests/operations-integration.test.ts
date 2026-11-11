@@ -155,13 +155,13 @@ test("mutation bursts return mixed outcomes and retry only the retained rejectio
 test("storage alerts start at seventy percent and escalate at eighty including missing observations", async () => {
   const sql = new SQL(process.env.DATABASE_URL ?? "");
   try {
-    await sql`INSERT INTO storage_observation(name,total_bytes,used_bytes,sampled_at) VALUES ('database',1000,700,clock_timestamp()),('ledger-a',1000,800,clock_timestamp())`;
+    await sql`INSERT INTO storage_observation(name,total_bytes,used_bytes,sampled_at) VALUES ('database',1000,700,clock_timestamp()),('backup',1000,800,clock_timestamp())`;
     const response = await fetch(`${origin}/api/v1/operations/metrics`, {
       headers: { Authorization: "Bearer local-operations-metrics-secret" },
     });
     const metrics = await response.json();
     expect(metrics.alerts).toContain("storage_expand:database");
-    expect(metrics.alerts).toContain("storage_critical:ledger-a");
+    expect(metrics.alerts).toContain("storage_critical:backup");
     expect(metrics.alerts).toContain("storage_coverage_missing");
     expect(metrics.alerts).toContain("storage_coverage_missing:search");
   } finally {
@@ -195,14 +195,14 @@ test("externally recorded storage rejects invalid measurements without writing",
   const sql = new SQL(process.env.DATABASE_URL ?? "");
   try {
     for (const args of [
-      ["ledger-c", "1000", "10"],
-      ["ledger-a", "1000.5", "10"],
-      ["ledger-a", "1000", "-1"],
-      ["ledger-a", "1e3", "10"],
-      ["ledger-a", "0", "0"],
-      ["ledger-a", "1000", "1001"],
-      ["ledger-a", "1000"],
-      ["ledger-a", "1000", "10", "extra"],
+      ["ledger-a", "1000", "10"],
+      ["backup", "1000.5", "10"],
+      ["backup", "1000", "-1"],
+      ["backup", "1e3", "10"],
+      ["backup", "0", "0"],
+      ["backup", "1000", "1001"],
+      ["backup", "1000"],
+      ["backup", "1000", "10", "extra"],
     ]) {
       // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each rejected command must finish before checking for writes.
       expect((await recordStorage(...args)).exitCode).not.toBe(0);
@@ -214,33 +214,33 @@ test("externally recorded storage rejects invalid measurements without writing",
   }
 });
 
-test("recording both ledgers clears their missing coverage until it becomes stale", async () => {
+test("recording external volumes clears their missing coverage until it becomes stale", async () => {
   const sql = new SQL(process.env.DATABASE_URL ?? "");
   try {
     let metrics = await storageMetrics();
-    expect(metrics.alerts).toContain("storage_coverage_missing:ledger-a");
-    expect(metrics.alerts).toContain("storage_coverage_missing:ledger-b");
-    const recorded = await recordStorage("ledger-a", "1000", "100");
+    expect(metrics.alerts).toContain("storage_coverage_missing:backup");
+    expect(metrics.alerts).toContain("storage_coverage_missing:search");
+    const recorded = await recordStorage("backup", "1000", "100");
     expect(recorded.exitCode).toBe(0);
     expect(recorded.output).toContain('"event":"storage_recorded"');
-    expect((await recordStorage("ledger-b", "1000", "100")).exitCode).toBe(0);
+    expect((await recordStorage("search", "1000", "100")).exitCode).toBe(0);
     metrics = await storageMetrics();
-    expect(metrics.alerts).not.toContain("storage_coverage_missing:ledger-a");
-    expect(metrics.alerts).not.toContain("storage_coverage_missing:ledger-b");
+    expect(metrics.alerts).not.toContain("storage_coverage_missing:backup");
+    expect(metrics.alerts).not.toContain("storage_coverage_missing:search");
     expect(metrics.alerts).toContain("storage_coverage_missing:database");
     expect(metrics.storage.volumes).toContainEqual(
-      expect.objectContaining({ name: "ledger-b", usedBytes: 100 })
+      expect.objectContaining({ name: "search", usedBytes: 100 })
     );
-    expect((await recordStorage("ledger-a", "1000", "700")).exitCode).toBe(0);
-    expect((await recordStorage("ledger-b", "1000", "800")).exitCode).toBe(0);
+    expect((await recordStorage("backup", "1000", "700")).exitCode).toBe(0);
+    expect((await recordStorage("search", "1000", "800")).exitCode).toBe(0);
     metrics = await storageMetrics();
-    expect(metrics.alerts).toContain("storage_expand:ledger-a");
-    expect(metrics.alerts).toContain("storage_critical:ledger-b");
-    await sql`UPDATE storage_observation SET sampled_at=clock_timestamp()-interval '6 minutes' WHERE name='ledger-a'`;
+    expect(metrics.alerts).toContain("storage_expand:backup");
+    expect(metrics.alerts).toContain("storage_critical:search");
+    await sql`UPDATE storage_observation SET sampled_at=clock_timestamp()-interval '6 minutes' WHERE name='backup'`;
     metrics = await storageMetrics();
-    expect(metrics.alerts).toContain("storage_coverage_missing:ledger-a");
-    expect(metrics.alerts).not.toContain("storage_expand:ledger-a");
-    expect(metrics.alerts).not.toContain("storage_coverage_missing:ledger-b");
+    expect(metrics.alerts).toContain("storage_coverage_missing:backup");
+    expect(metrics.alerts).not.toContain("storage_expand:backup");
+    expect(metrics.alerts).not.toContain("storage_coverage_missing:search");
   } finally {
     await sql`DELETE FROM storage_observation`;
     await sql.close();
@@ -338,14 +338,15 @@ test("operational metrics are private and report missing backup/storage coverage
   const payload = await response.json();
   expect(payload).toMatchObject({
     backup: { status: "unavailable" },
-    ledger: { status: "ready" },
   });
+  expect(payload).not.toHaveProperty("ledger");
+  expect(payload.alerts).not.toContain("ledger_unavailable");
   expect(payload.alerts).toContain("backup_unavailable");
   expect(payload.alerts).toContain("storage_coverage_missing");
   expect(JSON.stringify(payload)).not.toContain("local-social-test");
 });
 
-test("readiness distinguishes a running process from usable schema, deletion replay, email and prepared search", async () => {
+test("readiness distinguishes a running process from usable schema, email and prepared search", async () => {
   const account = await promptBrowser();
   expect((await account.mutate([promptOperation()])).status).toBe(200);
   expect((await fetch(`${origin}/api/v1/health`)).status).toBe(200);
@@ -353,7 +354,6 @@ test("readiness distinguishes a running process from usable schema, deletion rep
   expect(await response.json()).toMatchObject({
     checks: {
       schema: "ready",
-      deletionReplay: "ready",
       email: "ready",
       search: "search_preparing",
     },

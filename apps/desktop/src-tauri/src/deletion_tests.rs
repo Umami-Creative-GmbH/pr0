@@ -1,110 +1,59 @@
-// Public native command seam, real SQLite, signed cross-runtime fixtures.
-fn deletion_vectors() -> serde_json::Value {
-    serde_json::from_str(include_str!(
-        "../../../../packages/api-contract/src/deletion-proof-fixtures.json"
-    ))
-    .unwrap()
+// Public native command seam, real SQLite, the instance's unsigned deletion status (ADR-0005).
+fn deleted() -> serde_json::Value {
+    json!({"status":"deleted", "accountId":fixtures()["session"]["account"]["id"], "deletedAt":"2026-11-11T10:00:00.000Z"})
 }
 
 #[test]
-fn deletion_continuity_pages_have_no_total_chain_size_lifetime() {
-    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-    use ring::signature::Ed25519KeyPair;
-    let seed = [
-        0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60, 0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec, 0x2c,
-        0xc4, 0x44, 0x49, 0xc5, 0x69, 0x7b, 0x32, 0x69, 0x19, 0x70, 0x3b, 0xac, 0x03, 0x1c, 0xae,
-        0x7f, 0x60,
-    ];
-    let signing = Ed25519KeyPair::from_seed_unchecked(&seed).unwrap();
-    let compact = |kid: &str, typ: &str, payload: serde_json::Value| {
-        let input = format!(
-            "{}.{}",
-            URL_SAFE_NO_PAD
-                .encode(serde_json::to_vec(&json!({"alg":"Ed25519","typ":typ,"kid":kid})).unwrap()),
-            URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap())
-        );
-        format!(
-            "{input}.{}",
-            URL_SAFE_NO_PAD.encode(signing.sign(input.as_bytes()).as_ref())
-        )
-    };
-    let vectors = deletion_vectors();
-    let mut previous = vectors["anchor"]["kid"].as_str().unwrap().to_owned();
-    let mut rotations = vec![];
-    for _ in 0..7000 {
-        let next = uuid::Uuid::new_v4().to_string();
-        let mut key = vectors["anchor"].clone();
-        key["kid"] = json!(next);
-        rotations.push(compact(&previous, "pr0-deletion-key-rotation+jws", json!({"version":1,"instanceId":vectors["claims"]["instanceId"],"oldKid":previous,"newKid":next,"key":key})));
-        previous = next;
-    }
-    assert!(serde_json::to_vec(&rotations).unwrap().len() > 4_194_304);
-    struct Pages {
-        inner: Arc<UploadFixture>,
-        rotations: Vec<String>,
-        receipt: String,
-        active: std::sync::atomic::AtomicBool,
-    }
-    impl Transport for Pages {
-        fn open_browser(&self, _: &str) -> Result<(), String> {
-            Ok(())
-        }
-        fn request(
-            &self,
-            origin: &str,
-            endpoint: Endpoint,
-            token: Option<&str>,
-            body: Option<serde_json::Value>,
-        ) -> Result<serde_json::Value, String> {
-            match endpoint {
-                Endpoint::DeletionLookup => {
-                    Ok(if self.active.load(std::sync::atomic::Ordering::SeqCst) {
-                        json!({"status":"deleted", "receipt":self.receipt})
-                    } else {
-                        json!({"status":"absent"})
-                    })
-                }
-                Endpoint::DeletionVerification => {
-                    let page = body.ok_or("page_required")?["page"]
-                        .as_u64()
-                        .ok_or("page_required")? as usize;
-                    let start = page * 64;
-                    let end = (start + 64).min(self.rotations.len());
-                    Ok(
-                        json!({"instanceId":deletion_vectors()["claims"]["instanceId"], "anchor":deletion_vectors()["anchor"], "rotations":self.rotations[start..end], "nextPage":if end < self.rotations.len() {Some(page+1)} else {None}}),
-                    )
-                }
-                _ => self.inner.request(origin, endpoint, token, body),
-            }
-        }
-    }
-    let transport = Arc::new(Pages {
-        inner: upload_fixture(false, false),
-        receipt: compact(
-            &previous,
-            "pr0-account-deletion+jws",
-            vectors["claims"].clone(),
-        ),
-        rotations,
-        active: false.into(),
+fn deletion_legacy_retained_receipt_and_anchor_still_load() {
+    let mut trust = fixtures()["capabilities"].clone();
+    trust["deletionKey"] = json!({"kid":"22222222-2222-4222-8222-222222222222","kty":"OKP","crv":"Ed25519","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"});
+    let legacy = json!({
+        "version": 1, "identity": fixtures()["session"], "trust": trust, "cleanupPending": true,
+        "deletionProof": {"receipt":"a.b.c", "rotations":[]}
     });
-    let directory = std::env::temp_dir().join(format!("pr0-deletion-{}", uuid::Uuid::new_v4()));
-    let service = AuthService::new(
-        directory.clone(),
-        transport.clone(),
-        Arc::new(Vault::default()),
-    )
+    let retained: super::auth_contract::Retained = serde_json::from_value(legacy).unwrap();
+    assert!(retained.deletion_confirmed());
+    let written = serde_json::to_value(&retained).unwrap();
+    assert!(written.get("deletionProof").is_none());
+    assert!(written["trust"].get("deletionKey").is_none());
+    let current: super::auth_contract::Retained = serde_json::from_value(json!({
+        "version": 1, "identity": fixtures()["session"], "trust": fixtures()["capabilities"],
+        "cleanupPending": false
+    }))
     .unwrap();
-    sign_in(&service);
-    transport
-        .active
-        .store(true, std::sync::atomic::Ordering::SeqCst);
-    service.refresh().unwrap();
-    assert_eq!(view(&service)["state"], "signed_out");
-    drop(service);
-    std::fs::remove_dir_all(directory).unwrap();
+    assert!(!current.deletion_confirmed());
 }
 
+#[test]
+fn deletion_status_authorizes_cleanup_only_for_the_retained_account() {
+    let retained: super::auth_contract::Retained = serde_json::from_value(json!({
+        "version": 1, "identity": fixtures()["session"], "trust": fixtures()["capabilities"],
+        "cleanupPending": false
+    }))
+    .unwrap();
+    let parse = |value: serde_json::Value| {
+        serde_json::from_value::<super::deletion_status::Lookup>(value)
+            .map_err(|_| "invalid_response".to_owned())
+            .and_then(|lookup| super::deletion_status::confirmed(lookup, &retained))
+    };
+    assert!(parse(deleted()).unwrap().is_some());
+    assert!(parse(json!({"status":"absent"})).unwrap().is_none());
+    let mut other = deleted();
+    other["accountId"] = json!("99999999-9999-4999-8999-999999999999");
+    let mut bad_time = deleted();
+    bad_time["deletedAt"] = json!("2026-11-11 10:00");
+    let mut receipt = deleted();
+    receipt["receipt"] = json!("a.b.c");
+    for invalid in [
+        other,
+        bad_time,
+        receipt,
+        json!({"status":"pending"}),
+        json!({"status":"deleted"}),
+    ] {
+        assert!(parse(invalid).is_err());
+    }
+}
 #[test]
 fn deletion_completion_invalidates_in_flight_authority_and_never_resurrects_session() {
     struct DelayedAuthority {
@@ -156,7 +105,7 @@ fn deletion_completion_invalidates_in_flight_authority_and_never_resurrects_sess
     let task = std::thread::spawn(move || pending.refresh());
     transport.entered.wait();
     *transport.inner.lookup.lock().unwrap() =
-        Ok(json!({"status":"deleted", "receipt":deletion_vectors()["receipt"]}));
+        Ok(deleted());
     service.refresh().unwrap();
     transport.release.wait();
     assert_eq!(
@@ -171,7 +120,6 @@ fn deletion_completion_invalidates_in_flight_authority_and_never_resurrects_sess
 struct DeletionTransport {
     inner: Arc<UploadFixture>,
     lookup: Mutex<Result<serde_json::Value, String>>,
-    verification: Mutex<serde_json::Value>,
     session: Mutex<Option<serde_json::Value>>,
 }
 impl DeletionTransport {
@@ -179,7 +127,6 @@ impl DeletionTransport {
         Arc::new(Self {
             inner: upload_fixture(false, false),
             lookup: Mutex::new(Ok(json!({"status":"absent"}))),
-            verification: Mutex::new(deletion_vectors()["verification"].clone()),
             session: Mutex::new(None),
         })
     }
@@ -200,10 +147,6 @@ impl Transport for DeletionTransport {
                 assert!(token.is_none());
                 self.lookup.lock().unwrap().clone()
             }
-            Endpoint::DeletionVerification => {
-                assert!(token.is_none());
-                Ok(self.verification.lock().unwrap().clone())
-            }
             Endpoint::Session if self.session.lock().unwrap().is_some() => {
                 Ok(self.session.lock().unwrap().clone().unwrap())
             }
@@ -220,7 +163,7 @@ fn deletion_pending(service: &AuthService) -> super::local_contract::SaveRequest
 }
 
 #[test]
-fn deletion_rotated_proof_without_credentials_clears_exact_partition_and_replays() {
+fn deletion_status_without_credentials_clears_exact_partition_and_replays() {
     for _ in 0..2 {
         let directory = std::env::temp_dir().join(format!("pr0-deletion-{}", uuid::Uuid::new_v4()));
         let vault = Arc::new(Vault::default());
@@ -234,7 +177,7 @@ fn deletion_rotated_proof_without_credentials_clears_exact_partition_and_replays
         vault.delete().unwrap();
         drop(service);
         *transport.lookup.lock().unwrap() =
-            Ok(json!({"status":"deleted", "receipt":deletion_vectors()["rotatedReceipt"]}));
+            Ok(deleted());
         let service = AuthService::new(directory.clone(), transport.clone(), vault).unwrap();
         assert_eq!(view(&service)["state"], "authentication_required");
         assert_eq!(
@@ -262,20 +205,18 @@ fn deletion_untrusted_evidence_and_replacement_authority_preserve_work_and_stop_
     service.library_download().unwrap();
     let request = deletion_pending(&service);
     service.library_create(request.clone()).unwrap();
-    let vectors = deletion_vectors();
-    transport.verification.lock().unwrap()["rotations"] = json!([]);
-    let mut responses: Vec<_> = vectors["invalidReceipts"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|receipt| Ok(json!({"status":"deleted","receipt":receipt})))
-        .collect();
-    responses.extend([
-        Ok(json!({"status":"deleted","receipt":"malformed"})),
+    let mut other_account = deleted();
+    other_account["accountId"] = json!("99999999-9999-4999-8999-999999999999");
+    let mut receipt = deleted();
+    receipt["receipt"] = json!("a.b.c");
+    let responses: Vec<Result<serde_json::Value, String>> = vec![
+        Ok(other_account),
+        Ok(receipt),
+        Ok(json!({"status":"deleted"})),
         Ok(json!({"status":"pending"})),
         Err("authentication_required".into()),
         Err("network_unavailable".into()),
-    ]);
+    ];
     for response in responses {
         *transport.lookup.lock().unwrap() = response;
         service.library_upload().unwrap();
@@ -288,19 +229,6 @@ fn deletion_untrusted_evidence_and_replacement_authority_preserve_work_and_stop_
         assert!(transport.inner.traffic.lock().unwrap().is_empty());
         assert!(service.refresh().is_err());
     }
-    *transport.lookup.lock().unwrap() =
-        Ok(json!({"status":"deleted", "receipt": vectors["rotatedReceipt"]}));
-    let mut invalid_chain = vectors["verification"].clone();
-    invalid_chain["rotations"] = json!([
-        vectors["verification"]["rotations"][0],
-        vectors["verification"]["rotations"][0]
-    ]);
-    *transport.verification.lock().unwrap() = invalid_chain;
-    assert!(service.refresh().is_err());
-    let mut wrong_anchor = vectors["verification"].clone();
-    wrong_anchor["anchor"]["x"] = json!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-    *transport.verification.lock().unwrap() = wrong_anchor;
-    assert!(service.refresh().is_err());
     *transport.lookup.lock().unwrap() = Ok(json!({"status":"absent"}));
     for field in ["account", "instance"] {
         let mut replacement = fixtures()["session"].clone();
@@ -326,7 +254,7 @@ fn deletion_credential_failure_keeps_cleanup_retryable_after_restart() {
     sign_in(&service);
     service.library_create(deletion_pending(&service)).unwrap();
     *transport.lookup.lock().unwrap() =
-        Ok(json!({"status":"deleted", "receipt":deletion_vectors()["receipt"]}));
+        Ok(deleted());
     assert_eq!(
         service.refresh().err().as_deref(),
         Some("credential_unavailable")
@@ -366,7 +294,7 @@ fn deletion_cleanup_failure_invalidates_copy_and_save_and_retries_offline_after_
     std::fs::create_dir(&blocker).unwrap();
     let service = AuthService::new(directory.clone(), transport.clone(), vault.clone()).unwrap();
     *transport.lookup.lock().unwrap() =
-        Ok(json!({"status":"deleted", "receipt":deletion_vectors()["rotatedReceipt"]}));
+        Ok(deleted());
     assert!(service.refresh().is_err());
     assert_eq!(view(&service)["state"], "cleanup_required");
     assert!(service.library_create(request.clone()).is_err());
@@ -393,7 +321,7 @@ fn deletion_cleanup_failure_invalidates_copy_and_save_and_retries_offline_after_
     std::fs::remove_dir_all(directory).unwrap();
 }
 #[test]
-fn deletion_reconnect_clears_only_proven_account_before_upload() {
+fn deletion_reconnect_clears_only_confirmed_account_before_upload() {
     let directory = std::env::temp_dir().join(format!("pr0-deletion-{}", uuid::Uuid::new_v4()));
     let vault = Arc::new(Vault::default());
     let transport = approval();
@@ -410,11 +338,7 @@ fn deletion_reconnect_clears_only_proven_account_before_upload() {
     }))
     .unwrap();
     service.library_create(request).unwrap();
-    let evidence: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../packages/api-contract/src/deletion-proof-fixtures.json"
-    ))
-    .unwrap();
-    *transport.0.lock().unwrap() = vec![json!({"status":"deleted", "receipt":evidence["receipt"]})];
+    *transport.0.lock().unwrap() = vec![deleted()];
     service.refresh().unwrap();
     assert_eq!(view(&service)["state"], "signed_out");
     assert!(vault.read().unwrap().is_none());

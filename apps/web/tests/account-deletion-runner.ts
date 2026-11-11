@@ -4,14 +4,7 @@ import { accountTestServer, runAcceptance } from "./account-test-server";
 
 const fixture = accountTestServer(
   "pr0-deletion-56",
-  "apps/web/tests/account-deletion-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/account-deletion-compose.yaml"
 );
 try {
   await fixture.setup();

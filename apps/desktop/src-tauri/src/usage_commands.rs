@@ -18,22 +18,14 @@ impl AuthService {
     pub fn library_sync_usage(&self) -> Result<UsageStatus, String> {
         let _worker = self.upload.try_lock().map_err(|_| "upload_in_progress")?;
         self.library_retry_usage()?;
-        let (generation, envelope, trust) = {
+        let (generation, envelope) = {
             let mut state = self.state.lock().map_err(|_| "state_unavailable")?;
             let status = self.library(&mut state)?.usage_status()?;
             if status.waiting == 0 || status.retry_after_ms > 0 || self.library(&mut state)?.recovering()? {
                 return Ok(status);
             }
-            (
-                state.generation,
-                state.credential.clone(),
-                state
-                    .retained
-                    .as_ref()
-                    .ok_or("authentication_required")?
-                    .trust
-                    .clone(),
-            )
+            state.retained.as_ref().ok_or("authentication_required")?;
+            (state.generation, state.credential.clone())
         };
         let result: Result<(), String> = (|| {
             if self.check_deletion()? {
@@ -48,9 +40,7 @@ impl AuthService {
             )?)?;
             capabilities.validate(&envelope.origin)?;
             capabilities.negotiate()?;
-            if capabilities.instance_id != envelope.instance_id
-                || capabilities.deletion_key != trust.deletion_key
-            {
+            if capabilities.instance_id != envelope.instance_id {
                 return Err("incompatible_instance".into());
             }
             self.refresh_session()?;

@@ -13,7 +13,6 @@ test("operational clients validate health failures, malformed payloads and reque
     status: "unavailable",
     checks: {
       schema: "ready",
-      deletionReplay: "unavailable",
       email: "ready",
       search: "search_preparing",
     },
@@ -96,11 +95,10 @@ test("deletion client validates responses, HTTP failures, invalid handles and ca
     confirmation: "delete-account" as const,
   };
   const operations = [
-    (client: ApiClient) => client.getDeletionTrust(controller.signal),
-    (client: ApiClient) => client.getDeletionVerification(controller.signal),
+    (client: ApiClient) => client.getDeletionIdentity(controller.signal),
     (client: ApiClient) => client.deleteAccount(identity, controller.signal),
     (client: ApiClient) =>
-      client.getDeletionReceipt(
+      client.getDeletionStatus(
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         controller.signal
       ),
@@ -127,7 +125,7 @@ test("deletion client validates responses, HTTP failures, invalid handles and ca
     await expect(operation(cancelled)).rejects.toBe(controller.signal.reason);
   }
   await expect(
-    invalid.getDeletionReceipt("../../account")
+    invalid.getDeletionStatus("../../account")
   ).rejects.toBeInstanceOf(ZodError);
 });
 

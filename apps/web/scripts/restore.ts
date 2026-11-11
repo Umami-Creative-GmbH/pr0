@@ -12,16 +12,10 @@ import { z } from "zod";
 
 import { secret } from "../src/server/config";
 import { database } from "../src/server/database";
-import { closeLedgerStores } from "../src/server/deletion-ledger";
 import { readReadiness } from "../src/server/readiness";
 import { readRestoreState } from "../src/server/restore-state";
 import type { RestoreState } from "../src/server/restore-state";
-import { auditDeletedData, evidenceCheckpoint } from "./restore-evidence";
-import {
-  checkRestoreEvidence,
-  prepareRestore,
-  registerPendingRestore,
-} from "./restore-prepare";
+import { auditDeletedData, prepareRestore } from "./restore-prepare";
 
 export const authDigest = () =>
   new Bun.CryptoHasher("sha256")
@@ -97,8 +91,6 @@ if (import.meta.main) {
         epoch: instance.recovery_epoch,
         startedAt: new Date().toISOString(),
         authDigest: authDigest(),
-        pendingIntents: [],
-        evidence: null,
       });
     } else if (command === "close") {
       const previous = (await Bun.file(
@@ -117,8 +109,6 @@ if (import.meta.main) {
           epoch: crypto.randomUUID(),
           startedAt: new Date().toISOString(),
           authDigest: authDigest(),
-          pendingIntents: [],
-          evidence: null,
         });
       }
     } else {
@@ -132,26 +122,14 @@ if (import.meta.main) {
           "Close admission for the correct immutable instance first"
         );
       }
-      if (command === "seal") {
-        if (state.evidence) {
-          await checkRestoreEvidence(state);
-        } else {
-          saveRestoreState({
-            ...state,
-            evidence: await evidenceCheckpoint(state.instanceId),
-          });
-        }
-      } else if (command === "prepare") {
+      if (command === "prepare") {
         if (authDigest() === state.authDigest) {
           throw new Error(
             "Rotate BETTER_AUTH_SECRET before preparation to invalidate stateless action tokens"
           );
         }
-        const registered = await registerPendingRestore(state);
-        // Persist exact permitted additions before replay can append any new intent.
-        saveRestoreState(registered);
-        await prepareRestore(registered);
-        saveRestoreState({ ...registered, phase: "prepared" });
+        await prepareRestore(state);
+        saveRestoreState({ ...state, phase: "prepared" });
       } else if (command === "open") {
         if (
           state.phase !== "prepared" ||
@@ -160,7 +138,6 @@ if (import.meta.main) {
         ) {
           throw new Error("Preparation and secret rotation are required");
         }
-        await checkRestoreEvidence(state);
         const deletedAccounts = await auditDeletedData(state.instanceId);
         const readiness = await readReadiness(true);
         if (readiness.status !== "ready") {
@@ -180,7 +157,7 @@ if (import.meta.main) {
           `${JSON.stringify({ event: "restore_opened", deletedAccounts, recoverySeconds: (Date.now() - Date.parse(state.startedAt)) / 1000 })}\n`
         );
       } else {
-        throw new Error("Use initialize, close, seal, prepare, or open");
+        throw new Error("Use initialize, close, prepare, or open");
       }
     }
     process.stdout.write('{"event":"restore_admission_updated"}\n');
@@ -194,7 +171,6 @@ if (import.meta.main) {
       await coordinator`SELECT pg_advisory_unlock(24001)`;
     }
     coordinator.release();
-    await closeLedgerStores();
     await database().close();
   }
 }

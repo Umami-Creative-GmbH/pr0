@@ -121,7 +121,7 @@ Bulk organization deletion/merge must be submitted as a singleton batch. Bound i
 | Create X commits but its response is lost; X is subsequently deleted before the original client retries. | Return the create's original receipt, reconcile current X as deleted, and never recreate X. A newer local text edit is separately preserved under deletion conflict rules. |
 | A collection create is rejected for a name collision; its prompt creation depends on it. An unrelated favorite operation is in the same batch. | Keep collection/prompt work locally with dependency status; accept the unrelated favorite. Renaming creates corrected unsent work with explicit identity/dependency handling. |
 | Device returns after the change feed expired, with pending operation O and an old baseline. | Stage a fresh snapshot, retain O, check its receipt, then reconcile it against current records/deletions. Missing change pages never authorize dropping O. |
-| Old account was deleted; another account now uses its email. | Verify the old account's deletion receipt and clear only its partition. Never submit its operations using the new account's session. |
+| Old account was deleted; another account now uses its email. | Confirm the old account's deletion with its instance's deletion status (ADR-0005) and clear only its partition. Never submit its operations using the new account's session. |
 
 These traces are specification walkthroughs, not claims that an implemented synchronization engine passed them.
 
@@ -231,7 +231,7 @@ Version the application REST API under `/api/v1`. The concrete operation familie
 | `GET /account/sessions`, `POST /account/sessions/{id}/revoke` | Independent session visibility/revocation |
 | `POST /account/reauth/challenges`, `POST /account/reauth/verify` | Browser-only explicit fresh-authentication proof |
 | `GET /account/methods`, `POST /account/methods/link`, `POST /account/methods/remove` | Browser-only login methods; linking and removal require fresh authentication and preserve account/library ownership |
-| `GET /account-deletions/{handle}` | Minimal signed deletion receipt, usable without an ordinary session |
+| `GET /account-deletions/{handle}` | Minimal deletion status from the tombstone (`deleted` with account ID and time, or `absent`), usable without an ordinary session (ADR-0005) |
 
 Better Auth's own login/device/recovery/provider routes remain under their configured auth prefix, with application guards on sensitive endpoints. Account deletion/email/provider changes have explicit browser-only application flows. Published OpenAPI and validators must be generated/updated together with implementation; this proposal is not a claim those routes currently exist.
 
@@ -252,6 +252,8 @@ Sensitive actions require a server-owned proof of authentication within ten minu
 Generic email-OTP checks, ordinary session renewal, social callbacks without fresh verification, and desktop approval cannot mint this proof. Guard both application wrappers and direct Better Auth sensitive routes. Revoke/expire proofs with their sessions and invalidate them on relevant email/account changes. A changed account during reauthentication fails rather than silently switching ownership.
 
 ## Account deletion and restoration safety
+
+> **Amended 2026-11-11 by [ADR-0005](../adr/0005-account-deletion-is-a-hard-delete-in-the-application-database.md):** account deletion is now a hard delete plus an opaque tombstone in the application database. The independent deletion ledgers, signed receipts, the verification anchor and key rotation are removed. After a restore, the operator re-applies deletions from the deletion log before reopening; a deletion the restored backup predates can come back if that step is skipped (accepted risk). Where this section says otherwise, the ADR wins.
 
 At initial trusted HTTPS setup, persist the instance verification key and a random 256-bit opaque deletion lookup handle separately from the session token. The handle grants no library access. Encode receipts as compact JWS with a fixed `typ` of `pr0-account-deletion+jws`, protected `kid`, and the fully specified `Ed25519` algorithm. Require an OKP/Ed25519 public key and verify the exact JWS signing input before parsing the payload. The payload contains `version: 1`, `instanceId`, `accountId`, `handle`, `deletionId` and `deletedAt`; it intentionally has no expiry. Reject a different type, algorithm, identity or key chain. This selects the standard [JOSE Ed25519 identifier](https://www.rfc-editor.org/rfc/rfc9864.html), using the [Ed25519 signature construction](https://www.rfc-editor.org/rfc/rfc8032.html); it does not invent a signature algorithm. The implementation must include interoperability and key-rotation test vectors.
 
@@ -283,7 +285,7 @@ Required validation includes the linked product scenarios plus:
 10. Validate actual Windows reboot/logon, effective ACLs/second-user isolation, packaged Tauri command denial, renderer token non-exposure, origin/redirect restrictions and credential-error races.
 11. Upgrade every supported schema with pending work; interrupt migrations; simulate full volume/I/O failures; refuse downgrade safely and test installed recovery.
 12. Exercise real Google/GitHub and email flows, verified-email enforcement, password reset/revocation, browser-bound freshness and direct endpoint bypass attempts under actual Next.js/Bun/Tauri integration.
-13. Rehearse deletion-safe restoration with the independently durable ledger unavailable, behind, and complete. Demonstrate the accepted recovery objectives and backup retention before opening service.
+13. Rehearse restoration of a backup older than an acknowledged deletion, including the manual re-delete from the deletion log (ADR-0005). Demonstrate the accepted recovery objectives and backup retention before opening service.
 14. Run the exact supported-machine/browser/server capacity and latency workload, including 10,000 prompts/100 MiB, search including debounce/render, copy/save/startup, 120-second initial download, 1,000 edits/10 MiB within sixty seconds, sustained/burst server traffic and concurrent quotas. Record index/storage/memory costs and supported versions. Known failure blocks release.
 
 The isolated research demonstrates selected primitives and specific negative findings; it does not replace these implementation-level gates. The accepted retrieval design replaces the measured failing scan plan and retains the 150 ms end-to-end target. Failure of an implementation gate requires correction before release, not silently weakening the specification.

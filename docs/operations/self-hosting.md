@@ -23,7 +23,6 @@ Populate the secret files named in `compose.override.yaml` using a private edito
 | `POSTGRES_PASSWORD_FILE` | Strong database password; the database container alone receives this file |
 | `DATABASE_URL_FILE` | `postgres://pr0:<URL-encoded-password>@database:5432/pr0`, matching that password |
 | `BETTER_AUTH_SECRET_FILE`, `PR0_MAIL_SECRET_FILE` | Independent random values, at least 32 characters; preserve them through ordinary restarts/upgrades |
-| `PR0_LEDGER_A_URL_FILE`, `PR0_LEDGER_B_URL_FILE` | Two independent PostgreSQL 17 deletion stores, described below |
 | `SMTP_PASSWORD_FILE` | SMTP credential if the service requires one |
 | `PR0_INGRESS_SECRET_FILE` | High-entropy shared secret for authenticated ingress IP attribution, if configured |
 | `PR0_METRICS_SECRET_FILE` | High-entropy secret for private operational metrics |
@@ -42,7 +41,7 @@ Secret files must be readable by the actual container identities: Bun services u
 
 HTTP and `SMTP_TLS=plain` are allowed only with a loopback HTTP canonical origin for local evaluation. Production account access and desktop connections require trusted HTTPS. Email/password works without either social provider. Verification and recovery still require working SMTP; SMTP acceptance is not proof of inbox delivery.
 
-Provide **two deletion-ledger PostgreSQL databases on independent durable hosts/storage failure domains**, separate from the application database and each other. They are operator services, not two extra volumes on the application host. Follow [the ledger initialization, restricted runtime grants and retention requirements](account-deletion.md#independent-storage-configuration). Initially supply administrative ledger URLs only to initialization; then replace them with the restricted append-only runtime URLs before starting web/mail. Retain their store identities, private signing anchor and complete key-rotation history indefinitely. Both stores must acknowledge durable writes. Never include either in an ordinary database rollback. Local acceptance containers exercise this protocol but do not establish host-loss durability.
+Account deletion is a hard delete in the application database ([account deletion](account-deletion.md)). Each deletion writes an `account_deleted` line to web's standard output: keep those lines off this host for longer than your oldest restorable backup, because after a restore you re-apply them ([deletion log](account-deletion.md#the-deletion-log)).
 
 Configure the [encrypted off-server backup mount and separately recoverable backup key](backup-restore.md#storage-and-recoverable-configuration). Set `PR0_BACKUP_MOUNT`, `PR0_BACKUP_KEY_PATH` and `PR0_BACKUP_RELEASE` (the exact source release and retained application image identity). Bind paths must already exist and be accessible to UID 1000. Scheduling, transport, key vault and storage vendor remain your choice. Test retrieval from another host.
 
@@ -53,10 +52,9 @@ docker compose config --quiet
 docker compose build
 docker compose up -d database
 docker compose run --rm accounts migrate
-docker compose run --rm deletions initialize
 ```
 
-Switch ledger URLs to the restricted runtime roles now. For the new, empty application instance:
+For the new, empty application instance:
 
 ```sh
 docker compose run --rm restore initialize
@@ -65,7 +63,7 @@ docker compose up -d web mail
 docker compose ps
 ```
 
-These are explicit one-shot operations; `up` does not run migrations, manufacture trust material or open a restore barrier. `restore initialize` refuses existing accounts/state. `admit-first` refuses another initial admission after an account/admission exists. It only admits the address: open the canonical origin, create the account with a 12–128-character password, follow the verification email and sign in. There is no shared bootstrap password or verification bypass.
+These are explicit one-shot operations; `up` does not run migrations or open a restore barrier. `restore initialize` refuses existing accounts/state. `admit-first` refuses another initial admission after an account/admission exists. It only admits the address: open the canonical origin, create the account with a 12–128-character password, follow the verification email and sign in. There is no shared bootstrap password or verification bypass.
 
 `closed` permits only that first-account exception while no account exists. For subsequent invited users, set `PR0_REGISTRATION=allowlist`, run `docker compose run --rm accounts allow person@example.com`, and recreate web/mail. `open` admits any new address. The mode applies to all new-account paths, including OAuth; existing-account sign-in and recovery continue in closed mode. Use `accounts pause-registration`/`resume-registration` during known delivery outages without bypassing verification.
 
@@ -73,7 +71,7 @@ Create a prompt with a distinctive title and content such as `Hello {{name}}, co
 
 ## HTTPS, ingress and optional social login
 
-The database has no published port and joins only the internal `database` network. Web, mail and jobs also join the default network for outbound SMTP, ledger and optional OAuth access. Search runs as at most two Bun workers inside the web service, with rebuildable SQLite projections on `search-data`; it has no network listener. Keep one web replica. PostgreSQL remains authoritative; do not delete canonical data to repair search.
+The database has no published port and joins only the internal `database` network. Web, mail and jobs also join the default network for outbound SMTP and optional OAuth access. Search runs as at most two Bun workers inside the web service, with rebuildable SQLite projections on `search-data`; it has no network listener. Keep one web replica. PostgreSQL remains authoritative; do not delete canonical data to repair search.
 
 A host reverse proxy can target the loopback published port. A container ingress can join this project's default network and target `web:3000`; it does not need the database network. Use your chosen trusted certificate/ingress. Permit the 25-second long poll (use a timeout above 30 seconds), disable indefinite response buffering, reject request compression and cap JSON bodies at 4 MiB before forwarding. Preserve Origin and method semantics; do not rewrite browser Origin to bypass CSRF protection. External direct backend access must remain blocked.
 
@@ -143,7 +141,7 @@ For isolation acceptance, initialize another independent instance, register and 
 
 ## Readiness and maintenance
 
-`GET /api/v1/health` is liveness. `GET /api/v1/ready` must return 200 only after compatible schema, deletion replay/ledger access, recent mail-worker heartbeat and current search projections are usable. Missing/malformed restore state fails closed. Search catch-up can return 503 `search_preparing` with retry guidance; retry the actual search and retain client work. Container startup order and `pg_isready` alone are insufficient.
+`GET /api/v1/health` is liveness. `GET /api/v1/ready` must return 200 only after compatible schema, recent mail-worker heartbeat and current search projections are usable. Missing/malformed restore state fails closed. Search catch-up can return 503 `search_preparing` with retry guidance; retry the actual search and retain client work. Container startup order and `pg_isready` alone are insufficient.
 
 ```sh
 docker compose logs --tail=50 web mail
@@ -154,7 +152,7 @@ docker compose run --rm operations metrics
 docker compose run --rm backup create
 ```
 
-Metrics exits nonzero when alerts exist; missing off-server ledger/backup capacity observations and overdue backups intentionally alert. Sample those actual filesystems at their hosts, not a container root disk. Connect [private metrics, storage alerts and an external authenticated library/search probe](service-health.md) to your chosen monitoring. Sample at least once per minute, expand storage at 70% before 80%, and verify backup checkpoints within one hour. Schedule a verified backup every 30 minutes and finish each cycle within 30 minutes, or demonstrate an equivalent recoverable WAL-based plan. Ordinary backups expire within 30 days including every hidden storage version; deletion evidence does not expire.
+Metrics exits nonzero when alerts exist; missing off-server backup capacity observations and overdue backups intentionally alert. Sample those actual filesystems at their hosts, not a container root disk. Connect [private metrics, storage alerts and an external authenticated library/search probe](service-health.md) to your chosen monitoring. Sample at least once per minute, expand storage at 70% before 80%, and verify backup checkpoints within one hour. Schedule a verified backup every 30 minutes and finish each cycle within 30 minutes, or demonstrate an equivalent recoverable WAL-based plan. Ordinary backups expire within 30 days including every hidden storage version; keep the deletion log longer than that.
 
 Ordinary lifecycle commands retain named volumes:
 
@@ -165,17 +163,17 @@ docker compose down
 docker compose up -d database web mail
 ```
 
-Use the same project name (`-p` or `COMPOSE_PROJECT_NAME`) and configuration each time. Renaming the project selects different volumes; it does not migrate the old data. **`docker compose down --volumes` / `down -v` destroys named volumes**, including the canonical library, instance identity, recovery checkpoint and migration backups. `docker volume rm` and volume pruning can also destroy them. Never use these for routine repair or upgrade. External deletion-ledger history must remain independently protected even when a disposable application instance is removed.
+Use the same project name (`-p` or `COMPOSE_PROJECT_NAME`) and configuration each time. Renaming the project selects different volumes; it does not migrate the old data. **`docker compose down --volumes` / `down -v` destroys named volumes**, including the canonical library, instance identity, recovery checkpoint and migration backups. `docker volume rm` and volume pruning can also destroy them. Never use these for routine repair or upgrade.
 
 ## Upgrade and recover
 
 Read release notes for schema/protocol/normalization/configuration changes and tested platforms. Retain the old source/images and use compatible desktop releases from the preceding 90 days. Incompatible clients retain offline data and pending edits and must upgrade before uploading; a newer desktop must also negotiate safely with an older server.
 
-For an ordinary version upgrade: verify a fresh recoverable backup and enough database/tooling scratch capacity (at least three times database size plus 16 MiB for current backup tooling), close public ingress and drain/stop web/mail and scheduled writers, then check out the intended release. Give its app/tools distinct matching tags in `.env`, build both, and run **one** `docker compose run --rm accounts migrate`. The coordinator locks and verifies recorded migration checksums. Reapply `deletions replay`, replace web/mail using `docker compose up -d --force-recreate web mail`, run authenticated library/search checks and readiness, create a verified backup labelled with the new release, then reopen ingress. Preserve every named volume and existing secrets/identity. This maintenance drain does not reset the recovery epoch. A failed migration keeps ingress closed and data intact; only roll back to a binary compatible with the resulting schema. Otherwise use disaster recovery.
+For an ordinary version upgrade: verify a fresh recoverable backup and enough database/tooling scratch capacity (at least three times database size plus 16 MiB for current backup tooling), close public ingress and drain/stop web/mail and scheduled writers, then check out the intended release. Give its app/tools distinct matching tags in `.env`, build both, and run **one** `docker compose run --rm accounts migrate`. The coordinator locks and verifies recorded migration checksums. Replace web/mail using `docker compose up -d --force-recreate web mail`, run authenticated library/search checks and readiness, create a verified backup labelled with the new release, then reopen ingress. Preserve every named volume and existing secrets/identity. This maintenance drain does not reset the recovery epoch. A failed migration keeps ingress closed and data intact; only roll back to a binary compatible with the resulting schema. Otherwise use disaster recovery.
 
-For database/host loss or an incompatible rollback, follow the complete [deletion-safe restore sequence](backup-restore.md#restore-sequence): fence every previous writer and close admission; recover immutable instance/configuration/keys and authoritative independent ledgers; seal a complete external evidence checkpoint; restore a verified compatible ordinary archive to an empty database; rotate auth credentials; `restore prepare` invalidates restored credentials, replays deletions, establishes a new epoch and rebuilds search. Start replacement web/mail behind closed ingress, verify a fresh backup, and use `restore open` before reopening ingress. Unavailable, behind or uncertain deletion evidence keeps the barrier closed. Never run initialization to bypass recovery.
+For database/host loss or an incompatible rollback, follow the complete [restore sequence](backup-restore.md#restore-sequence): fence every previous writer and close admission; recover immutable instance/configuration/keys and the deletion log; restore a verified compatible ordinary archive to an empty database; re-apply the deletion log with `deletions reapply`; rotate auth credentials; `restore prepare` invalidates restored credentials, establishes a new epoch and rebuilds search. Start replacement web/mail behind closed ingress, verify a fresh backup, and use `restore open` before reopening ingress. Without the re-delete step, accounts deleted after the restored backup come back. Never run initialization to bypass recovery.
 
-Returning desktops reauthenticate, retain pending edits and recoverable acknowledged rows newer than the checkpoint, and do not automatically upload every old row. Only a signed receipt matching the pinned instance/account authorizes deleted-account cleanup. Rehearse a deletion newer than the database backup, signing-key rotation, unavailable/incomplete ledgers and interrupted restoration before public use and quarterly. Retain measured actual loss/recovery times and off-server/key-retrieval evidence. A local Compose rehearsal does not certify independent failure domains, a full-capacity workload, a signed installed Windows release, or an operator's email/TLS services.
+Returning desktops reauthenticate, retain pending edits and recoverable acknowledged rows newer than the checkpoint, and do not automatically upload every old row. Only the instance's `deleted` answer for exactly the retained account authorizes deleted-account cleanup. Rehearse a deletion newer than the database backup, its re-deletion from the log and interrupted restoration before public use and quarterly. Retain measured actual loss/recovery times and off-server/key-retrieval evidence. A local Compose rehearsal does not certify independent failure domains, a full-capacity workload, a signed installed Windows release, or an operator's email/TLS services.
 
 ## Repeat the disposable acceptance journey
 
@@ -189,6 +187,6 @@ bun run --cwd apps/web test:self-hosting
 bun run --cwd apps/web test:self-hosting native --evidence=docs/evidence/issue-62-local.json
 ```
 
-The runner generates unique Compose project names, ports, credentials and secret files beneath `.scratch/`. It uses the root production Compose file plus a disposable SMTP/ledger override, real production images, public REST, served browser UI, and optional typed Rust commands/Windows Credential Manager/clipboard. It checks verified signup, disabled social options, prompt create/search/variable copy, restart/down/up preservation, migration 19→20 with failed preflight, same-email instance isolation, and encrypted recovery after a later acknowledged deletion/key rotation. The native mode also checks HTTPS selection/browser approval, a restarted offline process, exact variable copy, offline edit/reconnect and switching away/back. Cleanup removes volumes **only from its own randomly named disposable projects**. Never point this fixture at an existing instance or real storage.
+The runner generates unique Compose project names, ports, credentials and secret files beneath `.scratch/`. It uses the root production Compose file plus a disposable SMTP override, real production images, public REST, served browser UI, and optional typed Rust commands/Windows Credential Manager/clipboard. It checks verified signup, disabled social options, prompt create/search/variable copy, restart/down/up preservation, migration 20→21 with failed preflight, same-email instance isolation, and encrypted recovery after a later acknowledged deletion, re-applied from the web container's log. The native mode also checks HTTPS selection/browser approval, a restarted offline process, exact variable copy, offline edit/reconnect and switching away/back. Cleanup removes volumes **only from its own randomly named disposable projects**. Never point this fixture at an existing instance or real storage.
 
 `PR0_SELF_HOST_IMAGE` and `PR0_SELF_HOST_TOOLS_IMAGE` select alternate already-built test tags. `PR0_SELF_HOST_PLATFORM=linux/arm64` forces all fixture services to ARM64; build both targets with `--platform linux/arm64` first and use a host with native or working emulated execution. The evidence records actual execution architecture, runtime/tool versions and recovery timings. ARM64 builds and local synthetic storage are distinct from native ARM hardware and operator host-loss certification. `PR0_TEST_BROWSER` can select another installed Chromium channel.

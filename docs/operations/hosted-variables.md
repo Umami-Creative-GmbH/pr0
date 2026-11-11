@@ -32,8 +32,6 @@ Every variable that [`compose.coolify.yaml`](../../compose.coolify.yaml) reads i
 | `DATABASE_URL` | secret | yes | `postgres://pr0:<URL-encoded password of the pr0 role>@<database uuid>:5432/pr0`: pr0's own non-superuser role and database in the Coolify database, at the internal hostname Coolify shows. Never Coolify's `postgres` superuser. The administrative password stays in the vault and in Coolify's database resource, never in Phase |
 | `BETTER_AUTH_SECRET` | secret | yes | Random, at least 32 characters. Never rotate it casually: rotation is part of [restore](backup-restore.md#restore-sequence) |
 | `PR0_MAIL_SECRET` | secret | yes | Random, at least 32 characters, independent of the above |
-| `PR0_LEDGER_A_URL` | secret | yes | Ledger A **runtime** (append-only) role, `postgres://<role>:<password>@<host>:5432/<db>?sslmode=verify-full`. The administrative URL never goes into Phase ([first deployment](hosted.md#first-deployment)) |
-| `PR0_LEDGER_B_URL` | secret | yes | Ledger B runtime role, as above |
 | `PR0_INGRESS_SECRET` | secret | yes | `openssl rand -hex 32`. Web and ingress read the same value |
 | `PR0_METRICS_SECRET` | secret | yes | `openssl rand -hex 32`, also on the probe host |
 | `PR0_GOOGLE_CLIENT_SECRET` | secret | no | Production Google OAuth client secret |

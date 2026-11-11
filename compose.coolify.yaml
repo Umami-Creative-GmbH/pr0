@@ -8,7 +8,7 @@
 #
 # Every deploy runs the upgrade sequence as one-shot jobs, each starting only
 # after the previous one completed successfully:
-#   backup-before -> migrate -> replay-deletions -> web, mail, backup -> ingress
+#   backup-before -> migrate -> web, mail, backup -> ingress
 # Every image is tagged with the deployed commit, so a new commit changes web,
 # mail, ingress and backup. Docker Compose replaces those containers before it
 # runs the jobs: the previous release stops serving first, as the upgrade
@@ -43,8 +43,6 @@ x-logging: &logging
 x-account-environment: &account-environment
   PR0_ORIGIN: "${PR0_ORIGIN:?Set the public origin}"
   DATABASE_URL: "${DATABASE_URL:?Set DATABASE_URL}"
-  PR0_LEDGER_A_URL: "${PR0_LEDGER_A_URL:?Set PR0_LEDGER_A_URL}"
-  PR0_LEDGER_B_URL: "${PR0_LEDGER_B_URL:?Set PR0_LEDGER_B_URL}"
   BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}"
   PR0_MAIL_SECRET: "${PR0_MAIL_SECRET:?Set PR0_MAIL_SECRET}"
   PR0_REGISTRATION: "${PR0_REGISTRATION:?Set allowlist until the release act}"
@@ -120,25 +118,6 @@ services:
         condition: service_completed_successfully
     logging: *logging
 
-  # Upgrade job 3: deletion-evidence replay from both external ledgers.
-  replay-deletions:
-    image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
-    build: *app-build
-    exclude_from_hc: true
-    restart: "no"
-    networks: [default, database]
-    environment:
-      <<: *account-environment
-      PR0_SEARCH_DIRECTORY: /var/lib/pr0-search
-    volumes:
-      - search-data:/var/lib/pr0-search
-    entrypoint: ["bun", "--bun", "apps/web/.operations/deletions.js"]
-    command: ["replay"]
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    logging: *logging
-
   web:
     image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
     build: *app-build
@@ -156,7 +135,7 @@ services:
       - search-data:/var/lib/pr0-search
       - recovery-state:/var/lib/pr0-recovery:ro
     depends_on:
-      replay-deletions:
+      migrate:
         condition: service_completed_successfully
     restart: unless-stopped
     init: true
@@ -185,7 +164,7 @@ services:
     restart: unless-stopped
     init: true
     depends_on:
-      replay-deletions:
+      migrate:
         condition: service_completed_successfully
     logging: *logging
 
@@ -228,7 +207,7 @@ services:
     init: true
     restart: unless-stopped
     depends_on:
-      replay-deletions:
+      migrate:
         condition: service_completed_successfully
     logging: *logging
 
@@ -248,6 +227,7 @@ services:
       - migration-backups:/var/lib/pr0-backups
       - database-data:/var/lib/postgresql/data:ro
     entrypoint: ["bun", "--bun", "apps/web/.operations/accounts.js"]
+  # deletions reapply reads the deletion log on stdin (run -T); restore only.
   deletions:
     image: "${PR0_IMAGE_NAME:-pr0}:${SOURCE_COMMIT}"
     build: *app-build

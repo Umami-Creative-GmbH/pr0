@@ -1,27 +1,21 @@
 import "server-only";
 import { deleteAccountSchema } from "@pr0/api-contract/accounts";
 import {
-  DELETION_VERIFICATION_PAGE_SIZE,
-  DELETION_VERIFICATION_MAX_PAGE,
   deletionHandleSchema,
-  deletionTrustSchema,
-  deletionVerificationSchema,
-  deletionVerificationPageSchema,
+  deletionIdentitySchema,
+  deletionLookupSchema,
+  deletionResultSchema,
 } from "@pr0/api-contract/deletions";
 
 import { failure, readBody } from "./account-http";
+import { logAccountDeletion, purgeAccount } from "./account-purge";
 import { AccountFailureError, admitApi, assertOrigin } from "./admission";
 import { authentication } from "./auth";
 import { assertIdentity, lockAccount, requireProof } from "./browser-proof";
 import { database } from "./database";
-import {
-  completeDeletion,
-  deletionInstance,
-  pendingClaims,
-} from "./deletion-coordinator";
-import { readEvidence } from "./deletion-ledger";
-import { signingKeys } from "./deletion-signing";
 import { withRequestWork } from "./request-work";
+
+const noStore = { "Cache-Control": "no-store" };
 
 export const handleAccountDeletion = async (request: Request) => {
   try {
@@ -51,7 +45,7 @@ export const handleAccountDeletion = async (request: Request) => {
         throw new AccountFailureError("invalid_input", 400);
       }
       if (request.method === "GET") {
-        const trust = await database().begin(async (tx) => {
+        const identity = await database().begin(async (tx) => {
           const owner = await lockAccount(tx, browser);
           const [library] =
             await tx`SELECT deletion_handle FROM library WHERE account_id=${browser.accountId}`;
@@ -61,101 +55,33 @@ export const handleAccountDeletion = async (request: Request) => {
             handle: library.deletion_handle,
           };
         });
-        const keys = await signingKeys(trust.instanceId);
-        return Response.json(
-          deletionTrustSchema.parse({
-            ...trust,
-            anchor: keys.anchor,
-            rotations: keys.rotations,
-          }),
-          { headers: { "Cache-Control": "no-store" } }
-        );
+        return Response.json(deletionIdentitySchema.parse(identity), {
+          headers: noStore,
+        });
       }
       const input = deleteAccountSchema.safeParse(await readBody(request));
       if (!input.success) {
         throw new AccountFailureError("invalid_input", 400);
       }
-      const claims = await database().begin(async (tx) => {
+      const deletion = await database().begin(async (tx) => {
         const owner = await lockAccount(tx, browser);
         assertIdentity(browser, owner, input.data);
         await requireProof(tx, browser, owner);
-        const [library] =
-          await tx`SELECT deletion_handle FROM library WHERE account_id=${browser.accountId} FOR UPDATE`;
-        await tx`UPDATE "user" SET deletion_pending=true WHERE id=${browser.accountId}`;
-        const [pending] =
-          await tx`INSERT INTO account_deletion_pending(account_id,instance_id,handle,deletion_id,deleted_at)
-          VALUES (${browser.accountId},${owner.instance_id},${library.deletion_handle},${crypto.randomUUID()},clock_timestamp())
-          ON CONFLICT(account_id) DO UPDATE SET account_id=EXCLUDED.account_id RETURNING *`;
-        return pendingClaims(pending);
+        return purgeAccount(tx, browser.accountId);
       });
-      try {
-        return Response.json(await completeDeletion(claims), {
-          headers: { "Cache-Control": "no-store" },
-        });
-      } catch {
-        return Response.json(
-          { status: "pending", handle: claims.handle, retryAfter: 5 },
-          {
-            status: 202,
-            headers: { "Cache-Control": "no-store", "Retry-After": "5" },
-          }
-        );
-      }
+      logAccountDeletion(deletion);
+      return Response.json(
+        deletionResultSchema.parse({
+          status: "deleted",
+          accountId: deletion.accountId,
+          deletedAt: deletion.deletedAt,
+        }),
+        { headers: noStore }
+      );
     });
   } catch (error) {
     return failure(
       error instanceof Error ? error : new Error("Deletion failed")
-    );
-  }
-};
-
-export const handleDeletionVerification = async (request: Request) => {
-  try {
-    const query = new URL(request.url).searchParams;
-    const rawPage = query.get("page");
-    const page = rawPage === null ? null : Number(rawPage);
-    if (
-      [...query.keys()].some((key) => key !== "page") ||
-      query.getAll("page").length > 1 ||
-      (page !== null &&
-        (!rawPage ||
-          !Number.isSafeInteger(page) ||
-          page < 0 ||
-          page > DELETION_VERIFICATION_MAX_PAGE))
-    ) {
-      throw new AccountFailureError("invalid_input", 400);
-    }
-    const instanceId = await deletionInstance();
-    const keys = await signingKeys(instanceId);
-    const material = {
-      instanceId,
-      anchor: keys.anchor,
-      rotations: keys.rotations,
-    };
-    if (page !== null) {
-      const start = page * DELETION_VERIFICATION_PAGE_SIZE;
-      if (start > keys.rotations.length) {
-        throw new AccountFailureError("invalid_input", 400);
-      }
-      const end = Math.min(
-        start + DELETION_VERIFICATION_PAGE_SIZE,
-        keys.rotations.length
-      );
-      return Response.json(
-        deletionVerificationPageSchema.parse({
-          ...material,
-          rotations: keys.rotations.slice(start, end),
-          nextPage: end < keys.rotations.length ? page + 1 : null,
-        }),
-        { headers: { "Cache-Control": "no-store" } }
-      );
-    }
-    return Response.json(deletionVerificationSchema.parse(material), {
-      headers: { "Cache-Control": "no-store" },
-    });
-  } catch (error) {
-    return failure(
-      error instanceof Error ? error : new Error("Verification unavailable")
     );
   }
 };
@@ -171,24 +97,23 @@ export const handleDeletionLookup = async (
     ) {
       throw new AccountFailureError("invalid_input", 400);
     }
-    const receipt = await readEvidence(
-      await deletionInstance(),
-      `receipt:${handle}`
-    );
+    const [tombstone] =
+      await database()`SELECT account_id,deleted_at FROM deleted_accounts WHERE handle=${handle}`;
     return Response.json(
-      receipt ? { status: "deleted", receipt } : { status: "absent" },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-          "Referrer-Policy": "no-referrer",
-        },
-      }
+      deletionLookupSchema.parse(
+        tombstone
+          ? {
+              status: "deleted",
+              accountId: tombstone.account_id,
+              deletedAt: new Date(tombstone.deleted_at).toISOString(),
+            }
+          : { status: "absent" }
+      ),
+      { headers: { ...noStore, "Referrer-Policy": "no-referrer" } }
     );
   } catch (error) {
     return failure(
-      error instanceof Error
-        ? error
-        : new Error("Deletion evidence unavailable")
+      error instanceof Error ? error : new Error("Deletion status unavailable")
     );
   }
 };

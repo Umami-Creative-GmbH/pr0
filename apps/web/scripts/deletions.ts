@@ -1,37 +1,35 @@
+// oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each re-deletion commits in its own transaction, in log order.
+import { logAccountDeletion, purgeAccount } from "../src/server/account-purge";
 import { database } from "../src/server/database";
-import {
-  deletionInstance,
-  resumeDeletions,
-} from "../src/server/deletion-coordinator";
-import {
-  closeLedgerStores,
-  initializeLedgerStores,
-} from "../src/server/deletion-ledger";
-import {
-  initializeSigningKey,
-  rotateSigningKey,
-} from "../src/server/deletion-signing";
+import { deletionsFromLog } from "./deletion-log";
 
-const [command] = process.argv.slice(2);
-try {
-  const instanceId = await deletionInstance();
-  if (command === "initialize") {
-    await initializeLedgerStores();
-    await initializeSigningKey(instanceId);
-  } else if (command === "rotate") {
-    await rotateSigningKey(instanceId);
-  } else if (command === "replay") {
-    await resumeDeletions();
-  } else {
-    throw new Error("Use initialize, rotate, or replay");
+if (import.meta.main) {
+  const [command] = process.argv.slice(2);
+  const sql = database();
+  try {
+    if (command !== "reapply") {
+      throw new Error("Use reapply < deletion-log");
+    }
+    const deletions = deletionsFromLog(await Bun.stdin.text());
+    let purged = 0;
+    for (const { accountId, deletedAt } of deletions) {
+      const deletion = await sql.begin((tx) =>
+        purgeAccount(tx, accountId, deletedAt)
+      );
+      if (deletion.purged) {
+        purged += 1;
+        logAccountDeletion(deletion, "account_redeleted");
+      }
+    }
+    process.stdout.write(
+      `${JSON.stringify({ event: "deletions_reapplied", read: deletions.length, purged })}\n`
+    );
+  } catch (error) {
+    process.stderr.write(
+      `${error instanceof Error ? error.message : "Re-deletion failed"}; keep ingress closed and retry.\n`
+    );
+    process.exitCode = 1;
+  } finally {
+    await sql.close();
   }
-  process.stdout.write("Deletion evidence operation completed.\n");
-} catch {
-  process.stderr.write(
-    "Deletion evidence unavailable or inconsistent; keep service closed and retry.\n"
-  );
-  process.exitCode = 1;
-} finally {
-  await closeLedgerStores();
-  await database().close();
 }

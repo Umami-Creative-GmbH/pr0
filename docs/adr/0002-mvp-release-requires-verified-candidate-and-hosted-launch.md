@@ -20,3 +20,7 @@ The MVP implementation spec (#23) excludes provisioning and rollout of the hoste
 - **Treating the hosted launch as separate work entirely**: rejected, because the shipped desktop would preselect a server that doesn't work.
 - **Folding hosted provisioning into #23, #66 or #111**: rejected, because #23 deliberately keeps the application operator-neutral, and provisioning work is mostly human operator tasks with their own evidence.
 - **A full month of measured availability before release**: rejected, because it adds at least 30 days to the critical path for an objective #23 doesn't treat as a release blocker.
+
+## Amendment 2026-11-11: no deletion ledger in the hosted launch gate
+
+[ADR-0005](0005-account-deletion-is-a-hard-delete-in-the-application-database.md) replaced the independent deletion ledgers with a hard delete and a tombstone in the application database. In the hosted launch gate, "the independent deletion ledger in operation" becomes **the deletion log shipped off the server and kept for at least 31 days, with the restore runbook's re-delete step covered by the pre-release restore rehearsal**. The burn-in's "full stack" no longer includes ledgers: it is the hosted stack with backups and the canary.

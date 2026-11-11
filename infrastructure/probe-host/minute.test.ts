@@ -24,7 +24,6 @@ const metricsPayload = () => ({
     status: "ready",
     checks: {
       schema: "ready",
-      deletionReplay: "ready",
       email: "ready",
       search: "ready",
     },
@@ -47,7 +46,6 @@ const metricsPayload = () => ({
     volumes: [],
   },
   backup: { status: "unavailable", checkpoint: null, retentionOk: false },
-  ledger: { status: "ready", bytes: null, pendingDeletions: 0 },
   errors: [],
   alerts: metricsAlerts,
 });
