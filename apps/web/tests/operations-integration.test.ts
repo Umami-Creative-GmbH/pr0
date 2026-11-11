@@ -191,6 +191,54 @@ const storageMetrics = async () => {
   return operationalMetricsSchema.parse(await response.json());
 };
 
+const commandMetrics = async (env: Record<string, string | undefined>) => {
+  const child = Bun.spawn(
+    [
+      "bun",
+      "--conditions=react-server",
+      "apps/web/scripts/operations.ts",
+      "metrics",
+    ],
+    { env, stdout: "pipe", stderr: "pipe" }
+  );
+  const output = await new Response(child.stdout).text();
+  await child.exited;
+  return operationalMetricsSchema.parse(JSON.parse(output));
+};
+
+test("database storage coverage is expected only where the database volume is mounted", async () => {
+  const { PR0_DATABASE_VOLUME_MOUNTED: _mounted, ...environment } = process.env;
+  const bundled = await commandMetrics(environment);
+  expect(bundled.alerts).toContain("storage_coverage_missing:database");
+  expect(bundled.alerts).toContain("storage_coverage_missing:search");
+
+  // The hosted stack's Coolify-managed database volume is never mounted.
+  const hosted = await commandMetrics({
+    ...environment,
+    PR0_DATABASE_VOLUME_MOUNTED: "false",
+  });
+  expect(hosted.alerts).not.toContain("storage_coverage_missing:database");
+  expect(hosted.alerts).toContain("storage_coverage_missing:search");
+  expect(hosted.alerts).toContain("storage_coverage_missing");
+
+  const sql = new SQL(process.env.DATABASE_URL ?? "");
+  try {
+    // A measurement that is still recorded keeps its thresholds; only its absence is no alert.
+    await sql`INSERT INTO storage_observation(name,total_bytes,used_bytes,sampled_at) VALUES ('database',1000,800,clock_timestamp())`;
+    const recorded = await commandMetrics({
+      ...environment,
+      PR0_DATABASE_VOLUME_MOUNTED: "false",
+    });
+    expect(recorded.storage.volumes).toContainEqual(
+      expect.objectContaining({ name: "database", usedBytes: 800 })
+    );
+    expect(recorded.alerts).toContain("storage_critical:database");
+  } finally {
+    await sql`DELETE FROM storage_observation`;
+    await sql.close();
+  }
+});
+
 test("externally recorded storage rejects invalid measurements without writing", async () => {
   const sql = new SQL(process.env.DATABASE_URL ?? "");
   try {

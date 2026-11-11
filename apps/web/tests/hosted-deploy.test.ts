@@ -118,7 +118,6 @@ const exampleVariables = {
   PR0_BACKUP_MOUNT: "/mnt/pr0-backups",
   PR0_DELETION_LOG_MOUNT: "/mnt/pr0-deletion-log",
   PR0_DATABASE_NETWORK: "coolify",
-  PR0_DATABASE_VOLUME_NAME: "postgres-data-exampledatabaseuuid",
   DATABASE_URL: "postgres://pr0:example@exampledatabaseuuid:5432/pr0",
   BETTER_AUTH_SECRET: "example-secret-auth",
   PR0_MAIL_SECRET: "example-secret-mail",
@@ -143,6 +142,9 @@ const configuredService = z.object({
   restart: z.string().optional(),
   profiles: z.array(z.string()).optional(),
   command: z.array(z.string()).nullable().optional(),
+  volumes: z
+    .array(z.object({ source: z.string().optional(), target: z.string() }))
+    .default([]),
 });
 const externalResource = z.object({
   name: z.string(),
@@ -309,13 +311,29 @@ test("the Coolify file takes every secret from runtime variables and gates web a
     );
     expect(secrets).toBeUndefined();
     // PostgreSQL is the Coolify database resource, reached over its network.
-    // Its data volume belongs to that resource and is never created here.
+    // Its data volume belongs to that resource and is never mounted here:
+    // no free-space check on it, and no `database` storage coverage expected.
     expect(services.database).toBeUndefined();
     expect(networks.database).toEqual({ name: "coolify", external: true });
-    expect(volumes["database-data"]).toEqual({
-      name: exampleVariables.PR0_DATABASE_VOLUME_NAME,
-      external: true,
-    });
+    expect(Object.values(volumes).filter((volume) => volume.external)).toEqual(
+      []
+    );
+    for (const [name, service] of Object.entries(services)) {
+      expect({ name, volume: service.environment.PR0_DATABASE_VOLUME }).toEqual(
+        { name, volume: undefined }
+      );
+      expect({
+        name,
+        targets: service.volumes
+          .map((volume) => volume.target)
+          .filter((target) => target.startsWith("/var/lib/postgresql")),
+      }).toEqual({ name, targets: [] });
+    }
+    for (const name of ["web", "operations"]) {
+      expect(services[name]?.environment.PR0_DATABASE_VOLUME_MOUNTED).toBe(
+        "false"
+      );
+    }
     expectRuntimeSecrets(services);
     expectUpgradeGate(services);
 
@@ -625,7 +643,6 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
       PR0_BACKUP_MOUNT: path.join(directory, "backups").replaceAll("\\", "/"),
       PR0_DELETION_LOG_MOUNT: deletionLog.replaceAll("\\", "/"),
       PR0_DATABASE_NETWORK: databaseNetwork,
-      PR0_DATABASE_VOLUME_NAME: databaseVolume,
       DATABASE_URL: `postgres://pr0:${databasePassword}@${databaseHost}:5432/pr0`,
       BETTER_AUTH_SECRET: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
       PR0_MAIL_SECRET: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
@@ -1150,7 +1167,7 @@ test("Coolify's compose deploys run the upgrade jobs in order, upgrade between c
               image: postgres,
               role: "pr0 (LOGIN CREATEDB, not superuser)",
               joinedBy:
-                "external network database, external volume database-data",
+                "external network database (its data volume is not mounted)",
             },
             commits: {
               initial: commits[0],

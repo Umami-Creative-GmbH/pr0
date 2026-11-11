@@ -77,7 +77,7 @@ bun run --cwd apps/web operations sample-storage search /mounted/search-volume
 bun run --cwd apps/web operations sample-storage backup /mounted/backup-volume
 ```
 
-These commands measure filesystem capacity, including WAL, indexes, retained history, journals and other overhead. Do not report the web container's root filesystem as a remote database disk. Coverage older than five minutes is missing and raises `storage_coverage_missing:<name>` (plus the aggregate `storage_coverage_missing`).
+These commands measure filesystem capacity, including WAL, indexes, retained history, journals and other overhead. Do not report the web container's root filesystem as a remote database disk. Coverage older than five minutes is missing and raises `storage_coverage_missing:<name>` (plus the aggregate `storage_coverage_missing`). Only a deployment that cannot mount the database's volume at all and watches that disk with its own monitoring sets `PR0_DATABASE_VOLUME_MOUNTED=false` on the process that serves the metrics (the [hosted service](hosted.md#coolify-database) does): then a missing `database` measurement raises nothing, while a recorded one keeps its thresholds.
 
 ### Storage the application host cannot mount
 

@@ -8,6 +8,12 @@ import { secret } from "./config";
 import { database } from "./database";
 import { readReadiness } from "./readiness";
 
+// A deployment whose database volume the application cannot mount (the hosted
+// stack's Coolify-managed database) sets PR0_DATABASE_VOLUME_MOUNTED=false: the
+// server's own disk monitoring covers that volume, so its absence is no alert.
+const coverageOptional = (name: string) =>
+  name === "database" && process.env.PR0_DATABASE_VOLUME_MOUNTED === "false";
+
 const storageAlerts = (
   volumes: { name: string; stale: boolean; usedPercent: number }[]
 ) => {
@@ -15,6 +21,9 @@ const storageAlerts = (
   for (const name of ["database", "search", "backup"]) {
     const volume = volumes.find((entry) => entry.name === name && !entry.stale);
     if (!volume) {
+      if (coverageOptional(name)) {
+        continue;
+      }
       // The aggregate alert stays for existing monitors; the named one shows which host to fix.
       alerts.add("storage_coverage_missing");
       alerts.add(`storage_coverage_missing:${name}`);

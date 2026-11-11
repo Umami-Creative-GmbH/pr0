@@ -47,3 +47,14 @@ The hosted service runs on the existing Coolify server. #128 first ran it as pla
 ## Amendment 2026-11-11: no deletion replay job
 
 [ADR-0005](0005-account-deletion-is-a-hard-delete-in-the-application-database.md) replaced the two deletion ledgers with a hard delete and a tombstone in the application database. The `replay-deletions` job is gone: a deploy runs `backup-before`, then `migrate`, and web, mail and the backup container depend on `migrate`. The ledger variables (`PR0_LEDGER_A_URL`, `PR0_LEDGER_B_URL`) are gone from Phase, and the hosted service needs no ledger hosts. The first deploy no longer fails on purpose: it starts, and the service stays closed (503) until the operator runs `restore initialize`, because no recovery state means no admission. The deletion log is a directory on the Storage Box (`PR0_DELETION_LOG_MOUNT`, a required `config` variable), mounted into web, restore, backup and deletions; see the [hosted runbook](../operations/hosted.md#deletion-log).
+
+## Amendment 2026-11-11 (later): pr0 doesn't mount the database's data volume
+
+**Decision.** By the release operator's decision, no pr0 container mounts the Coolify database resource's data volume. This replaces the read-only `database-data` mount and the `PR0_DATABASE_VOLUME_NAME` key from the PostgreSQL amendment above. The external volume, its mounts and `PR0_DATABASE_VOLUME` are gone from `compose.coolify.yaml`.
+
+**Consequences.**
+
+- One Phase `config` key fewer: only `PR0_DATABASE_NETWORK` remains of the two keys the PostgreSQL amendment added.
+- The migration preflight still requires `PR0_MIGRATION_BACKUPS` and checks three times the database size plus 16 MiB free on it. `PR0_DATABASE_VOLUME` is now optional: where it is set (the bundled `compose.yaml`, self-hosted installs), the same check also runs on the database volume, as before. On the hosted service it isn't set, so that check doesn't run.
+- `operations metrics` no longer expects a `database` storage measurement where `PR0_DATABASE_VOLUME_MOUNTED=false` (set for `web` and `operations` in `compose.coolify.yaml`), so that target raises no permanent `storage_coverage_missing:database`. A measurement that is still recorded keeps its 70 % and 80 % alerts. Everywhere else the database target stays expected.
+- The database shares the Coolify server's disk. The operator turns on Coolify's server disk-usage notifications, which replace pr0's free-space measurement of that disk ([hosted runbook](../operations/hosted.md#coolify-database)).
