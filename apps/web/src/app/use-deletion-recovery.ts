@@ -14,6 +14,8 @@ const subscribe = (notify: () => void) => {
   };
 };
 const serverSnapshot = () => null;
+// Stored identities from older builds may still include signing metadata.
+const storedIdentitySchema = deletionIdentitySchema.strip();
 
 export const useDeletionRecovery = (baseUrl: string) => {
   const key = `pr0:deletion:${baseUrl}`;
@@ -27,7 +29,7 @@ export const useDeletionRecovery = (baseUrl: string) => {
   const value = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
   const pending = useMemo(() => {
     try {
-      return value ? deletionIdentitySchema.parse(JSON.parse(value)) : null;
+      return value ? storedIdentitySchema.parse(JSON.parse(value)) : null;
     } catch {
       return null;
     }

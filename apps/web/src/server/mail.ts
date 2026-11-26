@@ -123,6 +123,19 @@ const enqueueMail = async (
   );
 };
 
+const signupVerificationId = (token: string) =>
+  `signup-verification:${createHash("sha256").update(token).digest("hex")}`;
+
+export const verifySignupEmail = async (token: string) => {
+  const rows = await database()`UPDATE "user" AS owner
+    SET email_verified=true, updated_at=now()
+    FROM verification AS proof
+    WHERE proof.id=${signupVerificationId(token)} AND proof.expires_at>now()
+      AND owner.id=proof.value AND NOT owner.deletion_pending
+    RETURNING owner.id`;
+  return rows.length > 0;
+};
+
 export const enqueueVerification = async (
   email: string,
   url: string,
@@ -138,15 +151,23 @@ export const enqueueVerification = async (
         Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf-8")
       )
     );
-  await enqueueMail(
-    email,
-    url,
-    new Date(claims.exp * 1000),
-    reservation,
-    "verification",
-    accountId,
-    uncommittedSignup
-  );
+  const link = new URL(url);
+  const proof = randomBytes(32).toString("base64url");
+  link.searchParams.set("token", proof);
+  const id = signupVerificationId(proof);
+  const expiresAt = new Date(claims.exp * 1000);
+  await database().begin(async (tx) => {
+    await storeMail(
+      tx,
+      { email, url: link.toString(), purpose: "verification" },
+      expiresAt,
+      reservation,
+      accountId,
+      uncommittedSignup
+    );
+    await tx`INSERT INTO verification(id,identifier,value,expires_at,created_at,updated_at)
+      VALUES (${id},${id},${accountId},${expiresAt},now(),now())`;
+  });
 };
 
 export const enqueueRecovery = async (

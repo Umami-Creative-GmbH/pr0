@@ -36,7 +36,7 @@
   "confirmYourIdentityInAccountSecurityBelowThenReturnTo": "Bestätige unten unter Kontosicherheit deine Identität und kehre dann zurück, um dein Konto zu löschen.",
   "yourAccountAndLibraryHaveBeenDeleted": "Dein Konto und deine Bibliothek wurden gelöscht.",
   "theDeletionResultWasNotReceivedCheckItsStatus": "Das Ergebnis der Löschung ist nicht angekommen. Prüfe den Status, bevor du es erneut versuchst.",
-  "noDeletionWasRecordedYourAccountWasNotDeleted": "Es wurde keine Löschung erfasst. Dein Konto wurde nicht gelöscht.",
+  "deletionHasNotBeenConfirmedYet": "Die Löschung wurde noch nicht bestätigt.",
   "deleteAccount": "Konto löschen",
   "finish": "Fertig",
   "checkDeletionStatus": "Löschstatus prüfen",

@@ -277,6 +277,45 @@ fn deletion_credential_failure_keeps_cleanup_retryable_after_restart() {
 }
 
 #[test]
+fn deletion_legacy_cleanup_survives_a_failed_retry_and_restart() {
+    let path = std::env::temp_dir().join(format!("pr0-deletion-{}", uuid::Uuid::new_v4()));
+    let transport = DeletionTransport::new();
+    let vault = Arc::new(FaultyCredential {
+        vault: Vault::default(),
+        fail_write: false.into(),
+        fail_delete: true.into(),
+    });
+    let service = AuthService::new(path.clone(), transport.clone(), vault.clone()).unwrap();
+    sign_in(&service);
+    drop(service);
+    let database = rusqlite::Connection::open(path.join("session-state.sqlite")).unwrap();
+    database.execute(
+        "UPDATE active_session SET metadata=json_set(metadata, '$.cleanupPending', json('true'), '$.deletionProof', json_object('receipt', 'a.b.c'))",
+        [],
+    ).unwrap();
+    drop(database);
+    let service = AuthService::new(path.clone(), transport.clone(), vault.clone()).unwrap();
+    assert_eq!(
+        service
+            .transition(transition_request(&service, "retry_cleanup", false))
+            .err()
+            .as_deref(),
+        Some("credential_unavailable")
+    );
+    drop(service);
+    vault.fail_delete.store(false, std::sync::atomic::Ordering::SeqCst);
+    let service = AuthService::new(path.clone(), transport, vault).unwrap();
+    let result = service
+        .transition(transition_request(&service, "retry_cleanup", false))
+        .unwrap();
+    let view = serde_json::to_value(result).unwrap();
+    assert_eq!(view["state"], "signed_out");
+    assert_eq!(view["message"], "Account deletion confirmed. This account's local library, pending work and sign-in have been removed.");
+    drop(service);
+    std::fs::remove_dir_all(path).unwrap();
+}
+
+#[test]
 fn deletion_cleanup_failure_invalidates_copy_and_save_and_retries_offline_after_restart() {
     let directory = std::env::temp_dir().join(format!("pr0-deletion-{}", uuid::Uuid::new_v4()));
     let transport = DeletionTransport::new();

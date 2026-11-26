@@ -48,7 +48,10 @@ impl AuthService {
         }
         // Persist the confirmed deletion and cleanup intent before destroying anything.
         // Retry is safe after restart.
-        state.storage.save(retained)?;
+        // Legacy confirmation is already durable. Serializing it would drop the old proof.
+        if retained.legacy_deletion_proof.is_none() {
+            state.storage.save(retained)?;
+        }
         self.credentials.delete()?;
         state.library = None;
         for path in self.library_cleanup_paths(state)? {
