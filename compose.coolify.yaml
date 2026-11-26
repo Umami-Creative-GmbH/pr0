@@ -304,4 +304,4 @@ networks:
   # destination network). External: this application never creates it.
   database:
     external: true
-    name: "${PR0_DATABASE_NETWORK:?Set the Coolify database's network}"
+    name: "${PR0_DATABASE_NETWORK:?Set PR0_DATABASE_NETWORK}"
