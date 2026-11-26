@@ -6,7 +6,7 @@ import { secret } from "./config";
 import { database } from "./database";
 import { assertRestoreAdmission, readRestoreState } from "./restore-state";
 
-export const serverMigrationVersion = 20;
+export const serverMigrationVersion = 21;
 export const ensureSchemaCompatibility = async (
   sql: SQL | TransactionSQL = database(),
   recoveryCheck = false

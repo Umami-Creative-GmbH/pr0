@@ -1,49 +1,47 @@
+// oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Each leftover account is purged in its own transaction.
 import "server-only";
+import {
+  logAccountDeletion,
+  purgeAccount,
+  recordAccountDeletion,
+} from "./account-purge";
 import { database } from "./database";
-import { resumeDeletions } from "./deletion-coordinator";
 import { assertRestoreAdmission } from "./restore-state";
 
-let startup: Promise<void> | undefined;
-let running = false;
-let worker: ReturnType<typeof setInterval> | undefined;
+/**
+ * Purges live data still present for a tombstoned account. Deletion is one
+ * transaction, so this only finds deletions that were pending when migration
+ * 21 replaced the ledger design with tombstones.
+ */
+export const purgeTombstonedAccounts = async () => {
+  const sql = database();
+  const leftovers = await sql<{ account_id: string; deleted_at: Date }[]>`
+    SELECT d.account_id,d.deleted_at FROM deleted_accounts d JOIN "user" u ON u.id=d.account_id ORDER BY d.account_id`;
+  for (const row of leftovers) {
+    const deletion = await sql.begin(async (tx) => {
+      const purged = await purgeAccount(
+        tx,
+        row.account_id,
+        row.deleted_at.toISOString()
+      );
+      recordAccountDeletion(purged);
+      return purged;
+    });
+    logAccountDeletion(deletion);
+  }
+  return leftovers.length;
+};
+
+let startup: Promise<number> | undefined;
 export const ensureDeletionRecovery = async (recoveryCheck = false) => {
   if (!recoveryCheck) {
     assertRestoreAdmission();
   }
-  const configured =
-    process.env.PR0_LEDGER_A_URL ||
-    process.env.PR0_LEDGER_A_URL_FILE ||
-    process.env.PR0_LEDGER_B_URL ||
-    process.env.PR0_LEDGER_B_URL_FILE;
-  if (!configured) {
-    const [instance] = await database()`SELECT deletion_anchor FROM instance`;
-    if (instance?.deletion_anchor) {
-      throw new Error("Independent deletion ledger configuration is required");
-    }
-    return;
-  }
-  startup ??= resumeDeletions();
+  startup ??= purgeTombstonedAccounts();
   try {
     await startup;
   } catch (error) {
     startup = undefined;
     throw error;
   }
-  worker ??= setInterval(() => {
-    if (running) {
-      return;
-    }
-    running = true;
-    void (async () => {
-      try {
-        assertRestoreAdmission();
-        await resumeDeletions(false);
-      } catch {
-        // Requests keep their pending status; no success or completion is invented.
-      } finally {
-        running = false;
-      }
-    })();
-  }, 5000);
-  worker.unref();
 };

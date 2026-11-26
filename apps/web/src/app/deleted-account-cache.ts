@@ -1,11 +1,11 @@
 import type { PrivateLibrary } from "@pr0/api-contract/accounts";
-import type { DeletionTrust } from "@pr0/api-contract/deletions";
+import type { DeletionIdentity } from "@pr0/api-contract/deletions";
 import { libraryScopeSchema } from "@pr0/api-contract/prompts";
 import type { QueryClient } from "@tanstack/react-query";
 
 export const deletedPartition = (
   library: PrivateLibrary | null | undefined,
-  identity: DeletionTrust
+  identity: DeletionIdentity
 ) =>
   library?.account.id === identity.accountId &&
   library.instance.id === identity.instanceId;
@@ -13,7 +13,7 @@ export const deletedPartition = (
 const deletedQuery = (
   key: readonly unknown[],
   baseUrl: string,
-  identity: DeletionTrust
+  identity: DeletionIdentity
 ) => {
   const [kind, scope] = key;
   if (
@@ -42,7 +42,7 @@ const deletedQuery = (
 export const clearDeletedAccountCache = async (
   queryClient: QueryClient,
   baseUrl: string,
-  identity: DeletionTrust
+  identity: DeletionIdentity
 ) => {
   const partition = {
     predicate: (query: { queryKey: readonly unknown[] }) =>

@@ -1,17 +1,20 @@
+import { mkdirSync, rmSync } from "node:fs";
+import path from "node:path";
+
 import { deletionRestartScenarios } from "./account-deletion-restart";
 import { deletionRestoreScenario } from "./account-deletion-restore";
 import { accountTestServer, runAcceptance } from "./account-test-server";
 
+// The durable deletion log for this run; the served app and every child read it.
+const deletionLog = path.resolve(
+  import.meta.dir,
+  `../.data/deletion-log-56-${crypto.randomUUID()}`
+);
+mkdirSync(deletionLog, { recursive: true });
+process.env.PR0_DELETION_LOG_DIRECTORY = deletionLog;
 const fixture = accountTestServer(
   "pr0-deletion-56",
-  "apps/web/tests/account-deletion-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/account-deletion-compose.yaml"
 );
 try {
   await fixture.setup();
@@ -58,4 +61,5 @@ try {
   }
 } finally {
   await fixture.cleanup();
+  rmSync(deletionLog, { recursive: true, force: true });
 }

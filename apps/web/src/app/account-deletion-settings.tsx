@@ -1,8 +1,7 @@
 "use client";
 import { ApiError } from "@pr0/api-client/client";
-import { verifyDeletionReceipt } from "@pr0/api-client/deletions";
 import { useApiClient } from "@pr0/api-client/provider";
-import type { DeletionTrust } from "@pr0/api-contract/deletions";
+import type { DeletionIdentity } from "@pr0/api-contract/deletions";
 import { useTranslations } from "@pr0/ui/hooks/use-translations";
 import { useRef, useState } from "react";
 
@@ -10,24 +9,99 @@ import { accountErrorMessage } from "./account-errors";
 import { useDeletionRecovery } from "./use-deletion-recovery";
 
 const buttonClass = "wf-btn";
+
+type DeletionView = "deleted" | "pending" | "confirm" | "start";
+
+const deletionView = (
+  deleted: boolean,
+  pending: boolean,
+  hasIdentity: boolean
+): DeletionView => {
+  if (deleted) {
+    return "deleted";
+  }
+  if (pending) {
+    return "pending";
+  }
+  return hasIdentity ? "confirm" : "start";
+};
+
+// A 4xx response means the server refused the request before deleting anything.
+const isRefusalStatus = (status: number) => status >= 400 && status < 500;
+
+const ConfirmDeletion = ({
+  busy,
+  confirmed,
+  onConfirmedChange,
+  onDelete,
+  onCancel,
+}: {
+  busy: boolean;
+  confirmed: boolean;
+  onConfirmedChange: (confirmed: boolean) => void;
+  onDelete: () => void;
+  onCancel: () => void;
+}) => {
+  const t = useTranslations();
+  return (
+    <section aria-labelledby="confirm-deletion-title" className="space-y-3">
+      <h3 id="confirm-deletion-title" className="font-semibold">
+        {t("confirmAccountDeletion")}
+      </h3>
+      <p>
+        {t(
+          "thisPermanentlyRemovesYourAccountPromptsOrganizationSessionsAndUnsaved"
+        )}
+      </p>
+      <label className="flex gap-2">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(event) => onConfirmedChange(event.target.checked)}
+        />
+        {t("iUnderstandThatMyAccountAndEntireLibraryWillBe")}
+      </label>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={busy || !confirmed}
+          onClick={onDelete}
+        >
+          {t("permanentlyDeleteAccountAndLibrary")}
+        </button>
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={busy}
+          onClick={onCancel}
+        >
+          {t("cancel")}
+        </button>
+      </div>
+    </section>
+  );
+};
+
 export const AccountDeletionSettings = ({
   accountId,
   onDeleted,
 }: {
   accountId?: string;
-  onDeleted: (identity: DeletionTrust) => Promise<void>;
+  onDeleted: (identity: DeletionIdentity) => Promise<void>;
 }) => {
   const t = useTranslations();
 
   const client = useApiClient();
-  const [prepared, setPrepared] = useState<DeletionTrust | null>(null);
+  const [prepared, setPrepared] = useState<DeletionIdentity | null>(null);
   const recovery = useDeletionRecovery(client.baseUrl);
-  const trust = recovery.pending ?? prepared;
+  const identity = recovery.pending ?? prepared;
+  // A persisted identity means a submitted deletion whose outcome is unknown.
   const pending = Boolean(recovery.pending);
   const emailVersion = useRef(0);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [receipt, setReceipt] = useState("");
+  const [deleted, setDeleted] = useState(false);
   const [message, setMessage] = useState("");
   const opener = useRef<HTMLButtonElement>(null);
   const status = useRef<HTMLParagraphElement>(null);
@@ -38,7 +112,7 @@ export const AccountDeletionSettings = ({
     } catch (error) {
       setMessage(
         pending
-          ? t("deletionIsStillPendingCompletionCouldNotBeVerifiedRetry")
+          ? t("theDeletionStatusCouldNotBeCheckedRetry")
           : accountErrorMessage(
               error instanceof Error ? error : new Error("Deletion unavailable")
             )
@@ -60,7 +134,7 @@ export const AccountDeletionSettings = ({
         setMessage(t("confirmYourIdentityInAccountSecurityBelowThenReturnTo"));
         return;
       }
-      const setup = await client.getDeletionTrust();
+      const setup = await client.getDeletionIdentity();
       if (setup.accountId !== accountId) {
         throw new Error("Account changed");
       }
@@ -69,76 +143,65 @@ export const AccountDeletionSettings = ({
       setConfirmed(false);
       setMessage("");
     });
-  const complete = async (value: string, pinned: DeletionTrust) => {
-    const verification = await client.getDeletionVerification();
-    if (verification.instanceId !== pinned.instanceId) {
-      throw new Error("Instance changed");
-    }
-    const continued = { ...pinned, rotations: verification.rotations };
-    await verifyDeletionReceipt(value, continued);
-    setPrepared(continued);
-    setReceipt(value);
-    setMessage(t("yourAccountAndLibraryHaveBeenDeletedTheSignedReceipt"));
+  const complete = async (pinned: DeletionIdentity) => {
+    setDeleted(true);
+    setMessage(t("yourAccountAndLibraryHaveBeenDeleted"));
+    // Cleanup is bound to the identity kept before submission, never to a later session.
     await onDeleted(pinned);
+    recovery.persist(null);
+    setPrepared(null);
   };
   const remove = () =>
     run(async () => {
-      if (!trust || !confirmed) {
+      if (!identity || !confirmed) {
         return;
       }
-      // Pin the key before confirmation; a replacement server key is never accepted.
-      recovery.persist(trust);
-      setMessage(t("deletionIsPendingCompletionHasNotYetBeenConfirmedCheck"));
+      // Keep the identity first: a lost response can still be resolved after a reload.
+      recovery.persist(identity);
+      let deletedAccount: string;
       try {
         const result = await client.deleteAccount({
-          accountId: trust.accountId,
+          accountId: identity.accountId,
           emailVersion: emailVersion.current,
           confirmation: "delete-account",
         });
-        if (result.status === "deleted") {
-          await complete(result.receipt, trust);
-        }
+        deletedAccount = result.accountId;
       } catch (error) {
-        if (
-          error instanceof ApiError &&
-          error.status >= 400 &&
-          error.status < 500
-        ) {
+        if (error instanceof ApiError && isRefusalStatus(error.status)) {
+          // Refused before deletion: nothing changed.
           recovery.persist(null);
           setPrepared(null);
+          throw error;
         }
-        throw error;
+        setMessage(t("theDeletionResultWasNotReceivedCheckItsStatus"));
+        return;
       }
+      if (deletedAccount !== identity.accountId) {
+        throw new Error("Account changed");
+      }
+      await complete(identity);
     });
   const check = () =>
     run(async () => {
-      if (!trust) {
+      if (!identity) {
         return;
       }
-      const result = await client.getDeletionReceipt(trust.handle);
-      if (result.status === "deleted") {
-        await complete(result.receipt, trust);
+      const result = await client.getDeletionStatus(identity.handle);
+      if (
+        result.status === "deleted" &&
+        result.accountId === identity.accountId
+      ) {
+        await complete(identity);
       } else {
-        setMessage(
-          t("deletionIsStillPendingNoVerifiedCompletionReceiptIsAvailable")
-        );
+        recovery.persist(null);
+        setPrepared(null);
+        setMessage(t("noDeletionWasRecordedYourAccountWasNotDeleted"));
       }
     });
-  const download = () => {
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify({ ...trust, receipt }, null, 2)], {
-        type: "application/json",
-      })
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "pr0-deletion-receipt.json";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-  if (!accountId && !pending && !receipt) {
+  if (!accountId && !pending && !deleted) {
     return null;
   }
+  const view = deletionView(deleted, pending, Boolean(identity));
   return (
     <section
       aria-labelledby="delete-account-title"
@@ -149,30 +212,21 @@ export const AccountDeletionSettings = ({
       </h2>
       <p ref={status} aria-live="polite" tabIndex={-1}>
         {message ||
-          (pending
-            ? t("deletionIsPendingCheckItsStatusToVerifyCompletion")
-            : "")}
+          (pending ? t("theDeletionResultWasNotReceivedCheckItsStatus") : "")}
       </p>
-      {receipt ? (
-        <div className="flex gap-3">
-          <button type="button" className={buttonClass} onClick={download}>
-            {t("downloadDeletionReceipt")}
-          </button>
-          <button
-            type="button"
-            className={buttonClass}
-            onClick={() => {
-              recovery.persist(null);
-              setPrepared(null);
-              setReceipt("");
-              setMessage("");
-            }}
-          >
-            {t("finish")}
-          </button>
-        </div>
+      {view === "deleted" ? (
+        <button
+          type="button"
+          className={buttonClass}
+          onClick={() => {
+            setDeleted(false);
+            setMessage("");
+          }}
+        >
+          {t("finish")}
+        </button>
       ) : null}
-      {pending && !receipt ? (
+      {view === "pending" ? (
         <button
           type="button"
           className={buttonClass}
@@ -184,7 +238,7 @@ export const AccountDeletionSettings = ({
           {t("checkDeletionStatus")}
         </button>
       ) : null}
-      {!pending && !trust ? (
+      {view === "start" ? (
         <button
           ref={opener}
           type="button"
@@ -197,49 +251,20 @@ export const AccountDeletionSettings = ({
           {t("deleteAccount")}
         </button>
       ) : null}
-      {!pending && trust ? (
-        <section aria-labelledby="confirm-deletion-title" className="space-y-3">
-          <h3 id="confirm-deletion-title" className="font-semibold">
-            {t("confirmAccountDeletion")}
-          </h3>
-          <p>
-            {t(
-              "thisPermanentlyRemovesYourAccountPromptsOrganizationSessionsAndUnsaved"
-            )}
-          </p>
-          <label className="flex gap-2">
-            <input
-              type="checkbox"
-              checked={confirmed}
-              onChange={(event) => setConfirmed(event.target.checked)}
-            />
-            {t("iUnderstandThatMyAccountAndEntireLibraryWillBe")}
-          </label>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              className={buttonClass}
-              disabled={busy || !confirmed}
-              onClick={() => {
-                void remove();
-              }}
-            >
-              {t("permanentlyDeleteAccountAndLibrary")}
-            </button>
-            <button
-              type="button"
-              className={buttonClass}
-              disabled={busy}
-              onClick={() => {
-                setPrepared(null);
-                setConfirmed(false);
-                requestAnimationFrame(() => opener.current?.focus());
-              }}
-            >
-              {t("cancel")}
-            </button>
-          </div>
-        </section>
+      {view === "confirm" ? (
+        <ConfirmDeletion
+          busy={busy}
+          confirmed={confirmed}
+          onConfirmedChange={setConfirmed}
+          onDelete={() => {
+            void remove();
+          }}
+          onCancel={() => {
+            setPrepared(null);
+            setConfirmed(false);
+            requestAnimationFrame(() => opener.current?.focus());
+          }}
+        />
       ) : null}
     </section>
   );

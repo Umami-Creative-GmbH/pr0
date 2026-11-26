@@ -4,14 +4,7 @@ import { verifySnapshotExpiry } from "./snapshot-expiry";
 
 const server = accountTestServer(
   "pr0-snapshots-40",
-  "apps/web/tests/device-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/device-compose.yaml"
 );
 try {
   await server.setup();

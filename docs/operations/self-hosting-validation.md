@@ -12,9 +12,9 @@ docker build --target migration-runtime -t pr0-self-host-tools-62 .
 bun run --cwd apps/web test:self-hosting native --evidence=docs/evidence/issue-62-amd64.json
 ```
 
-For ARM64, build both targets with `--platform linux/arm64`, then set `PR0_SELF_HOST_PLATFORM=linux/arm64`, `PR0_SELF_HOST_IMAGE=pr0-self-host-62-arm64` and `PR0_SELF_HOST_TOOLS_IMAGE=pr0-self-host-tools-62-arm64` for the same runner. Use `--evidence=docs/evidence/issue-62-arm64.json`. This forces the application, tooling, database, SMTP and fixture ledger services to execute ARM64. Execution under Docker's emulation is not a native ARM hardware performance measurement. Image metadata or a completed cross-build alone does not pass acceptance.
+For ARM64, build both targets with `--platform linux/arm64`, then set `PR0_SELF_HOST_PLATFORM=linux/arm64`, `PR0_SELF_HOST_IMAGE=pr0-self-host-62-arm64` and `PR0_SELF_HOST_TOOLS_IMAGE=pr0-self-host-tools-62-arm64` for the same runner. Use `--evidence=docs/evidence/issue-62-arm64.json`. This forces the application, tooling, database and SMTP services to execute ARM64. Execution under Docker's emulation is not a native ARM hardware performance measurement. Image metadata or a completed cross-build alone does not pass acceptance.
 
-The fixture creates two unique Compose projects, random loopback ports, independent databases, persistent volumes and generated secret files. It removes only its own disposable projects/volumes afterward. Its local ledger/SMTP services are test dependencies; the base production Compose intentionally leaves independent ledger hosting, mail and ingress to operators. The PostgreSQL service has no host port and belongs only to the internal database network. There is one web replica, at most two in-process Bun search workers and a shared persistent derived-search volume.
+The fixture creates two unique Compose projects, random loopback ports, independent databases, persistent volumes and generated secret files. It removes only its own disposable projects/volumes afterward. Its local SMTP service is a test dependency; the base production Compose intentionally leaves mail and ingress to operators. The PostgreSQL service has no host port and belongs only to the internal database network. There is one web replica, at most two in-process Bun search workers and a shared persistent derived-search volume.
 
 ## Recorded results
 
@@ -36,15 +36,15 @@ The final `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib` r
 
 | Boundary | Verification |
 | --- | --- |
-| Compose/operator CLI | Explicit migration, ledger/recovery initialization, first-account admission, mounted secret reads, database/search storage sampling, selected app/tool image tags and private database networking |
+| Compose/operator CLI | Explicit migration, recovery initialization, first-account admission, mounted secret reads, database/search storage sampling, selected app/tool image tags and private database networking |
 | Verified access | Closed signup refusal, admitted signup, unverified login refusal, SMTP verification link using the configured origin, verified sign-in |
 | Served browser | Disabled social options absent; create/save literal template; search; actual clipboard copy of `Hello self-hoster, count +02.50`; saved placeholders remain unchanged |
 | Ordinary lifecycle | Restart and `down`/`up` retain instance/account/session and exact prompt content; migrations can be reapplied |
 | Version upgrade | Reconstruct schema 19 as a controlled storage fixture; deny migration backup preflight; observe closed public admission; run the production container coordinator to schema 20 and preserve the prompt and identities |
 | Independent instances | Verify the same email on a second independent instance; different account/instance IDs, empty library, and refusal of the first instance's cookie |
 | Native commands | Select HTTPS origins and approve matching browser codes; persist credentials across native process restart; copy variables with the server stopped; retain offline edit and reconnect; switch to the empty second instance and back |
-| Backup/recovery | Encrypt and scratch-restore a backup; rotate deletion signing key; acknowledge a later deletion; close/seal; replace only the ordinary database; restore; reject unavailable ledger and pre-backup reopen; rotate auth secret; prepare/rebuild; verify backup and reopen |
-| Post-restore REST | Old sessions fail, the survivor retains identity and template under a new epoch, the deleted login fails, and the deletion receipt verifies against the original anchor through rotation continuity |
+| Backup/recovery | Encrypt and scratch-restore a backup; acknowledge a later deletion; read the deletion log from the web container; close; replace only the ordinary database; restore; see the deleted account back; `deletions reapply` from the log; reject pre-backup reopen; rotate auth secret; prepare/rebuild; verify backup and reopen |
+| Post-restore REST | Old sessions fail, the survivor retains identity and template under a new epoch, the deleted login fails, and the deletion status lookup answers `deleted` for the re-deleted account |
 
 Assertions use public REST/validated clients, served browser controls and typed native commands. Storage manipulation is confined to disposable setup for schema predecessor reconstruction and explicit ordinary-database loss. No assertion infers successful application behavior from a private database query. The suite polls process startup before checking intentionally closed admission and drives on-demand server search catch-up after native uploads. Readiness remains honest about stale projections.
 

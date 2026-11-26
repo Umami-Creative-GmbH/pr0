@@ -1,20 +1,17 @@
 import "server-only";
 import { readFileSync } from "node:fs";
 
-import { deletionClaimsSchema } from "@pr0/api-contract/deletions";
 import { z } from "zod";
 
-export const restoreStateSchema = z.strictObject({
+// Not strict: files written before ADR-0005 also carry the retired ledger
+// checkpoint fields (pendingIntents, evidence), which are ignored and dropped.
+export const restoreStateSchema = z.object({
   version: z.literal(1),
   phase: z.enum(["closed", "prepared", "open"]),
   instanceId: z.uuid(),
   epoch: z.uuid(),
   startedAt: z.iso.datetime(),
   authDigest: z.string(),
-  pendingIntents: z.array(deletionClaimsSchema).default([]),
-  evidence: z
-    .object({ count: z.number().int().positive(), digest: z.string() })
-    .nullable(),
 });
 export type RestoreState = z.infer<typeof restoreStateSchema>;
 

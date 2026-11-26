@@ -137,11 +137,11 @@ impl AuthService {
             }
             record.trust.validate(&record.trust.origin)?;
             record.identity.validate(&record.trust)?;
-            if let Some(proof) = &record.deletion_proof {
-                if !record.cleanup_pending {
-                    return Err("retained_identity_invalid".into());
-                }
-                super::deletion_proof::verify(proof, record)?;
+            if record.deletion_confirmed() && !record.cleanup_pending {
+                return Err("retained_identity_invalid".into());
+            }
+            if let Some(deletion) = &record.deletion {
+                deletion.validate(record)?;
             }
         }
         let credential = credentials
@@ -251,10 +251,11 @@ impl AuthService {
             if state.generation != generation {
                 return Err("operation_cancelled".into());
             }
-            if state.retained.as_ref().is_some_and(|r| {
-                r.trust.instance_id != trust.instance_id
-                    || r.trust.deletion_key != trust.deletion_key
-            }) {
+            if state
+                .retained
+                .as_ref()
+                .is_some_and(|r| r.trust.instance_id != trust.instance_id)
+            {
                 return Err("instance_identity_changed".into());
             }
         }
@@ -359,7 +360,8 @@ impl AuthService {
                 // Metadata is durable before the credential. A crash between these writes
                 // requests authentication on restart and never discards retained files.
                 let retained = Retained {
-                    deletion_proof: None,
+                    deletion: None,
+                    legacy_deletion_proof: None,
                     version: 1,
                     identity,
                     trust,
@@ -497,7 +499,8 @@ impl AuthService {
                     return Err("same_account_required".into());
                 }
                 let retained = Retained {
-                    deletion_proof: None,
+                    deletion: None,
+                    legacy_deletion_proof: None,
                     version: 1,
                     identity,
                     trust,
@@ -656,7 +659,7 @@ impl AuthService {
             if state
                 .retained
                 .as_ref()
-                .is_some_and(|r| r.deletion_proof.is_some())
+                .is_some_and(Retained::deletion_confirmed)
             {
                 self.finish_deleted_cleanup(&mut state)?;
                 return Ok(state.view());

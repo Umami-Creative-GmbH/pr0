@@ -45,7 +45,7 @@ const confirmDeletion = async (page: Page) => {
     .click();
 };
 
-test("reload recovers the pinned deletion receipt without a surviving session", async () => {
+test("reload resolves a lost deletion response without a surviving session", async () => {
   const account = await freshSocialBrowser();
   const browser = await chromium.launch({
     channel: process.env.PR0_BROWSER_CHANNEL ?? "chrome",
@@ -59,16 +59,20 @@ test("reload recovers the pinned deletion receipt without a surviving session", 
     const network = trackNetwork(page);
     await page.goto(origin);
     await network.idle();
-    const interrupted = Promise.withResolvers<undefined>();
-    await page.route(
-      "**/api/v1/account-deletions/verification",
-      async (route) => {
-        await route.abort();
-        interrupted.resolve();
+    const lost = Promise.withResolvers<undefined>();
+    await page.route("**/api/v1/account/deletion", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
       }
-    );
+      // The server commits the deletion; only its response is lost.
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      await route.abort();
+      lost.resolve();
+    });
     await confirmDeletion(page);
-    await interrupted.promise;
+    await lost.promise;
     await page.getByRole("button", { name: "Check deletion status" }).waitFor();
     await network.idle();
     await page.reload();
@@ -79,17 +83,18 @@ test("reload recovers the pinned deletion receipt without a surviving session", 
         .getByRole("heading", { name: "Your library", exact: true })
         .count()
     ).toBe(0);
-    await page.unroute("**/api/v1/account-deletions/verification");
     await page.getByRole("button", { name: "Check deletion status" }).click();
     await page
-      .getByRole("button", { name: "Download deletion receipt" })
+      .getByText("Your account and library have been deleted.", {
+        exact: true,
+      })
       .waitFor();
   } finally {
     await browser.close();
   }
 });
 
-test("a delayed old receipt cannot clear another account's unsaved draft", async () => {
+test("a delayed old deletion response cannot clear another account's unsaved draft", async () => {
   const account = await freshSocialBrowser();
   const nextAccount = await freshSocialBrowser();
   const browser = await chromium.launch({
@@ -106,15 +111,16 @@ test("a delayed old receipt cannot clear another account's unsaved draft", async
     const network = trackNetwork(page);
     await page.goto(origin);
     await network.idle();
-    await page.route(
-      "**/api/v1/account-deletions/verification",
-      async (route) => {
-        const response = await route.fetch();
-        requested.resolve();
-        await gate.promise;
-        await route.fulfill({ response });
+    await page.route("**/api/v1/account/deletion", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
       }
-    );
+      const response = await route.fetch();
+      requested.resolve();
+      await gate.promise;
+      await route.fulfill({ response });
+    });
     await confirmDeletion(page);
     await requested.promise;
     await context.clearCookies();
@@ -169,7 +175,9 @@ test("a delayed old receipt cannot clear another account's unsaved draft", async
     await chooseAccountAction(page, "Account settings");
     await page.keyboard.press("Escape");
     await page
-      .getByRole("button", { name: "Download deletion receipt" })
+      .getByText("Your account and library have been deleted.", {
+        exact: true,
+      })
       .waitFor();
     await page
       .getByText("Unsaved changes in this tab.", { exact: true })
@@ -255,10 +263,9 @@ test("keyboard confirmation can be cancelled and completion clears the browser l
       .getByRole("button", { name: "Permanently delete account and library" })
       .press("Enter");
     await page
-      .getByText(
-        "Your account and library have been deleted. The signed receipt has been verified.",
-        { exact: true }
-      )
+      .getByText("Your account and library have been deleted.", {
+        exact: true,
+      })
       .waitFor();
     expect(
       await page
@@ -266,9 +273,7 @@ test("keyboard confirmation can be cancelled and completion clears the browser l
         .count()
     ).toBe(0);
     expect(
-      await page
-        .getByRole("button", { name: "Download deletion receipt" })
-        .count()
+      await page.getByRole("button", { name: "Finish", exact: true }).count()
     ).toBe(1);
   } finally {
     await browser.close();

@@ -2,14 +2,7 @@ import { accountTestServer, runAcceptance } from "./account-test-server";
 
 const server = accountTestServer(
   "pr0-transitions-48",
-  "apps/web/tests/device-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/device-compose.yaml"
 );
 try {
   await server.setup();

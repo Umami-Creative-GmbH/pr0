@@ -8,14 +8,7 @@ import { verifyServerUpgrade } from "./migration-journey";
 
 const server = accountTestServer(
   "pr0-compatibility-58",
-  "apps/web/tests/compatibility-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/compatibility-compose.yaml"
 );
 // Operator legal links are runtime configuration; the same build serves both cases.
 const legalLinks = {

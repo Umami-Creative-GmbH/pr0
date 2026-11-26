@@ -1,78 +1,64 @@
 // oxlint-disable eslint/no-await-in-loop, react-doctor/async-await-in-loop, react-doctor/server-sequential-independent-await -- Recovery phases and single-library search rebuilds must commit in order.
+import { existsSync } from "node:fs";
+
 import { promptBrowseInputSchema } from "@pr0/api-contract/prompts";
 
 import { database } from "../src/server/database";
-import {
-  completeDeletion,
-  pendingClaims,
-  resumeDeletions,
-} from "../src/server/deletion-coordinator";
-import { readEvidence } from "../src/server/deletion-ledger";
+import { purgeTombstonedAccounts } from "../src/server/deletion-recovery";
 import type { RestoreState } from "../src/server/restore-state";
 import { ensureSchemaCompatibility } from "../src/server/schema-compatibility";
+import { searchFilename } from "../src/server/search-location";
 import { searchProjection } from "../src/server/search-projection";
-import { auditDeletedData, evidenceCheckpoint } from "./restore-evidence";
 
-export const checkRestoreEvidence = async (state: RestoreState) => {
-  if (!state.evidence) {
-    throw new Error(
-      "A complete independently retained fenced ledger checkpoint is required"
-    );
-  }
-  const actual = await evidenceCheckpoint(
-    state.instanceId,
-    state.pendingIntents
-  );
-  if (
-    actual.count !== state.evidence.count ||
-    actual.digest !== state.evidence.digest
-  ) {
-    throw new Error(
-      "Deletion evidence is behind or changed; keep admission closed"
-    );
-  }
-  if (state.phase === "prepared") {
-    for (const claims of state.pendingIntents) {
-      if (
-        (await readEvidence(state.instanceId, `intent:${claims.accountId}`)) !==
-        JSON.stringify(claims)
-      ) {
-        throw new Error(
-          "Prepared pending deletion evidence is missing or changed"
-        );
+/**
+ * Confirms that no tombstoned account still has live data or search files.
+ * Deletions made after the restored backup are only covered once the operator
+ * has re-applied them from the deletion log (`deletions reapply`).
+ */
+export const auditDeletedData = async (instanceId: string) => {
+  const sql = database();
+  // Independently discover all canonical ownership columns, including future tables.
+  const tables = await sql<{ table_name: string; column_name: string }[]>`
+    SELECT table_name,column_name FROM information_schema.columns WHERE table_schema='public'
+    AND table_name<>'deleted_accounts'
+    AND (column_name IN ('account_id','user_id') OR (table_name='user' AND column_name='id'))`;
+  const tombstones = await sql<
+    { account_id: string }[]
+  >`SELECT account_id FROM deleted_accounts ORDER BY account_id`;
+  for (const { account_id: accountId } of tombstones) {
+    for (const table of tables) {
+      const name = table.table_name.replaceAll('"', '""');
+      const column = table.column_name.replaceAll('"', '""');
+      const rows = await sql.unsafe(
+        `SELECT 1 FROM public."${name}" WHERE "${column}"::text=$1 LIMIT 1`,
+        [accountId]
+      );
+      if (rows.length) {
+        throw new Error("Deleted account data remains");
+      }
+    }
+    const filename = searchFilename(instanceId, accountId);
+    for (const suffix of [
+      "",
+      "-wal",
+      "-shm",
+      "-journal",
+      ".building",
+      ".building-wal",
+      ".building-shm",
+      ".building-journal",
+    ]) {
+      if (existsSync(`${filename}${suffix}`)) {
+        throw new Error("Deleted search data remains");
       }
     }
   }
-};
-
-export const registerPendingRestore = async (
-  state: RestoreState
-): Promise<RestoreState> => {
-  await ensureSchemaCompatibility(database(), true);
-  await checkRestoreEvidence(state);
-  const pendingIntents = [...state.pendingIntents];
-  const registered = new Set(pendingIntents.map((claims) => claims.accountId));
-  const rows =
-    await database()`SELECT * FROM account_deletion_pending ORDER BY account_id`;
-  for (const row of rows) {
-    const claims = pendingClaims(row);
-    if (claims.instanceId !== state.instanceId) {
-      throw new Error("Pending deletion belongs to another instance");
-    }
-    if (
-      !registered.has(claims.accountId) &&
-      !(await readEvidence(state.instanceId, `intent:${claims.accountId}`))
-    ) {
-      pendingIntents.push(claims);
-    }
-  }
-  return { ...state, pendingIntents };
+  return tombstones.length;
 };
 
 export const prepareRestore = async (state: RestoreState) => {
   const sql = database();
   await ensureSchemaCompatibility(sql, true);
-  await checkRestoreEvidence(state);
   await sql.begin(async (tx) => {
     // A single transaction invalidates every restored authorization and epoch-bound snapshot.
     await tx`DELETE FROM session`;
@@ -92,10 +78,7 @@ export const prepareRestore = async (state: RestoreState) => {
     await tx`DELETE FROM search_projection_health`;
     await tx`UPDATE instance SET recovery_epoch=${state.epoch} WHERE id=${state.instanceId}`;
   });
-  for (const claims of state.pendingIntents) {
-    await completeDeletion(claims);
-  }
-  await resumeDeletions();
+  await purgeTombstonedAccounts();
   await auditDeletedData(state.instanceId);
   let after = "";
   while (true) {
