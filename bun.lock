@@ -20,7 +20,7 @@
     },
     "apps/desktop": {
       "name": "@pr0/desktop",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@pr0/api-client": "workspace:*",
         "@pr0/api-contract": "workspace:*",

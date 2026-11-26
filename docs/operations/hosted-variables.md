@@ -4,7 +4,7 @@ Every variable that [`compose.coolify.yaml`](../../compose.coolify.yaml) reads i
 
 - **Phase type** `config` is stored unencrypted in Phase. Use it only for values that may appear in a screenshot or a log. `secret` is encrypted. Use `secret` rather than `sealed` for every secret until a sync has shown that Phase can push sealed values to Coolify.
 - **In Coolify**, every `secret` row must be **runtime-only**: clear **Available during build** on the variable. Coolify enables it by default for new variables. No Dockerfile in this repository declares an `ARG`, so a mis-flagged variable still can't land in an image layer, but it would reach the build log's environment. Check the flag after every sync that adds a variable.
-- **Required** means the Compose file uses `${NAME:?…}`, so Coolify refuses to deploy while it's empty.
+- **Required** means Compose refuses to deploy without the value. For Coolify compatibility, Storage Box bind sources use plain variables and the Compose file checks that they are set separately.
 - The sync is one-way and **deletes Coolify variables that aren't in Phase**. Never edit the variables in Coolify. A change made there is lost on the next sync.
 - A sync **doesn't redeploy**. A changed value applies on the next Coolify deployment.
 

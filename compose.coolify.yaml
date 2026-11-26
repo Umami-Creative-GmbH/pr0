@@ -71,17 +71,22 @@ x-backup-environment: &backup-environment
   PR0_BACKUP_RELEASE: *release
   PR0_BACKUP_RELEASE_FILE: /var/lib/pr0-release/release
   PR0_DELETION_LOG_DIRECTORY: /var/lib/pr0-deletion-log
+# Coolify accepts plain variables in bind sources. Validate the required
+# settings separately so Compose refuses to start without them.
+x-storage-box-mounts:
+  backup: "${PR0_BACKUP_MOUNT:?Set the mounted Storage Box directory}"
+  deletion-log: "${PR0_DELETION_LOG_MOUNT:?Set the Storage Box deletion log directory}"
 # The deletion log (ADR-0005): a directory on the Storage Box beside, never
 # inside, the backup directory. web appends to it; backup expires old months.
 x-deletion-log-volume: &deletion-log-volume
   type: bind
-  source: "${PR0_DELETION_LOG_MOUNT:?Set the Storage Box deletion log directory}"
+  source: "${PR0_DELETION_LOG_MOUNT}"
   target: /var/lib/pr0-deletion-log
   bind:
     create_host_path: false
 x-backup-volumes: &backup-volumes
   - type: bind
-    source: "${PR0_BACKUP_MOUNT:?Set the mounted Storage Box directory}"
+    source: "${PR0_BACKUP_MOUNT}"
     target: /var/lib/pr0-backups
     bind:
       create_host_path: false
@@ -253,7 +258,7 @@ services:
       - search-data:/var/lib/pr0-search
       # Read-only input: `deletions reapply /var/lib/pr0-deletion-log`
       - type: bind
-        source: "${PR0_DELETION_LOG_MOUNT:?Set the Storage Box deletion log directory}"
+        source: "${PR0_DELETION_LOG_MOUNT}"
         target: /var/lib/pr0-deletion-log
         read_only: true
         bind:
