@@ -38,6 +38,14 @@ const servingServices = ["web", "mail", "ingress", "backup"] as const;
 // Coolify's own keys, which it removes before running the file.
 const coolifyKeyLine = /^\s+exclude_from_hc: true\r?\n/gmu;
 const variableReference = /\$\{(?<name>[A-Z][A-Z0-9_]*)/gu;
+// Coolify 4.7.6 accepts a plain variable in a long-syntax bind source,
+// while a required-value operator there is rejected before Compose runs.
+const bindSourceReference =
+  /source: "\$\{(?<name>PR0_(?:BACKUP|DELETION_LOG)_MOUNT)(?<modifier>[^}]*)\}"/gu;
+const storageBoxMounts = [
+  "PR0_BACKUP_MOUNT",
+  "PR0_DELETION_LOG_MOUNT",
+] as const;
 const inventoryRow =
   /^\| `(?<name>[A-Z][A-Z0-9_]*)` \| (?<type>config|secret) \| (?<required>yes|no) \|/gmu;
 const argInstruction = /^\s*ARG\s/imu;
@@ -277,6 +285,13 @@ test("the Coolify file takes every secret from runtime variables and gates web a
   const directory = await mkdtemp(path.join(root, ".scratch/coolify-config-"));
   try {
     const source = await readFile(path.join(root, coolifyFile), "utf-8");
+    const bindSources = [...source.matchAll(bindSourceReference)];
+    expect(new Set(bindSources.map((match) => match.groups?.name))).toEqual(
+      new Set(storageBoxMounts)
+    );
+    expect(bindSources.every((match) => match.groups?.modifier === "")).toBe(
+      true
+    );
     // Coolify keeps the exited jobs out of the application's health status.
     for (const job of jobs) {
       expect(source).toMatch(
@@ -343,6 +358,18 @@ test("the Coolify file takes every secret from runtime variables and gates web a
     const blocked = await compose("--env-file", variables, "config", "--quiet");
     expect(blocked.code).not.toBe(0);
     expect(blocked.stderr).toContain("Set PR0_BACKUP_KEY");
+
+    for (const mount of storageBoxMounts) {
+      await writeEnvironment(variables, { ...exampleVariables, [mount]: "" });
+      const missingMount = await compose(
+        "--env-file",
+        variables,
+        "config",
+        "--quiet"
+      );
+      expect(missingMount.code).not.toBe(0);
+      expect(missingMount.stderr).toContain(mount);
+    }
 
     // No build can take a secret: no Dockerfile declares a build argument.
     for (const dockerfile of [
