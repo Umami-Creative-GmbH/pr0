@@ -22,7 +22,6 @@ pub enum Endpoint {
     Conflicts,
     Adjustments,
     DeletionLookup,
-    DeletionVerification,
 }
 impl Endpoint {
     fn path(self) -> &'static str {
@@ -42,7 +41,6 @@ impl Endpoint {
             Self::Conflicts => "/api/v1/library/conflicts",
             Self::Adjustments => "/api/v1/library/adjustments",
             Self::DeletionLookup => "/api/v1/account-deletions/",
-            Self::DeletionVerification => "/api/v1/account-deletions/verification",
         }
     }
 }
@@ -251,8 +249,6 @@ impl Transport for HttpsTransport {
             }
             url.push_str(handle);
             self.client.get(url)
-        } else if matches!(endpoint, Endpoint::DeletionVerification) {
-            self.client.get(url).query(&body.unwrap_or_default())
         } else if matches!(
             endpoint,
             Endpoint::Changes
@@ -308,7 +304,6 @@ impl Transport for HttpsTransport {
         let limit = match endpoint {
             Endpoint::Snapshot => 262144,
             Endpoint::SnapshotPage => super::library_contract::PAGE_BYTES,
-            Endpoint::DeletionVerification => super::deletion_proof::VERIFICATION_PAGE_BYTES,
             Endpoint::Mutations
             | Endpoint::Receipts
             | Endpoint::Changes

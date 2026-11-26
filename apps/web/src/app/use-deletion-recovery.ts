@@ -1,7 +1,7 @@
 "use client";
 
-import { deletionTrustSchema } from "@pr0/api-contract/deletions";
-import type { DeletionTrust } from "@pr0/api-contract/deletions";
+import { deletionIdentitySchema } from "@pr0/api-contract/deletions";
+import type { DeletionIdentity } from "@pr0/api-contract/deletions";
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 const changed = "pr0-deletion-recovery";
@@ -27,15 +27,15 @@ export const useDeletionRecovery = (baseUrl: string) => {
   const value = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
   const pending = useMemo(() => {
     try {
-      return value ? deletionTrustSchema.parse(JSON.parse(value)) : null;
+      return value ? deletionIdentitySchema.parse(JSON.parse(value)) : null;
     } catch {
       return null;
     }
   }, [value]);
-  const persist = (trust: DeletionTrust | null) => {
-    // Failure must stop submission: the removed session cannot recover this anchor.
-    if (trust) {
-      localStorage.setItem(key, JSON.stringify(trust));
+  const persist = (identity: DeletionIdentity | null) => {
+    // Failure must stop submission: after deletion no session can recover this identity.
+    if (identity) {
+      localStorage.setItem(key, JSON.stringify(identity));
     } else {
       localStorage.removeItem(key);
     }

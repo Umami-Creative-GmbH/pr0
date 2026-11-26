@@ -8,14 +8,7 @@ const peerOrigin = "http://localhost:30461";
 
 const server = accountTestServer(
   "pr0-operations-60",
-  "apps/web/tests/operations-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/operations-compose.yaml"
 );
 try {
   await server.setup();

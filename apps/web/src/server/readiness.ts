@@ -7,7 +7,6 @@ import type { ReadinessResponse } from "@pr0/api-contract/health";
 
 import { configuration } from "./config";
 import { database } from "./database";
-import { readEvidence } from "./deletion-ledger";
 import { ensureDeletionRecovery } from "./deletion-recovery";
 import { validateMailConfiguration } from "./mail";
 import { ensureSchemaCompatibility } from "./schema-compatibility";
@@ -18,7 +17,6 @@ export const readReadiness = async (
 ): Promise<ReadinessResponse> => {
   const checks: ReadinessResponse["checks"] = {
     schema: "unavailable",
-    deletionReplay: "unavailable",
     email: "unavailable",
     search: "unavailable",
   };
@@ -26,18 +24,13 @@ export const readReadiness = async (
     await ensureSchemaCompatibility(database(), recoveryCheck);
     configuration();
     const sql = database();
-    const [instance] =
-      await sql`SELECT id,deletion_anchor FROM instance WHERE schema_version=6
+    const [instance] = await sql`SELECT id FROM instance WHERE schema_version=6
       AND EXISTS(SELECT 1 FROM migration WHERE version=19)`;
     if (!instance) {
       return { status: "unavailable", checks };
     }
     checks.schema = "ready";
     await ensureDeletionRecovery(recoveryCheck);
-    if (instance.deletion_anchor) {
-      await readEvidence(instance.id, "health");
-    }
-    checks.deletionReplay = "ready";
     const search = await sql<
       { account_id: string; current: boolean; file_signature: string | null }[]
     >`SELECT l.account_id,h.file_signature,

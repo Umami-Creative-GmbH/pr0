@@ -1,8 +1,11 @@
 import { expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
 
-import { verifyDeletionReceipt } from "@pr0/api-client/deletions";
-import { deletionTrustSchema } from "@pr0/api-contract/deletions";
+import {
+  deletionIdentitySchema,
+  deletionLookupSchema,
+  deletionResultSchema,
+} from "@pr0/api-contract/deletions";
 import {
   capabilitiesSchema,
   deviceCodeSchema,
@@ -57,10 +60,11 @@ test("explicit browser approval creates an independent desktop session", async (
     headers: { Cookie: browser, Origin: origin },
   });
   expect(trustResponse.status).toBe(200);
-  const trust = deletionTrustSchema.parse(await trustResponse.json());
+  const trust = deletionIdentitySchema.parse(await trustResponse.json());
   const discovery = await fetch(`${origin}/api/v1/capabilities`);
-  const capabilities = capabilitiesSchema.parse(await discovery.json());
-  expect(capabilities.deletionKey).toEqual(trust.anchor);
+  expect(capabilitiesSchema.safeParse(await discovery.json()).success).toBe(
+    true
+  );
   expect(desktop.deletionHandle).toBe(trust.handle);
   const logout = await post("/api/v1/desktop/sign-out", {}, headers);
   expect(logout.status).toBe(200);
@@ -199,7 +203,7 @@ test("enabled social login approves through the identical browser path", async (
   expect(desktop.account.id).toBe(library.account.id);
 });
 
-test("account deletion revokes desktop access, purges approval codes and signs the retained lookup handle", async () => {
+test("account deletion revokes desktop access, purges approval codes and answers the retained lookup handle", async () => {
   const browser = await freshSocialBrowser();
   const code = await startDevice();
   await approveDevice(
@@ -215,23 +219,20 @@ test("account deletion revokes desktop access, purges approval codes and signs t
     browser.identity.accountId,
     browser.Cookie
   );
-  const discovery = await fetch(`${origin}/api/v1/capabilities`);
-  const capabilities = capabilitiesSchema.parse(await discovery.json());
   const deletion = await post(
     "/api/v1/account/deletion",
     { ...browser.identity, confirmation: "delete-account" },
     { Cookie: browser.Cookie }
   );
   expect(deletion.status).toBe(200);
-  const result = await deletion.json();
-  const claims = await verifyDeletionReceipt(result.receipt, {
-    instanceId: session.instance.id,
-    accountId: session.account.id,
-    handle: session.deletionHandle,
-    anchor: capabilities.deletionKey,
-    rotations: [],
-  });
-  expect(claims.accountId).toBe(browser.identity.accountId);
+  const result = deletionResultSchema.parse(await deletion.json());
+  expect(result.accountId).toBe(browser.identity.accountId);
+  // A returning desktop learns of the deletion from its retained handle alone.
+  const lookup = await fetch(
+    `${origin}/api/v1/account-deletions/${session.deletionHandle}`
+  );
+  const status = deletionLookupSchema.parse(await lookup.json());
+  expect(status).toEqual(result);
   const rejected = await fetch(`${origin}/api/v1/desktop/session`, {
     headers: { Authorization: `Bearer ${token.access_token}` },
   });

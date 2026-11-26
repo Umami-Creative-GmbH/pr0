@@ -2,13 +2,7 @@ import { z } from "zod";
 
 import { readinessResponseSchema } from "./health";
 
-export const storageNameSchema = z.enum([
-  "database",
-  "search",
-  "ledger-a",
-  "ledger-b",
-  "backup",
-]);
+export const storageNameSchema = z.enum(["database", "search", "backup"]);
 const count = z.number().nonnegative().finite();
 const queue = z.strictObject({
   active: count,
@@ -46,11 +40,6 @@ export const operationalMetricsSchema = z.strictObject({
     status: z.enum(["ready", "unavailable"]),
     checkpoint: z.iso.datetime().nullable(),
     retentionOk: z.boolean(),
-  }),
-  ledger: z.strictObject({
-    status: z.enum(["ready", "unavailable"]),
-    bytes: count.nullable(),
-    pendingDeletions: count,
   }),
   errors: z.array(
     z.strictObject({

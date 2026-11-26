@@ -22,7 +22,7 @@ docker compose up -d web mail
 
 Open the configured origin, choose Create a new account, register with the admitted email and a 12–128-character password, follow the email link, then sign in. Admission never creates a shared bootstrap password or bypasses verification. The first-account command refuses a second initial admission once an admission or account exists. Closed mode ignores general allowlist entries; its explicit first-account exception applies only while the instance has no account.
 
-Compose now shares a persistent restore-admission file among web/mail and operator commands. Missing or malformed state fails closed. `restore initialize` is only for a new empty instance; existing instances use the adoption sequence in [backup and restore](backup-restore.md). Configure and initialize the [independent deletion ledgers](account-deletion.md) before offering account deletion or desktop sign-in.
+Compose now shares a persistent restore-admission file among web/mail and operator commands. Missing or malformed state fails closed. `restore initialize` is only for a new empty instance; existing instances use the adoption sequence in [backup and restore](backup-restore.md). [Account deletion](account-deletion.md) needs no separate store; keep its deletion log for restores.
 
 Self-hosting defaults to `PR0_REGISTRATION=closed`. `open` permits registration by any address. In `allowlist` mode, add an address using `docker compose run --rm accounts allow person@example.com`; non-admitted addresses remain refused. The `allow` command requires allowlist mode. After changing runtime configuration, recreate web/mail with `docker compose up -d web mail`. Existing account sign-in continues when registration is closed.
 
@@ -65,7 +65,7 @@ Mail payloads are encrypted with AES-256-GCM. A worker claims jobs durably, atte
 
 ## Health and diagnosis
 
-`/api/v1/health` is process liveness. `/api/v1/ready` additionally checks canonical configuration, PostgreSQL schema version, and a recent mail-worker heartbeat. The worker validates encryption configuration and checks the SMTP transport; a stale worker or sustained SMTP outage makes readiness unavailable. This is readiness for the account slice, not evidence of future search, deletion-ledger, or disaster-restore readiness.
+`/api/v1/health` is process liveness. `/api/v1/ready` additionally checks canonical configuration, PostgreSQL schema version, and a recent mail-worker heartbeat. The worker validates encryption configuration and checks the SMTP transport; a stale worker or sustained SMTP outage makes readiness unavailable. This is readiness for the account slice, not evidence of future search or disaster-restore readiness.
 
 ```sh
 docker compose ps

@@ -98,7 +98,6 @@ export const rehearseNativeRestore = (
       await restoreCommand("close");
       await server.stopServer();
       await server.stopMail();
-      await restoreCommand("seal");
       await resetRehearsalDatabase();
       await backupCommand("restore", checkpoint.archive);
       process.env.BETTER_AUTH_SECRET = `native-recovery-${crypto.randomUUID()}-${crypto.randomUUID()}`;

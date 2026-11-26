@@ -1,12 +1,12 @@
 // oxlint-disable unicorn/no-await-expression-member, eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Sequential public HTTP scenarios and bounded recovery polling preserve the external failure order.
 import { expect, test } from "bun:test";
-import { createPublicKey, verify } from "node:crypto";
 
-import { verifyDeletionReceipt } from "@pr0/api-client/deletions";
-import { deletionTrustSchema } from "@pr0/api-contract/deletions";
+import {
+  deletionIdentitySchema,
+  deletionResultSchema,
+} from "@pr0/api-contract/deletions";
 import { SQL } from "bun";
 
-import { runAcceptance } from "./account-test-server";
 import { freshSocialBrowser, socialBrowser } from "./email-change-fixture";
 import { origin, post, cookieFrom } from "./http-fixture";
 import { promptClient, promptOperation } from "./prompt-fixture";
@@ -133,7 +133,11 @@ test("concurrent mutations cannot survive deletion and same-email recreation rec
     ],
     { stdout: "pipe", stderr: "pipe" }
   );
-  const exported = await new Response(backup.stdout).text();
+  // Only the tombstone may still name the account: drop its COPY section.
+  const exported = (await new Response(backup.stdout).text())
+    .split("COPY ")
+    .filter((section) => !section.startsWith("public.deleted_accounts "))
+    .join("COPY ");
   expect(await backup.exited).toBe(0);
   expect(exported).not.toContain(account.identity.accountId);
   expect(exported).not.toContain(account.email);
@@ -163,166 +167,63 @@ test("concurrent mutations cannot survive deletion and same-email recreation rec
   );
 });
 
-test("independent ledger failure leaves pending deletion and recovery finishes without its session", async () => {
-  const browser = await freshSocialBrowser();
-  const trust = deletionTrustSchema.parse(
-    await (
-      await fetch(`${origin}/api/v1/account/deletion`, {
-        headers: { Cookie: browser.Cookie },
-      })
-    ).json()
-  );
-  const storage = new SQL(process.env.PR0_LEDGER_B_URL ?? "");
-  try {
-    await storage.unsafe(`CREATE FUNCTION fixture_reject_evidence() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'controlled ledger failure'; END; $$;
-      CREATE TRIGGER fixture_reject_evidence BEFORE INSERT ON deletion_record FOR EACH ROW EXECUTE FUNCTION fixture_reject_evidence();`);
-    const response = await post(
-      "/api/v1/account/deletion",
-      { ...browser.identity, confirmation: "delete-account" },
-      { Cookie: browser.Cookie }
-    );
-    expect(response.status).toBe(202);
-    expect(await response.json()).toEqual({
-      status: "pending",
-      handle: trust.handle,
-      retryAfter: 5,
-    });
-    const library = await fetch(`${origin}/api/v1/library`, {
-      headers: { Cookie: browser.Cookie },
-    });
-    expect(library.ok).toBe(false);
-    const lookup = await fetch(
-      `${origin}/api/v1/account-deletions/${trust.handle}`
-    );
-    expect(await lookup.json()).toEqual({ status: "absent" });
-  } finally {
-    await storage.unsafe(
-      "DROP TRIGGER IF EXISTS fixture_reject_evidence ON deletion_record; DROP FUNCTION IF EXISTS fixture_reject_evidence()"
-    );
-    await storage.close();
-  }
-  let result;
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Observe automatic recovery at the unauthenticated public boundary.
-    result = await (
-      await fetch(`${origin}/api/v1/account-deletions/${trust.handle}`)
-    ).json();
-    if (result.status === "deleted") {
-      break;
-    }
-    // oxlint-disable-next-line eslint/no-await-in-loop, react-doctor/async-await-in-loop -- Bounded external recovery polling.
-    await Bun.sleep(500);
-  }
-  expect(result.status).toBe("deleted");
-  expect((await verifyDeletionReceipt(result.receipt, trust)).accountId).toBe(
-    browser.identity.accountId
-  );
-});
-
-test("rotated receipts verify from the original pinned anchor and old receipts remain valid", async () => {
-  const browser = await freshSocialBrowser();
-  const pinned = deletionTrustSchema.parse(
-    await (
-      await fetch(`${origin}/api/v1/account/deletion`, {
-        headers: { Cookie: browser.Cookie },
-      })
-    ).json()
-  );
-  await runAcceptance([
-    "bun",
-    "--conditions=react-server",
-    "apps/web/scripts/deletions.ts",
-    "rotate",
-  ]);
-  const rotated = deletionTrustSchema.parse(
-    await (
-      await fetch(`${origin}/api/v1/account/deletion`, {
-        headers: { Cookie: browser.Cookie },
-      })
-    ).json()
-  );
-  expect(rotated.anchor).toEqual(pinned.anchor);
-  expect(rotated.rotations.length).toBe(pinned.rotations.length + 1);
-  const result = await (
-    await post(
-      "/api/v1/account/deletion",
-      { ...browser.identity, confirmation: "delete-account" },
-      { Cookie: browser.Cookie }
-    )
-  ).json();
-  expect(result.status).toBe("deleted");
-  await expect(verifyDeletionReceipt(result.receipt, pinned)).rejects.toThrow();
-  expect(
-    (
-      await verifyDeletionReceipt(result.receipt, {
-        ...pinned,
-        rotations: rotated.rotations,
-      })
-    ).accountId
-  ).toBe(browser.identity.accountId);
-  await expect(
-    verifyDeletionReceipt(result.receipt, {
-      ...rotated,
-      rotations: [...rotated.rotations, ...rotated.rotations],
-    })
-  ).rejects.toThrow();
-});
-
-test("confirmed deletion publishes a minimal Ed25519 receipt after revoking the account", async () => {
+test("confirmed deletion leaves only an opaque tombstone and answers the status lookup", async () => {
   const browser = await freshSocialBrowser();
   const setup = await fetch(`${origin}/api/v1/account/deletion`, {
     headers: { Cookie: browser.Cookie },
   });
   expect(setup.status).toBe(200);
-  const trust = await setup.json();
+  expect(setup.headers.get("cache-control")).toBe("no-store");
+  const identity = deletionIdentitySchema.parse(await setup.json());
+  expect(identity.accountId).toBe(browser.identity.accountId);
+  const before = await fetch(
+    `${origin}/api/v1/account-deletions/${identity.handle}`
+  );
+  expect(await before.json()).toEqual({ status: "absent" });
   const response = await post(
     "/api/v1/account/deletion",
-    {
-      ...browser.identity,
-      confirmation: "delete-account",
-    },
+    { ...browser.identity, confirmation: "delete-account" },
     { Cookie: browser.Cookie }
   );
   expect(response.status).toBe(200);
-  const result = await response.json();
-  expect(result.status).toBe("deleted");
-  const [header, body, signature] = result.receipt.split(".");
-  const lastRotation = trust.rotations.at(-1);
-  const currentKey = lastRotation
-    ? JSON.parse(
-        Buffer.from(lastRotation.split(".")[1], "base64url").toString()
-      ).key
-    : trust.anchor;
-  expect(JSON.parse(Buffer.from(header, "base64url").toString())).toEqual({
-    alg: "Ed25519",
-    typ: "pr0-account-deletion+jws",
-    kid: currentKey.kid,
-  });
-  expect(
-    verify(
-      null,
-      Buffer.from(`${header}.${body}`),
-      createPublicKey({ key: currentKey, format: "jwk" }),
-      Buffer.from(signature, "base64url")
-    )
-  ).toBe(true);
-  expect((await verifyDeletionReceipt(result.receipt, trust)).accountId).toBe(
-    browser.identity.accountId
-  );
-  expect(JSON.parse(Buffer.from(body, "base64url").toString())).toEqual({
-    version: 1,
-    instanceId: trust.instanceId,
+  const result = deletionResultSchema.parse(await response.json());
+  expect(result).toEqual({
+    status: "deleted",
     accountId: browser.identity.accountId,
-    handle: trust.handle,
-    deletionId: expect.any(String),
     deletedAt: expect.any(String),
   });
   const lookup = await fetch(
-    `${origin}/api/v1/account-deletions/${trust.handle}`
+    `${origin}/api/v1/account-deletions/${identity.handle}`
   );
+  expect(lookup.headers.get("cache-control")).toBe("no-store");
   expect(await lookup.json()).toEqual(result);
+  expect(
+    (await fetch(`${origin}/api/v1/account-deletions/not-a-handle`)).status
+  ).toBe(400);
+  expect(
+    (await fetch(`${origin}/api/v1/account-deletions/verification`)).status
+  ).toBe(400);
   const library = await fetch(`${origin}/api/v1/library`, {
     headers: { Cookie: browser.Cookie },
   });
   expect(library.status).toBe(401);
+  const sql = new SQL(process.env.DATABASE_URL ?? "");
+  try {
+    const columns =
+      await sql`SELECT column_name FROM information_schema.columns WHERE table_name='deleted_accounts' ORDER BY column_name`;
+    expect(
+      columns.map((row: { column_name: string }) => row.column_name)
+    ).toEqual(["account_id", "deleted_at", "handle"]);
+    const [tombstone] =
+      await sql`SELECT handle,deleted_at FROM deleted_accounts WHERE account_id=${identity.accountId}`;
+    expect(tombstone.handle).toBe(identity.handle);
+    expect(new Date(tombstone.deleted_at).toISOString()).toBe(result.deletedAt);
+    const [live] = await sql`SELECT
+      (SELECT count(*) FROM "user" WHERE id=${identity.accountId})::int AS users,
+      (SELECT count(*) FROM session WHERE user_id=${identity.accountId})::int AS sessions,
+      (SELECT count(*) FROM library WHERE account_id=${identity.accountId})::int AS libraries`;
+    expect(live).toEqual({ users: 0, sessions: 0, libraries: 0 });
+  } finally {
+    await sql.close();
+  }
 });

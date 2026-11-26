@@ -1,57 +1,81 @@
-# Account deletion evidence
+# Account deletion
 
-Issue #56 adds browser confirmation, an account/library barrier, live-data purge and indefinitely retained Ed25519 receipts. `POST /api/v1/account/deletion` requires a verified browser session, an account/email-version match, authentication completed within ten minutes and `confirmation: "delete-account"`. Better Auth's direct deletion route remains disabled. GET on the same route supplies the immutable identities, random 256-bit handle and pinned verification anchor before confirmation.
+Account deletion is a hard delete in the application database, plus a tombstone ([ADR-0005](../adr/0005-account-deletion-is-a-hard-delete-in-the-application-database.md)). There is no separate deletion store to provision.
 
-The coordinator commits these boundaries in order: local deletion barrier and recovery work; intent in ledger A; identical intent in ledger B; live canonical-data purge; search-worker exclusion and exact index-file removal; signed completion in A; identical completion in B. It then removes local recovery work and returns success. Failure after the barrier returns retryable `pending`. Recovery does not require a session. A pending intent or an unsigned absence can never authorize desktop cleanup.
+## The journey
 
-Before submission, the browser stores the minimal immutable identities, opaque handle and pinned verification material in origin-local storage, separately from the session. Reloading restores a status check that requires no account access. Browser cleanup uses the verified account/instance identity, so a late completion cannot clear another account's cache or unsaved draft. The receipt can be downloaded before dismissing the completed flow.
+`POST /api/v1/account/deletion` requires a verified browser session, a matching account and email version, authentication completed within ten minutes and `confirmation: "delete-account"`. Better Auth's direct deletion route stays disabled. Before confirmation, `GET` on the same route returns the account's immutable identities and its random 256-bit deletion handle.
 
-## Independent storage configuration
+One transaction then removes the account and all of its live data: the account, sessions, tokens, devices and device codes, the library, prompts and history, pending mail, verification and admission state. In the same transaction the server removes the account's search index files, holding the lock the search workers take before they open those files. Only a row in `deleted_accounts` remains: the opaque account ID, the deletion handle and the deletion time. It has no email, profile or prompt text. If anything fails, the transaction rolls back and nothing is deleted; the request returns an error and can be retried.
 
-Supply **two PostgreSQL 17 databases on independently durable hosts/storage failure domains**, separate from the service database and each other. This is the concrete provider-neutral ledger implementation. Two containers or volumes on the application host do not satisfy the deployment requirement. The local acceptance Compose uses separate disposable containers only to exercise failure boundaries; it makes no production durability claim.
+A successful response is `{"status":"deleted","accountId":"…","deletedAt":"…"}`. Signing in, syncing, and every session and token of the account fail afterwards. Signing up again with the same email creates a new account with a new ID and an empty library.
 
-Configure `PR0_LEDGER_A_URL` and `PR0_LEDGER_B_URL` (or their `_FILE` equivalents) in web and operational jobs. Use TLS with certificate verification, encrypted disks and restricted network access. Keep `fsync`, `full_page_writes` and `synchronous_commit` on; the adapter checks them and refuses unlogged storage, the service database, and identical store identities. Both independent PostgreSQL commits must acknowledge before any completed receipt is returned. Provision storage that honors durable flushes. Do not acknowledge against an asynchronous replica or fail over to a stale replica. Loss of either entire host retains acknowledged records in the other; service remains closed to deletion completion until both stores are available and reconciled.
+Before submitting, the browser keeps the identities and the handle in origin-local storage, separately from the session. If the response is lost, a reload offers a status check that needs no session. Browser cleanup uses the kept identity, so a late response can't clear another account's cache or unsaved draft.
 
-Apply application migrations first. For a **new** installation, use dedicated administrative ledger credentials to run:
+## Deletion status
+
+`GET /api/v1/account-deletions/{handle}` needs no session. It answers `{"status":"deleted","accountId":"…","deletedAt":"…"}` from the tombstone, or `{"status":"absent"}`, with `Cache-Control: no-store`. A storage error is an error, never absence. The handle grants no library access. Avoid recording handles in ingress access logs.
+
+A returning desktop looks up its retained handle on the instance it is signed in to. It clears that account's local library, pending work and credential only when the answer is `deleted` for exactly its retained account. `absent`, an error or another account ID never authorizes cleanup: after a restore, a deletion is absent until the operator re-applies it.
+
+## The deletion log
+
+For each deletion the web service writes one line:
+
+```json
+{
+  "event": "account_deleted",
+  "accountId": "6f0c…",
+  "deletedAt": "2026-11-11T10:00:00.000Z"
+}
+```
+
+It contains the opaque account ID and the time only, never the email. It is the only record of a deletion once an older backup has been restored.
+
+**The durable log file.** Set `PR0_DELETION_LOG_DIRECTORY` to a directory on off-server storage, for example a directory on the same storage as your backups, but never the backup directory or a directory inside it (backup retention refuses that). The web service then appends each line to the monthly file `deletions-YYYY-MM.jsonl` (UTC month of the deletion) and flushes it to storage **inside the deletion's transaction, before it commits**. If the append fails, for example because the directory is missing or not writable, the deletion rolls back and the request returns a retryable `503 unavailable`: a deletion is never committed without its line. The same line also goes to standard output.
+
+Mount the directory at the same path into **web** (appends), **restore** (`restore prepare` records deletions carried over by migration 21), **backup** (expiry) and **deletions** (reads it for re-applying), for example in `compose.override.yaml`:
+
+```yaml
+services:
+  web: { volumes: ["/srv/pr0-deletion-log:/var/lib/pr0-deletion-log"] }
+  restore: { volumes: ["/srv/pr0-deletion-log:/var/lib/pr0-deletion-log"] }
+  backup: { volumes: ["/srv/pr0-deletion-log:/var/lib/pr0-deletion-log"] }
+  deletions: { volumes: ["/srv/pr0-deletion-log:/var/lib/pr0-deletion-log:ro"] }
+```
+
+and set `PR0_DELETION_LOG_DIRECTORY=/var/lib/pr0-deletion-log` in `.env`. The directory must exist and be writable by UID 1000.
+
+**Expiry.** Every `backup create` (the scheduled backup) and `backup retention` removes a month's file 31 days after that month ends, so the log always covers more than the 30-day backup retention. It never touches other files in the directory.
+
+> **Warning (self-hosting):** `PR0_DELETION_LOG_DIRECTORY` is optional. When it is unset, the deletion log is **standard output only**. Docker's container log is rotated and deleted with the container, so a restore can then bring back deleted accounts that no surviving log names. Either set the directory or ship the web service's standard output to a log store that keeps it longer than 31 days and off the host. The hosted service always sets it ([hosted](hosted.md#deletion-log)).
+
+Re-deletions print `account_redeleted` lines in the same format on standard output; they are not appended to the file, which already holds the original lines.
+
+A transaction that fails at its very last step, the commit, after the line was flushed leaves a line for a deletion that did not happen. The account owner had confirmed the deletion, so re-applying it after a restore carries out what they asked for.
+
+## Re-applying deletions after a restore
+
+Restoring a backup brings back every account deleted after that backup was taken. Before reopening, re-apply the deletion log:
 
 ```sh
-docker compose run --rm accounts migrate
-docker compose run --rm deletions initialize
+docker compose run --rm deletions reapply /var/lib/pr0-deletion-log
 ```
 
-Initialization creates append-only records, independent store identities and one signing anchor in both stores. It pins the public anchor in the service database. It refuses to manufacture a replacement for a previously pinned missing anchor. Keep the ledger administrator credentials out of normal web runtime. In each ledger database, create a separate login with a generated secret and grant only:
+`reapply` takes log files or directories (each directory's `deletions-YYYY-MM.jsonl` files in name order), or reads standard input when given none (`docker compose run --rm -T deletions reapply < deletion.log`, for a log kept elsewhere). It ignores every line that is not an `account_deleted` or `account_redeleted` event, including log-collector prefixes before the JSON, and deletes each listed account again in its own transaction with its original deletion time. It is idempotent: an account that is already gone keeps (or gets) its tombstone and nothing else. It prints `{"event":"deletions_reapplied","read":…,"purged":…}` and exits nonzero on any failure, after which you fix the cause and run it again. Re-applying the whole retained log is safe and simplest. The [restore sequence](backup-restore.md#restore-sequence) says where this step belongs. If the database you are replacing is still readable, its tombstones are a second source. Export them as log lines and append them to the input:
 
-```sql
-GRANT CONNECT ON DATABASE ledger TO pr0_deletion_runtime;
-GRANT USAGE ON SCHEMA public TO pr0_deletion_runtime;
-GRANT SELECT ON deletion_store TO pr0_deletion_runtime;
-GRANT SELECT, INSERT ON deletion_record TO pr0_deletion_runtime;
+```sh
+psql "$OLD_DATABASE_URL" -tAc "SELECT json_build_object('event','account_deleted','accountId',account_id,'deletedAt',to_char(deleted_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')) FROM deleted_accounts"
 ```
 
-The runtime login must not own the tables and must not be a superuser or inherit administrative privileges. Switch the two configured URLs to these credentials. The append-only trigger also rejects UPDATE, DELETE and TRUNCATE. Restrict ledger reads: records include private signing material. Store credentials and verification/signing material independently of ordinary service backups. Only opaque instance/account/deletion identities, handles, timestamps, signatures and key metadata enter the ledger; no email, profile or prompt text does.
+All web replicas must use the **same search volume**, because a deletion removes the account's index files from it. The supplied Compose files have one web service and one persistent search volume.
 
-All web replicas must use the **same search volume**. Search workers hold a PostgreSQL advisory lock for their entire projection lifetime; purge acquires the same lock before removing that account's exact resolved paths. Do not deploy separate unregistered search caches on replica-local disks. The supplied Compose has one web service and one persistent search volume.
+## Upgrading from the ledger design
 
-## Replay and restoration
-
-Use the complete [encrypted backup and restore coordinator](backup-restore.md) for a disaster recovery. `deletions replay` alone does not invalidate restored credentials, establish a new epoch, verify search readiness, or reopen admission.
-
-Stop public ingress and application/mail processes before restoring the ordinary database. Never restore either deletion ledger from an ordinary hourly backup. Preserve both ledgers and their full append-only history indefinitely; use storage replication/retained independent copies in addition to the acknowledged two-store path. Ordinary service backups still expire within thirty days.
-
-After restoring the ordinary database, keep ingress closed and run `docker compose run --rm deletions replay` using both current ledger stores and the shared search volume. Replay enumerates every intent with paginated key scans, reconciles missing records from the other store, reapplies purges and persists any missing completion. A missing store, missing pinned anchor, conflicting record or unavailable storage fails closed. Do not run `initialize` to bypass recovery failure. Resolve the storage failure and replay again. Both stores becoming stale together cannot be repaired from an older service backup; this is why ledger retention and independent failure domains are mandatory.
-
-Web startup and readiness repeat complete replay before account operations are admitted. Every five seconds, the running service resumes local pending work. Once initialized, removing ledger configuration also blocks account access. Change the recovery epoch and follow the wider deployment restore procedure before reopening ingress. Rehearse loss of either ledger host and incomplete-copy repair before deployment and quarterly. This implementation does not certify an operator's infrastructure, the wider MVP restore-time target, or its backup retention policy.
-
-## Receipts and key continuity
-
-`GET /api/v1/account-deletions/{handle}` needs no session and returns only a compact signed receipt or unsigned `absent`, with `Cache-Control: no-store`. A storage error is an error, never absence. `GET /api/v1/account-deletions/verification` exposes the public anchor and signed rotation statements. Handles grant no library access. Avoid recording receipt handles in ingress access logs.
-
-Receipts use the fully specified `Ed25519` JOSE algorithm from [RFC 9864](https://www.rfc-editor.org/rfc/rfc9864.html), the OKP/Ed25519 key format from [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037.html), protected `kid` and `typ: pr0-account-deletion+jws`. Their exact payload is `version`, `instanceId`, `accountId`, `handle`, `deletionId`, `deletedAt`, without expiry. The shared client verifies the exact signing input before parsing claims and checks all three pinned identities.
-
-Run `docker compose run --rm deletions rotate` to append a new key signed by its predecessor. Rotation uses `typ: pr0-deletion-key-rotation+jws` and binds the instance, old/new key IDs and new public key. Both stores retain the original anchor, every continuity statement and old receipts. A client's anchor is never replaced by an unauthenticated lookup response. Same-email recreation has a new immutable account ID and cannot inherit the former account's operations or deletion authority.
+Migration 21 creates `deleted_accounts`, turns every deletion still pending under the former ledger design into a tombstone, and drops the former local work table and pinned anchor. The server purges those accounts' remaining data before it admits account work again. The ledger databases are no longer read; keep or remove them under your own retention policy. Remove `PR0_LEDGER_A_URL`, `PR0_LEDGER_B_URL` and their `_FILE` variants from your configuration.
 
 ## Validation
 
-Run `bun run --cwd apps/web test:account-deletion` for isolated real-PostgreSQL, independent-ledger and served-browser acceptance checks. The suite uses ports 30456, 55456–55458, 11456 and 18456 and owns only the `pr0-deletion-56` Compose project. It checks confirmation/freshness/provenance/identity, concurrent mutations, same-email recreation, unsigned absence, ledger failure, independent signature verification, rotation and recovery at the durable boundaries. Client conformance runs with the normal Bun test suite. Production retention and host-loss rehearsal evidence must come from the actual deployed independent storage.
+Run `bun run --cwd apps/web test:account-deletion` for the real-PostgreSQL and served-browser checks. The suite uses ports 30456, 55456, 11456 and 18456 and owns only the `pr0-deletion-56` Compose project. It checks confirmation, freshness, provenance and identity, concurrent mutations, same-email recreation, a rolled-back deletion, a deletion refused and rolled back because its log line could not be appended, the log file's content (no email), the tombstone and status lookup, a tombstone carried over by migration 21, and restoring an older database copy followed by `deletions reapply` of the log directory. The [backup and restore rehearsal](backup-restore.md#pre-release-and-quarterly-rehearsal) exercises the re-delete step from the served app's real log.
 
-Recorded results, the ordinary-database restore rehearsal and tool limitations are in [issue 56 validation evidence](../evidence/issue-56-account-deletion.md).
+Earlier evidence for the ledger design is in [issue 56 validation evidence](../evidence/issue-56-account-deletion.md); it is historical.

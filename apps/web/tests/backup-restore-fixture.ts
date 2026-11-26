@@ -77,51 +77,32 @@ export const backupCommand = async (...args: string[]) => {
     .parse(JSON.parse(result));
 };
 
-export const ledgerSnapshot = async (service: "ledger-a" | "ledger-b") => {
-  const child = Bun.spawn(
-    [
-      "docker",
-      "exec",
-      `pr0-restore-61-${service}-1`,
-      "pg_dump",
-      "-U",
-      "pr0",
-      "--clean",
-      "--if-exists",
-      "--no-owner",
-      "ledger",
-    ],
-    { stdout: "pipe", stderr: "inherit" }
-  );
-  const dump = await new Response(child.stdout).text();
-  assert.equal(await child.exited, 0);
-  return dump;
+const deletionsCommand = [
+  "bun",
+  "--conditions=react-server",
+  "apps/web/scripts/deletions.ts",
+  "reapply",
+];
+/** The restore runbook's manual step: re-apply the deletion log files or directory. */
+export const reapply = async (...inputs: string[]) => {
+  const child = Bun.spawn([...deletionsCommand, ...inputs], {
+    env: process.env,
+    stdout: "pipe",
+    stderr: "inherit",
+  });
+  const output = await new Response(child.stdout).text();
+  assert.equal(await child.exited, 0, "Re-deletion failed");
+  return output;
 };
-export const restoreLedgerFixture = async (
-  service: "ledger-a" | "ledger-b",
-  dump: string
-) => {
-  const child = Bun.spawn(
-    [
-      "docker",
-      "exec",
-      "-i",
-      `pr0-restore-61-${service}-1`,
-      "psql",
-      "-U",
-      "pr0",
-      "-d",
-      "ledger",
-      "-v",
-      "ON_ERROR_STOP=1",
-    ],
-    {
-      stdin: new Blob([dump]),
-      stdout: "ignore",
-      stderr: "inherit",
-    }
-  );
-  assert.equal(await child.exited, 0);
+export const refusedReapply = async (input: string, reason: RegExp) => {
+  const child = Bun.spawn([...deletionsCommand, input], {
+    env: process.env,
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  const message = await new Response(child.stderr).text();
+  assert.notEqual(await child.exited, 0, "Failed re-deletion must be refused");
+  assert.match(message, reason);
 };
 
 export const assertHttpStatus = async (

@@ -274,7 +274,6 @@ const evidence = {
   preparedAccounts: 0,
   resumedFrom: resumeReport ?? null,
   searchStorage: "",
-  ledgerStorage: "",
   failure: "",
   webFailure: "",
   passed: false,
@@ -395,19 +394,6 @@ try {
     "du",
     "-sb",
     "/var/lib/pr0-search"
-  );
-  evidence.ledgerStorage = await instance.compose(
-    "exec",
-    "-T",
-    "ledger-a",
-    "psql",
-    "-U",
-    "pr0",
-    "-d",
-    "ledger",
-    "-At",
-    "-c",
-    "SELECT pg_database_size(current_database())"
   );
   evidence.passed =
     !smoke &&

@@ -18,14 +18,7 @@ import { promptEdit, promptOperation } from "./prompt-fixture";
 
 const server = accountTestServer(
   "pr0-attention-46",
-  "apps/web/tests/changes-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/changes-compose.yaml"
 );
 try {
   await server.setup();

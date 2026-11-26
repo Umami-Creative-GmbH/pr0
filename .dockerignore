@@ -14,7 +14,6 @@ node_modules
 .secrets
 backups
 compose.override.yaml
-.deployments
 **/.turbo
 **/dist
 **/coverage
