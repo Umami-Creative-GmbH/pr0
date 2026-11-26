@@ -20,10 +20,10 @@ const deletionView = (
   if (deleted) {
     return "deleted";
   }
-  if (pending) {
-    return "pending";
+  if (hasIdentity) {
+    return "confirm";
   }
-  return hasIdentity ? "confirm" : "start";
+  return pending ? "pending" : "start";
 };
 
 // A 4xx response means the server refused the request before deleting anything.
@@ -95,7 +95,7 @@ export const AccountDeletionSettings = ({
   const client = useApiClient();
   const [prepared, setPrepared] = useState<DeletionIdentity | null>(null);
   const recovery = useDeletionRecovery(client.baseUrl);
-  const identity = recovery.pending ?? prepared;
+  const identity = prepared ?? recovery.pending;
   // A persisted identity means a submitted deletion whose outcome is unknown.
   const pending = Boolean(recovery.pending);
   const emailVersion = useRef(0);
@@ -158,6 +158,7 @@ export const AccountDeletionSettings = ({
       }
       // Keep the identity first: a lost response can still be resolved after a reload.
       recovery.persist(identity);
+      setPrepared(null);
       let deletedAccount: string;
       try {
         const result = await client.deleteAccount({
@@ -167,7 +168,11 @@ export const AccountDeletionSettings = ({
         });
         deletedAccount = result.accountId;
       } catch (error) {
-        if (error instanceof ApiError && isRefusalStatus(error.status)) {
+        if (
+          !pending &&
+          error instanceof ApiError &&
+          isRefusalStatus(error.status)
+        ) {
           // Refused before deletion: nothing changed.
           recovery.persist(null);
           setPrepared(null);
@@ -187,21 +192,22 @@ export const AccountDeletionSettings = ({
         return;
       }
       const result = await client.getDeletionStatus(identity.handle);
-      if (
-        result.status === "deleted" &&
-        result.accountId === identity.accountId
-      ) {
-        await complete(identity);
-      } else {
-        recovery.persist(null);
-        setPrepared(null);
-        setMessage(t("noDeletionWasRecordedYourAccountWasNotDeleted"));
+      if (result.status === "absent") {
+        setMessage(t("deletionHasNotBeenConfirmedYet"));
+        return;
       }
+      if (result.accountId !== identity.accountId) {
+        throw new Error("Account changed");
+      }
+      await complete(identity);
     });
   if (!accountId && !pending && !deleted) {
     return null;
   }
-  const view = deletionView(deleted, pending, Boolean(identity));
+  const view = deletionView(deleted, pending, Boolean(prepared));
+  const canRetry =
+    recovery.pending?.accountId === accountId &&
+    message === t("deletionHasNotBeenConfirmedYet");
   return (
     <section
       aria-labelledby="delete-account-title"
@@ -236,6 +242,18 @@ export const AccountDeletionSettings = ({
           }}
         >
           {t("checkDeletionStatus")}
+        </button>
+      ) : null}
+      {view === "pending" && canRetry ? (
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={busy}
+          onClick={() => {
+            void prepare();
+          }}
+        >
+          {t("deleteAccount")}
         </button>
       ) : null}
       {view === "start" ? (

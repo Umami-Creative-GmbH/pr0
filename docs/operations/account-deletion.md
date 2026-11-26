@@ -72,7 +72,9 @@ All web replicas must use the **same search volume**, because a deletion removes
 
 ## Upgrading from the ledger design
 
-Migration 21 creates `deleted_accounts`, turns every deletion still pending under the former ledger design into a tombstone, and drops the former local work table and pinned anchor. The server purges those accounts' remaining data before it admits account work again. The ledger databases are no longer read; keep or remove them under your own retention policy. Remove `PR0_LEDGER_A_URL`, `PR0_LEDGER_B_URL` and their `_FILE` variants from your configuration.
+If upgrading an instance that ran the former design, stop account writes and finish outstanding deletions with the old version before upgrading. Make and verify a fresh backup after upgrading. Use that backup as the earliest restore point for the new runbook, since completed deletions before the upgrade may be missing from its deletion log. Retire earlier backups from the set of ordinary restore points once the new backup is verified.
+
+Migration 21 creates `deleted_accounts`, turns every deletion still pending under the former design into a tombstone, and drops the former local work table and pinned anchor. The server purges migrated tombstones with surviving account rows before it admits account work again. Remove `PR0_LEDGER_A_URL`, `PR0_LEDGER_B_URL` and their `_FILE` variants from your configuration. Previously issued signup verification links expire at cutover; users can request a new link.
 
 ## Validation
 

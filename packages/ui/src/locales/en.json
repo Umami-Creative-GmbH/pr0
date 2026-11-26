@@ -36,7 +36,7 @@
   "confirmYourIdentityInAccountSecurityBelowThenReturnTo": "Confirm your identity in Account security below, then return to delete your account.",
   "yourAccountAndLibraryHaveBeenDeleted": "Your account and library have been deleted.",
   "theDeletionResultWasNotReceivedCheckItsStatus": "The deletion result was not received. Check its status before trying again.",
-  "noDeletionWasRecordedYourAccountWasNotDeleted": "No deletion was recorded. Your account was not deleted.",
+  "deletionHasNotBeenConfirmedYet": "Deletion has not been confirmed yet.",
   "deleteAccount": "Delete account",
   "finish": "Finish",
   "checkDeletionStatus": "Check deletion status",

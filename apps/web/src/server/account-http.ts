@@ -14,7 +14,7 @@ import type {
   AccountRequest,
   AccountResponse,
 } from "@pr0/api-contract/accounts";
-import { z } from "zod";
+import type { z } from "zod";
 
 import {
   AccountFailureError,
@@ -31,7 +31,7 @@ import {
 import { authentication } from "./auth";
 import { configuration } from "./config";
 import { database } from "./database";
-import { withMailReservation } from "./mail";
+import { verifySignupEmail, withMailReservation } from "./mail";
 import { recordFailure } from "./operational-events";
 import { resetPassword } from "./recovery";
 import { withRequestWork } from "./request-work";
@@ -277,46 +277,17 @@ const handleSocialRequest = async (
   return null;
 };
 
-const signupVerificationClaims = z.object({
-  updateTo: z.never().optional(),
-  requestType: z.never().optional(),
-});
-const isSignupVerification = (token: string) => {
-  try {
-    // Restrict the allowed route's purpose; Better Auth still verifies signature and expiry.
-    return signupVerificationClaims.safeParse(
-      JSON.parse(
-        Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf-8")
-      )
-    ).success;
-  } catch {
-    return false;
-  }
-};
-
 const handleEmailVerification = async (request: Request) => {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
   if (!token || token.length > 2048) {
     return json({ code: "invalid_verification" }, 400);
   }
-  if (!isSignupVerification(token)) {
-    return new Response(null, {
-      status: 303,
-      headers: {
-        Location: `${configuration().origin}/?verification=invalid`,
-      },
-    });
-  }
-  const target = authRequest(
-    request,
-    `verify-email?token=${encodeURIComponent(token)}`
-  );
-  const response = await authentication().handler(target);
+  const verified = await verifySignupEmail(token);
   return new Response(null, {
     status: 303,
     headers: {
-      Location: `${configuration().origin}/?${response.ok ? "verified=1" : "verification=invalid"}`,
+      Location: `${configuration().origin}/?${verified ? "verified=1" : "verification=invalid"}`,
       "Cache-Control": "no-store",
       "Referrer-Policy": "no-referrer",
     },

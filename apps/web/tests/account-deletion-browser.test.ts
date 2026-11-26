@@ -83,7 +83,18 @@ test("reload resolves a lost deletion response without a surviving session", asy
         .getByRole("heading", { name: "Your library", exact: true })
         .count()
     ).toBe(0);
-    await page.getByRole("button", { name: "Check deletion status" }).click();
+    const checkStatus = page.getByRole("button", {
+      name: "Check deletion status",
+    });
+    await page.route(
+      "**/api/v1/account-deletions/*",
+      (route) => route.fulfill({ json: { status: "absent" } }),
+      { times: 1 }
+    );
+    await checkStatus.click();
+    await page.getByText("Deletion has not been confirmed yet.").waitFor();
+    await page.reload();
+    await checkStatus.click();
     await page
       .getByText("Your account and library have been deleted.", {
         exact: true,

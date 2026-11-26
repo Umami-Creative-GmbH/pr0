@@ -76,7 +76,7 @@ export const withRequestWork = async <T>(
       }
       await sql.begin(async (tx) => {
         const [account] =
-          await tx`SELECT id, suspended FROM "user" WHERE id=${owner} AND NOT deletion_pending`;
+          await tx`SELECT id, suspended FROM "user" WHERE id=${owner} AND NOT deletion_pending FOR KEY SHARE`;
         if (!account) {
           throw new AccountFailureError("unauthenticated", 401);
         }

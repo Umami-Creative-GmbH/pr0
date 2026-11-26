@@ -8,7 +8,13 @@ import {
 import { SQL } from "bun";
 
 import { freshSocialBrowser, socialBrowser } from "./email-change-fixture";
-import { origin, post, cookieFrom } from "./http-fixture";
+import {
+  accountEmailLink,
+  cookieFrom,
+  origin,
+  password,
+  post,
+} from "./http-fixture";
 import { promptClient, promptOperation } from "./prompt-fixture";
 import { githubLogin, libraryFor } from "./social-fixture";
 
@@ -226,4 +232,57 @@ test("confirmed deletion leaves only an opaque tombstone and answers the status 
   } finally {
     await sql.close();
   }
+});
+
+test("a deleted account's verification link cannot verify a same-email signup", async () => {
+  const email = `deleted-verification-${crypto.randomUUID()}@example.test`;
+  const credentials = { email, password };
+  expect((await post("/api/auth/sign-up/email", credentials)).status).toBe(202);
+  const link = await accountEmailLink(email);
+  expect(
+    (await fetch(link, { redirect: "manual" })).headers.get("location")
+  ).toBe(`${origin}/?verified=1`);
+  const headers = {
+    Cookie: cookieFrom(await post("/api/auth/sign-in/email", credentials)),
+  };
+  const library = await libraryFor(headers.Cookie);
+  const identity = { accountId: library.account.id, emailVersion: 0 };
+  expect(
+    (
+      await post(
+        "/api/v1/account/reauth/verify",
+        { ...identity, password },
+        headers
+      )
+    ).status
+  ).toBe(200);
+  expect(
+    (
+      await post(
+        "/api/v1/account/deletion",
+        { ...identity, confirmation: "delete-account" },
+        headers
+      )
+    ).status
+  ).toBe(200);
+
+  expect((await post("/api/auth/sign-up/email", credentials)).status).toBe(202);
+  const oldVerification = await fetch(link, { redirect: "manual" });
+  expect(oldVerification.headers.get("location")).toBe(
+    `${origin}/?verification=invalid`
+  );
+  expect((await post("/api/auth/sign-in/email", credentials)).status).toBe(401);
+  const replacementLink = await accountEmailLink(email, undefined, link);
+  const replacementVerification = await fetch(replacementLink, {
+    redirect: "manual",
+  });
+  expect(replacementVerification.headers.get("location")).toBe(
+    `${origin}/?verified=1`
+  );
+  const replacement = cookieFrom(
+    await post("/api/auth/sign-in/email", credentials)
+  );
+  expect((await libraryFor(replacement)).account.id).not.toBe(
+    identity.accountId
+  );
 });
