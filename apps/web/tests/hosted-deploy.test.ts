@@ -280,6 +280,32 @@ const expectInventory = async (source: string) => {
   }
 };
 
+test("Coolify 4.7.6 accepts the hosted Compose file before interpolation", async () => {
+  const validator = Bun.spawn(
+    [
+      "docker",
+      "run",
+      "--rm",
+      "-i",
+      "--network",
+      "none",
+      "--entrypoint",
+      "php",
+      "ghcr.io/coollabsio/coolify:4.7.6@sha256:95d25ed900d0f0cb6e621c3bade63efdf1df85ba5c63e76ae3c92beba1debb90",
+      "-d",
+      "display_errors=stderr",
+      "-r",
+      'require "/var/www/html/vendor/autoload.php"; validateDockerComposeForInjection(stream_get_contents(STDIN));',
+    ],
+    { stdin: Bun.file(path.join(root, coolifyFile)), stderr: "pipe" }
+  );
+  const [errors, code] = await Promise.all([
+    new Response(validator.stderr).text(),
+    validator.exited,
+  ]);
+  expect(code, errors).toBe(0);
+}, 300_000);
+
 test("the Coolify file takes every secret from runtime variables and gates web and mail on the upgrade jobs", async () => {
   await mkdir(path.join(root, ".scratch"), { recursive: true });
   const directory = await mkdtemp(path.join(root, ".scratch/coolify-config-"));
