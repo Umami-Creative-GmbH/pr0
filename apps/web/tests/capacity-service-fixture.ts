@@ -48,8 +48,6 @@ export const capacityServiceFixture = async () => {
     database: "1536m",
     mail: "128m",
     smtp: "64m",
-    "ledger-a": "256m",
-    "ledger-b": "256m",
   };
   for (const [name, limit] of Object.entries(memory)) {
     const service = configuration.services[name];

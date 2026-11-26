@@ -7,7 +7,7 @@ mod auth_transport;
 mod change_contract;
 mod clipboard;
 mod conflict_contract;
-mod deletion_proof;
+mod deletion_status;
 mod excerpt;
 mod launcher_runtime;
 mod library_contract;

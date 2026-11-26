@@ -29,8 +29,6 @@ import {
 import { authentication } from "./auth";
 import { configuration, legalLinks } from "./config";
 import { database } from "./database";
-import { deletionInstance } from "./deletion-coordinator";
-import { signingKeys } from "./deletion-signing";
 import { withRequestWork } from "./request-work";
 import { withDeviceIssuance } from "./session-issuance";
 
@@ -212,8 +210,11 @@ export const handleCapabilities = async (request: Request) => {
   try {
     return await withRequestWork(async () => {
       await admitAnonymous(request);
-      const instanceId = await deletionInstance();
-      const keys = await signingKeys(instanceId);
+      const [instance] = await database()`SELECT id FROM instance`;
+      if (!instance) {
+        throw new Error("Instance unavailable");
+      }
+      const instanceId = String(instance.id);
       const negotiated =
         new URL(request.url).searchParams.get("negotiation") === "1";
       const legal = legalLinks();
@@ -224,7 +225,6 @@ export const handleCapabilities = async (request: Request) => {
           protocols: [1],
           normalization: "pr0-search-v1-ucd17",
           deviceAuthorization: true,
-          deletionKey: keys.anchor,
           limits: { credentialBytes: 2560, responseBytes: 16_384 },
           // Legacy desktops reject additional fields. Discovery is opt-in until
           // the last strict legacy release leaves the support window.

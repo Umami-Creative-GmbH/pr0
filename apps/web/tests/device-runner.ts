@@ -4,14 +4,7 @@ import { verifyDeviceRestart } from "./device-restart";
 
 const server = accountTestServer(
   "pr0-device-39",
-  "apps/web/tests/device-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/device-compose.yaml"
 );
 try {
   await server.setup();

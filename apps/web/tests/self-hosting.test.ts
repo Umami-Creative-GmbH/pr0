@@ -117,8 +117,6 @@ test("fresh production Compose initializes mounted secrets, verified email acces
       "--no-build",
       "--wait",
       "database",
-      "ledger-a",
-      "ledger-b",
       "smtp"
     );
     await instance.compose("run", "--rm", "accounts", "migrate");
@@ -193,12 +191,12 @@ test("fresh production Compose initializes mounted secrets, verified email acces
       emailVerification: true,
       browserCreateSearchVariableCopy: true,
       restartAndDownPreservedIdentity: true,
-      schema19To20Upgrade: true,
+      schema20To21Upgrade: true,
       independentSameEmail: true,
       nativeHttpsOfflineReconnectAndSwitch: Boolean(executable),
       recovery,
       limitations: [
-        "Local ledger containers and backup mount do not establish independent host-loss durability.",
+        "The local backup mount does not establish independent host-loss durability.",
         "SMTP sink is local; real SMTP delivery and optional OAuth require operator integration.",
         "Native command worker is not a signed installed release acceptance test.",
       ],

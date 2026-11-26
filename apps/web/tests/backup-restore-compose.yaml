@@ -28,27 +28,6 @@ services:
   smtp:
     image: axllent/mailpit@sha256:030f06031ce5c60913ac9363da1ab0d4be6fd2a78147dd0e1ca0fcac665d6b34
     ports: ["127.0.0.1:18461:8025", "127.0.0.1:11461:1025"]
-  ledger-a:
-    image: postgres:17-alpine
-    healthcheck:
-      test: [CMD, pg_isready, -h, 127.0.0.1, -U, pr0, -d, ledger]
-      interval: 1s
-      timeout: 2s
-      retries: 30
-    environment:
-      POSTGRES_USER: pr0
-      POSTGRES_DB: ledger
-      POSTGRES_PASSWORD: local-deletion-test-only
-    ports: ["127.0.0.1:55462:5432"]
-    tmpfs: /var/lib/postgresql/data
-  ledger-b:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: pr0
-      POSTGRES_DB: ledger
-      POSTGRES_PASSWORD: local-deletion-test-only
-    ports: ["127.0.0.1:55463:5432"]
-    tmpfs: /var/lib/postgresql/data
 
 volumes:
   backup-data:

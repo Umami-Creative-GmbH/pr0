@@ -25,6 +25,7 @@ const filenames = [
   "018-live-changes.sql",
   "019-service-operations.sql",
   "020-compatible-upgrades.sql",
+  "021-deletion-tombstone.sql",
 ];
 
 export const migrate = async (pool: SQL) => {

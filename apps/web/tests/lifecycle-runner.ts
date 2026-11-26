@@ -3,14 +3,7 @@ import { verifyNativeHttps } from "./device-native";
 
 const server = accountTestServer(
   "pr0-lifecycle-44",
-  "apps/web/tests/device-compose.yaml",
-  () =>
-    runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ])
+  "apps/web/tests/device-compose.yaml"
 );
 try {
   await server.setup();

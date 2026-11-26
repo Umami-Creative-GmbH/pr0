@@ -1,71 +1,24 @@
 import { z } from "zod";
 
-export const DELETION_VERIFICATION_PAGE_SIZE = 64;
-export const DELETION_VERIFICATION_MAX_PAGE = Math.floor(
-  Number.MAX_SAFE_INTEGER / DELETION_VERIFICATION_PAGE_SIZE
-);
-
+/** Opaque random 256-bit handle; it names a deletion status and grants no account access. */
 export const deletionHandleSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
-export const deletionKeySchema = z.strictObject({
-  kty: z.literal("OKP"),
-  crv: z.literal("Ed25519"),
-  x: deletionHandleSchema,
-  kid: z.uuid(),
-});
-export const deletionClaimsSchema = z.strictObject({
-  version: z.literal(1),
+
+/** What a browser keeps before confirming, so a reload can still check the outcome. */
+export const deletionIdentitySchema = z.strictObject({
   instanceId: z.uuid(),
   accountId: z.uuid(),
   handle: deletionHandleSchema,
-  deletionId: z.uuid(),
+});
+const deletedSchema = z.strictObject({
+  status: z.literal("deleted"),
+  accountId: z.uuid(),
   deletedAt: z.iso.datetime(),
 });
-export const compactJwsSchema = z
-  .string()
-  .max(4096)
-  .regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{86}$/u);
-export const deletionTrustSchema = z.strictObject({
-  instanceId: z.uuid(),
-  accountId: z.uuid(),
-  handle: deletionHandleSchema,
-  anchor: deletionKeySchema,
-  rotations: z.array(compactJwsSchema),
-});
-export const deletionVerificationSchema = z.strictObject({
-  instanceId: z.uuid(),
-  anchor: deletionKeySchema,
-  rotations: z.array(compactJwsSchema),
-});
-export const deletionVerificationPageSchema = deletionVerificationSchema.extend(
-  {
-    rotations: z.array(compactJwsSchema).max(DELETION_VERIFICATION_PAGE_SIZE),
-    nextPage: z
-      .number()
-      .int()
-      .nonnegative()
-      .max(DELETION_VERIFICATION_MAX_PAGE)
-      .nullable(),
-  }
-);
-export const deletionResultSchema = z.discriminatedUnion("status", [
-  z.strictObject({ status: z.literal("deleted"), receipt: compactJwsSchema }),
-  z.strictObject({
-    status: z.literal("pending"),
-    handle: deletionHandleSchema,
-    retryAfter: z.number().int().positive(),
-  }),
-]);
-export const deletionLookupSchema = z.union([
-  z.strictObject({ status: z.literal("deleted"), receipt: compactJwsSchema }),
+export const deletionResultSchema = deletedSchema;
+export const deletionLookupSchema = z.discriminatedUnion("status", [
+  deletedSchema,
   z.strictObject({ status: z.literal("absent") }),
 ]);
-export const deletionRotationSchema = z.strictObject({
-  version: z.literal(1),
-  instanceId: z.uuid(),
-  oldKid: z.uuid(),
-  newKid: z.uuid(),
-  key: deletionKeySchema,
-});
-export type DeletionClaims = z.infer<typeof deletionClaimsSchema>;
-export type DeletionKey = z.infer<typeof deletionKeySchema>;
-export type DeletionTrust = z.infer<typeof deletionTrustSchema>;
+export type DeletionIdentity = z.infer<typeof deletionIdentitySchema>;
+export type DeletionResult = z.infer<typeof deletionResultSchema>;
+export type DeletionLookup = z.infer<typeof deletionLookupSchema>;

@@ -1,20 +1,27 @@
 import assert from "node:assert/strict";
-import { mkdirSync, rmdirSync } from "node:fs";
+import { mkdirSync, readFileSync, rmdirSync } from "node:fs";
 import path from "node:path";
 
-import { deletionTrustSchema } from "@pr0/api-contract/deletions";
+import {
+  deletionIdentitySchema,
+  deletionResultSchema,
+} from "@pr0/api-contract/deletions";
+import { SQL } from "bun";
 
+import {
+  deletionLogFilename,
+  deletionLogLine,
+} from "../src/lib/deletion-log-files";
 import { accountTestServer, runAcceptance } from "./account-test-server";
-import { verifyPendingRestore } from "./backup-pending-journey";
 import {
   assertHttpStatus,
   backupCommand,
   backupCompose,
-  ledgerSnapshot,
+  reapply,
+  refusedReapply,
   refusedRestore,
   resetRehearsalDatabase,
   restoreCommand,
-  restoreLedgerFixture,
 } from "./backup-restore-fixture";
 import { rehearseNativeRestore } from "./backup-restore-native";
 import { verifyBackupStorage } from "./backup-storage-journey";
@@ -31,16 +38,14 @@ const directory = path.resolve(
 process.env.PR0_REHEARSAL_DIRECTORY = directory;
 process.env.PR0_RECOVERY_STATE_FILE = path.join(directory, "recovery.json");
 process.env.PR0_SEARCH_DIRECTORY = path.join(directory, "search");
+// The durable deletion log, a directory beside (never inside) the backups.
+const deletionLogDirectory = path.join(directory, "deletion-log");
+mkdirSync(deletionLogDirectory, { recursive: true });
+process.env.PR0_DELETION_LOG_DIRECTORY = deletionLogDirectory;
 const server = accountTestServer(
   "pr0-restore-61",
   "apps/web/tests/backup-restore-compose.yaml",
   async () => {
-    await runAcceptance([
-      "bun",
-      "--conditions=react-server",
-      "apps/web/scripts/deletions.ts",
-      "initialize",
-    ]);
     await runAcceptance([
       "bun",
       "--conditions=react-server",
@@ -63,7 +68,7 @@ try {
   const trustResponse = await fetch(`${origin}/api/v1/account/deletion`, {
     headers: { Cookie: deleted.Cookie },
   });
-  const trust = deletionTrustSchema.parse(await trustResponse.json());
+  const trust = deletionIdentitySchema.parse(await trustResponse.json());
   await post("/api/auth/request-password-reset", { email: survivor.email });
   const resetLink = await accountEmailLink(
     survivor.email,
@@ -73,22 +78,33 @@ try {
     "token"
   );
   const ordinary = await backupCommand("create");
-  const oldLedgers = await Promise.all([
-    ledgerSnapshot("ledger-a"),
-    ledgerSnapshot("ledger-b"),
-  ]);
-  await runAcceptance([
-    "bun",
-    "--conditions=react-server",
-    "apps/web/scripts/deletions.ts",
-    "rotate",
-  ]);
   const deletion = await post(
     "/api/v1/account/deletion",
     { ...deleted.identity, confirmation: "delete-account" },
     { Cookie: deleted.Cookie }
   );
   assert.equal(deletion.status, 200);
+  const deletedResult = deletionResultSchema.parse(await deletion.json());
+  // The durable deletion log file and stdout carry the same line: account ID
+  // and time only.
+  const line = deletionLogLine(
+    "account_deleted",
+    deletedResult.accountId,
+    deletedResult.deletedAt
+  );
+  const deletionLog = readFileSync(
+    path.join(
+      deletionLogDirectory,
+      deletionLogFilename(deletedResult.deletedAt)
+    ),
+    "utf-8"
+  );
+  assert.ok(
+    deletionLog.split("\n").includes(line),
+    "the deletion is in the file"
+  );
+  assert.ok(server.serverLog().includes(line), "and on stdout");
+  assert.ok(!deletionLog.includes(deleted.email), "no email in the log file");
   const lossSeconds = (Date.now() - Date.parse(ordinary.checkpoint)) / 1000;
   const recoveryStarted = Date.now();
   await restoreCommand("close");
@@ -96,35 +112,36 @@ try {
   await assertHttpStatus("/api/v1/ready", 503);
   await server.stopServer();
   await server.stopMail();
-  await restoreCommand("seal");
-  const completeLedger = await ledgerSnapshot("ledger-a");
   await resetRehearsalDatabase();
   await backupCommand("restore", ordinary.archive);
   process.env.BETTER_AUTH_SECRET =
     "rotated-restore-test-auth-secret-at-least-32-characters";
-  await refusedRestore(
-    "prepare",
-    /ECONNREFUSED|Failed to connect|Connection closed|connect/iu,
-    {
-      PR0_LEDGER_B_URL:
-        "postgres://pr0:local-deletion-test-only@localhost:1/ledger",
-    }
-  );
-  await restoreLedgerFixture("ledger-a", oldLedgers[0] ?? "");
-  await restoreLedgerFixture("ledger-b", oldLedgers[1] ?? "");
-  await refusedRestore("prepare", /behind or changed/u);
-  await server.startServer({}, false);
-  await assertHttpStatus("/api/v1/library", 503, survivor.Cookie);
-  await server.stopServer();
-  // Recover one authoritative copy; the other is deliberately still behind.
-  await restoreLedgerFixture("ledger-a", completeLedger);
-  const purgeObstacle = path.join(
-    process.env.PR0_SEARCH_DIRECTORY,
-    `${trust.instanceId}-${trust.accountId}.sqlite`
-  );
-  mkdirSync(purgeObstacle, { recursive: true });
-  await refusedRestore("prepare", /EISDIR|directory/iu);
-  rmdirSync(purgeObstacle);
+  // Accepted risk (ADR-0005): the older archive brings the deleted account back.
+  const app = new SQL(process.env.DATABASE_URL ?? "");
+  const owners = async () => {
+    const [row] =
+      await app`SELECT count(*)::int AS count FROM "user" WHERE id=${trust.accountId}`;
+    return Number(row.count);
+  };
+  try {
+    assert.equal(await owners(), 1);
+    await server.startServer({}, false);
+    await assertHttpStatus("/api/v1/library", 503, survivor.Cookie);
+    await server.stopServer();
+    // Runbook step: re-delete from the deletion log before reopening.
+    const purgeObstacle = path.join(
+      process.env.PR0_SEARCH_DIRECTORY,
+      `${trust.instanceId}-${trust.accountId}.sqlite`
+    );
+    mkdirSync(purgeObstacle, { recursive: true });
+    await refusedReapply(deletionLogDirectory, /EISDIR|directory/iu);
+    assert.equal(await owners(), 1, "a failed re-delete rolls back");
+    rmdirSync(purgeObstacle);
+    assert.match(await reapply(deletionLogDirectory), /"read":1,"purged":1/u);
+    assert.equal(await owners(), 0);
+  } finally {
+    await app.close();
+  }
   await restoreCommand("prepare");
   // A process interruption after preparation still leaves public requests closed.
   server.startMail();
@@ -165,13 +182,11 @@ try {
     recoverySeconds,
     acknowledgedDeletionsLost: 0,
     encryptedRoundTrip: true,
-    unavailableLedgerRefused: true,
-    bothLedgersBehindRefused: true,
-    oneCurrentLedgerRepairedOther: true,
-    failedPurgeRefused: true,
+    restoredArchiveBroughtDeletedAccountBack: true,
+    deletionReappliedFromLog: true,
+    failedReapplyRolledBack: true,
     interruptedRestoreStayedClosed: true,
     restoredSessionAndActionTokenRefused: true,
-    signingKeyRotationReplayed: true,
   };
   await Bun.write(
     "docs/evidence/issue-61-rehearsal.json",
@@ -179,7 +194,6 @@ try {
   );
   process.stdout.write(`${JSON.stringify(evidence)}\n`);
   await verifyBackupStorage();
-  await verifyPendingRestore(server);
   if (process.env.PR0_RESTORE_NATIVE === "1") {
     await rehearseNativeRestore(server);
   }

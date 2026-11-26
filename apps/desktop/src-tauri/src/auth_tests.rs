@@ -1053,11 +1053,6 @@ impl Transport for Fixture {
         {
             return Ok(json!({"status":"absent"}));
         }
-        if matches!(endpoint, Endpoint::DeletionVerification) {
-            return Ok(
-                json!({"instanceId": fixtures()["capabilities"]["instanceId"], "anchor": fixtures()["capabilities"]["deletionKey"], "rotations": []}),
-            );
-        }
         let value = responses.remove(0);
         if let Some(error) = value
             .get("fixtureFailure")

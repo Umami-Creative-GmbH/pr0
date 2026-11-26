@@ -13,7 +13,6 @@ export const readinessResponseSchema = z.strictObject({
   status: readinessCheck,
   checks: z.strictObject({
     schema: readinessCheck,
-    deletionReplay: readinessCheck,
     email: readinessCheck,
     search: z.enum(["ready", "search_preparing", "unavailable"]),
   }),

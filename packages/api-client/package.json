@@ -6,7 +6,6 @@
   "exports": {
     "./changes": "./src/changes.ts",
     "./snapshots": "./src/snapshots.ts",
-    "./deletions": "./src/deletions.ts",
     "./prompts": "./src/prompts.ts",
     "./client": "./src/client.ts",
     "./health": "./src/health.ts",
